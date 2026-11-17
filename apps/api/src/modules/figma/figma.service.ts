@@ -12,7 +12,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import type { FigmaFrameRow, FigmaLinkRow, ProjectRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
-import type { SeedCipher } from '../identity/seed-cipher.js';
+import type { TokenVaultSlot } from '../connectors/token-vault.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { FigmaAccess, clientMayRead } from './figma-access.js';
 import { oauthFlowIsOwnersAndMatches } from '../../common/http/oauth-flow.js';
@@ -69,8 +69,8 @@ import {
  * ## The token
  *
  * Each member pastes their own Figma personal access token. It is checked with Figma (`/v1/me`)
- * before it is stored, then stored only as the SeedCipher envelope bound to the member
- * ({@link figmaTokenBinding}), so a row copied to another member fails to open. Only the last
+ * before it is stored, then stored only as the token vault's envelope (`figma_token`) bound to
+ * the member ({@link figmaTokenBinding}), so a row copied to another member fails to open. Only the last
  * four characters are ever echoed. The token is decrypted in {@link FigmaService.tokenFor} and in
  * the snapshot job, and never leaves the API.
  *
@@ -150,7 +150,7 @@ export function figmaRenderObjectKey(
 export async function readMemberToken(
   database: TenantDatabase,
   repository: FigmaRepository,
-  cipher: SeedCipher,
+  cipher: TokenVaultSlot,
   context: TenantContext,
   membershipId: string,
   connectedOnly = true,
@@ -365,7 +365,7 @@ export interface FigmaSnapshotRequester {
 export interface FigmaServiceDeps {
   readonly database: TenantDatabase;
   readonly audit: AuditService;
-  readonly cipher: SeedCipher;
+  readonly cipher: TokenVaultSlot;
   readonly rest: FigmaRestClient;
   readonly store: ObjectStore;
   readonly snapshots?: FigmaSnapshotRequester | null;

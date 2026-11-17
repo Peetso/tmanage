@@ -7,7 +7,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { oauthFlowIsOwnersAndMatches } from '../../common/http/oauth-flow.js';
-import type { SeedCipher } from '../identity/seed-cipher.js';
+import type { TokenVaultSlot } from '../connectors/token-vault.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { connectorBinding } from '../connectors/connectors.service.js';
 import type { ConnectorsRepository } from '../connectors/connectors.repository.js';
@@ -29,9 +29,9 @@ import {
  * FIX5 — one-click Connect for GitHub (owner/admin, `org.manage`). Slack and Microsoft Teams were
  * removed on 2026-11-10; their stored vault rows and channel links are left untouched.
  *
- * The token lives in the token vault (`connector_installations.credential_enc`, the SeedCipher
- * bound to the organization and the vault key, {@link connectorBinding}) under `github`, where a
- * pasted token goes too, and never leaves the server: a view says whether the app is set up and
+ * The token lives in the token vault (`connector_installations.credential_enc`, purpose
+ * `connector_token`, bound to the organization and the vault key, {@link connectorBinding}) under
+ * `github`, where a pasted token goes too, and never leaves the server: a view says whether the app is set up and
  * connected, and the account's login, nothing more.
  *
  * A second Connect revokes the token it replaces at GitHub (best effort, after the new one is
@@ -58,7 +58,7 @@ export interface AppConnectView {
 
 export interface AppConnectDeps {
   readonly database: TenantDatabase;
-  readonly cipher: SeedCipher;
+  readonly cipher: TokenVaultSlot;
   readonly vault: Pick<ConnectorsRepository, 'findByKey' | 'insert' | 'remove'>;
   readonly audit: Pick<AuditService, 'record'>;
   readonly config: {

@@ -10,8 +10,8 @@ import type {
 /**
  * 56-02: the rotation job's statements, over the worker's pool. `tmanage_worker` holds SELECT,
  * INSERT, UPDATE on `key_rotations` and SELECT, UPDATE on the target tables (scripts/db/users.sql).
- * Table and column names (including `versionColumn`) come only from the closed `ROTATION_TARGETS`
- * map, never from a row.
+ * Table and column names (including `versionColumn` and the `owner` expression) come only from the
+ * closed `ROTATION_TARGETS` map, never from a row.
  */
 
 interface WriteResult {
@@ -80,7 +80,7 @@ export function createRotationStore(database: WorkerDatabase): RotationStore {
     readBatch: (target: RotationTarget, afterId, limit) =>
       database.read(async (tx) => {
         const rows = await tx.query<readonly { id: string; owner_id: string; value: string }[]>(
-          `SELECT id, ${target.ownerColumn} AS owner_id, ${target.column} AS value
+          `SELECT id, ${target.owner} AS owner_id, ${target.column} AS value
              FROM ${target.table}
             WHERE ${target.column} IS NOT NULL AND id > ?
             ORDER BY id LIMIT ${Math.trunc(limit)}`,

@@ -10,7 +10,7 @@ import {
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
-import { createSeedCipher } from '../identity/seed-cipher.js';
+import { tokenVaultFromEnv } from '../connectors/token-vault.js';
 import {
   DEFAULT_FIGMA_SNAPSHOT_JOB_OPTIONS,
   FIGMA_SNAPSHOT_JOB,
@@ -60,7 +60,7 @@ export class FigmaModule {
           database,
           store,
           rest,
-          createSeedCipher(config.mfaSeedKeys),
+          tokenVaultFromEnv(config.mfaSeedKeys).slot('figma_token'),
           audit,
           figmaSnapshotJobEnabled(),
           DEFAULT_FIGMA_SNAPSHOT_JOB_OPTIONS,
@@ -79,7 +79,7 @@ export class FigmaModule {
         new FigmaService({
           database,
           audit,
-          cipher: createSeedCipher(config.mfaSeedKeys),
+          cipher: tokenVaultFromEnv(config.mfaSeedKeys).slot('figma_token'),
           rest,
           store,
           snapshots,

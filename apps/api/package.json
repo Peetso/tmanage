@@ -25,7 +25,8 @@
     "db:grants": "tsx src/common/database/cli.ts grants",
     "db:reset": "tsx src/common/database/cli.ts reset",
     "mfa:encrypt-seeds": "tsx src/common/database/cli.ts mfa-seeds encrypt",
-    "mfa:seeds-status": "tsx src/common/database/cli.ts mfa-seeds status"
+    "mfa:seeds-status": "tsx src/common/database/cli.ts mfa-seeds status",
+    "token-vault:upgrade": "tsx src/common/database/cli.ts token-vault upgrade"
   },
   "dependencies": {
     "@jsquash/webp": "^1.5.0",

@@ -3,7 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ConnectorInstallationRow } from '../../common/database/schema.js';
-import type { SeedCipher } from '../identity/seed-cipher.js';
+import type { TokenVaultSlot } from './token-vault.js';
 import { CONNECTORS, findConnector } from './connectors.catalog.js';
 import type {
   ConnectorAuthType,
@@ -101,14 +101,14 @@ function unknownConnector(): ApiError {
  *
  * Every method is owner/admin only: `org.manage`, re-checked here with the real evaluator (the
  * route guard asks the same question first). A credential only ever travels into the vault
- * (`SeedCipher`, bound to the organization and connector) and never back out through a view.
+ * (`connector_token`, bound to the organization and connector) and never back out through a view.
  * Built-in connectors (Drive, OneDrive, calendars) keep their own flows: install/uninstall here
  * refuses them with a 409 and the screen sends the owner to their own card.
  */
 export class ConnectorsService {
   constructor(
     private readonly database: TenantDatabase,
-    private readonly cipher: SeedCipher,
+    private readonly cipher: TokenVaultSlot,
     private readonly repository: ConnectorsRepository = new ConnectorsRepository(),
   ) {}
 

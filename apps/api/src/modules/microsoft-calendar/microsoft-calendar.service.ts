@@ -6,7 +6,7 @@ import type {
   MeetingRow,
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
-import type { SeedCipher } from '../identity/seed-cipher.js';
+import type { TokenVaultSlot } from '../connectors/token-vault.js';
 import { MeetingsRepository } from '../calendar/meetings.repository.js';
 import { MeetingCalendarRepository } from '../calendar/meeting-calendar.repository.js';
 import type { CalendarSyncPort } from '../calendar/calendar-sync.port.js';
@@ -89,7 +89,7 @@ export interface MicrosoftCalendarServiceDeps {
   readonly database: TenantDatabase;
   readonly audit: AuditService;
   readonly transport: MicrosoftCalendarTransport;
-  readonly cipher: SeedCipher;
+  readonly cipher: TokenVaultSlot;
   readonly config: MicrosoftCalendarConfig | null;
   /** `API_PUBLIC_URL`: the redirect is `${apiPublicUrl}/v1/integrations/microsoft-calendar/callback`. */
   readonly apiPublicUrl: string;

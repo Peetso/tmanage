@@ -4,6 +4,8 @@ import { dirname, resolve } from 'node:path';
 import { parseSeedKeys } from '@tmanage/config';
 import type { SeedKeyring } from '@tmanage/config';
 import { createSeedCipher } from '../../modules/identity/seed-cipher.js';
+import { tokenVaultFromEnv } from '../../modules/connectors/token-vault.js';
+import { upgradeLegacyTokens } from '../../modules/connectors/token-vault-upgrade.repository.js';
 import {
   encryptSeeds,
   seedEncryptionStatus,
@@ -13,8 +15,8 @@ import { applyGrants, GrantApplicationError } from './grants.js';
 import { migrate, migrationStatus, resetDatabase, MigrationError } from './migrator.js';
 
 /**
- * `pnpm db:migrate` / `db:status` / `db:reset` / `db:grants`, and D07's
- * `mfa:encrypt-seeds` / `mfa:seeds-status`.
+ * `pnpm db:migrate` / `db:status` / `db:reset` / `db:grants`, D07's
+ * `mfa:encrypt-seeds` / `mfa:seeds-status`, and 56-03p's `token-vault:upgrade`.
  *
  * Reads `DATABASE_MIGRATION_URL` directly rather than through `loadEnv`: this process needs
  * one variable, and demanding the API's full environment (public URLs, session secrets,
@@ -226,9 +228,32 @@ async function main(): Promise<number> {
         return 0;
       }
 
+      // 56-03p — `pnpm --filter @tmanage/api token-vault:upgrade`. Re-seals the connector tokens
+      // still on the MFA seed ring (`mfa1.`) as FieldCipher envelopes; needs both keyrings the API
+      // runs with. Re-running is safe: only `mfa1.` rows are read. Ids and counts only.
+      case 'token-vault': {
+        const seedKeys = process.env['AUTH_MFA_SEED_KEYS'];
+        if (process.argv[3] !== 'upgrade' || !seedKeys || !process.env['FIELD_CIPHER_KEYS']) {
+          process.stderr.write(
+            'usage: token-vault upgrade, with AUTH_MFA_SEED_KEYS and FIELD_CIPHER_KEYS set\n',
+          );
+          return 2;
+        }
+        const report = await upgradeLegacyTokens(
+          connection,
+          tokenVaultFromEnv(parseSeedKeys(seedKeys)),
+        );
+        out(`upgraded             ${report.upgraded}`);
+        out(`failed               ${report.failed.length}`);
+        for (const failure of report.failed) {
+          process.stderr.write(`  ${failure.purpose}  ${failure.id}\n`);
+        }
+        return report.failed.length > 0 ? 1 : 0;
+      }
+
       default:
         process.stderr.write(
-          `unknown command '${command}' (migrate | status | grants | reset | mfa-seeds)\n`,
+          `unknown command '${command}' (migrate | status | grants | reset | mfa-seeds | token-vault)\n`,
         );
         return 2;
     }

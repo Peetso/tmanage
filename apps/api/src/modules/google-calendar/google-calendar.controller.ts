@@ -21,7 +21,7 @@ import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/to
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
-import { createSeedCipher } from '../identity/seed-cipher.js';
+import { tokenVaultFromEnv } from '../connectors/token-vault.js';
 import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
 import { CALENDAR_SYNC } from '../calendar/calendar-sync.port.js';
 import { combineCalendarSync } from '../calendar/calendar-provider.js';
@@ -246,7 +246,7 @@ export class GoogleCalendarModule {
           database,
           audit,
           transport,
-          cipher: createSeedCipher(config.mfaSeedKeys),
+          cipher: tokenVaultFromEnv(config.mfaSeedKeys).slot('calendar_token'),
           config: calendarConfigFrom(process.env),
           apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
           webPublicUrl: config.webPublicUrl ?? '',

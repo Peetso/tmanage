@@ -8,6 +8,7 @@
  * - The target key must already be the cipher's newest (it is in env before the job is queued).
  * - Values that are not `fc1.` envelopes (legacy `mfa1.` rows, a writer not yet on FieldCipher)
  *   are counted `skipped` and left untouched: rewriting them would break their current reader.
+ *   The token vault's legacy rows move to `fc1.` with `pnpm --filter @tmanage/api token-vault:upgrade`.
  * - A row that fails to open (unknown key, tampered) is counted `failed`; the job goes on.
  * - The write is a compare-and-swap on the old value, so a concurrent writer always wins.
  * - Logged by purpose with counts only, never a value (56-02 STRIDE "R").
@@ -22,36 +23,56 @@ export const ROTATION_INTERVAL_MS = 60_000;
 export const ROTATION_STALE_MS = 5 * 60 * 1000;
 
 /**
- * Where a rotatable purpose lives. `ownerColumn` feeds the AAD and must match the writer;
- * `versionColumn`, when set, is stamped with the key id the value was re-encrypted under (R23-c).
+ * Where a rotatable purpose lives. `owner` is the SQL (a column, or a `concat` of the row's own
+ * columns) that rebuilds the AAD owner exactly as the writer bound it; `versionColumn`, when set,
+ * is stamped with the key id the value was re-encrypted under (R23-c).
  */
 export interface RotationTarget {
   readonly table: string;
   readonly column: string;
-  readonly ownerColumn: string;
+  readonly owner: string;
   readonly versionColumn?: string;
 }
 
 /** Where each rotatable purpose lives. */
 export const ROTATION_TARGETS = {
-  storage_token: { table: 'storage_connections', column: 'refresh_token_enc', ownerColumn: 'id' },
+  /**
+   * 56-03p: the token vault (`apps/api/src/modules/connectors/token-vault.ts`) binds each token to
+   * its writer's string, not the row id: `tokenBinding` (Drive, OneDrive), `calendarTokenBinding`
+   * and `microsoftCalendarTokenBinding`, `connectorBinding`, `figmaTokenBinding`.
+   */
+  storage_token: {
+    table: 'storage_connections',
+    column: 'refresh_token_enc',
+    owner: "concat('storage:', organization_id, ':', provider)",
+  },
   calendar_token: {
     table: 'calendar_connections',
     column: 'refresh_token_enc',
-    ownerColumn: 'id',
+    owner: "concat('calendar:', organization_id, ':', user_id, ':', provider)",
+  },
+  connector_token: {
+    table: 'connector_installations',
+    column: 'credential_enc',
+    owner: "concat('connector:', organization_id, ':', connector_key)",
+  },
+  figma_token: {
+    table: 'figma_connections',
+    column: 'token_ciphertext',
+    owner: "concat('figma:', organization_id, ':', membership_id)",
   },
   /** 56-17 follow-up: the writer is `security-reports.service.ts` (purpose `reporter_email`, owner = row id). */
   reporter_email: {
     table: 'security_reports',
     column: 'reporter_email_enc',
-    ownerColumn: 'id',
+    owner: 'id',
   },
   /** 52-12 (R22-a): the writer is `einvoicing-certificate.controller.ts` (purpose `org_secret`, owner = row id). */
   /** R23-c: `key_version` is stamped with the new key id, so the platform keys page stays true. */
   org_secret: {
     table: 'org_secrets',
     column: 'ciphertext',
-    ownerColumn: 'id',
+    owner: 'id',
     versionColumn: 'key_version',
   },
 } as const satisfies Record<string, RotationTarget>;

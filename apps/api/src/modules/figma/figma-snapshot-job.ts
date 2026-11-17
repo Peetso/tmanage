@@ -6,7 +6,7 @@ import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { FigmaFrameRow, FigmaLinkRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
-import type { SeedCipher } from '../identity/seed-cipher.js';
+import type { TokenVaultSlot } from '../connectors/token-vault.js';
 import { imageGenerator } from '../files/preview-generators/image.js';
 import { DEFAULT_PREVIEW_LIMITS } from '../files/preview-generators/types.js';
 import { FigmaRepository, type FigmaSnapshotError } from './figma.repository.js';
@@ -180,7 +180,7 @@ export class FigmaSnapshotJob implements OnApplicationBootstrap, OnModuleDestroy
     private readonly database: TenantDatabase,
     private readonly store: ObjectStore,
     private readonly rest: FigmaRestClient,
-    private readonly cipher: SeedCipher,
+    private readonly cipher: TokenVaultSlot,
     private readonly audit: AuditService | null,
     private readonly enabled: boolean,
     private readonly options: FigmaSnapshotJobOptions = DEFAULT_FIGMA_SNAPSHOT_JOB_OPTIONS,

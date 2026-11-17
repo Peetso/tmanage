@@ -46,6 +46,11 @@ export const FIELD_CIPHER_PURPOSES = [
   'reporter_email',
   // 52-12 (R22-a): `org_secrets.ciphertext`, the ZATCA signing certificate + key (owner = row id).
   'org_secret',
+  // 56-03p: the token vault (`apps/api/src/modules/connectors/token-vault.ts`). An API-key or OAuth
+  // connector credential (`connector_installations.credential_enc`) and a Figma token
+  // (`figma_connections.token_ciphertext`); owner = the writer's binding string.
+  'connector_token',
+  'figma_token',
 ] as const;
 export type FieldCipherPurpose = (typeof FIELD_CIPHER_PURPOSES)[number];
 

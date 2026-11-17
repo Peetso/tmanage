@@ -35,7 +35,7 @@ import {
   storageReturnScreen,
 } from '../platform-admin/connect-setup/connect-return.js';
 import { providerErrorReason } from '../platform-admin/connect-setup/connect-setup.js';
-import { createSeedCipher } from '../identity/seed-cipher.js';
+import { tokenVaultFromEnv } from '../connectors/token-vault.js';
 import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
 import {
   DRIVE_COOKIE_PATH,
@@ -377,7 +377,7 @@ export function googleDriveServiceFor(
     database,
     audit,
     transport,
-    cipher: createSeedCipher(config.mfaSeedKeys),
+    cipher: tokenVaultFromEnv(config.mfaSeedKeys).slot('storage_token'),
     config: driveConfigFrom(process.env),
     apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
   });

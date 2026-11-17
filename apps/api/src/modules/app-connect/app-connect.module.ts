@@ -3,7 +3,7 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { createSeedCipher } from '../identity/seed-cipher.js';
+import { tokenVaultFromEnv } from '../connectors/token-vault.js';
 import { ConnectorsRepository } from '../connectors/connectors.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import {
@@ -29,7 +29,7 @@ export class AppConnectModule {
       useFactory: (database: TenantDatabase, config: ApiConfig, audit: AuditService) =>
         new AppConnectService({
           database,
-          cipher: createSeedCipher(config.mfaSeedKeys),
+          cipher: tokenVaultFromEnv(config.mfaSeedKeys).slot('connector_token'),
           vault: new ConnectorsRepository(),
           audit,
           config: { github: gitHubOAuthConfigFrom(process.env) },

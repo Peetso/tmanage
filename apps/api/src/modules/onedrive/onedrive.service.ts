@@ -25,7 +25,7 @@ import type {
   WorkItemRow,
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
-import type { SeedCipher } from '../identity/seed-cipher.js';
+import type { TokenVaultSlot } from '../connectors/token-vault.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
@@ -186,7 +186,7 @@ export interface OneDriveServiceDeps {
   readonly database: TenantDatabase;
   readonly audit: AuditService;
   readonly transport: OneDriveTransport;
-  readonly cipher: SeedCipher;
+  readonly cipher: TokenVaultSlot;
   readonly config: OneDriveConfig | null;
   /** The OAuth redirect is `${apiPublicUrl}/v1/integrations/onedrive/callback`. */
   readonly apiPublicUrl: string;

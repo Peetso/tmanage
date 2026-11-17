@@ -2,7 +2,7 @@ import { authorize } from '@tmanage/domain';
 import type { Principal, WorkItemState } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { SeedCipher } from '../identity/seed-cipher.js';
+import type { TokenVaultSlot } from '../connectors/token-vault.js';
 import { connectorBinding } from '../connectors/connectors.service.js';
 import type { ConnectorsRepository } from '../connectors/connectors.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
@@ -40,7 +40,7 @@ import type { PmImportRepository } from './pm-import.repository.js';
  * ## The token
  *
  * `connect` checks the pasted credential with one cheap call, then stores it **only** in the token
- * vault (`connector_installations`, `SeedCipher`, bound to the organization and the key
+ * vault (`connector_installations`, `connector_token`, bound to the organization and the key
  * `import_trello` / `import_asana`). It never comes back out through a view. The import job reads
  * it once and deletes it in a `finally` — success, failure or crash of the read alike. `disconnect`
  * deletes it when the owner walks away, and a credential older than {@link PM_VAULT_TTL_MS} is
@@ -83,7 +83,7 @@ const PATH_TO: Readonly<Record<PmTargetState, readonly WorkItemState[]>> = {
 
 export interface PmImportDeps {
   readonly fetch: PmFetch;
-  readonly cipher: Pick<SeedCipher, 'encrypt' | 'decrypt'>;
+  readonly cipher: TokenVaultSlot;
   readonly vault: Pick<ConnectorsRepository, 'findByKey' | 'insert' | 'remove'>;
   readonly pm: Pick<
     PmImportRepository,

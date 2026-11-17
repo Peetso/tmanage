@@ -21,7 +21,7 @@ import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/to
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
-import { createSeedCipher } from '../identity/seed-cipher.js';
+import { tokenVaultFromEnv } from '../connectors/token-vault.js';
 import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
 import { calendarConfigFrom } from '../google-calendar/google-calendar.google.js';
 import {
@@ -232,7 +232,7 @@ export class MicrosoftCalendarModule {
           database,
           audit,
           transport,
-          cipher: createSeedCipher(config.mfaSeedKeys),
+          cipher: tokenVaultFromEnv(config.mfaSeedKeys).slot('calendar_token'),
           config: microsoftCalendarConfigFrom(process.env),
           apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
           webPublicUrl: config.webPublicUrl ?? '',

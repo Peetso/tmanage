@@ -72,7 +72,7 @@ describe('key rotation job (56-02)', () => {
     const rotate = (v: string, aad: unknown) => (aads.push(aad), cipher.rotate(v));
     await runKeyRotation({ store: s, cipher: { ...cipher, rotate } });
     expect(tables[0]).toBe('security_reports.reporter_email_enc');
-    expect(ROTATION_TARGETS.reporter_email.ownerColumn).toBe('id');
+    expect(ROTATION_TARGETS.reporter_email.owner).toBe('id');
     expect(aads[0]).toEqual({ purpose: 'reporter_email', ownerId: '498' });
   });
 
@@ -94,5 +94,40 @@ describe('key rotation job (56-02)', () => {
       ['key_version', 'fc1.new@2'],
       [undefined, 'fc1.new@2'],
     ]);
+  });
+
+  it('re-encrypts every row on the old key across batches, skipping none (56-03p)', async () => {
+    const all: SecretRow[] = Array.from({ length: 1001 }, (_, i) => ({
+      id: String(i).padStart(4, '0'),
+      ownerId: `connector:o:${i}`,
+      value: 'fc1.old',
+    }));
+    const { s } = store(null, '2', 'connector_token');
+    s.readBatch = async (_t, after, limit) =>
+      all.filter((r) => r.id > (after ?? '')).slice(0, limit);
+    const written = new Set<string>();
+    s.writeValue = async (_t, id) => (written.add(id), true);
+    const result = await runKeyRotation({ store: s, cipher });
+    expect(result).toMatchObject({ status: 'done', counts: { done: 1001, skipped: 0, failed: 0 } });
+    expect(written.size).toBe(all.length);
+  });
+
+  it('rebuilds the token vault owner exactly as the API binds it (56-03p)', () => {
+    const row: Record<string, string> = {
+      organization_id: 'o1',
+      provider: 'google',
+      user_id: 'u1',
+      connector_key: 'github',
+      membership_id: 'm1',
+    };
+    const owner = (sql: string) =>
+      (/^concat\((.*)\)$/.exec(sql)?.[1] ?? '')
+        .split(', ')
+        .map((part) => (part.startsWith("'") ? part.slice(1, -1) : (row[part] ?? '?')))
+        .join('');
+    expect(owner(ROTATION_TARGETS.storage_token.owner)).toBe('storage:o1:google');
+    expect(owner(ROTATION_TARGETS.calendar_token.owner)).toBe('calendar:o1:u1:google');
+    expect(owner(ROTATION_TARGETS.connector_token.owner)).toBe('connector:o1:github');
+    expect(owner(ROTATION_TARGETS.figma_token.owner)).toBe('figma:o1:m1');
   });
 });

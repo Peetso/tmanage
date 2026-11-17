@@ -205,6 +205,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- 58-C1 ---- +1: a rule fires its builder graph, read from `workflow_flow_versions`.
     // ---- 52-19 ---- +1: the nightly approval chain walk reads `approval_records`.
     // ---- 0355 ---- +1: the walk reads its own verdicts, `approval_chain_checks`.
+    // ---- 56-03p ---- +2: the key rotation re-encrypts the token vault's `connector_installations`
+    // and `figma_connections`.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -237,7 +239,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         2 +
         1 +
         1 +
-        1,
+        1 +
+        2,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

@@ -1836,6 +1836,10 @@ GRANT INSERT ON `tmanage`.`key_rotations`                       TO 'tmanage_app'
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`key_rotations`       TO 'tmanage_worker'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`storage_connections`         TO 'tmanage_worker'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`calendar_connections`        TO 'tmanage_worker'@'%';
+-- 56-03p token vault: the same job re-encrypts connector credentials and Figma tokens, the same
+-- compare-and-swap on `credential_enc` / `token_ciphertext` only.
+GRANT SELECT, UPDATE ON `tmanage`.`connector_installations`     TO 'tmanage_worker'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`figma_connections`           TO 'tmanage_worker'@'%';
 
 -- ---- 55-21 · usability measurement ----
 -- 0251 `product_events` (tenant-owned): the API inserts a session's own metadata-only events

@@ -8,7 +8,7 @@ import {
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { createSeedCipher } from '../identity/seed-cipher.js';
+import { tokenVaultFromEnv } from '../connectors/token-vault.js';
 import { ConnectorsRepository } from '../connectors/connectors.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { WorkCommentsRepository } from '../work/work-comments.repository.js';
@@ -71,7 +71,7 @@ export class ImportModule {
       useFactory: (database: TenantDatabase, config: ApiConfig, pmFetch: PmFetch) =>
         new PmImportService(database, {
           fetch: pmFetch,
-          cipher: createSeedCipher(config.mfaSeedKeys),
+          cipher: tokenVaultFromEnv(config.mfaSeedKeys).slot('connector_token'),
           vault: new ConnectorsRepository(),
           pm: new PmImportRepository(),
           projects: new ProjectsRepository(),

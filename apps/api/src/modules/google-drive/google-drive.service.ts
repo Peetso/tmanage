@@ -25,7 +25,7 @@ import type {
   WorkItemRow,
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
-import type { SeedCipher } from '../identity/seed-cipher.js';
+import type { TokenVaultSlot } from '../connectors/token-vault.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
@@ -170,7 +170,7 @@ export interface GoogleDriveServiceDeps {
   readonly database: TenantDatabase;
   readonly audit: AuditService;
   readonly transport: DriveTransport;
-  readonly cipher: SeedCipher;
+  readonly cipher: TokenVaultSlot;
   readonly config: DriveConfig | null;
   /** `API_PUBLIC_URL`: the OAuth redirect is `${apiPublicUrl}/v1/integrations/google-drive/callback`. */
   readonly apiPublicUrl: string;
