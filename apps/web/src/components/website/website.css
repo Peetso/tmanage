@@ -411,6 +411,77 @@ a.tm-web-orb--outline:hover {
   margin-inline-start: auto;
 }
 
+/* No nav label wraps at 1280 and wider, in any language (PAGEFIX 2026-11-17). */
+.tm-web-nav__trigger,
+.tm-web-nav__link,
+.tm-web-nav__actions > * {
+  white-space: nowrap;
+}
+
+/* Tighter header spacing where the labels are long: 1280-1439 in every language, all widths
+   in the languages with the longest labels. */
+:is(:lang(ar), :lang(de), :lang(es), :lang(fr), :lang(pt)) .tm-web-nav__bar {
+  gap: var(--s8);
+}
+
+:is(:lang(ar), :lang(de), :lang(es), :lang(fr), :lang(pt)) .tm-web-nav__list {
+  gap: var(--s6);
+}
+
+@media (min-width: 1280px) and (max-width: 1439px) {
+  .tm-web-nav__bar {
+    gap: var(--s8);
+  }
+
+  .tm-web-nav__list {
+    gap: var(--s6);
+  }
+
+  /* Where it still does not fit, the Desktop app pill moves into the menu. */
+  :is(:lang(en), :lang(ar)) .tm-web-nav__list > li:has(> .tm-web-nav__link--accent) {
+    display: none;
+  }
+
+  :is(:lang(en), :lang(ar)) .tm-web-nav__menu-orb {
+    display: inline-grid;
+  }
+}
+
+@media (min-width: 1440px) {
+  :lang(pt) .tm-web-nav__list > li:has(> .tm-web-nav__link--accent) {
+    display: none;
+  }
+
+  :lang(pt) .tm-web-nav__menu-orb {
+    display: inline-grid;
+  }
+}
+
+/* Languages whose full row cannot fit keep the compact header (menu orb and drawer) longer. */
+@media (min-width: 1280px) and (max-width: 1439px) {
+  :is(:lang(de), :lang(pt))
+    .tm-web-nav__bar
+    :is(.tm-web-nav__menu, .tm-web-nav__signin, .tm-web-nav__demo) {
+    display: none;
+  }
+
+  :is(:lang(de), :lang(pt)) .tm-web-nav__menu-orb {
+    display: inline-grid;
+  }
+}
+
+@media (min-width: 1280px) {
+  :is(:lang(es), :lang(fr))
+    .tm-web-nav__bar
+    :is(.tm-web-nav__menu, .tm-web-nav__signin, .tm-web-nav__demo) {
+    display: none;
+  }
+
+  :is(:lang(es), :lang(fr)) .tm-web-nav__menu-orb {
+    display: inline-grid;
+  }
+}
+
 .tm-web-nav__signin {
   margin-inline-end: var(--s2);
   font-size: var(--t-body-md);

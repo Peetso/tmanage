@@ -54,7 +54,7 @@ export function FactsPage({ website }: { website: string }) {
               <span className="tm-web-compare-check" aria-hidden="true">
                 ✓
               </span>
-              {feature}
+              <span>{feature}</span>
             </li>
           ))}
         </ul>

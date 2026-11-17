@@ -185,9 +185,15 @@ function Theirs({ theirs }: { theirs: AlternativeTheirs }) {
   }
   if (theirs.kind === 'strong') {
     return (
-      <>
-        {theirs.text} <span className="tm-web-alt-ahead">· {theirs.ahead}</span>
-      </>
+      <span className="tm-web-alt-strong">
+        {theirs.text}{' '}
+        <span className="tm-web-alt-ahead">
+          <span className="tm-web-alt-ahead__dot" aria-hidden="true">
+            ·{' '}
+          </span>
+          {theirs.ahead}
+        </span>
+      </span>
     );
   }
   return <>{theirs.text}</>;
