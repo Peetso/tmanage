@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { signOffText } from '@tmanage/mail';
 import { emailT } from '../../common/i18n/email-messages.js';
 import { ApiError } from '../../common/http/errors.js';
 
@@ -168,12 +169,16 @@ export function composeAcknowledgement(
   to: string,
   reference: string,
   language: 'en' | 'ar' | null,
-): { to: string; subject: string; text: string; templateKey: string } {
+): { to: string; subject: string; text: string; templateKey: string; language: 'en' | 'ar' } {
   const locale = language ?? 'en';
   return {
     to,
+    language: locale,
     subject: emailT(locale, 'securityAck.subject', { reference }),
-    text: emailT(locale, 'securityAck.text', { reference }),
+    // C2: signed by TManage Support; a reply (keeping the reference) reaches support@.
+    text: [emailT(locale, 'securityAck.text', { reference }), signOffText('support', locale)].join(
+      '\n\n',
+    ),
     templateKey: 'security_report_ack',
   };
 }

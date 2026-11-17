@@ -1,3 +1,4 @@
+import { greeting, signOff } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { renderActionEmail } from './action-email.js';
@@ -31,12 +32,15 @@ function oneLine(value: string): string {
 export function composePasswordResetEmail(facts: PasswordResetEmailFacts): MailMessage {
   const locale = facts.locale;
   const arabic = emailIsRtl(locale);
+  const language = arabic ? 'ar' : 'en';
   const name = oneLine(facts.displayName);
   const minutes = String(facts.ttlMinutes);
+  const signature = signOff('security', language);
   const copy = {
     subject: emailT(locale, 'passwordReset.subject'),
+    preheader: emailT(locale, 'passwordReset.preheader', { minutes }),
     eyebrow: emailT(locale, 'passwordReset.eyebrow'),
-    heading: emailT(locale, 'passwordReset.heading', { name }),
+    heading: greeting(language, name),
     intro: emailT(locale, 'passwordReset.intro'),
     button: emailT(locale, 'passwordReset.button'),
     fallback: emailT(locale, 'common.fallback'),
@@ -46,11 +50,17 @@ export function composePasswordResetEmail(facts: PasswordResetEmailFacts): MailM
 
   return {
     to: facts.to,
+    language,
     subject: copy.subject,
-    text: [copy.heading, copy.intro, `${copy.button}: ${facts.link}`, copy.note, copy.footer].join(
-      '\n\n',
-    ),
-    html: renderActionEmail({ arabic, link: facts.link, rows: [], ...copy }),
+    text: [
+      copy.heading,
+      copy.intro,
+      `${copy.button}: ${facts.link}`,
+      copy.note,
+      copy.footer,
+      signature.join('\n'),
+    ].join('\n\n'),
+    html: renderActionEmail({ arabic, link: facts.link, rows: [], signature, ...copy }),
   };
 }
 
@@ -62,12 +72,15 @@ export function composePasswordResetEmail(facts: PasswordResetEmailFacts): MailM
 export function composeEmailConfirmationEmail(facts: PasswordResetEmailFacts): MailMessage {
   const locale = facts.locale;
   const arabic = emailIsRtl(locale);
+  const language = arabic ? 'ar' : 'en';
   const name = oneLine(facts.displayName);
   const minutes = String(facts.ttlMinutes);
+  const signature = signOff('security', language);
   const copy = {
     subject: emailT(locale, 'emailConfirm.subject'),
+    preheader: emailT(locale, 'emailConfirm.preheader'),
     eyebrow: emailT(locale, 'emailConfirm.eyebrow'),
-    heading: emailT(locale, 'emailConfirm.heading', { name }),
+    heading: greeting(language, name),
     intro: emailT(locale, 'emailConfirm.intro'),
     button: emailT(locale, 'emailConfirm.button'),
     fallback: emailT(locale, 'common.fallback'),
@@ -76,11 +89,17 @@ export function composeEmailConfirmationEmail(facts: PasswordResetEmailFacts): M
   };
   return {
     to: facts.to,
+    language,
     subject: copy.subject,
-    text: [copy.heading, copy.intro, `${copy.button}: ${facts.link}`, copy.note, copy.footer].join(
-      '\n\n',
-    ),
-    html: renderActionEmail({ arabic, link: facts.link, rows: [], ...copy }),
+    text: [
+      copy.heading,
+      copy.intro,
+      `${copy.button}: ${facts.link}`,
+      copy.note,
+      copy.footer,
+      signature.join('\n'),
+    ].join('\n\n'),
+    html: renderActionEmail({ arabic, link: facts.link, rows: [], signature, ...copy }),
   };
 }
 

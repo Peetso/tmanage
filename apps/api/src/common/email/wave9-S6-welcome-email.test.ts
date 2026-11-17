@@ -50,13 +50,13 @@ describe('the welcome email quotes nothing the sign-up typed (F36a)', () => {
       link: 'https://app.example/nile',
     });
     expect(message.subject).toBe('Welcome to TManage');
-    expect(message.text).toContain('your workspace is ready');
+    expect(message.text).toContain('Your workspace is ready');
     expect(message.html).toContain('https://app.example/nile');
     const arabic = composeWelcomeEmail({
       to: 'mona@example.com',
       link: 'https://app.example/nile',
       locale: 'ar',
     });
-    expect(arabic.subject).toBe('أهلًا بك في TManage');
+    expect(arabic.subject).toBe('‏أهلًا بك في TManage');
   });
 });

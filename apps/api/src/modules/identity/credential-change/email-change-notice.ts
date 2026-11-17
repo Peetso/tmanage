@@ -1,3 +1,4 @@
+import { greeting, signOff } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { renderActionEmail } from '../../../common/email/action-email.js';
 import { serializeForLog } from '../../../common/observability/logger.js';
@@ -40,13 +41,18 @@ export function composeEmailChangeNotice(facts: EmailChangeNoticeFacts): MailMes
   const locale = facts.locale;
   const arabic = emailIsRtl(locale);
   const name = oneLine(facts.displayName);
+  const language = arabic ? 'ar' : 'en';
+  const signature = signOff('security', language);
+  const emails = { previousEmail: facts.oldEmail, newEmail: facts.newEmail };
   const copy = {
     subject: emailT(locale, 'emailChange.subject'),
+    preheader: emailT(locale, 'emailChange.preheader', emails),
     eyebrow: emailT(locale, 'emailChange.eyebrow'),
-    heading: emailT(locale, 'emailChange.heading', { name }),
+    heading: greeting(language, name),
     intro: emailT(
       locale,
       facts.recipient === 'old' ? 'emailChange.introOld' : 'emailChange.introNew',
+      emails,
     ),
     button: emailT(locale, 'emailChange.button'),
     fallback: emailT(locale, 'common.fallback'),
@@ -60,6 +66,7 @@ export function composeEmailChangeNotice(facts: EmailChangeNoticeFacts): MailMes
   const { rows, ...content } = copy;
   return {
     to: facts.to,
+    language,
     subject: copy.subject,
     text: [
       copy.heading,
@@ -67,8 +74,9 @@ export function composeEmailChangeNotice(facts: EmailChangeNoticeFacts): MailMes
       ...rows.map((row) => `${row.label}: ${row.value}`),
       copy.note,
       copy.footer,
+      signature.join('\n'),
     ].join('\n\n'),
-    html: renderActionEmail({ arabic, link: facts.link, rows, ...content }),
+    html: renderActionEmail({ arabic, link: facts.link, rows, signature, ...content }),
   };
 }
 

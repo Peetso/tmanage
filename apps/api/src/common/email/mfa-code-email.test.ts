@@ -16,7 +16,7 @@ const LOCALES = readdirSync(CATALOG_DIR)
 const KEYS = [
   'mfaCode.subject',
   'mfaCode.eyebrow',
-  'mfaCode.heading',
+  'mfaCode.codeLine',
   'mfaCode.introSignIn',
   'mfaCode.introEnrol',
   'mfaCode.note',
@@ -64,7 +64,8 @@ describe('composeMfaCodeEmail', () => {
 
   it('flattens a display name, so a newline cannot reach a header-like line', () => {
     const message = composeMfaCodeEmail({ ...FACTS, displayName: 'Peter\nBcc: x@y.test' });
-    expect(message.text.split('\n')[0]).toContain('Peter Bcc: x@y.test');
+    expect(message.text.split('\n')[0]).toBe('Hi Peter,');
+    expect(message.text).not.toContain('Bcc');
   });
 });
 

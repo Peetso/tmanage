@@ -1,6 +1,7 @@
+import { greeting, signOff } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
-import { EMAIL_TOKENS, escapeHtml } from './action-email.js';
+import { EMAIL_TOKENS, escapeHtml, signatureRow } from './action-email.js';
 import { emailIsRtl, emailT } from '../i18n/email-messages.js';
 
 /**
@@ -35,10 +36,13 @@ export function composeMfaCodeEmail(facts: MfaCodeEmailFacts): MailMessage {
   const arabic = emailIsRtl(locale);
   const name = oneLine(facts.displayName);
   const minutes = String(facts.ttlMinutes);
+  const language = arabic ? 'ar' : 'en';
+  const signature = signOff('security', language);
   const copy = {
     subject: emailT(locale, 'mfaCode.subject'),
+    preheader: emailT(locale, 'mfaCode.preheader', { minutes }),
     eyebrow: emailT(locale, 'mfaCode.eyebrow'),
-    heading: emailT(locale, 'mfaCode.heading', { name }),
+    heading: greeting(language, name),
     intro: emailT(
       locale,
       facts.purpose === 'sign_in' ? 'mfaCode.introSignIn' : 'mfaCode.introEnrol',
@@ -49,9 +53,17 @@ export function composeMfaCodeEmail(facts: MfaCodeEmailFacts): MailMessage {
 
   return {
     to: facts.to,
+    language,
     subject: copy.subject,
-    text: [copy.heading, copy.intro, facts.code, copy.note, copy.footer].join('\n\n'),
-    html: renderCodeEmail({ arabic, code: facts.code, ...copy }),
+    text: [
+      copy.heading,
+      emailT(locale, 'mfaCode.codeLine', { code: facts.code }),
+      copy.intro,
+      copy.note,
+      copy.footer,
+      signature.join('\n'),
+    ].join('\n\n'),
+    html: renderCodeEmail({ arabic, code: facts.code, signature, ...copy }),
   };
 }
 
@@ -65,6 +77,8 @@ function renderCodeEmail(content: {
   readonly intro: string;
   readonly note: string;
   readonly footer: string;
+  readonly preheader: string;
+  readonly signature: readonly string[];
 }): string {
   const T = EMAIL_TOKENS;
   const e = escapeHtml;
@@ -82,6 +96,7 @@ function renderCodeEmail(content: {
 <title>${e(content.subject)}</title>
 </head>
 <body style="margin:0;padding:0;background-color:${T.paper50};">
+<div style="display:none;max-height:0;overflow:hidden;">${e(content.preheader)}</div>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${T.paper50};">
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" dir="${dir}" style="max-width:560px;">
@@ -98,6 +113,7 @@ function renderCodeEmail(content: {
 <p style="margin:0 0 24px 0;padding:16px;background-color:${T.paper50};border-radius:12px;text-align:center;font-family:${T.fontMono};font-size:32px;line-height:40px;font-weight:700;letter-spacing:0.3em;color:${T.ink950};" dir="ltr">${e(content.code)}</p>
 <p style="margin:0;padding:12px 14px;border:1px dashed ${T.paper150};border-radius:12px;font-family:${font};font-size:13px;line-height:18px;color:${T.ink650};">${e(content.note)}</p>
 </td></tr>
+${signatureRow(content.signature, font, align)}
 <tr><td style="padding:16px 8px 0 8px;font-family:${font};font-size:12px;line-height:17px;color:${T.ink500};text-align:${align};">${e(content.footer)}</td></tr>
 </table>
 </td></tr>

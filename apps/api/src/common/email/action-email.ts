@@ -42,6 +42,10 @@ export interface ActionEmailContent {
   readonly note: string;
   /** Under the card: why this person received the message. */
   readonly footer: string;
+  /** EMAILBUILD (c): the preview line a mail app shows after the subject (default: the intro). */
+  readonly preheader?: string;
+  /** EMAILBUILD (c): the sign-off lines (`signOff` in `@tmanage/mail`), one paragraph each. */
+  readonly signature?: readonly string[];
 }
 
 export function escapeHtml(value: string): string {
@@ -83,7 +87,7 @@ export function renderActionEmail(content: ActionEmailContent): string {
 <title>${e(copy.subject)}</title>
 </head>
 <body style="margin:0;padding:0;background-color:${TOKENS.paper50};">
-<div style="display:none;max-height:0;overflow:hidden;">${e(copy.intro)}</div>
+<div style="display:none;max-height:0;overflow:hidden;">${e(copy.preheader ?? copy.intro)}</div>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${TOKENS.paper50};">
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" dir="${dir}" style="max-width:560px;">
@@ -107,10 +111,35 @@ ${rows}
 <p style="margin:0 0 24px 0;font-family:${TOKENS.fontMono};font-size:12px;line-height:17px;word-break:break-all;" dir="ltr"><a href="${href}" target="_blank" rel="noopener" style="color:${TOKENS.ink950};text-decoration:underline;">${href}</a></p>
 <p style="margin:0;padding:12px 14px;border:1px dashed ${TOKENS.paper150};border-radius:12px;font-family:${font};font-size:13px;line-height:18px;color:${TOKENS.ink650};">${e(copy.note)}</p>
 </td></tr>
+${signatureRow(content.signature, font, align)}
 <tr><td style="padding:16px 8px 0 8px;font-family:${font};font-size:12px;line-height:17px;color:${TOKENS.ink500};text-align:${align};">${e(copy.footer)}</td></tr>
 </table>
 </td></tr>
 </table>
 </body>
 </html>`;
+}
+
+/**
+ * EMAILBUILD (c) — the signature block under the card: the first line (who signs) in ink, the rest
+ * (the honesty or help line, the settings and unsubscribe links) small. One paragraph per line, so
+ * the resolver can drop a links line the notification transport did not fill.
+ */
+export function signatureRow(
+  lines: readonly string[] | undefined,
+  font: string,
+  align: 'left' | 'right',
+): string {
+  if (lines === undefined || lines.length === 0) return '';
+  const body = lines
+    .filter((line) => line !== '')
+    .map((line, index) =>
+      index === 0
+        ? `<p style="margin:0 0 4px 0;font-family:${font};font-size:14px;line-height:20px;font-weight:700;color:${TOKENS.ink950};">${escapeHtml(line)}</p>`
+        : `<p style="margin:0 0 4px 0;font-family:${font};font-size:12px;line-height:17px;color:${TOKENS.ink650};">${escapeHtml(line)}</p>`,
+    )
+    .join('\n');
+  return `<tr><td style="padding:20px 8px 0 8px;text-align:${align};">
+${body}
+</td></tr>`;
 }

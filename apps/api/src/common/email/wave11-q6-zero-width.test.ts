@@ -60,9 +60,7 @@ describe('mailSafeName refuses links hidden behind invisible code points', () =>
       expect(part).not.toContain(cp(0xfe_ff));
       expect(part).not.toContain('evil');
     }
-    expect(message.subject).toBe(
-      'Omar Farouk invited you to Northstar Studio pay at … as Team member',
-    );
+    expect(message.subject).toBe('Omar Farouk invited you to Northstar Studio pay at …');
   });
 });
 
@@ -90,7 +88,7 @@ describe('Arabic names keep working (RLM is stripped silently, the name passes)'
       link: 'https://app.tmanage.example/invitations/tok123',
       locale: 'ar-EG',
     });
-    expect(message.text).toContain(`${rlm}دعوة للانضمام إلى شركة النور على TManage`);
+    expect(message.text).toContain(`${rlm}دعاك عمر فاروق للعمل مع فريق شركة النور على TManage`);
     expect(message.text).not.toContain(`${rlm}${rlm}`);
     expect(message.text).not.toContain(`إلى ${rlm}`);
   });

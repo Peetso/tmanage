@@ -1,5 +1,6 @@
 import { emailAddressHash, listUnsubscribeHeaders } from './list-unsubscribe.js';
 import type { MailDelivery, Mailer, MailMessage } from './mailer.js';
+import { fillLinkTokens } from './sign-off.js';
 
 /**
  * 51-11 — the transport the notification mailers send through (mentions, comments, request
@@ -54,8 +55,16 @@ export class NotificationMailTransport implements Mailer {
       if (/[\r\n]/u.test(value)) throw new Error('refused a header value holding a line break');
     }
     const replyTo = message.replyTo ?? this.options.replyTo;
+    // EMAILBUILD (c): the sign-off's links line. The settings link is the unsubscribe route
+    // without a token: opened in a browser it answers 303 to the web app (it never acts on GET).
+    const unsubscribe = /^<(.*)>$/u.exec(headers['List-Unsubscribe'] ?? '')?.[1] ?? '';
+    const settingsUrl = new URL(this.options.unsubscribeUrl);
+    settingsUrl.search = '';
+    const links = { settings: settingsUrl.toString(), unsubscribe };
     return this.inner.send({
       ...message,
+      text: fillLinkTokens(message.text, links, false),
+      ...(message.html === undefined ? {} : { html: fillLinkTokens(message.html, links, true) }),
       ...(replyTo === undefined ? {} : { replyTo }),
       headers: { ...message.headers, ...headers },
     });

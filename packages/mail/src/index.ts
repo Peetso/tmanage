@@ -56,6 +56,15 @@ export {
 } from './sender.js';
 export type { MailLanguage, SenderCategory } from './sender.js';
 export { SIGNATURE_TOKENS, SenderResolvingMailer } from './sender-resolver.js';
+export {
+  LINK_TOKENS,
+  greeting,
+  signOff,
+  signOffText,
+  workspaceReplyLine,
+  workspaceSignOff,
+} from './sign-off.js';
+export type { SignOffKind } from './sign-off.js';
 export { IdentityRoutingMailer, createIdentityMailers } from './identity-mailer.js';
 export type { IdentityLogin, IdentityMailersOptions } from './identity-mailer.js';
 export { MAIL_PERSON_TOPICS, isMailPersonTopic, regionForTimezone } from './person-region.js';

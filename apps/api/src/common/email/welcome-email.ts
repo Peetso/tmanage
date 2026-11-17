@@ -1,3 +1,4 @@
+import { greeting, signOff } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { renderActionEmail } from './action-email.js';
@@ -28,10 +29,15 @@ export interface WelcomeEmailFacts {
 export function composeWelcomeEmail(facts: WelcomeEmailFacts): MailMessage {
   const locale = facts.locale;
   const arabic = emailIsRtl(locale);
+  const language = arabic ? 'ar' : 'en';
+  // W1 with amendment 1: signed "The TManage team", replies to hello@. Still no name and no
+  // workspace name (F36a): the sign-up is anonymous, so the greeting stays generic.
+  const signature = signOff('team', language);
   const copy = {
     subject: emailT(locale, 'welcome.subject'),
+    preheader: emailT(locale, 'welcome.preheader'),
     eyebrow: emailT(locale, 'welcome.eyebrow'),
-    heading: emailT(locale, 'welcome.heading'),
+    heading: greeting(language, undefined),
     intro: emailT(locale, 'welcome.intro'),
     button: emailT(locale, 'welcome.button'),
     fallback: emailT(locale, 'common.fallback'),
@@ -41,11 +47,17 @@ export function composeWelcomeEmail(facts: WelcomeEmailFacts): MailMessage {
 
   return {
     to: facts.to,
+    language,
     subject: copy.subject,
-    text: [copy.heading, copy.intro, `${copy.button}: ${facts.link}`, copy.note, copy.footer].join(
-      '\n\n',
-    ),
-    html: renderActionEmail({ arabic, link: facts.link, rows: [], ...copy }),
+    text: [
+      copy.heading,
+      copy.intro,
+      `${copy.button}: ${facts.link}`,
+      copy.note,
+      signature.join('\n'),
+      copy.footer,
+    ].join('\n\n'),
+    html: renderActionEmail({ arabic, link: facts.link, rows: [], signature, ...copy }),
   };
 }
 

@@ -9,8 +9,8 @@ describe('emailT (R12 R2)', () => {
     expect(emailCatalogOf('pt-PT')).toBe('pt-BR');
     expect(emailCatalogOf('ja-JP')).toBe('en');
     expect(emailT('ar-EG', 'welcome.subject')).toBe(ar['welcome.subject']);
-    expect(emailT('xx', 'passwordReset.heading', { name: 'Mona' })).toBe(
-      'Hi Mona, choose a new password',
+    expect(emailT('xx', 'passwordReset.preheader', { minutes: '30' })).toBe(
+      'The link works once and expires in 30 minutes.',
     );
     expect(emailIsRtl('ar-SA')).toBe(true);
     expect(emailIsRtl('es-ES')).toBe(false);

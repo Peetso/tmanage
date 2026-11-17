@@ -1,5 +1,6 @@
+import { greeting, workspaceReplyLine, workspaceSignOff } from '@tmanage/mail';
 import type { MailMessage } from '@tmanage/mail';
-import { EMAIL_TOKENS, escapeHtml } from './action-email.js';
+import { EMAIL_TOKENS, escapeHtml, signatureRow } from './action-email.js';
 import { emailIsRtl, emailT, type EmailKey } from '../i18n/email-messages.js';
 
 /**
@@ -184,12 +185,14 @@ export function initialsOf(name: string): string {
 /** Everything the two languages say, already flattened; HTML escaping happens at render. */
 interface Copy {
   readonly subject: string;
+  readonly preheader: string;
   readonly heading: string;
   readonly intro: string;
   readonly button: string;
   readonly fallback: string;
   readonly expiry: string;
-  readonly footer: string;
+  /** [WS]: "{inviter}, {organization}" and "Sent by TManage on behalf of… Reply … to reach {inviter}." */
+  readonly signature: readonly string[];
 }
 
 function copyFor(facts: InvitationEmailFacts): { readonly copy: Copy; readonly arabic: boolean } {
@@ -204,16 +207,26 @@ function copyFor(facts: InvitationEmailFacts): { readonly copy: Copy; readonly a
   const client =
     facts.clientOrganizationName === null ? null : mailSafeName(facts.clientOrganizationName);
   const vars = { organization, inviter, role, client: client ?? '', date: expiry };
+  const language = arabic ? 'ar' : 'en';
+  const reply = workspaceReplyLine(language, 'inviter', {
+    actorName: inviter,
+    workspaceName: organization,
+  });
 
   return {
     arabic,
     copy: {
-      subject: emailT(locale, 'invitation.subject', vars),
-      heading: emailT(
+      subject: emailT(
         locale,
-        client === null ? 'invitation.headingInternal' : 'invitation.headingClient',
+        client === null ? 'invitation.subject' : 'invitation.subjectClient',
         vars,
       ),
+      preheader: emailT(
+        locale,
+        client === null ? 'invitation.preheader' : 'invitation.preheaderClient',
+        vars,
+      ),
+      heading: greeting(language, undefined),
       intro: emailT(
         locale,
         client === null ? 'invitation.introInternal' : 'invitation.introClient',
@@ -222,7 +235,7 @@ function copyFor(facts: InvitationEmailFacts): { readonly copy: Copy; readonly a
       button: emailT(locale, 'invitation.button'),
       fallback: emailT(locale, 'common.fallback'),
       expiry: emailT(locale, 'invitation.expiry', vars),
-      footer: emailT(locale, 'invitation.footer', vars),
+      signature: workspaceSignOff(language, organization, reply, inviter),
     },
   };
 }
@@ -250,7 +263,7 @@ function renderInvitationHtml(copy: Copy, sender: Sender, link: string, arabic: 
 <title>${e(copy.subject)}</title>
 </head>
 <body style="margin:0;padding:0;background-color:${t.paper50};">
-<div style="display:none;max-height:0;overflow:hidden;">${e(copy.intro)}</div>
+<div style="display:none;max-height:0;overflow:hidden;">${e(copy.preheader)}</div>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${t.paper50};">
 <tr><td align="center" style="padding:40px 16px;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" dir="${dir}" style="max-width:600px;">
@@ -271,7 +284,7 @@ function renderInvitationHtml(copy: Copy, sender: Sender, link: string, arabic: 
 <p style="margin:0 0 12px 0;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.expiry)}</p>
 <p style="margin:0;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.fallback)}<br><a href="${href}" target="_blank" rel="noopener" dir="ltr" style="font-family:${t.fontMono};color:${t.ink650};text-decoration:underline;word-break:break-all;">${href}</a></p>
 </td></tr>
-<tr><td align="center" style="padding:20px 8px 0 8px;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.footer)}</td></tr>
+${signatureRow(copy.signature, font, align)}
 </table>
 </td></tr>
 </table>
@@ -288,14 +301,19 @@ export function composeInvitationEmail(facts: InvitationEmailFacts): MailMessage
     organization: mailSafeName(facts.organizationName),
   };
   const action = `${copy.button}: ${facts.link}`;
-  const text = [copy.heading, copy.intro, action, copy.expiry, copy.footer].join('\n\n');
+  const text = [copy.heading, copy.intro, action, copy.expiry, copy.signature.join('\n')].join(
+    '\n\n',
+  );
 
   return {
     to: facts.to,
     subject: copy.subject,
     text,
-    // A reply reaches the person who invited, not the platform's no-reply mailbox.
+    // A reply reaches the person who invited, not the platform's no-reply mailbox (R1).
     replyTo: oneLine(facts.inviterEmail),
+    language: arabic ? 'ar' : 'en',
+    ...(facts.clientOrganizationName === null ? {} : { audience: 'client' as const }),
+    actingFor: { workspaceName: sender.organization, actorName: inviter, replyRoute: 'inviter' },
     html: renderInvitationHtml(copy, sender, facts.link, arabic),
   };
 }

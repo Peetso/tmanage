@@ -15,6 +15,7 @@ import {
   validateSenderName,
 } from './sender.js';
 import type { MailLanguage, SenderCategory } from './sender.js';
+import { SIGNATURE_TOKENS, stripLinkTokens } from './sign-off.js';
 
 /**
  * EMAILBUILD — the decorator that gives every message its sender.
@@ -67,13 +68,7 @@ export interface SenderResolverOptions {
   readonly log?: (line: string) => void;
 }
 
-/** The fixed tokens a person mail's sign-off carries; replaced here, never by a producer. */
-export const SIGNATURE_TOKENS = Object.freeze({
-  name: '[[tm.person.name]]',
-  role: '[[tm.person.role]]',
-  by: '[[tm.sign.by]]',
-  note: '[[tm.sign.note]]',
-});
+export { SIGNATURE_TOKENS } from './sign-off.js';
 
 const CACHE_MS = 60_000;
 const NO_AUTO_SUBMITTED = new Set(['platform_owner_notice']);
@@ -151,7 +146,8 @@ export class SenderResolvingMailer implements Mailer {
     const note = identity.person === null ? words.teamNote : words.note(identity.person);
     const fill = (value: string, html: boolean): string => {
       const safe = html ? escapeHtml : (text: string) => text;
-      return value
+      // A links line the notification transport did not fill (mail on another path) is dropped.
+      return stripLinkTokens(value, html)
         .replaceAll(SIGNATURE_TOKENS.name, safe(identity.person?.name ?? words.team))
         .replaceAll(SIGNATURE_TOKENS.role, safe(identity.person?.role ?? ''))
         .replaceAll(SIGNATURE_TOKENS.by, safe(by))
