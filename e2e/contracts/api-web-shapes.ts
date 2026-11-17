@@ -4885,3 +4885,18 @@ import type {
 type _platformCapacityProfile = Assert<Exact<ApiCapacityHostProfile, WebCapacityHostProfileView>>;
 type _platformCapacityReading = Assert<Exact<ApiCapacityReadingView, WebCapacityReadingView>>;
 type _platformCapacityGauge = Assert<Exact<ApiCapacityGauge, WebCapacityGaugeView>>;
+
+// ---- EMAILBUILD · the "E-mail people" card (`/v1/platform/mail-people…`) ----
+import type { MailPersonRecord as ApiMailPersonRecord } from '../../apps/api/src/modules/platform-admin/settings/mail-people.repository.js';
+import type {
+  MailPeopleView as ApiMailPeopleView,
+  MailPersonTestView as ApiMailPersonTestView,
+} from '../../apps/api/src/modules/platform-admin/settings/mail-people.service.js';
+import type {
+  MailPeopleView as WebMailPeopleView,
+  MailPersonTestView as WebMailPersonTestView,
+  MailPersonView as WebMailPersonView,
+} from '../../apps/web/src/lib/api/platform-mail-people.js';
+type _mailPerson = Assert<Exact<ApiMailPersonRecord, WebMailPersonView>>;
+type _mailPeople = Assert<Exact<ApiMailPeopleView, WebMailPeopleView>>;
+type _mailPersonTest = Assert<Exact<ApiMailPersonTestView, WebMailPersonTestView>>;

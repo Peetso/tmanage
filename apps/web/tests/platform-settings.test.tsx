@@ -10,6 +10,7 @@ import type {
   PlatformSettingsFullView,
 } from '../src/lib/api/platform-settings';
 import type { PlatformMaintenanceListView } from '../src/lib/api/maintenance';
+import type { MailPersonView } from '../src/lib/api/platform-mail-people';
 import { PlatformGeneralSettingsScreen } from '../src/components/platform/settings/PlatformGeneralSettingsScreen';
 import {
   PlatformFlagsScreen,
@@ -180,10 +181,24 @@ afterEach(() => {
   }
 });
 
+const MARIAM: MailPersonView = {
+  id: '01960000-0000-7000-8000-000000000001',
+  nameEn: 'Mariam',
+  nameAr: 'مريم',
+  roleEn: 'onboarding',
+  roleAr: 'تهيئة العملاء',
+  address: 'mariam@tmanageapp.com',
+  languages: 'en+ar',
+  region: 'me',
+  topic: 'onboarding',
+  active: true,
+};
+
 describe('D1 · Platform settings — General', () => {
   const route: Route = (method, path) => {
     if (path === '/v1/platform/settings') return json(SETTINGS);
     if (path === '/v1/platform/settings/integrations') return json(INTEGRATIONS);
+    if (path === '/v1/platform/mail-people') return json({ people: [MARIAM] });
     if (method === 'PUT' && path === '/v1/platform/settings/billing-mode') {
       return json({ ...SETTINGS, billingMode: { ...SETTINGS.billingMode, mode: 'paid' } });
     }
@@ -256,6 +271,33 @@ describe('D1 · Platform settings — General', () => {
       expect(calls.find((call) => call.method === 'PUT')).toMatchObject({
         path: '/v1/platform/settings/billing-mode',
         body: { mode: 'paid', reason: 'Beta ends on 1 Dec 2026' },
+      }),
+    );
+  });
+
+  it('EMAILBUILD: the E-mail people card lists Region and Topic, switches off and sends a test', async () => {
+    const calls = mount(
+      (client) => <PlatformGeneralSettingsScreen client={client} />,
+      (method, path, body) => {
+        if (method === 'PUT' && path === `/v1/platform/mail-people/${MARIAM.id}`) {
+          return json({ people: [{ ...MARIAM, active: false }] });
+        }
+        if (method === 'POST' && path === `/v1/platform/mail-people/${MARIAM.id}/test`) {
+          return json({ sent: true, route: 'support' });
+        }
+        return route(method, path, body);
+      },
+    );
+    expect(await screen.findByText('mariam@tmanageapp.com')).toBeTruthy();
+    expect(screen.getByText('Middle East')).toBeTruthy();
+    expect(screen.getByText('First steps')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Send test' }));
+    expect(await screen.findByText(/left through the support mailbox/u)).toBeTruthy();
+    fireEvent.click(screen.getByRole('switch', { name: 'Mariam signs e-mails' }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.method === 'PUT')).toMatchObject({
+        path: `/v1/platform/mail-people/${MARIAM.id}`,
+        body: { active: false },
       }),
     );
   });
