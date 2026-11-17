@@ -183,6 +183,17 @@ export default tseslint.config(
               ],
               message: 'Infrastructure clients never belong in the web app.',
             },
+            {
+              group: [
+                '@tmanage/domain/field-cipher',
+                '@tmanage/domain/realtime-ticket',
+                '@tmanage/domain/zatca-sign',
+                '**/packages/domain/**',
+              ],
+              message:
+                'Server-only domain modules (node:crypto) would ship Node stand-ins to the browser and trip Trusted Types. ' +
+                'Import @tmanage/domain or a client-safe subpath; call the API for anything that needs a secret (packages/domain/src/client-safe-entry.test.ts).',
+            },
           ],
         },
       ],

@@ -1,5 +1,3 @@
-import { randomFillSync } from 'node:crypto';
-
 /**
  * UUIDv7 — the identifier policy for every tenant-owned table
  * (`23-ERD-AND-STATE-MACHINES.md` §3).
@@ -53,7 +51,9 @@ export function uuidv7(timestampMs: number = Date.now()): string {
   }
 
   // 74 random bits are needed; fill all 16 bytes and overwrite the structured ones.
-  randomFillSync(scratch);
+  // Web Crypto (a CSPRNG in Node 22 and every browser) rather than `node:crypto`: this module is
+  // in the package index, which browser bundles import (see client-safe-entry.test.ts).
+  globalThis.crypto.getRandomValues(scratch);
 
   // Bytes 0-5: big-endian 48-bit millisecond timestamp.
   // `Math.floor(ms / 2**32)` keeps the high 16 bits outside 32-bit bitwise operators,
