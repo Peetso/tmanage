@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "description": "The TManage team application and client portal — Next.js App Router (WEB-001).",
+  "imports": {
+    "#i18n-catalogs": {
+      "browser": "./src/lib/i18n/catalogs-lazy.ts",
+      "default": "./src/lib/i18n/catalogs-all.ts"
+    }
+  },
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build && node scripts/localize-prerendered-html.mjs && node scripts/write-csp-hashes.mjs",

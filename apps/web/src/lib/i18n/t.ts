@@ -1,11 +1,5 @@
+import { importCatalog, PRELOADED_CATALOGS } from '#i18n-catalogs';
 import en from './messages/en.json';
-import ar from './messages/ar.json';
-import es from './messages/es.json';
-import fr from './messages/fr.json';
-import ptBR from './messages/pt-BR.json';
-import de from './messages/de.json';
-import zhCN from './messages/zh-CN.json';
-import ur from './messages/ur.json';
 import { catalogNameOf, type CatalogName } from './catalog-status';
 
 /**
@@ -26,16 +20,18 @@ import { catalogNameOf, type CatalogName } from './catalog-status';
 /** Every message key, taken from the English catalog so call sites are checked against it. */
 export type MessageKey = keyof typeof en;
 
-const CATALOGS: Readonly<Record<CatalogName | 'en', Record<string, string>>> = {
+/**
+ * The catalogs this process holds. On the server (and in the tests) `#i18n-catalogs` preloads all
+ * of them; in the browser only English is bundled and a language arrives through
+ * {@link loadCatalog} before anything is shown in it (`use-catalog.ts`, `locale-store.ts`).
+ */
+const CATALOGS: Partial<Record<CatalogName | 'en', Record<string, string>>> = {
   en,
-  ar,
-  es,
-  fr,
-  'pt-BR': ptBR,
-  de,
-  'zh-CN': zhCN,
-  ur,
+  ...PRELOADED_CATALOGS,
 };
+
+/** One download per language for the tab's lifetime; a failed one settles too (English then). */
+const LOADING = new Map<CatalogName, Promise<void>>();
 
 const EN: Record<string, string> = en;
 
@@ -50,5 +46,33 @@ export function languageOf(locale: string): CatalogName | 'en' {
  */
 export function translate(locale: string, key: MessageKey): string {
   const catalog = CATALOGS[languageOf(locale)];
-  return catalog[key] ?? EN[key] ?? key;
+  return catalog?.[key] ?? EN[key] ?? key;
+}
+
+/** Whether `locale`'s catalog is here, so {@link translate} answers in that language right now. */
+export function catalogReady(locale: string): boolean {
+  return CATALOGS[languageOf(locale)] !== undefined;
+}
+
+/**
+ * Make `locale`'s catalog available. Resolves at once when it already is; never rejects, because a
+ * download that fails leaves the English fallback, which is what a missing key shows anyway. The
+ * promise is stable per language, so React's `use()` can wait on it.
+ */
+export function loadCatalog(locale: string): Promise<void> {
+  const name = languageOf(locale);
+  if (name === 'en' || CATALOGS[name] !== undefined) return Promise.resolve();
+  let pending = LOADING.get(name);
+  if (pending === undefined) {
+    pending = importCatalog(name).then(
+      (messages) => {
+        if (messages !== undefined) CATALOGS[name] = messages;
+      },
+      (error: unknown) => {
+        console.error(`[i18n] the ${name} catalog did not load`, error);
+      },
+    );
+    LOADING.set(name, pending);
+  }
+  return pending;
 }

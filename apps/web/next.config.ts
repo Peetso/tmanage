@@ -58,6 +58,13 @@ const config: NextConfig = {
   // `off` turns every "Start free" back into Sign in and hides "Create an account". The API's
   // routes follow the same variable at runtime, so a changed value needs a rebuild for the links.
   env: { NEXT_PUBLIC_SIGNUP: process.env['PUBLIC_SIGNUP'] ?? 'on' },
+  // DOMAINIMPORT2: JSZip's package entry is its Node build (readable-stream), and Turbopack did
+  // not apply its `browser` field, so the Office viewers and the import reader shipped the Node
+  // stream/util stand-ins, whose generator probe Trusted Types refuses. The browser gets JSZip's
+  // own self-contained browser build instead (also for docx-preview, which imports `jszip`).
+  turbopack: {
+    resolveAlias: { jszip: { browser: 'jszip/dist/jszip.min.js' } },
+  },
 
   // The short legal addresses an OAuth consent screen or a reader types (`/privacy`, `/terms`)
   // land on the real pages. Permanent (308), so crawlers and Google's brand review follow them.

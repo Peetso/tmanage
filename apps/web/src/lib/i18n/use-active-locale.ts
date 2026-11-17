@@ -5,6 +5,7 @@ import type { DisplayLocale } from '../api/display-preferences';
 import { activeLocale, type LocaleStore } from './locale-store';
 import { useRenderedDisplay } from './rendered-display';
 import { languageOf, useRouteLocale } from './route-locale';
+import { useCatalog } from './use-catalog';
 
 /**
  * Subscribe a component to the active locale (i18n, NFR-02). Re-renders when the locale changes,
@@ -28,6 +29,8 @@ export function useActiveLocale(store: LocaleStore = activeLocale): DisplayLocal
     () => store.get(),
     () => routeLocale ?? rendered.locale,
   );
-  if (routeLocale === undefined) return live;
-  return languageOf(live) === languageOf(routeLocale) ? live : routeLocale;
+  const locale =
+    routeLocale === undefined || languageOf(live) === languageOf(routeLocale) ? live : routeLocale;
+  useCatalog(locale);
+  return locale;
 }

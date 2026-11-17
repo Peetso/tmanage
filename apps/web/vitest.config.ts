@@ -19,6 +19,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // jsdom tests render synchronously in every language, as the server does: all catalogs
+      // preloaded (the browser build fetches one per language, package.json `imports`).
+      '#i18n-catalogs': fileURLToPath(new URL('./src/lib/i18n/catalogs-all.ts', import.meta.url)),
     },
   },
   test: {

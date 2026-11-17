@@ -4,6 +4,7 @@ import { createContext, useContext, type ReactNode } from 'react';
 import type { DisplayLocale } from '../api/display-preferences';
 import type { DisplayFormat } from './display-format';
 import { DEFAULT_LOCALE } from './locale-store';
+import { useCatalog } from './use-catalog';
 
 /**
  * FIX6 locale flash — the locale and display format the server rendered this page's HTML with.
@@ -38,6 +39,7 @@ export function RenderedDisplayProvider({
   value: RenderedDisplay;
   children: ReactNode;
 }) {
+  useCatalog(value.locale);
   return (
     <RenderedDisplayContext.Provider value={value}>{children}</RenderedDisplayContext.Provider>
   );

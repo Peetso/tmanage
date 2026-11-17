@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import type { DisplayLocale } from '../api/display-preferences';
 import { activeLocale, type LocaleStore } from './locale-store';
+import { useCatalog } from './use-catalog';
 
 /**
  * The locale a route's URL names (NFR-02, audit gap 5): `ar-EG` inside `app/ar` (the Arabic
@@ -36,6 +37,7 @@ export function RouteLocaleProvider({
   children: ReactNode;
   store?: LocaleStore;
 }) {
+  useCatalog(locale);
   useEffect(() => {
     if (languageOf(store.get()) !== languageOf(locale)) store.set(locale);
   }, [locale, store]);

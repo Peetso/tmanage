@@ -3,6 +3,7 @@ import { LOCALE_STORAGE_KEY, resolveBootLocale } from './locale-boot';
 import { writeLocaleCookie } from './locale-cookie';
 import { readLocaleSource, writeLocaleSource } from './locale-source';
 import { requestDisplay } from './request-display';
+import { catalogReady, loadCatalog } from './t';
 
 /**
  * i18n (NFR-02, I18N-01) — the one place the tab's *active* locale lives.
@@ -37,8 +38,22 @@ function isDisplayLocale(value: unknown): value is DisplayLocale {
 
 export type LocaleListener = (locale: DisplayLocale) => void;
 
+/**
+ * Where the store learns whether a language's words are here yet (DOMAINIMPORT2). The browser
+ * downloads one catalog per language, so a new locale is published only once its catalog has
+ * arrived: the switch happens once, in words and direction together, never via English.
+ */
+export interface CatalogAccess {
+  ready(locale: string): boolean;
+  load(locale: string): Promise<void>;
+}
+
+const CATALOGS: CatalogAccess = { ready: catalogReady, load: loadCatalog };
+
 export class LocaleStore {
   private current: DisplayLocale;
+  /** The locale last asked for; it becomes {@link current} when its catalog is here. */
+  private requested: DisplayLocale;
   private readonly listeners = new Set<LocaleListener>();
 
   /**
@@ -53,11 +68,21 @@ export class LocaleStore {
    */
   private readonly onServer: (() => DisplayLocale | undefined) | undefined;
 
-  constructor(initial?: DisplayLocale, onServer?: () => DisplayLocale | undefined) {
+  private readonly catalogs: CatalogAccess;
+
+  constructor(
+    initial?: DisplayLocale,
+    onServer?: () => DisplayLocale | undefined,
+    catalogs: CatalogAccess = CATALOGS,
+  ) {
     this.onServer = onServer;
+    this.catalogs = catalogs;
     const boot = initial ?? readBoot();
     this.open = boot === undefined;
-    this.current = boot ?? DEFAULT_LOCALE;
+    const start = boot ?? DEFAULT_LOCALE;
+    this.requested = start;
+    this.current = catalogs.ready(start) ? start : DEFAULT_LOCALE;
+    if (this.current !== start) this.publishWhenReady(start);
   }
 
   /** Whether the first-visit guess may still apply (nothing saved, nothing chosen). */
@@ -75,10 +100,11 @@ export class LocaleStore {
     this.open = false;
     writeLocaleSource('auto');
     if (locale === this.current) {
+      this.requested = locale;
       persist(locale);
       return true;
     }
-    this.publish(locale);
+    this.publishWhenReady(locale);
     return true;
   }
 
@@ -97,8 +123,19 @@ export class LocaleStore {
     // Any explicit set is a choice (R12 R2): the first-visit guess never overrides it.
     this.open = false;
     writeLocaleSource('chosen');
-    if (locale === this.current) return;
-    this.publish(locale);
+    this.publishWhenReady(locale);
+  }
+
+  /** Publish `locale` now if its catalog is here, else once it arrives (unless asked for another). */
+  private publishWhenReady(locale: DisplayLocale): void {
+    this.requested = locale;
+    if (this.catalogs.ready(locale)) {
+      if (locale !== this.current) this.publish(locale);
+      return;
+    }
+    void this.catalogs.load(locale).then(() => {
+      if (this.requested === locale && locale !== this.current) this.publish(locale);
+    });
   }
 
   private publish(locale: DisplayLocale): void {

@@ -60,6 +60,10 @@ const config: StorybookConfig = {
         ...viteConfig.resolve?.alias,
         '@': fileURLToPath(new URL('../src', import.meta.url)),
         'node:crypto': fileURLToPath(new URL('./node-crypto-browser.ts', import.meta.url)),
+        // Stories render every language synchronously, as vitest does (all catalogs preloaded).
+        '#i18n-catalogs': fileURLToPath(
+          new URL('../src/lib/i18n/catalogs-all.ts', import.meta.url),
+        ),
       },
     },
     /*
