@@ -106,19 +106,23 @@ describe('the Arabic twins of sign-in, sign-up and the articles', () => {
     });
   });
 
-  it('lists every pair in the sitemap, each naming the other', () => {
+  it('lists every indexed pair in the sitemap, each naming the other', () => {
     const urls = sitemap().map((entry) => new URL(entry.url).pathname);
-    for (const path of ['/sign-in', '/ar/sign-in', '/sign-up', '/ar/sign-up']) {
+    for (const path of ['/sign-up', '/ar/sign-up']) {
       expect(urls, path).toContain(path);
+    }
+    // SEOFIX: the sign-in form is noindex in both languages, so it is not in the sitemap.
+    for (const path of ['/sign-in', '/ar/sign-in']) {
+      expect(urls, path).not.toContain(path);
     }
     for (const path of ARTICLE_PATHS) {
       expect(urls).toContain(path);
       expect(urls).toContain(`/ar${path}`);
     }
-    const entry = sitemap().find((row) => row.url.endsWith('/ar/sign-in'));
+    const entry = sitemap().find((row) => row.url.endsWith('/ar/sign-up'));
     expect(entry?.alternates?.languages).toEqual({
-      en: expect.stringMatching(/\/sign-in$/),
-      ar: expect.stringMatching(/\/ar\/sign-in$/),
+      en: expect.stringMatching(/\/sign-up$/),
+      ar: expect.stringMatching(/\/ar\/sign-up$/),
     });
   });
 

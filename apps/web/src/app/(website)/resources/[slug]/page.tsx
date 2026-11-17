@@ -18,7 +18,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const item = findResource(slug);
-  return item ? { title: item.title, description: item.line } : { title: 'Resources' };
+  return item
+    ? { title: item.tabTitle ?? item.title, description: item.line }
+    : { title: 'Resources' };
 }
 
 export default async function ResourcePage({ params }: { params: Promise<{ slug: string }> }) {

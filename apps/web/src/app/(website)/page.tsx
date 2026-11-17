@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { HomePage } from '../../components/website/pages/home/HomePage';
 import { translate } from '../../lib/i18n/t';
+import { homePageTitle } from '../../lib/route-titles';
 
 /**
  * WEB-01 Home — the public website's landing page (`/`).
@@ -10,8 +11,9 @@ import { translate } from '../../lib/i18n/t';
  * SITE-SPEC "PAGE: Home". Sign-in stays one click away in the nav and the hero.
  */
 export const metadata: Metadata = {
-  // The hero's own lines (SIGNUP2), so the tab, the search snippet and the page say the same.
-  title: { absolute: `TManage — ${translate('en-US', 'HomePage.betaHeroTitle')}` },
+  // A short tab title (at most 60 characters, SEOFIX); the hero line stays the page's H1 and the
+  // lede its search snippet (SIGNUP2).
+  title: { absolute: homePageTitle('en-US') },
   description: translate('en-US', 'HomePage.betaHeroLede'),
 };
 

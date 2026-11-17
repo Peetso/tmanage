@@ -54,6 +54,12 @@ export interface Resource {
   /** What the reader leaves with — shown on the article page, three short lines. */
   points: readonly [string, string, string];
   titleKey: MessageKey;
+  /**
+   * A shorter tab title, for an article whose heading would make a tab title over 60 characters
+   * (SEOFIX); the heading itself stays the page's H1.
+   */
+  tabTitle?: string;
+  tabTitleKey?: MessageKey;
   lineKey: MessageKey;
   metaKey: MessageKey;
   /** The thumbnail orb on the index card. */
@@ -92,6 +98,8 @@ export const FEATURED_SIDE: readonly Resource[] = [
       'The forecast date is the plan’s honest estimate',
     ],
     titleKey: 'ResourcesPage.sideDatesTitle',
+    tabTitle: 'Desired, committed and forecast dates explained',
+    tabTitleKey: 'ResourcesPage.sideDatesTabTitle',
     lineKey: 'ResourcesPage.sideDatesLine',
     metaKey: 'ResourcesPage.sideDatesMeta',
     icon: 'calendar',

@@ -1,5 +1,5 @@
 import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences';
-import { PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
+import { homePageTitle, PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
 import { translate, type MessageKey } from './t';
 import {
   isDisplayLocale,
@@ -103,9 +103,6 @@ export function resolveBootLocale(
 /** The catalog locale the boot script's title table is written in (every `ar-*` tab uses it). */
 const BOOT_TITLE_LOCALE = 'ar-EG';
 
-/** The home page's absolute title: the brand plus its hero line (`WebsiteDocumentTitle`). */
-const HOME_TITLE_PREFIX = 'TManage — ';
-
 /**
  * English tab title → Arabic tab title, for every route without a dynamic segment (the
  * prerendered public, website and sign-in pages) plus the home page. The boot script applies it to
@@ -121,9 +118,9 @@ export function bootTitleTable(): Readonly<Record<string, string>> {
     if (arabic === entry.key || arabic === entry.en) continue;
     table[`${entry.en}${TITLE_SUFFIX}`] = `${arabic}${TITLE_SUFFIX}`;
   }
-  const heroEn = translate('en-US', 'HomePage.betaHeroTitle');
-  const heroAr = translate(BOOT_TITLE_LOCALE, 'HomePage.betaHeroTitle');
-  if (heroAr !== heroEn) table[`${HOME_TITLE_PREFIX}${heroEn}`] = `${HOME_TITLE_PREFIX}${heroAr}`;
+  const homeEn = homePageTitle('en-US');
+  const homeAr = homePageTitle(BOOT_TITLE_LOCALE);
+  if (homeAr !== homeEn) table[homeEn] = homeAr;
   return table;
 }
 

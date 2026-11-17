@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { englishBootTitle } from '../../lib/i18n/locale-boot';
 import { translate, type MessageKey } from '../../lib/i18n/t';
+import { homePageTitle } from '../../lib/route-titles';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 
 /**
@@ -16,7 +17,6 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
  */
 
 const SUFFIX = ' · TManage';
-const HOME_PREFIX = 'TManage — ';
 
 /** English page name (the route's `metadata.title`) → catalog key. */
 export const WEBSITE_TITLE_KEYS: Readonly<Record<string, string>> = {
@@ -52,9 +52,6 @@ export const WEBSITE_TITLE_KEYS: Readonly<Record<string, string>> = {
   Offline: 'WebsiteTitle.offline',
 };
 
-/** The home page's absolute title is the brand plus its hero line. */
-const HOME_TITLE_KEY: MessageKey = 'HomePage.betaHeroTitle';
-
 /** The catalog string, or `undefined` while the key is not in the catalogs yet. */
 function lookup(locale: string, key: string): string | undefined {
   const value = translate(locale, key as MessageKey);
@@ -66,9 +63,7 @@ function lookup(locale: string, key: string): string | undefined {
  * table knows (the title is then left as Next wrote it).
  */
 export function localizedWebsiteTitle(englishTitle: string, locale: string): string | undefined {
-  if (englishTitle === `${HOME_PREFIX}${translate('en-US', HOME_TITLE_KEY)}`) {
-    return `${HOME_PREFIX}${translate(locale, HOME_TITLE_KEY)}`;
-  }
+  if (englishTitle === homePageTitle('en-US')) return homePageTitle(locale);
   if (!englishTitle.endsWith(SUFFIX)) return undefined;
   const key = WEBSITE_TITLE_KEYS[englishTitle.slice(0, -SUFFIX.length)];
   if (key === undefined) return undefined;

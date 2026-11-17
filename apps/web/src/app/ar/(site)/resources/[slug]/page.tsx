@@ -28,7 +28,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const item = findResource((await params).slug);
   if (item === undefined) return ARABIC_NOT_FOUND_METADATA;
   return {
-    title: { absolute: `${translate(ARABIC_ROUTE_LOCALE, item.titleKey)}${TITLE_SUFFIX}` },
+    title: {
+      absolute: `${translate(ARABIC_ROUTE_LOCALE, item.tabTitleKey ?? item.titleKey)}${TITLE_SUFFIX}`,
+    },
     description: translate(ARABIC_ROUTE_LOCALE, item.lineKey),
   };
 }

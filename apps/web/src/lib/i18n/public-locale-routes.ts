@@ -4,7 +4,7 @@ import { COMPARE_ENTRIES } from '../../content/compare/compare-entries';
 import { SWITCH_ENTRIES } from '../../content/compare/switch-entries';
 import { HELP_ARTICLES } from '../../content/help/help-articles';
 import type { DisplayLocale } from '../api/display-preferences';
-import { PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
+import { homePageTitle, PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
 import { siteDescription } from './locale-html';
 import { translate, type MessageKey } from './t';
 
@@ -72,6 +72,22 @@ export function isLocalizablePath(path: string | null | undefined): path is Publ
  * {@link PUBLIC_LOCALIZED_PATHS} (the catch-all's table) and get no website chrome.
  */
 export const ARABIC_AUTH_PATHS = ['/sign-in', '/sign-up'] as const;
+
+export type ArabicAuthPath = (typeof ARABIC_AUTH_PATHS)[number];
+
+/**
+ * The sign-in form, in both languages, is kept out of search results (a form answers no search):
+ * `noindex`, and so left out of `sitemap.xml`, which lists only pages meant to be indexed (SEOFIX,
+ * 2026-11-17). Sign-up is the site's call to action and stays indexed.
+ */
+export const NOINDEX_AUTH_PATHS: readonly ArabicAuthPath[] = ['/sign-in'];
+
+/** The `robots` metadata of an auth page and of its Arabic twin. */
+export function authPageRobots(path: ArabicAuthPath): NonNullable<Metadata['robots']> {
+  return NOINDEX_AUTH_PATHS.includes(path)
+    ? { index: false, follow: false }
+    : { index: true, follow: true };
+}
 
 /** Every article of the resources library (`/resources/<slug>`), which has an Arabic twin. */
 export const ARTICLE_PATHS: readonly string[] = ALL_RESOURCES.map(
@@ -197,16 +213,13 @@ export function publicAlternates(
   return hasArabicTwin(english) ? { en: english, ar: arabicTwinPath(english) } : undefined;
 }
 
-/** The home page's absolute title prefix (`(website)/page.tsx`, `WebsiteDocumentTitle`). */
-const HOME_TITLE_PREFIX = 'TManage — ';
-
 /**
  * The Arabic tab title of a public page: the same string the boot script and
  * `WebsiteDocumentTitle` would write over the English one, so neither changes it.
  */
 export function arabicPublicTitle(path: PublicLocalizedPath): string {
   if (path === '/') {
-    return `${HOME_TITLE_PREFIX}${translate(ARABIC_ROUTE_LOCALE, 'HomePage.betaHeroTitle')}`;
+    return homePageTitle(ARABIC_ROUTE_LOCALE);
   }
   const entry = ROUTE_TITLES[path];
   if (entry === undefined || entry === PAGE_OWNS_TITLE) {
@@ -231,7 +244,7 @@ export function arabicPublicMetadata(path: PublicLocalizedPath): Metadata {
  * The metadata of the Arabic twin of a route whose name is in `ROUTE_TITLES` (`/sign-in`,
  * `/sign-up`): its Arabic tab title and the Arabic site description.
  */
-export function arabicRouteMetadata(pattern: '/sign-in' | '/sign-up'): Metadata {
+export function arabicRouteMetadata(pattern: ArabicAuthPath): Metadata {
   const entry = ROUTE_TITLES[pattern];
   if (entry === undefined || entry === PAGE_OWNS_TITLE) {
     throw new Error(`No page name for route ${pattern}`);
@@ -240,5 +253,6 @@ export function arabicRouteMetadata(pattern: '/sign-in' | '/sign-up'): Metadata 
   return {
     title: { absolute: `${name === entry.key ? entry.en : name}${TITLE_SUFFIX}` },
     description: siteDescription(ARABIC_ROUTE_LOCALE),
+    robots: authPageRobots(pattern),
   };
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { SignUpScreen } from '../../components/screens/SignUpScreen';
 import { PublicLocaleAlternates } from '../../components/website/PublicLocaleAlternates';
+import { authPageRobots } from '../../lib/i18n/public-locale-routes';
 
 /**
  * FIX6 locale flash: rendered per request, so the first HTML is in the member's saved language
@@ -15,6 +16,8 @@ export const dynamic = 'force-dynamic';
  */
 export const metadata: Metadata = {
   title: 'Create your TManage account',
+  // In the sitemap, so indexed (the root layout's default is `noindex`).
+  robots: authPageRobots('/sign-up'),
 };
 
 export default function SignUpPage() {

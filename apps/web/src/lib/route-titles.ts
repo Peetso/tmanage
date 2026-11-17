@@ -26,6 +26,17 @@ export type RouteTitleEntry = RouteTitleRow | typeof PAGE_OWNS_TITLE;
 /** The suffix the root layout's title template adds. */
 export const TITLE_SUFFIX = ' · TManage';
 
+/** The longest tab title a public page may have: search results cut a longer one (SEOFIX). */
+export const MAX_PUBLIC_TITLE_LENGTH = 60;
+
+/** The catalog key of the home page's tab title (brand included; the hero line stays the H1). */
+export const HOME_TITLE_KEY = 'HomePage.pageTitle' satisfies MessageKey;
+
+/** The home page's absolute tab title in `locale`. */
+export function homePageTitle(locale: string): string {
+  return translate(locale, HOME_TITLE_KEY);
+}
+
 /** Route pattern (as the folders under `src/app` spell it, route groups dropped) → page name. */
 export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/about': { en: 'About', key: 'WebsiteTitle.about' },
