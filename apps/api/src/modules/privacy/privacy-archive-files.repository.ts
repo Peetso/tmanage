@@ -7,6 +7,8 @@ import { fileVersions } from '../../common/database/schema.js';
 import type { FileVersionRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { awaitingScan } from '../files/file-download.service.js';
+import { ProviderObjectUnavailableError, VersionStore } from '../files/provider-objects.js';
+import type { ProviderObjectSources } from '../files/provider-objects.js';
 import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import type { DownloadsBeforeScan } from '../tenancy/org-settings.allowlist.js';
@@ -41,7 +43,9 @@ export type LeftOutReason =
   | 'not_ready'
   | 'too_large'
   | 'archive_size_limit'
-  | 'missing';
+  | 'missing'
+  /** 57-13b: the version is held in the company's Drive/OneDrive and it could not be reached. */
+  | 'storage_unavailable';
 
 /**
  * N03 (wave 10) — a file of a project the subject can no longer read. Listed so nothing is dropped
@@ -196,7 +200,13 @@ export class ArchiveFileContents {
     private readonly policyOf: (context: TenantContext) => Promise<DownloadsBeforeScan> = async (
       context,
     ) => (await readDownloadScanPolicy(this.database, context, this.scanner)).effective,
-  ) {}
+    /** 57-13b. The company's Drive/OneDrive, for versions held there. */
+    providers: ProviderObjectSources = {},
+  ) {
+    this.versions = new VersionStore(store, providers);
+  }
+
+  private readonly versions: VersionStore;
 
   /** Every file in scope with its bytes or the reason they are left out. `ownerUserId` narrows. */
   async read(
@@ -222,6 +232,7 @@ export class ArchiveFileContents {
         }
         const version = latest.get(asset.id);
         const row = await this.oneFile(
+          context,
           asset,
           version,
           decideFile(asset.status, version, policy),
@@ -237,6 +248,7 @@ export class ArchiveFileContents {
   }
 
   private async oneFile(
+    context: TenantContext,
     asset: AssetRow,
     version: FileVersionRow | undefined,
     decision: FileDecision,
@@ -264,14 +276,14 @@ export class ArchiveFileContents {
     }
     let bytes: Buffer | null;
     try {
-      const opened = await this.store.openObject({
-        zone: decision.zone,
-        objectKey: version.objectKey,
-      });
+      const opened = await this.versions.open(context, version, decision.zone);
       bytes = await readAll(opened.stream, version.sizeBytes);
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
         return { ...base, included: false, left_out: 'missing' };
+      }
+      if (error instanceof ProviderObjectUnavailableError) {
+        return { ...base, included: false, left_out: 'storage_unavailable' };
       }
       throw error;
     }

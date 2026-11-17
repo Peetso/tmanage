@@ -115,7 +115,7 @@ function sha256(bytes: Buffer): string {
 
 export class VersionStore {
   constructor(
-    private readonly store: ObjectStore,
+    private readonly store: Pick<ObjectStore, 'openObject'>,
     private readonly providers: ProviderObjectSources = {},
   ) {}
 

@@ -18,6 +18,7 @@ import { FileAssetsRepository } from '../files/file-assets.repository.js';
 import { FileDownloadService } from '../files/file-download.service.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { providerObjectSources } from '../files/provider-object-sources.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ClientOrganizationsRepository } from '../clients/client-organizations.repository.js';
@@ -149,6 +150,7 @@ export class InboxModule {
         OBJECT_STORE,
         AUDIT_SERVICE,
         MALWARE_SCANNER,
+        { token: API_CONFIG, optional: true },
       ],
       useFactory: (
         database: TenantDatabase,
@@ -157,6 +159,7 @@ export class InboxModule {
         store: ObjectStore,
         audit: AuditService,
         malwareScanner: MalwareScanner,
+        config: ApiConfig | undefined,
       ) =>
         new PortalInboxService(
           database,
@@ -175,6 +178,9 @@ export class InboxModule {
               store,
               audit,
               malwareScanner,
+              undefined,
+              undefined,
+              config ? providerObjectSources(database, audit, config) : {},
             ),
           ),
         ),

@@ -49,7 +49,7 @@ import { WorkItemFilesService } from '../work/item-files.service.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { createDriveTransport, type DriveTransport } from '../google-drive/google-drive.google.js';
 import { googleDriveServiceFor } from '../google-drive/google-drive.controller.js';
-import type { ProviderObjectSources } from './provider-objects.js';
+import { providerObjectSources } from './provider-object-sources.js';
 import { createOneDriveTransport, type OneDriveTransport } from '../onedrive/onedrive.graph.js';
 import { oneDriveServiceFor } from '../onedrive/onedrive.controller.js';
 import { CloudFoldersService } from '../cloud-folders/cloud-folders.service.js';
@@ -163,24 +163,8 @@ export class FilesModule {
     drives: { readonly drive?: DriveTransport; readonly oneDrive?: OneDriveTransport } = {},
   ): DynamicModule {
     // 57-13a. The company's Drive/OneDrive as storage for versions held there (VersionStore).
-    const providerSources = (
-      database: TenantDatabase,
-      audit: AuditService,
-      config: ApiConfig,
-    ): ProviderObjectSources => ({
-      google_drive: googleDriveServiceFor(
-        database,
-        audit,
-        config,
-        drives.drive ?? createDriveTransport(),
-      ).objectSource(),
-      onedrive: oneDriveServiceFor(
-        database,
-        audit,
-        config,
-        drives.oneDrive ?? createOneDriveTransport(),
-      ).objectSource(),
-    });
+    const providerSources = (database: TenantDatabase, audit: AuditService, config: ApiConfig) =>
+      providerObjectSources(database, audit, config, drives);
     const repositories: Provider[] = [
       { provide: UPLOAD_SESSIONS_REPOSITORY, useFactory: () => new UploadSessionsRepository() },
       { provide: FILE_ASSETS_REPOSITORY, useFactory: () => new FileAssetsRepository() },

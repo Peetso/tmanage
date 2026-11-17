@@ -3,7 +3,16 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import type { Mailer } from '@tmanage/mail';
 import type { ObjectStore } from '@tmanage/storage';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { MAILER, OBJECT_STORE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import {
+  API_CONFIG,
+  AUDIT_SERVICE,
+  MAILER,
+  OBJECT_STORE,
+  TENANT_DATABASE,
+} from '../../common/http/tokens.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { providerObjectSources } from '../files/provider-object-sources.js';
 import { PublicLinkSecrets } from '../public-links/public-link-secrets.js';
 import { ESIGN_SERVICE, EsignController, PortalEsignController } from './esign.controller.js';
 import { EsignService } from './esign.service.js';
@@ -29,7 +38,13 @@ const ESIGN_PAIR = Symbol.for('tmanage.EsignWithSignedPdf');
 export class EsignModule {
   static register(options: EsignModuleOptions): DynamicModule {
     // 52-26: the signed PDF is produced once a signature commits, and served on download.
-    const wired = (database: TenantDatabase, store: ObjectStore, mailer: Mailer | undefined) => {
+    const wired = (
+      database: TenantDatabase,
+      store: ObjectStore,
+      mailer: Mailer | undefined,
+      config: ApiConfig | undefined,
+      audit: AuditService | undefined,
+    ) => {
       let signedPdf: SignedPdfService | null = null;
       const esign = new EsignService({
         database,
@@ -40,12 +55,21 @@ export class EsignModule {
         onSigned: (context, requestId) =>
           signedPdf === null ? Promise.resolve() : signedPdf.produce(context, requestId),
       });
-      signedPdf = new SignedPdfService(esign, new RecordPdfStore(store));
+      // 57-13b: a signed original held in the company's Drive/OneDrive is read through it.
+      const providers =
+        config && audit ? providerObjectSources(database, audit, config) : undefined;
+      signedPdf = new SignedPdfService(esign, new RecordPdfStore(store, providers));
       return { esign, signedPdf };
     };
     const pair: Provider = {
       provide: ESIGN_PAIR,
-      inject: [TENANT_DATABASE, OBJECT_STORE, { token: MAILER, optional: true }],
+      inject: [
+        TENANT_DATABASE,
+        OBJECT_STORE,
+        { token: MAILER, optional: true },
+        { token: API_CONFIG, optional: true },
+        { token: AUDIT_SERVICE, optional: true },
+      ],
       useFactory: wired,
     };
     const service: Provider = {

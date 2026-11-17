@@ -119,6 +119,7 @@ describe('Export file bytes — reading them', () => {
     );
     const read = reader as unknown as {
       oneFile: (
+        context: TenantContext,
         asset: { id: string; name: string; status: string },
         v: FileVersionRow | undefined,
         d: ReturnType<typeof decideFile>,
@@ -126,6 +127,7 @@ describe('Export file bytes — reading them', () => {
       ) => Promise<Record<string, unknown>>;
     };
     const included = await read.oneFile(
+      context,
       { id: 'f1', name: 'brief.pdf', status: 'ready' },
       version(),
       decideFile('ready', version(), 'allow_labeled'),
@@ -140,6 +142,7 @@ describe('Export file bytes — reading them', () => {
     const tooLarge = version({ sizeBytes: MAX_FILE_BYTES + 1 });
     expect(
       await read.oneFile(
+        context,
         { id: 'f2', name: 'big.mov', status: 'ready' },
         tooLarge,
         decideFile('ready', tooLarge, 'allow_labeled'),
@@ -148,6 +151,7 @@ describe('Export file bytes — reading them', () => {
     ).toMatchObject({ included: false, left_out: 'too_large' });
     expect(
       await read.oneFile(
+        context,
         { id: 'f3', name: 'a.pdf', status: 'ready' },
         version(),
         decideFile('ready', version(), 'allow_labeled'),
@@ -170,12 +174,72 @@ describe('Export file bytes — reading them', () => {
         oneFile: (...args: unknown[]) => Promise<Record<string, unknown>>;
       }
     ).oneFile(
+      context,
       { id: 'f1', name: 'x', status: 'ready' },
       version(),
       decideFile('ready', version(), 'block'),
       100,
     );
     expect(row).toMatchObject({ included: false, left_out: 'missing' });
+  });
+
+  it('57-13b: exports a version held in the company Drive through the provider, not the local store', async () => {
+    const reads: unknown[] = [];
+    const reader = new ArchiveFileContents(
+      {} as TenantDatabase,
+      {
+        openObject: () => Promise.reject(new Error('the local store must not be read')),
+      } as unknown as Pick<ObjectStore, 'openObject'>,
+      undefined,
+      () => Promise.resolve('allow_labeled'),
+      {
+        google_drive: {
+          put: () => Promise.reject(new Error('not used')),
+          remove: () => Promise.reject(new Error('not used')),
+          read: (_context, ref) => {
+            reads.push(ref);
+            return Promise.resolve(Buffer.from('drive'));
+          },
+        },
+      },
+    );
+    const held = version({
+      storageBackend: 'google_drive',
+      providerFileId: 'drive-file-1',
+      storageConnectionId: 'connection-1',
+    } as Partial<FileVersionRow>);
+    const read = reader as unknown as {
+      oneFile: (...args: unknown[]) => Promise<Record<string, unknown>>;
+    };
+    const row = await read.oneFile(
+      context,
+      { id: 'f1', name: 'brief.pdf', status: 'ready' },
+      held,
+      decideFile('ready', held, 'allow_labeled'),
+      1_000,
+    );
+    expect(row).toMatchObject({
+      included: true,
+      content_base64: Buffer.from('drive').toString('base64'),
+    });
+    expect(reads).toEqual([{ connectionId: 'connection-1', providerFileId: 'drive-file-1' }]);
+
+    const unreachable = new ArchiveFileContents(
+      {} as TenantDatabase,
+      {} as Pick<ObjectStore, 'openObject'>,
+      undefined,
+      () => Promise.resolve('allow_labeled'),
+      {},
+    ) as unknown as typeof read;
+    expect(
+      await unreachable.oneFile(
+        context,
+        { id: 'f1', name: 'brief.pdf', status: 'ready' },
+        held,
+        decideFile('ready', held, 'allow_labeled'),
+        1_000,
+      ),
+    ).toMatchObject({ included: false, left_out: 'storage_unavailable' });
   });
 
   it('narrows a member export to the files that person added, scoped to the organization', async () => {

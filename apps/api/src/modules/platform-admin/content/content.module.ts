@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { ObjectStore } from '@tmanage/storage';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
+import type { ApiConfig } from '../../../common/http/api-config.js';
 import {
+  API_CONFIG,
   AUDIT_SERVICE,
   MALWARE_SCANNER,
   OBJECT_STORE,
@@ -17,6 +19,7 @@ import { DecisionsService } from '../../decisions/decisions.service.js';
 import { DocumentsService } from '../../docs/documents.service.js';
 import { FileAssetsRepository } from '../../files/file-assets.repository.js';
 import { FileDownloadService } from '../../files/file-download.service.js';
+import { providerObjectSources } from '../../files/provider-object-sources.js';
 import type { OutboxEventsRepository } from '../../platform/outbox-events.repository.js';
 import { ProjectsRepository } from '../../projects/projects.repository.js';
 import { ClientRequestsRepository } from '../../requests/client-requests.repository.js';
@@ -61,6 +64,7 @@ export class PlatformContentModule {
         OUTBOX_EVENTS_REPOSITORY,
         OBJECT_STORE,
         MALWARE_SCANNER,
+        { token: API_CONFIG, optional: true },
       ],
       useFactory: (
         database: TenantDatabase,
@@ -69,6 +73,7 @@ export class PlatformContentModule {
         outbox: OutboxEventsRepository,
         store: ObjectStore,
         scanner: MalwareScanner,
+        config: ApiConfig | undefined,
       ) => {
         const workItemsRepository = new WorkItemsRepository();
         const org: ContentOrgPorts = {
@@ -92,6 +97,9 @@ export class PlatformContentModule {
             store,
             audit,
             scanner,
+            undefined,
+            undefined,
+            config ? providerObjectSources(database, audit, config) : {},
           ),
         };
         return new PlatformContentService(

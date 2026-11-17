@@ -1,4 +1,5 @@
 import { canonicalJson } from '../audit/audit-chain.js';
+import type { StoredVersion } from '../files/provider-objects.js';
 import type { ApprovalCertificateView } from './approvals.service.js';
 import type { PdfDocument, PdfImage, PdfRow, PdfSection } from './record-pdf.js';
 
@@ -57,10 +58,11 @@ export interface SignedDocumentFacts {
   readonly original: SignedOriginal | null;
 }
 
-/** 52-26 — where the signed PDF's bytes are and what they must hash to. */
-export interface SignedOriginal {
-  readonly objectKey: string;
-  readonly sizeBytes: number;
+/**
+ * 52-26 — where the signed PDF's bytes are and what they must hash to. 57-13b: the version may
+ * be held in the company's Drive/OneDrive (`StoredVersion`), read through `VersionStore`.
+ */
+export interface SignedOriginal extends StoredVersion {
   readonly sha256: string;
 }
 

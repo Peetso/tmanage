@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import type { Principal } from '@tmanage/domain';
 import { ObjectNotFoundError, derivativeObjectKey } from '@tmanage/storage';
 import type { ObjectStore } from '@tmanage/storage';
+import { ProviderObjectUnavailableError, VersionStore } from '../files/provider-objects.js';
+import type { ProviderObjectSources } from '../files/provider-objects.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApiError } from '../../common/http/errors.js';
 import { pngCodec } from '../files/preview-generators/codecs.js';
@@ -69,7 +71,15 @@ async function readAll(stream: NodeJS.ReadableStream, max: number): Promise<Buff
 
 /** The stored copy under its content key, or a fresh render written there first. */
 export class RecordPdfStore {
-  constructor(private readonly store: ObjectStore) {}
+  private readonly versions: VersionStore;
+
+  constructor(
+    private readonly store: ObjectStore,
+    /** 57-13b. The company's Drive/OneDrive, for a signed original held there. */
+    providers: ProviderObjectSources = {},
+  ) {
+    this.versions = new VersionStore(store, providers);
+  }
 
   async fetchOrRender(
     key: { readonly organizationId: string; readonly versionId: string; readonly id: string },
@@ -97,13 +107,15 @@ export class RecordPdfStore {
    * only when they are within the cap, start like a PDF and hash to the sealed file hash.
    * Anything else gives `null`: the signed copy is then the record pages alone.
    */
-  async original(file: SignedOriginal): Promise<Buffer | null> {
+  async original(context: TenantContext, file: SignedOriginal): Promise<Buffer | null> {
     let bytes: Buffer | null;
     try {
-      const opened = await this.store.openObject({ zone: 'private', objectKey: file.objectKey });
+      const opened = await this.versions.open(context, file, 'private');
       bytes = await readAll(opened.stream, MAX_ORIGINAL_PDF_BYTES);
     } catch (error) {
+      // A missing object, or a provider that cannot be read now: the record pages alone.
       if (error instanceof ObjectNotFoundError) return null;
+      if (error instanceof ProviderObjectUnavailableError) return null;
       throw error;
     }
     if (bytes === null || bytes.length !== file.sizeBytes) return null;
@@ -263,7 +275,8 @@ export class SignedPdfService {
           const image = await this.files.mark(signer.markObjectKey);
           if (image !== null) marks.set(signer.markSha256, image);
         }
-        const original = facts.original === null ? null : await this.files.original(facts.original);
+        const original =
+          facts.original === null ? null : await this.files.original(context, facts.original);
         const document = signedPdfDocument(facts, marks);
         return (await renderRecordPdf(document, original === null ? {} : { original })).bytes;
       },

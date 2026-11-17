@@ -1,8 +1,12 @@
+import { createHash } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
+import type { ObjectStore } from '@tmanage/storage';
+import type { TenantContext } from '../../common/database/tenant-context.js';
 import { renderRecordPdf, setLine, visualRuns } from './record-pdf.js';
 import { signedPdfDocument } from './record-pdf-documents.js';
 import type { SignedDocumentFacts } from './record-pdf-documents.js';
+import { RecordPdfStore } from './record-pdf.service.js';
 
 const RECORD_HASH = 'ab'.repeat(32);
 const RECORD_JSON = '{"decision":"signed","esign":{"signerName":"Layla ليلى"}}';
@@ -80,5 +84,41 @@ describe('52-19 / 52-26 record PDF', () => {
     });
     expect(broken.originalPages).toBeNull();
     expect((await PDFDocument.load(broken.bytes)).getPageCount()).toBe(1);
+  });
+
+  it('57-13b: reads a signed original held in the company OneDrive through the provider', async () => {
+    const org = '00000000-0000-4000-8000-0000000000a1';
+    const context = { organizationId: org, correlationId: 'c' } as unknown as TenantContext;
+    const pdf = Buffer.from(await (await PDFDocument.create()).save());
+    const reads: unknown[] = [];
+    const store = new RecordPdfStore(
+      {
+        openObject: () => Promise.reject(new Error('the local store must not be read')),
+      } as unknown as ObjectStore,
+      {
+        onedrive: {
+          put: () => Promise.reject(new Error('not used')),
+          remove: () => Promise.reject(new Error('not used')),
+          read: (_context, ref) => {
+            reads.push(ref);
+            return Promise.resolve(pdf);
+          },
+        },
+      },
+    );
+    const file = {
+      organizationId: org,
+      objectKey: 'tenant/x/object',
+      sizeBytes: pdf.length,
+      sha256: createHash('sha256').update(pdf).digest('hex'),
+      storageBackend: 'onedrive',
+      providerFileId: 'item-1',
+      storageConnectionId: 'connection-1',
+    };
+    expect(await store.original(context, file)).toEqual(pdf);
+    expect(reads).toEqual([{ connectionId: 'connection-1', providerFileId: 'item-1' }]);
+    // Another company's row is never sent to the provider.
+    expect(await store.original(context, { ...file, organizationId: 'other' })).toBeNull();
+    expect(reads).toHaveLength(1);
   });
 });

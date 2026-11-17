@@ -84,10 +84,14 @@ export class RecordPdfRepository {
   ): Promise<SignedOriginal | null> {
     const rows = await tenantDrizzle(runner)
       .select({
+        organizationId: fileVersions.organizationId,
         objectKey: fileVersions.objectKey,
         sizeBytes: fileVersions.sizeBytes,
         sha256: fileVersions.contentHash,
         scanVerdict: fileVersions.scanVerdict,
+        storageBackend: fileVersions.storageBackend,
+        providerFileId: fileVersions.providerFileId,
+        storageConnectionId: fileVersions.storageConnectionId,
       })
       .from(fileVersions)
       .where(
@@ -103,6 +107,14 @@ export class RecordPdfRepository {
     const row = rows[0];
     if (row === undefined || row.sha256 === null || row.scanVerdict === 'infected') return null;
     if (row.sizeBytes <= 0 || row.sizeBytes > MAX_ORIGINAL_PDF_BYTES) return null;
-    return { objectKey: row.objectKey, sizeBytes: row.sizeBytes, sha256: row.sha256 };
+    return {
+      organizationId: row.organizationId,
+      objectKey: row.objectKey,
+      sizeBytes: row.sizeBytes,
+      sha256: row.sha256,
+      storageBackend: row.storageBackend,
+      providerFileId: row.providerFileId,
+      storageConnectionId: row.storageConnectionId,
+    };
   }
 }

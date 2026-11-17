@@ -19,7 +19,11 @@ import {
   MyPrivacyController,
   PRIVACY_SERVICE,
 } from './privacy.controller.js';
+import { providerObjectSources } from '../files/provider-object-sources.js';
+import { ArchiveFileContents } from './privacy-archive-files.repository.js';
+import { PrivacyArchiveBuilder } from './privacy-archive.repository.js';
 import { PRIVACY_JOB, PrivacyJob, PrivacyPass, privacyJobEnabled } from './privacy-job.js';
+import { PrivacyRepository } from './privacy.repository.js';
 import { PrivacyService } from './privacy.service.js';
 import { PRIVACY_STEP_UP, PrivacyStepUp } from './privacy-step-up.js';
 
@@ -42,6 +46,7 @@ export class PrivacyModule {
         { token: MALWARE_SCANNER, optional: true },
         { token: AUDIT_SERVICE, optional: true },
         { token: OUTBOX_EVENTS_REPOSITORY, optional: true },
+        { token: API_CONFIG, optional: true },
       ],
       useFactory: (
         database: TenantDatabase,
@@ -49,7 +54,27 @@ export class PrivacyModule {
         scanner: MalwareScanner | undefined,
         audit: AuditService | undefined,
         outbox: OutboxEventsRepository | undefined,
-      ) => new PrivacyPass(database, store, scanner, audit, outbox),
+        config: ApiConfig | undefined,
+      ) =>
+        new PrivacyPass(
+          database,
+          store,
+          scanner,
+          audit,
+          outbox,
+          new PrivacyRepository(),
+          // 57-13b: a version held in the company's Drive/OneDrive is exported from there.
+          new PrivacyArchiveBuilder(
+            database,
+            new ArchiveFileContents(
+              database,
+              store,
+              scanner,
+              undefined,
+              audit && config ? providerObjectSources(database, audit, config) : {},
+            ),
+          ),
+        ),
     };
     const job: Provider = {
       provide: PRIVACY_JOB,
