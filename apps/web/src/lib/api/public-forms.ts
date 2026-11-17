@@ -119,7 +119,8 @@ export async function openPublicFormDraft(client: ApiClient, slug: string): Prom
   }
 }
 
-interface PublicUploadReply {
+/** 52-20a. The upload start reply, as far as the page reads it. Narrows the API's `PublicFormUploadView`. */
+export interface PublicUploadReply {
   readonly id: string;
   readonly partSizeBytes: number;
   readonly uploadUrls: readonly { readonly partNumber: number; readonly url: string }[];

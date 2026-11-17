@@ -4774,6 +4774,26 @@ type _storageHandover = Assert<Exact<ApiStorageHandoverView, WebStorageHandoverV
 import type { CompanyRootOptionsView as ApiCompanyRootOptionsView } from '../../apps/api/src/modules/storage-root/root-owner.js';
 import type { CompanyRootOptionsView as WebCompanyRootOptionsView } from '../../apps/web/src/lib/api/storage-root.js';
 type _companyRootOptions = Assert<Exact<ApiCompanyRootOptionsView, WebCompanyRootOptionsView>>;
+// 57-13b/c: `POST|GET …/integrations/storage/migration-jobs` — the Move to Drive job (web client 3f577f33).
+import type { StorageMoveView as ApiStorageMoveView } from '../../apps/api/src/modules/storage-root/storage-move.service.js';
+import type { StorageMoveView as WebStorageMoveView } from '../../apps/web/src/lib/api/storage-root.js';
+type _storageMove = Assert<Exact<ApiStorageMoveView, WebStorageMoveView>>;
+
+// ---- 52-20a public form attachments ----
+import type { PublicFormUploadView as ApiPublicFormUploadView } from '../../apps/api/src/modules/files/files.service.js';
+import type { PublicAttachmentRule as ApiPublicAttachmentRule } from '../../apps/api/src/modules/public-forms/public-form-attachments.js';
+import type { PublicFormView as ApiPublicFormView } from '../../apps/api/src/modules/public-forms/public-forms.service.js';
+import type {
+  PublicAttachmentRule as WebPublicAttachmentRule,
+  PublicFormDefinition as WebPublicFormDefinitionWithFiles,
+  PublicUploadReply as WebPublicUploadReply,
+} from '../../apps/web/src/lib/api/public-forms.js';
+/** The rule a visitor's page enforces before sending a file. */
+type _publicAttachmentRule = Assert<Exact<ApiPublicAttachmentRule, WebPublicAttachmentRule>>;
+/** `GET /v1/public/forms/:slug`: the web makes `attachments` optional (a portal journey step has none). */
+type _publicFormView = Assert<Narrows<ApiPublicFormView, WebPublicFormDefinitionWithFiles>>;
+/** `POST …/uploads`: the page reads id, part size and part URLs only. */
+type _publicFormUpload = Assert<Narrows<ApiPublicFormUploadView, WebPublicUploadReply>>;
 
 // ---- 56-07p Settings · Public links: the workspace link manager ----
 import type {

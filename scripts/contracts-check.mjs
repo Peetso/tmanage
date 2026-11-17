@@ -77,8 +77,12 @@ const EXEMPT = new Map([
     'No web consumer yet: 52-27 GET …/journey-templates has no apps/web client; the studio template picker is not built.',
   ],
   [
-    'StorageMoveView',
-    'No web consumer yet: 57-13b "Move to Drive" job (…/integrations/storage/migration-jobs) is backend only; no apps/web client is built.',
+    'SubmissionAttachmentView',
+    'No web consumer yet: 52-20a element of SubmissionView (itself EXEMPT); the work-form submissions screen that would show attachments is a follow-up.',
+  ],
+  [
+    'PublicFormFileView',
+    'No web consumer: 52-20a public form upload complete reply; apps/web/src/lib/api/public-forms.ts completes the upload and ignores the body (request<unknown>).',
   ],
   [
     'PlanVersionView',
