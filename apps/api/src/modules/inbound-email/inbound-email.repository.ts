@@ -6,6 +6,7 @@ import {
   inboundEmailAttachments,
   inboundEmails,
   memberships,
+  organizations,
   projectClients,
   projects,
   users,
@@ -92,6 +93,19 @@ export class InboundEmailRepository {
       .orderBy(desc(inboundEmailAddresses.createdAt))
       .limit(1);
     const rows = forUpdate ? await query.for('update') : await query;
+    return rows[0] ?? null;
+  }
+
+  /** EMAILBUILD (c): the workspace's name and language, for the ask-resend mail's [WS] sign-off. */
+  async organizationLabel(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<{ readonly name: string; readonly defaultLocale: string } | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ name: organizations.name, defaultLocale: organizations.defaultLocale })
+      .from(organizations)
+      .where(eq(organizations.id, context.organizationId))
+      .limit(1);
     return rows[0] ?? null;
   }
 

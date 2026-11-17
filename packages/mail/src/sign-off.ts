@@ -130,6 +130,34 @@ export function workspaceReplyLine(
     : `Replies to this e-mail are not read. To answer, open the portal: ${names.portalLink}`;
 }
 
+/** U+200F, the right-to-left mark: keeps a mixed Arabic/Latin line anchored right. */
+const RLM = String.fromCodePoint(0x20_0f);
+
+/** An Arabic line (or subject) starts with the RLM; an English one is returned unchanged. */
+export function anchored(language: MailLanguage, line: string): string {
+  return language === 'ar' && !line.startsWith(RLM) ? `${RLM}${line}` : line;
+}
+
+/**
+ * A plain-text body in the EMAIL-COPY frame: the greeting, one paragraph per line (Arabic lines
+ * anchored right), then the sign-off block. An empty line is dropped, so an optional sentence can
+ * be passed as `''`.
+ */
+export function plainMailText(
+  language: MailLanguage,
+  body: {
+    readonly name?: string;
+    readonly lines: readonly string[];
+    readonly signature: readonly string[];
+  },
+): string {
+  return [
+    anchored(language, greeting(language, body.name)),
+    ...body.lines.filter((line) => line !== '').map((line) => anchored(language, line)),
+    body.signature.join('\n'),
+  ].join('\n\n');
+}
+
 /** "Hi {firstName}," from a display name; "Hello," / "مرحبًا،" when there is none. */
 export function greeting(language: MailLanguage, displayName: string | undefined): string {
   const first = (displayName ?? '').replaceAll(/\s+/gu, ' ').trim().split(' ')[0] ?? '';

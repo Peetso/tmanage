@@ -34,7 +34,14 @@ import type {
   TaxRateTotal,
 } from '@tmanage/domain';
 import { phase2Qr, verifyXmlSignature } from '@tmanage/domain/zatca-sign';
-import { forCompany, withTemplateKey } from '@tmanage/mail';
+import {
+  anchored,
+  forCompany,
+  greeting,
+  withTemplateKey,
+  workspaceReplyLine,
+  workspaceSignOff,
+} from '@tmanage/mail';
 import { attachIfFits } from '@tmanage/mail';
 import type { MailAttachment, Mailer, MailMessage } from '@tmanage/mail';
 import type {
@@ -1007,7 +1014,12 @@ export class ClientInvoicesService {
       if (row === null) throw notFound();
       if (row.state !== 'draft') {
         if (keyHash !== null && row.sendKeyHash === keyHash) {
-          return { view: await this.view(tx, org, row), fresh: false, country: null };
+          return {
+            view: await this.view(tx, org, row),
+            fresh: false,
+            country: null,
+            names: NO_NAMES,
+          };
         }
         throw conflict('already_sent');
       }
@@ -1170,6 +1182,7 @@ export class ClientInvoicesService {
         view: await this.view(tx, org, sent),
         fresh: true,
         country: sellerFromSnapshot(sent.sellerSnapshotJson).country,
+        names: await this.mailNames(tx, org, sent.clientOrganizationId),
       };
     });
     if (outcome.fresh && mail) {
@@ -1182,6 +1195,7 @@ export class ClientInvoicesService {
         'invoice',
         input.message,
         outcome.country,
+        outcome.names,
         attachment,
       );
     }
@@ -1651,6 +1665,7 @@ export class ClientInvoicesService {
         view: await this.view(tx, org, row),
         to,
         country: sellerFromSnapshot(row.sellerSnapshotJson).country,
+        names: await this.mailNames(tx, org, row.clientOrganizationId),
       };
     });
     await this.deliver(
@@ -1661,6 +1676,7 @@ export class ClientInvoicesService {
       'reminder',
       null,
       view.country,
+      view.names,
     );
     return { sent: true, recipients: view.to.length };
   }
@@ -2086,6 +2102,20 @@ export class ClientInvoicesService {
     );
   }
 
+  /** EMAILBUILD (c): the agency and client names the invoice mail and its [WS] sign-off print. */
+  private async mailNames(
+    tx: TenantQueryRunner,
+    org: string,
+    clientOrganizationId: string,
+  ): Promise<MailNames> {
+    const organization = await this.options.finance.organization(tx, org);
+    const client = await this.repo.clientBilling(tx, org, clientOrganizationId);
+    return {
+      workspaceName: organization?.name ?? '',
+      clientName: client?.name ?? null,
+    };
+  }
+
   private async deliver(
     /** 56-26: the sending company — signed Message-ID, bounce suppressions apply. */
     organizationId: string,
@@ -2095,6 +2125,7 @@ export class ClientInvoicesService {
     kind: 'invoice' | 'reminder',
     message: string | null,
     country: string | null,
+    names: MailNames,
     attachment: MailAttachment | null = null,
   ): Promise<void> {
     if (this.mailer === null || to.length === 0) return;
@@ -2103,7 +2134,15 @@ export class ClientInvoicesService {
     for (const recipient of to) {
       try {
         const mailMessage = {
-          ...composeInvoiceEmail({ to: recipient, view, link, kind, message, country }),
+          ...composeInvoiceEmail({
+            to: recipient,
+            view,
+            link,
+            kind,
+            message,
+            country,
+            ...names,
+          }),
           templateKey: 'client_invoice',
           audience: 'client' as const,
         };
@@ -2266,6 +2305,14 @@ function portalDescription(
   );
 }
 
+/** EMAILBUILD (c): who an invoice mail is from and for. */
+interface MailNames {
+  readonly workspaceName: string;
+  readonly clientName: string | null;
+}
+
+const NO_NAMES: MailNames = { workspaceName: '', clientName: null };
+
 export function composeInvoiceEmail(facts: {
   readonly to: string;
   readonly view: InvoiceView;
@@ -2274,49 +2321,95 @@ export function composeInvoiceEmail(facts: {
   readonly message: string | null;
   /** B6: the seller's country as sent; picks the one authority the notice names. */
   readonly country?: string | null;
+  /** EMAILBUILD (c): the agency's name for the subject and the [WS] sign-off. */
+  readonly workspaceName?: string;
+  /** EMAILBUILD (c): the client organization the recipient is a billing contact for. */
+  readonly clientName?: string | null;
 }): MailMessage {
   const { view, link } = facts;
   const arabic = view.language === 'ar';
+  const language = arabic ? 'ar' : 'en';
   const number = view.number ?? '';
+  const studio = facts.workspaceName ?? '';
   // 52-28: the document's label leads the heading; the notice line follows the amount.
-  const docLabel = labelCopy(view.documentLabel, arabic ? 'ar' : 'en');
-  const notice = noticeOf(view) ? taxNoticeFor(facts.country, arabic ? 'ar' : 'en') : null;
+  const docLabel = labelCopy(view.documentLabel, language);
+  const notice = noticeOf(view) ? taxNoticeFor(facts.country, language) : null;
   const amount = formatMinor(view.amountDueMinor, view.currency);
   const due = view.dueDate ?? '';
+  const from = (en: string, ar: string): string => (studio === '' ? '' : arabic ? ar : en);
+  const client = facts.clientName ?? '';
+  // EMAIL-COPY K11 (invoice) and K12 (reminder), signed [WS] with R3.
   const copy = arabic
     ? {
-        subject: facts.kind === 'invoice' ? `فاتورة ${number}` : `تذكير بالدفع — فاتورة ${number}`,
+        subject:
+          facts.kind === 'invoice'
+            ? `فاتورة ${number}${from('', ` من ${studio}`)}`
+            : `تذكير: فاتورة ${number}${from('', ` من ${studio}`)}`,
+        preheader:
+          facts.kind === 'invoice'
+            ? `${amount}، تستحق في ${due}.`
+            : `مبلغ ${amount} مستحق منذ ${due}.`,
         eyebrow: 'فاتورة',
         heading: facts.kind === 'invoice' ? `${docLabel} ${number}` : `تذكير بالفاتورة ${number}`,
         intro:
           facts.kind === 'invoice'
-            ? `المبلغ المستحق ${amount} بتاريخ ${due}.`
-            : `ما زال مبلغ ${amount} مستحقًا منذ ${due}.`,
+            ? `هذه فاتورة ${number}${from('', ` من ${studio}`)}: ${amount}، وتستحق في ${due}.`
+            : `تذكير${from('', ` من ${studio}`)}: فاتورة ${number} بمبلغ ${amount} مستحقة منذ ${due}.`,
         button: 'عرض الفاتورة',
         fallback: 'إذا لم يعمل الزر، انسخ هذا الرابط إلى متصفحك:',
-        note: 'تفتح الفاتورة في بوابة العميل بعد تسجيل الدخول.',
-        footer: 'وصلتك هذه الرسالة لأنك مدرج كجهة استلام لفواتير هذا الحساب.',
+        note:
+          facts.kind === 'invoice'
+            ? 'تفتح الفاتورة في بوابة العملاء بعد تسجيل الدخول، ويُرفق ملف PDF إن سمح حجمه.'
+            : 'لو كنت قد دفعت بالفعل فشكرًا لك، وتجاهل هذه الرسالة.',
+        footer:
+          facts.kind === 'invoice'
+            ? client === ''
+              ? 'وصلتك هذه الرسالة لأنك جهة استلام الفواتير لهذا الحساب.'
+              : `وصلتك هذه الرسالة لأنك جهة استلام الفواتير لدى ${client}.`
+            : '',
         labelAmount: 'المبلغ المستحق',
         labelDue: 'تاريخ الاستحقاق',
         labelMessage: 'رسالة',
       }
     : {
         subject:
-          facts.kind === 'invoice' ? `Invoice ${number}` : `Payment reminder — invoice ${number}`,
+          facts.kind === 'invoice'
+            ? `Invoice ${number}${from(` from ${studio}`, '')}`
+            : `Reminder: invoice ${number}${from(` from ${studio}`, '')}`,
+        preheader:
+          facts.kind === 'invoice'
+            ? `${amount}, due ${due}.`
+            : `${amount} has been due since ${due}.`,
         eyebrow: 'Invoice',
         heading: facts.kind === 'invoice' ? `${docLabel} ${number}` : `Reminder: invoice ${number}`,
         intro:
           facts.kind === 'invoice'
-            ? `${amount} is due on ${due}.`
-            : `${amount} has been due since ${due}.`,
+            ? `Here is invoice ${number}${from(` from ${studio}`, '')}: ${amount}, due on ${due}.`
+            : `A reminder${from(` from ${studio}`, '')}: invoice ${number} for ${amount} has been due since ${due}.`,
         button: 'View the invoice',
         fallback: 'Button not working? Copy this link into your browser:',
-        note: 'The invoice opens in the client portal after you sign in.',
-        footer: 'You received this because you are a billing contact for this account.',
+        note:
+          facts.kind === 'invoice'
+            ? 'The invoice opens in your client portal after you sign in. The PDF is attached when it fits.'
+            : 'If you have already paid, thank you, and you can ignore this e-mail.',
+        footer:
+          facts.kind === 'invoice'
+            ? client === ''
+              ? 'You receive this because you are a billing contact for this account.'
+              : `You receive this because you are a billing contact for ${client}.`
+            : '',
         labelAmount: 'Amount due',
         labelDue: 'Due date',
         labelMessage: 'Message',
       };
+  const signature =
+    studio === ''
+      ? []
+      : workspaceSignOff(
+          language,
+          studio,
+          workspaceReplyLine(language, 'none', { workspaceName: studio, portalLink: link }),
+        );
   const rows = [
     { label: copy.labelAmount, value: amount },
     { label: copy.labelDue, value: due },
@@ -2324,21 +2417,28 @@ export function composeInvoiceEmail(facts: {
   ];
   return {
     to: facts.to,
-    subject: copy.subject,
+    language,
+    subject: anchored(language, copy.subject),
     text: [
+      greeting(language, undefined),
+      // 52-28: the document's own label stays in the mail (a proforma never reads as a tax invoice).
       copy.heading,
       copy.intro,
       ...(notice === null ? [] : [notice]),
-      ...(facts.message === null ? [] : [facts.message]),
+      ...(facts.message === null ? [] : [`"${facts.message}"`]),
       `${copy.button}: ${link}`,
       copy.note,
-      copy.footer,
-    ].join('\n\n'),
+      ...(copy.footer === '' ? [] : [copy.footer]),
+      ...(signature.length === 0 ? [] : [signature.join('\n')]),
+    ]
+      .map((line) => anchored(language, line))
+      .join('\n\n'),
     html: renderActionEmail({
       arabic,
       link,
       rows,
       subject: copy.subject,
+      preheader: copy.preheader,
       eyebrow: copy.eyebrow,
       heading: copy.heading,
       intro: notice === null ? copy.intro : `${copy.intro} ${notice}`,
@@ -2346,7 +2446,9 @@ export function composeInvoiceEmail(facts: {
       fallback: copy.fallback,
       note: copy.note,
       footer: copy.footer,
+      ...(signature.length === 0 ? {} : { signature }),
     }),
+    ...(studio === '' ? {} : { actingFor: { workspaceName: studio, replyRoute: 'none' as const } }),
   };
 }
 

@@ -488,7 +488,7 @@ export class SupportService {
       );
       return { detail: await this.platformDetail(tx, context, id), thread: current };
     });
-    await this.sendReplyMail(thread, detail.thread.organizationSlug);
+    await this.sendReplyMail(thread, detail.thread.organizationSlug, actor.account.displayName);
     return detail;
   }
 
@@ -585,6 +585,7 @@ export class SupportService {
   private async sendReplyMail(
     thread: SupportThreadRecord,
     organizationSlug: string | null,
+    agentName: string,
   ): Promise<void> {
     if (this.deps.mailer === null || !thread.startedByEmail || !organizationSlug) return;
     try {
@@ -595,6 +596,8 @@ export class SupportService {
           organizationSlug,
           threadId: thread.id,
           webPublicUrl: this.deps.webPublicUrl,
+          agentName,
+          recipientName: thread.startedByName,
         }),
         templateKey: 'support_reply',
       });

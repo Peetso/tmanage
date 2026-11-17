@@ -1,5 +1,11 @@
 import type { Principal } from '@tmanage/domain';
-import { forCompany } from '@tmanage/mail';
+import {
+  anchored,
+  forCompany,
+  greeting,
+  workspaceReplyLine,
+  workspaceSignOff,
+} from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { ObjectNotFoundError } from '@tmanage/storage';
 import type { ObjectStore } from '@tmanage/storage';
@@ -165,7 +171,15 @@ export class InboundAttachmentsService {
       // A reply lands on the organization's active inbound address, not the no-reply mailbox.
       const address = await this.mails.findActiveAddress(tx, context);
       const replyTo = address ? `${address.localPart}@${INBOUND_DOMAIN}` : null;
-      return { to, replyTo, subject: mail.subject, names: resendable.map((row) => row.name) };
+      const label = await this.mails.organizationLabel(tx, context);
+      return {
+        to,
+        replyTo,
+        subject: mail.subject,
+        names: resendable.map((row) => row.name),
+        workspaceName: label?.name ?? '',
+        language: label?.defaultLocale.toLowerCase().startsWith('ar') === true ? 'ar' : 'en',
+      } as const;
     });
 
     if (this.mailer === null)
@@ -220,41 +234,67 @@ export function plainName(name: string): string {
   );
 }
 
-/** The templated reply: English, then Arabic. No link of any kind. */
+/**
+ * EMAIL-COPY K13: one language per mail (the workspace's), signed [WS] with reply line R2 (a
+ * reply lands on the workspace's request address). No link of any kind.
+ */
 export function composeAskResendEmail(facts: {
   readonly to: string;
   readonly replyTo?: string | null;
   readonly subject: string | null;
   readonly names: readonly string[];
+  readonly workspaceName?: string;
+  readonly language?: 'en' | 'ar';
 }): MailMessage {
+  const language = facts.language ?? 'en';
+  const ar = language === 'ar';
+  const studio = plainName(facts.workspaceName ?? '');
+  const named = studio !== '' && studio !== 'attachment';
   const subjectLine = plainName(facts.subject ?? '').slice(0, 150);
   const listed = facts.names.slice(0, MAX_NAMES).map((name) => `- ${plainName(name)}`);
   if (facts.names.length > MAX_NAMES) listed.push(`- (+${facts.names.length - MAX_NAMES})`);
+  const lead = ar
+    ? `وصلت رسالتك إلى ${named ? studio : 'فريقنا'}، لكن تعذّر قبول هذه المرفقات:`
+    : `${named ? studio : 'We'} received your e-mail, but these attachments could not be accepted:`;
+  const ask = ar
+    ? 'من فضلك أعد إرسالها بصيغة PDF أو PNG، وكل ملف أقل من 10 ميغابايت، في ردّ على هذه الرسالة.'
+    : 'Please send them again as PDF or PNG files, each under 10 MB, in a reply to this e-mail.';
+  const signature = named
+    ? workspaceSignOff(
+        language,
+        studio,
+        facts.replyTo
+          ? workspaceReplyLine(language, 'requests', { workspaceName: studio })
+          : workspaceReplyLine(language, 'none', { workspaceName: studio }),
+      )
+    : [];
   const text = [
-    'Hello,',
-    '',
-    'We received your e-mail, but we could not accept these attachments:',
-    ...listed,
-    '',
-    'Please send them again as PDF or PNG files (each under 10 MB) in a reply to this e-mail.',
-    '',
-    '—',
-    '',
-    'مرحبًا،',
-    '',
-    'وصلتنا رسالتك، لكن لم نتمكن من قبول هذه المرفقات:',
-    ...listed,
-    '',
-    'يرجى إرسالها مرة أخرى كملفات PDF أو PNG (أقل من 10 ميغابايت لكل ملف) في رد على هذه الرسالة.',
-  ].join('\n');
+    anchored(language, greeting(language, undefined)),
+    [anchored(language, lead), ...listed].join('\n'),
+    anchored(language, ask),
+    ...(signature.length === 0 ? [] : [anchored(language, signature.join('\n'))]),
+  ].join('\n\n');
+  const fallbackSubject = ar ? 'من فضلك أعد إرسال المرفقات' : 'Please send your attachments again';
   return {
     to: facts.to,
-    subject:
+    language,
+    subject: anchored(
+      language,
       subjectLine !== 'attachment' && subjectLine !== ''
-        ? `Re: ${subjectLine}`
-        : 'Please re-send your attachments / يرجى إعادة إرسال المرفقات',
+        ? `${ar ? 'رد' : 'Re'}: ${subjectLine}`
+        : fallbackSubject,
+    ),
     text,
     ...(facts.replyTo ? { replyTo: facts.replyTo } : {}),
+    ...(named
+      ? {
+          audience: 'client' as const,
+          actingFor: {
+            workspaceName: studio,
+            replyRoute: facts.replyTo ? ('requests' as const) : ('none' as const),
+          },
+        }
+      : {}),
     templateKey: ASK_RESEND_TEMPLATE,
   };
 }

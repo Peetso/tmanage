@@ -75,7 +75,7 @@ function harness() {
     now: () => now,
   });
   const lastToken = () => /portal-sign-in\/(tmanage_lnk_[\w-]+)/u.exec(mail.at(-1)!.text)![1]!;
-  const lastCode = () => /code instead: (\d{6})/u.exec(mail.at(-1)!.text)?.[1];
+  const lastCode = () => /page instead: (\d{6})/u.exec(mail.at(-1)!.text)?.[1];
   const advance = (ms: number) => (now = new Date(now.getTime() + ms));
   return { service, auth, mail, lastToken, lastCode, advance };
 }

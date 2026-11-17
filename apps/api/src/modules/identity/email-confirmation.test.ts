@@ -128,7 +128,7 @@ describe('the confirmation e-mail', () => {
       mail.subject,
       mail.text.includes('https://tmanage.example/confirm-email/TOKEN'),
       mail.text.includes('expires in 30 minutes'),
-      mail.text.includes('does not change your password or sign you in'),
+      mail.text.includes('It does not sign you in or change your password.'),
       mail.html?.includes('https://tmanage.example/confirm-email/TOKEN'),
     ]).toEqual(['Confirm your e-mail for TManage', true, true, true, true]);
   });
@@ -141,7 +141,7 @@ describe('the confirmation e-mail', () => {
       ttlMinutes: 30,
       locale: 'ar-EG',
     });
-    expect(mail.subject).toBe('أكّد بريدك الإلكتروني في TManage');
+    expect(mail.subject).toBe(String.fromCodePoint(0x200f) + 'أكّد بريدك الإلكتروني في TManage');
   });
 
   it('links in the language of the mail, allow-listed, never the raw account locale (SMALLFIX 3)', async () => {

@@ -58,7 +58,9 @@ export type { MailLanguage, SenderCategory } from './sender.js';
 export { SIGNATURE_TOKENS, SenderResolvingMailer } from './sender-resolver.js';
 export {
   LINK_TOKENS,
+  anchored,
   greeting,
+  plainMailText,
   signOff,
   signOffText,
   workspaceReplyLine,

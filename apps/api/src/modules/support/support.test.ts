@@ -216,7 +216,7 @@ describe('55-17 support · platform path', () => {
       threadId: THREAD,
       webPublicUrl: 'https://tm.example/',
     });
-    expect(mail.subject).toBe('TManage support replied: Logo wrong');
+    expect(mail.subject).toBe('Re: Logo wrong');
     expect(mail.text).toContain(`https://tm.example/atlas/help?request=${THREAD}`);
   });
 

@@ -1,6 +1,12 @@
 import { uuidv7 } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
-import { MailRecipientSuppressedError } from '@tmanage/mail';
+import {
+  MailRecipientSuppressedError,
+  anchored,
+  plainMailText,
+  workspaceReplyLine,
+  workspaceSignOff,
+} from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import type { ExternalApproverRow, PublicLinkRow } from '../../common/database/schema.js';
 import type {
@@ -178,6 +184,7 @@ export class ExternalApprovalsService {
             versionNo: staged.versionNo,
             message: input.message,
             expiresAt: staged.link.expiresAt,
+            language: input.language,
           }),
           organizationId: context.organizationId,
           templateKey: 'external_approval',
@@ -310,7 +317,7 @@ export function approverUrl(webPublicUrl: string, token: string): string {
   return `${webPublicUrl.replace(/\/+$/u, '')}/a/${encodeURIComponent(token)}`;
 }
 
-/** Bilingual plain text (EN first, then AR): the approver may read either. */
+/** EMAIL-COPY K10 in the language the sender chose for the approver. */
 export function approvalMail(facts: {
   readonly url: string;
   readonly organizationName: string;
@@ -318,22 +325,44 @@ export function approvalMail(facts: {
   readonly versionNo: number | null;
   readonly message: string | null;
   readonly expiresAt: string;
-}): { readonly subject: string; readonly text: string } {
+  readonly language: 'en' | 'ar';
+}): { readonly subject: string; readonly text: string; readonly language: 'en' | 'ar' } {
   const version = facts.versionNo === null ? '' : ` (v${facts.versionNo})`;
   const day = facts.expiresAt.slice(0, 10);
-  const note = facts.message === null ? '' : `\n\n"${facts.message}"`;
+  const studio = facts.organizationName;
+  const note = facts.message === null ? '' : `"${facts.message}"`;
+  const language = facts.language;
+  const ar = language === 'ar';
+  // EMAIL-COPY K10, one language per mail, signed [WS] with R3 (the link is the way to answer).
+  const lines = ar
+    ? [
+        `يطلب ${studio} مراجعتك واعتمادك لـ "${facts.title}"${version}.`,
+        note,
+        `افتح وقرّر: ${facts.url}`,
+        `لا تحتاج إلى حساب. سنرسل إليك رمزًا من 6 أرقام لتأكيد هويتك. يعمل الرابط حتى ${day}.`,
+      ]
+    : [
+        `${studio} asks you to review and approve "${facts.title}"${version}.`,
+        note,
+        `Open and decide: ${facts.url}`,
+        `You do not need an account. We will e-mail you a 6-digit code to confirm it is you. The link works until ${day}.`,
+      ];
   return {
-    subject: `${facts.organizationName}: please review ${facts.title}${version}`,
-    text:
-      `${facts.organizationName} asks you to approve "${facts.title}"${version}.${note}\n\n` +
-      `Open: ${facts.url}\n` +
-      'No account needed. We will e-mail you a 6-digit code to confirm it is you.\n' +
-      `The link works until ${day}.\n\n` +
-      '—\n\n' +
-      `يطلب منك ${facts.organizationName} الموافقة على "${facts.title}"${version}.\n\n` +
-      `افتح الرابط: ${facts.url}\n` +
-      'لا تحتاج إلى حساب. سنرسل إليك رمزًا من 6 أرقام لتأكيد هويتك.\n' +
-      `يعمل الرابط حتى ${day}.`,
+    language,
+    subject: anchored(
+      language,
+      ar
+        ? `${studio}: من فضلك راجع ${facts.title}${version}`
+        : `${studio}: please review ${facts.title}${version}`,
+    ),
+    text: plainMailText(language, {
+      lines,
+      signature: workspaceSignOff(
+        language,
+        studio,
+        workspaceReplyLine(language, 'none', { workspaceName: studio, portalLink: facts.url }),
+      ),
+    }),
   };
 }
 

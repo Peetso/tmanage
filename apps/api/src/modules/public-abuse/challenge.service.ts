@@ -1,6 +1,7 @@
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import { uuidv7 } from '@tmanage/domain';
 import type { Mailer } from '@tmanage/mail';
+import { composeCodeNotice } from '../../common/email/code-notice.js';
 import type { AbuseBuckets } from './abuse-buckets.js';
 import type { ChallengeKind, ChallengeStore } from './abuse-events.repository.js';
 import { POW_MAX_BITS, POW_MIN_BITS, adaptiveDifficulty, powSalt, verifyPow } from './pow.js';
@@ -143,15 +144,16 @@ export class ChallengeService {
     );
     if (this.options.mailer !== null) {
       try {
-        await this.options.mailer.send({
-          to: email,
-          // EMAILBUILD: the code is never in the subject.
-          subject: 'Your TManage code',
-          templateKey: 'challenge_code',
-          text:
-            `Your TManage code is ${code}.\n\n` +
-            'It works for 10 minutes. If you did not ask for it, you can ignore this message.',
-        });
+        // The challenge carries no language; S9 in English.
+        await this.options.mailer.send(
+          composeCodeNotice({
+            to: email,
+            code,
+            minutes: EMAIL_CODE_TTL_MS / 60_000,
+            language: 'en',
+            templateKey: 'challenge_code',
+          }),
+        );
       } catch {
         // The challenge stands; the person can ask for a resend after a minute.
       }

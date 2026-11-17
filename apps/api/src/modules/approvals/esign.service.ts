@@ -1,6 +1,12 @@
 import { authorize, uuidv7 } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
-import { MailRecipientSuppressedError } from '@tmanage/mail';
+import {
+  MailRecipientSuppressedError,
+  plainMailText,
+  signOff,
+  workspaceReplyLine,
+  workspaceSignOff,
+} from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { uploadObjectKey } from '@tmanage/storage';
 import type { ObjectStore } from '@tmanage/storage';
@@ -304,35 +310,49 @@ export class EsignService {
     requestId: string,
   ): Promise<SignatureCodeSentView> {
     const at = this.now();
-    const { email, code } = await this.options.database.transaction(context, async (tx) => {
-      const { request, signer } = await this.mine(tx, context, principal, requestId, true);
-      const state = signerState(request, signer, at);
-      if (state !== 'pending') throw conflict(state === 'signed' ? 'already_signed' : state);
-      const window = codeSendRefusal(signer, at);
-      if (window.refused !== null) throw window.refused;
-      const issued = this.options.secrets.issueCode(signer.id);
-      await this.repo.updateSigner(tx, context, signer.id, {
-        codeHash: issued.hash,
-        codeExpiresAt: new Date(at.getTime() + CODE_TTL_MS),
-        codeAttempts: 0,
-        codeSentAt: at,
-        codeWindowStartedAt: window.windowStart,
-        codesInWindow: window.inWindow,
-      });
-      const own = (await this.repo.signers(tx, context, request.id)).find(
-        (s) => s.signer.id === signer.id,
-      );
-      return { email: own?.email ?? '', code: issued.code };
-    });
+    const { email, code, title, organizationName } = await this.options.database.transaction(
+      context,
+      async (tx) => {
+        const { request, signer } = await this.mine(tx, context, principal, requestId, true);
+        const state = signerState(request, signer, at);
+        if (state !== 'pending') throw conflict(state === 'signed' ? 'already_signed' : state);
+        const window = codeSendRefusal(signer, at);
+        if (window.refused !== null) throw window.refused;
+        const issued = this.options.secrets.issueCode(signer.id);
+        await this.repo.updateSigner(tx, context, signer.id, {
+          codeHash: issued.hash,
+          codeExpiresAt: new Date(at.getTime() + CODE_TTL_MS),
+          codeAttempts: 0,
+          codeSentAt: at,
+          codeWindowStartedAt: window.windowStart,
+          codesInWindow: window.inWindow,
+        });
+        const own = (await this.repo.signers(tx, context, request.id)).find(
+          (s) => s.signer.id === signer.id,
+        );
+        return {
+          email: own?.email ?? '',
+          code: issued.code,
+          title: request.title,
+          organizationName: (await this.repo.organization(tx, context)).name,
+        };
+      },
+    );
     if (this.options.mailer !== null && email !== '') {
+      // EMAIL-COPY S10, signed [SEC]; the code is never in the subject. Signers carry no language.
       await this.options.mailer.send({
         to: email,
-        // EMAILBUILD: the code is never in the subject (a preview pane shows the subject).
-        subject: 'Your TManage signature code',
+        language: 'en',
+        subject: `Your signature code for ${oneLine(title)}`,
         templateKey: 'esign_code',
-        text:
-          `Your code to sign the document is ${code}.\n\n` +
-          'It works for 10 minutes. If you did not ask to sign a document, you can ignore this message.',
+        text: plainMailText('en', {
+          lines: [
+            `Your code to sign "${oneLine(title)}" for ${organizationName} is ${code}.`,
+            `Enter it on the signing page to confirm it is you. It works once and expires in ${CODE_TTL_MS / 60_000} minutes.`,
+            'Did not start a signature? Ignore this e-mail; nothing is signed without the code.',
+          ],
+          signature: signOff('security', 'en'),
+        }),
       });
     }
     return {
@@ -789,13 +809,31 @@ export class EsignService {
   ): Promise<void> {
     if (this.options.mailer === null) return;
     const base = this.options.webPublicUrl?.replace(/\/+$/u, '') ?? null;
-    const link = base === null ? '' : `\n\n${base}/${organization.slug}/portal/sign/${requestId}`;
+    const link = base === null ? null : `${base}/${organization.slug}/portal/sign/${requestId}`;
+    const name = oneLine(title);
+    // EMAIL-COPY K9, signed [WS] with R3. No acting person is named: the principal carries none.
+    const text = plainMailText('en', {
+      lines: [
+        `${organization.name} asks you to sign "${name}".`,
+        link === null ? '' : `Read and sign: ${link}`,
+        'You sign in your client portal. We will e-mail you a short code to confirm it is you.',
+      ],
+      signature: workspaceSignOff(
+        'en',
+        organization.name,
+        workspaceReplyLine('en', 'none', {
+          workspaceName: organization.name,
+          ...(link === null ? {} : { portalLink: link }),
+        }),
+      ),
+    });
     for (const address of to) {
       try {
         await this.options.mailer.send({
           to: address,
-          subject: `${organization.name} asked you to sign ${title}`,
-          text: `${organization.name} asked you to sign "${title}" in your client portal.${link}`,
+          language: 'en',
+          subject: `${organization.name} asks you to sign ${name}`,
+          text,
           organizationId,
           templateKey: 'esign_request',
           audience: 'client',
@@ -843,4 +881,9 @@ function failed<T>(error: ApiError): Outcome<T> {
 
 function succeeded<T>(value: T): Outcome<T> {
   return { ok: true, value };
+}
+
+/** A title flattened to one line before it reaches a header or the body. */
+function oneLine(value: string): string {
+  return value.replaceAll(/\s+/gu, ' ').trim();
 }

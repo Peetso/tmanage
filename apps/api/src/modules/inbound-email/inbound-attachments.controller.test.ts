@@ -71,6 +71,7 @@ function harness(
     listAttachments: () =>
       Promise.resolve(mailStates.map((s, i) => ({ state: s, name: `f${i}.docm` }))),
     findActiveAddress: () => Promise.resolve({ localPart: 'requests+acme-ab12cd' }),
+    organizationLabel: () => Promise.resolve({ name: 'Acme Studio', defaultLocale: 'en' }),
   } as unknown as InboundEmailRepository;
   const audits: string[] = [];
   const audit = {
@@ -169,6 +170,8 @@ describe('InboundAttachmentsService (R22-d)', () => {
     const mail = h.sent[0] as MailMessage;
     expect(mail.to).toBe('ann@client.test');
     expect(mail.text).toContain('f1.docm');
+    expect(mail.text).toContain('Acme Studio received your e-mail');
+    expect(mail.text).toContain('Sent by TManage on behalf of Acme Studio.');
     expect(`${mail.subject}\n${mail.text}`).not.toMatch(/https?:|:\/\//u);
     expect(h.audits).toEqual(['inbound_email.ask_resend']);
   });

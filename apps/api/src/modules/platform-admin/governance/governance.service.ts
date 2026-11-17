@@ -1,4 +1,5 @@
 import { uuidv7 } from '@tmanage/domain';
+import { greeting } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { ApiError, MESSAGES } from '../../../common/http/errors.js';
 import { optionalReason, requireReason } from '../platform-admin.access.js';
@@ -404,10 +405,20 @@ export class PlatformGovernanceService {
     let delivery = 'none';
     if (this.mailer !== null) {
       try {
+        // EMAIL-COPY C3: a human wrote it, so no "sent automatically" line; the staff name is
+        // the signed-in account's, never typed in the form. The owner row carries no name or
+        // language, so the greeting is "Hello," and the mail is English.
+        const staff = actor.account.displayName.trim();
         delivery = await this.mailer.send({
           to: owner.ownerEmail,
-          subject: `[TManage] ${subject}`,
-          text: `${message}\n\n— The TManage team (about ${owner.organizationName})`,
+          language: 'en',
+          subject: `About ${owner.organizationName}: ${subject}`,
+          text: [
+            greeting('en', undefined),
+            message,
+            'If you have a question about this, reply to this e-mail. It reaches our support team.',
+            staff === '' ? 'TManage Support' : `${staff}, TManage Support`,
+          ].join('\n\n'),
           templateKey: 'platform_owner_notice',
         });
       } catch {

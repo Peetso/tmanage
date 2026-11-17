@@ -8,6 +8,7 @@ import {
   validateSignInPolicyPatch,
 } from '@tmanage/domain';
 import type { Principal, SignInMethod, SignInPolicy, TwoStepRoleScope } from '@tmanage/domain';
+import { anchored, plainMailText, signOff } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { OrgPolicyValue } from '../../common/database/schema.js';
@@ -328,33 +329,38 @@ export function composeSignInPolicyNotice(
   owner: OwnerRecipient,
   before: SignInPolicy,
   after: SignInPolicy,
-): { to: string; subject: string; text: string; templateKey: string } {
+): { to: string; subject: string; text: string; templateKey: string; language: 'en' | 'ar' } {
   const lang: 'en' | 'ar' = (owner.locale ?? '').toLowerCase().startsWith('ar') ? 'ar' : 'en';
   const methods = (policy: SignInPolicy) =>
     policy.allowedMethods.map((method) => METHOD_LABEL[lang][method]).join(', ');
   const scope = (policy: SignInPolicy) => SCOPE_LABEL[lang][policy.requireTwoStepRoles];
-  if (lang === 'ar') {
-    return {
-      to: owner.email,
-      subject: 'تم تغيير سياسة تسجيل الدخول في شركتك',
-      text: [
-        'تم تغيير سياسة تسجيل الدخول في شركتك على TManage.',
-        `طرق تسجيل الدخول المسموحة: ${methods(before)} ← ${methods(after)}`,
-        `التحقق بخطوتين مطلوب من: ${scope(before)} ← ${scope(after)}`,
-        'إذا لم تتوقع هذا التغيير، راجع إعدادات الأمان الآن.',
-      ].join('\n'),
-      templateKey: 'credential_change',
-    };
-  }
+  // EMAIL-COPY S6, signed [SEC]. The owner row carries no name and the change no actor or
+  // workspace name, so the copy's "{actorName} changed the sign-in rules of {workspaceName}"
+  // reads "The sign-in rules of your workspace were changed".
+  const lines =
+    lang === 'ar'
+      ? [
+          'تغيّرت قواعد تسجيل الدخول في مساحة عملك.',
+          `قبل التغيير: ${methods(before)}؛ التحقق بخطوتين مطلوب من: ${scope(before)}`,
+          `الآن: ${methods(after)}؛ التحقق بخطوتين مطلوب من: ${scope(after)}`,
+          'إن لم تتوقع ذلك، راجعه من الإعدادات > الأمان، أو راسلنا على support@tmanageapp.com.',
+        ]
+      : [
+          'The sign-in rules of your workspace were changed.',
+          `Before: ${methods(before)}; two-step sign-in required for: ${scope(before)}`,
+          `Now: ${methods(after)}; two-step sign-in required for: ${scope(after)}`,
+          'If you did not expect this, review it in Settings > Security, or write to support@tmanageapp.com.',
+        ];
   return {
     to: owner.email,
-    subject: "Your company's sign-in policy changed",
-    text: [
-      "Your company's sign-in policy on TManage was changed.",
-      `Allowed sign-in methods: ${methods(before)} -> ${methods(after)}`,
-      `Two-step sign-in required for: ${scope(before)} -> ${scope(after)}`,
-      'If you did not expect this change, review your security settings now.',
-    ].join('\n'),
+    language: lang,
+    subject: anchored(
+      lang,
+      lang === 'ar'
+        ? 'تغيّرت قواعد تسجيل الدخول في مساحة عملك'
+        : 'The sign-in rules of your workspace changed',
+    ),
+    text: plainMailText(lang, { lines, signature: signOff('security', lang) }),
     templateKey: 'credential_change',
   };
 }

@@ -3,6 +3,7 @@ import { authorize, uuidv7 } from '@tmanage/domain';
 import type { AuditAction, Capability, Principal } from '@tmanage/domain';
 import type { Mailer } from '@tmanage/mail';
 import type { PublicLinkRow } from '../../common/database/schema.js';
+import { composeCodeNotice } from '../../common/email/code-notice.js';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type {
   TenantContext,
@@ -360,19 +361,24 @@ export class PublicLinksService {
       });
       await this.event(tx, context, link, 'code_sent', null, meta);
       const organizationName = await this.store.organizationName(tx, context);
-      return succeed({ to: link.audienceEmail, code: code.code, organizationName });
+      return succeed({
+        to: link.audienceEmail,
+        code: code.code,
+        organizationName,
+        language: link.language === 'ar' ? ('ar' as const) : ('en' as const),
+      });
     });
     const mail = unwrap(sent);
     if (this.options.mailer !== null) {
-      await this.options.mailer.send({
-        to: mail.to,
-        // EMAILBUILD: the code is never in the subject.
-        subject: 'Your TManage code',
-        templateKey: 'public_link_code',
-        text:
-          `Your code for the link ${mail.organizationName} sent you is ${mail.code}.\n\n` +
-          'It works for 10 minutes. If you did not open this link, you can ignore this message.',
-      });
+      await this.options.mailer.send(
+        composeCodeNotice({
+          to: mail.to,
+          code: mail.code,
+          minutes: CODE_TTL_MS / 60_000,
+          language: mail.language,
+          templateKey: 'public_link_code',
+        }),
+      );
     }
     return { expiresInSeconds: CODE_TTL_MS / 1_000 };
   }

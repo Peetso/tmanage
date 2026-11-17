@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { uuidv7 } from '@tmanage/domain';
+import { anchored, plainMailText, signOff } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import type { PublicLinkCodeRow, PublicLinkRow } from '../../common/database/schema.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -139,6 +140,7 @@ interface Mail {
   readonly to: string;
   readonly subject: string;
   readonly text: string;
+  readonly language: 'en' | 'ar';
   /** EMAILBUILD: both are security mail (`sender.ts`), never signed by a person. */
   readonly templateKey: 'portal_sign_in' | 'portal_sign_in_cancelled';
 }
@@ -193,7 +195,7 @@ export class PortalSignInService {
         await tx.appendEvent(row.id, 'code_sent', 'fallback', meta);
         code = issued.code;
       }
-      return this.linkMail(client.email, await tx.organizationName(), secret.token, code);
+      return this.linkMail(client.email, await tx.organizationName(), secret.token, code, language);
     });
     if (mail !== null) await this.send(mail);
     return { status: 'sent' };
@@ -336,7 +338,9 @@ export class PortalSignInService {
         correlationId,
       });
       const organizationName = await tx.organizationName();
-      return link.audienceEmail === null ? null : notYouMail(link.audienceEmail, organizationName);
+      return link.audienceEmail === null
+        ? null
+        : notYouMail(link.audienceEmail, organizationName, link.language === 'ar' ? 'ar' : 'en');
     });
     if (mail !== null) await this.send(mail);
   }
@@ -388,26 +392,46 @@ export class PortalSignInService {
     });
   }
 
-  private linkMail(to: string, organizationName: string, token: string, code: string | null): Mail {
+  private linkMail(
+    to: string,
+    organizationName: string,
+    token: string,
+    code: string | null,
+    language: 'en' | 'ar',
+  ): Mail {
     const origin = this.options.webOrigin.replace(/\/+$/u, '');
     const url = `${origin}/portal-sign-in/${token}`;
-    const lines = [
-      `Sign in to the ${organizationName} client portal:`,
-      url,
-      '',
-      'The link works once and stops working after 15 minutes.',
-    ];
-    if (code !== null) {
-      lines.push(
-        '',
-        `Links not opening? Use this code instead: ${code} (it works for 10 minutes).`,
-      );
-    }
-    lines.push('', `Not you? Cancel this link: ${url}?not-you=1`);
+    const ar = language === 'ar';
+    // EMAIL-COPY S7, signed [SEC].
+    const lines = ar
+      ? [
+          `هذا رابط تسجيل دخولك إلى بوابة عملاء ${organizationName}.`,
+          `تسجيل الدخول: ${url}`,
+          'يعمل مرة واحدة ويتوقف بعد 15 دقيقة.',
+          code === null
+            ? ''
+            : `الرابط لا يفتح؟ استخدم هذا الرمز في صفحة تسجيل الدخول: ${code} (صالح 10 دقائق).`,
+          `لست أنت؟ ألغِ هذا الرابط: ${url}?not-you=1`,
+        ]
+      : [
+          `Here is your link to sign in to the ${organizationName} client portal.`,
+          `Sign in: ${url}`,
+          'It works once and stops working after 15 minutes.',
+          code === null
+            ? ''
+            : `Link not opening? Use this code on the sign-in page instead: ${code} (10 minutes).`,
+          `Not you? Cancel this link: ${url}?not-you=1`,
+        ];
     return {
       to,
-      subject: `Sign in to ${organizationName}`,
-      text: lines.join('\n'),
+      language,
+      subject: anchored(
+        language,
+        ar
+          ? `رابط تسجيل دخولك إلى ${organizationName}`
+          : `Your sign-in link for ${organizationName}`,
+      ),
+      text: plainMailText(language, { lines, signature: signOff('security', language) }),
       templateKey: 'portal_sign_in',
     };
   }
@@ -459,16 +483,29 @@ function magicLinkRow(
   };
 }
 
-function notYouMail(to: string, organizationName: string): Mail {
+function notYouMail(to: string, organizationName: string, language: 'en' | 'ar'): Mail {
+  const ar = language === 'ar';
+  // EMAIL-COPY S8, signed [SEC].
+  const lines = ar
+    ? [
+        `أُلغي رابط تسجيل دخول إلى بوابة عملاء ${organizationName} من هذا البريد، ولم يسجّل أحد الدخول به.`,
+        'إن أردت تسجيل الدخول، اطلب رابطًا جديدًا من صفحة تسجيل الدخول في البوابة.',
+      ]
+    : [
+        `A sign-in link for the ${organizationName} client portal was cancelled from this mailbox, and nobody signed in with it.`,
+        "If you still want to sign in, ask for a new link on the portal's sign-in page.",
+      ];
   return {
     to,
-    subject: `A sign-in link to ${organizationName} was cancelled`,
+    language,
+    subject: anchored(
+      language,
+      ar
+        ? `أُلغي رابط تسجيل دخول إلى ${organizationName}`
+        : `A sign-in link for ${organizationName} was cancelled`,
+    ),
     templateKey: 'portal_sign_in_cancelled',
-    text:
-      `Someone asked for a link to sign in to the ${organizationName} client portal with this ` +
-      'address, and the link was cancelled from the sign-in page. Nobody can use it now.\n\n' +
-      'If that was you, you can ask for a new link at any time. If it was not, you do not need ' +
-      'to do anything.',
+    text: plainMailText(language, { lines, signature: signOff('security', language) }),
   };
 }
 
