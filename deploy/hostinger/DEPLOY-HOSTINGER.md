@@ -1,4 +1,4 @@
-# Putting TManage online at tmanage.peetrix.com (Hostinger)
+# Putting TManage online at tmanageapp.com (Hostinger)
 
 A click-by-click guide for the site owner. You do not need to be technical. hPanel is Hostinger's
 control panel. Its wording changes from time to time, so where this guide says **look for**
@@ -12,26 +12,26 @@ What you need before you start:
   one saved version of the code (details: `docs/runbooks/deploy.md`).
 - **About 30 minutes**, and a notepad to write down the database names and passwords you choose.
 
-There are three parts: **Part 1** prepares the subdomain and the database, **Part 2** creates the
+There are three parts: **Part 1** prepares the domain and the database, **Part 2** creates the
 app and turns it on, **Part 3** covers updates, rollback, limits and a fallback.
 
 ---
 
-## Part 1 — Prepare the subdomain and the database
+## Part 1 — Prepare the domain and the database
 
-Today `tmanage.peetrix.com` is a **PHP/HTML** website showing a placeholder page. It has to become
+Today `tmanageapp.com` is a **PHP/HTML** website showing a placeholder page. It has to become
 a **Web app (Node.js)** instead, the same type as `peetrix.com`.
 
 1. **Back up the current files.** In hPanel open **Websites**, then **Manage** next to
-   `tmanage.peetrix.com`, then **File manager** (look for it under _Files_). Select everything in
+   `tmanageapp.com`, then **File manager** (look for it under _Files_). Select everything in
    the site's folder (usually `public_html`) and choose **Download** (or **Compress** first, then
    download the archive). Keep it on your computer. The placeholder page is not important, but it
    costs nothing to keep.
 2. **Check whether the type can simply be changed.** Still in **Manage** for
-   `tmanage.peetrix.com`, look for an option such as _Change website type_ or _Convert to Web
+   `tmanageapp.com`, look for an option such as _Change website type_ or _Convert to Web
    app_. If there is one, use it, choose **Web app / Node.js**, and skip step 3.
 3. **Otherwise remove the PHP/HTML site.** Go back to **Websites**, open the **⋮** (three dots)
-   menu next to `tmanage.peetrix.com` and look for _Delete website_ / _Remove_.
+   menu next to `tmanageapp.com` and look for _Delete website_ / _Remove_.
    **This cannot be undone** — that is why you made the backup in step 1. Your domain
    `peetrix.com` and its own Web app are not touched by this.
 4. **The database.** Hostinger gives the Web app **one** database with **one** user. The
@@ -58,7 +58,7 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
 3. When it offers to **connect GitHub, do not connect it.** Look for **Upload files** / _Upload
    your website files_ / _Upload ZIP_ instead, and choose `tmanage-hostinger.zip`.
    If you truly see no upload choice at all, stop here and read "GitHub-only fallback" at the end.
-4. **Domain:** pick the existing subdomain `tmanage.peetrix.com`.
+4. **Domain:** pick the domain `tmanageapp.com`.
 5. **Build settings** (look for _Framework_, _Node version_, _Entry file_ / _Start command_).
    Use exactly these values:
 
@@ -84,9 +84,9 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    | ------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
    | `DATABASE_URL`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | The database connection                                      | **Set automatically** by Hostinger's database setup — do not type or change them                           |
    | `NODE_ENV`                                                                | Tells the app it is live                                     | `production` (if you leave it out the app uses production anyway; any other word stops it from starting)   |
-   | `API_PUBLIC_URL`                                                          | The site address                                             | `https://tmanage.peetrix.com`                                                                              |
-   | `WEB_PUBLIC_URL`                                                          | The same address                                             | `https://tmanage.peetrix.com`                                                                              |
-   | `CORS_ALLOWED_ORIGINS`                                                    | Which site may use the app                                   | `https://tmanage.peetrix.com`                                                                              |
+   | `API_PUBLIC_URL`                                                          | The site address                                             | `https://tmanageapp.com`                                                                                   |
+   | `WEB_PUBLIC_URL`                                                          | The same address                                             | `https://tmanageapp.com`                                                                                   |
+   | `CORS_ALLOWED_ORIGINS`                                                    | Which site may use the app                                   | `https://tmanageapp.com`                                                                                   |
    | `TRUSTED_PROXY_ADDRESSES`                                                 | Hostinger's one proxy in front of the app                    | `127.0.0.1,::1`                                                                                            |
    | `DATABASE_POOL_MAX`                                                       | How many database connections at once                        | `5`                                                                                                        |
    | `SESSION_SECRET`                                                          | Protects sign-ins                                            | a fresh secret (see below) — you enter it                                                                  |
@@ -96,7 +96,7 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    | `PUBLIC_SIGNUP`                                                           | Lets anyone create an account and workspace at /sign-up      | leave it out (on), or `off` to close sign-up — rebuild after changing it                                   |
    | `PLATFORM_ADMIN_EMAILS`                                                   | Who may open Platform admin at /platform (the whole service) | your own email, e.g. `you@example.com` — leave out to switch Platform admin off; restart after changing it |
    | `GOOGLE_CLIENT_ID`                                                        | "Continue with Google" button                                | the OAuth client id from Google Cloud Console (leave out to hide the button)                               |
-   | `GOOGLE_CLIENT_SECRET`                                                    | "Continue with Google" button                                | that client's secret — redirect URI `https://tmanage.peetrix.com/v1/auth/google/callback`                  |
+   | `GOOGLE_CLIENT_SECRET`                                                    | "Continue with Google" button                                | that client's secret — redirect URI `https://tmanageapp.com/v1/auth/google/callback`                       |
    | `AUTH_TOTP_ISSUER`                                                        | Name shown in authenticator apps                             | `TManage`                                                                                                  |
    | `EMAIL_DRIVER`                                                            | How email is sent                                            | `smtp`                                                                                                     |
    | `EMAIL_FROM_ADDRESS`                                                      | The sender address                                           | a mailbox you own, e.g. `no-reply@peetrix.com`                                                             |
@@ -134,13 +134,13 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    libraries (a few minutes), then starts the app. On its first start the app creates its own
    database tables — you never run anything by hand. Every later start checks and does nothing if
    the tables are already up to date.
-8. **Turn on SSL.** In **Websites → Manage** for `tmanage.peetrix.com`, open **Security → SSL**
+8. **Turn on SSL.** In **Websites → Manage** for `tmanageapp.com`, open **Security → SSL**
    and make sure a certificate is **Active** (install the free one if not). The app needs https:
    its sign-in cookies only work over a secure connection.
 9. **Check it works:**
-   - `https://tmanage.peetrix.com/healthz` shows `{"status":"ok"}`.
-   - `https://tmanage.peetrix.com/` shows the TManage page.
-   - `https://tmanage.peetrix.com/sign-in` shows the sign-in form.
+   - `https://tmanageapp.com/healthz` shows `{"status":"ok"}`.
+   - `https://tmanageapp.com/` shows the TManage page.
+   - `https://tmanageapp.com/sign-in` shows the sign-in form.
    - If something fails, open the app's **Logs** (look for _Runtime logs_ / _Deployments_). The
      app writes plain messages such as the name of a missing or mistyped setting. Fix it in
      **Environment variables** and **Restart**.
@@ -154,7 +154,7 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
        it prints is your setup token.
     2. In hPanel, open the app's **Environment variables**, add `SETUP_TOKEN` with that value, and
        **Restart** the app.
-    3. Open `https://tmanage.peetrix.com/setup`. Paste the token, then fill in your name, email,
+    3. Open `https://tmanageapp.com/setup`. Paste the token, then fill in your name, email,
        password, organization name and workspace address, and press **Create owner account**. You
        are signed in straight away.
     4. Back in **Environment variables**, **delete `SETUP_TOKEN`** and **Restart**. The setup page
@@ -242,7 +242,7 @@ Never delete rows from the `schema_migrations` table to make an older version st
   and notifications itself, on a timer. If Hostinger pauses the app when nobody visits, the timer
   pauses too, and waiting emails go out on the next visit.
 - **One app, one address.** The web pages and the API run as one program on
-  `tmanage.peetrix.com`. Only that one address is set up.
+  `tmanageapp.com`. Only that one address is set up.
 - **No virus scanning** of uploaded files on this plan (`MALWARE_SCAN_DRIVER=none`).
 - **Hostinger limits** on memory and processes apply. If the app restarts by itself under load,
   that is the plan's limit; the logs will show it.

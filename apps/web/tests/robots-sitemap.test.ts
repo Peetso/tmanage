@@ -7,17 +7,17 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
     const body = await robotsRoute().text();
     // SOFT404: internal paths are noindex by meta tag, not advertised in robots.txt.
     expect(body.match(/^Disallow: .*$/gm)).toEqual(['Disallow: /v1/']);
-    expect(body).toContain('Sitemap: https://tmanage.peetrix.com/sitemap.xml');
+    expect(body).toContain('Sitemap: https://tmanageapp.com/sitemap.xml');
   });
 
   it('lists every public page in English and Arabic with absolute URLs', () => {
     const urls = sitemap().map((entry) => entry.url);
     expect(urls).toEqual(
       expect.arrayContaining([
-        'https://tmanage.peetrix.com/',
-        'https://tmanage.peetrix.com/ar',
-        'https://tmanage.peetrix.com/pricing',
-        'https://tmanage.peetrix.com/ar/pricing',
+        'https://tmanageapp.com/',
+        'https://tmanageapp.com/ar',
+        'https://tmanageapp.com/pricing',
+        'https://tmanageapp.com/ar/pricing',
       ]),
     );
     // 27 website pages (A11YPAGE /accessibility, 51-10a /download, 54-17 /security/data-location, 56-17

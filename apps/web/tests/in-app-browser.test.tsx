@@ -56,9 +56,9 @@ describe('detectInAppBrowser', () => {
 
 describe('androidIntentUrl', () => {
   it('hands the page to Chrome and falls back to the same page', () => {
-    expect(androidIntentUrl('https://tmanage.peetrix.com/sign-up?x=1#top')).toBe(
-      'intent://tmanage.peetrix.com/sign-up?x=1#Intent;scheme=https;package=com.android.chrome;' +
-        'S.browser_fallback_url=https%3A%2F%2Ftmanage.peetrix.com%2Fsign-up%3Fx%3D1;end',
+    expect(androidIntentUrl('https://tmanageapp.com/sign-up?x=1#top')).toBe(
+      'intent://tmanageapp.com/sign-up?x=1#Intent;scheme=https;package=com.android.chrome;' +
+        'S.browser_fallback_url=https%3A%2F%2Ftmanageapp.com%2Fsign-up%3Fx%3D1;end',
     );
   });
 

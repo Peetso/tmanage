@@ -10,7 +10,7 @@ describe('ad landing attribution', () => {
     const response = NextResponse.next();
     rememberSignupAttribution(
       new NextRequest(
-        'https://tmanage.peetrix.com/?utm_source=facebook&utm_medium=%3Cscript%3E&utm_campaign=tm_beta_traffic',
+        'https://tmanageapp.com/?utm_source=facebook&utm_medium=%3Cscript%3E&utm_campaign=tm_beta_traffic',
       ),
       response,
     );
@@ -25,7 +25,7 @@ describe('ad landing attribution', () => {
 
   it('writes no cookie for a visit without utm values', () => {
     const response = NextResponse.next();
-    rememberSignupAttribution(new NextRequest('https://tmanage.peetrix.com/pricing'), response);
+    rememberSignupAttribution(new NextRequest('https://tmanageapp.com/pricing'), response);
     expect(response.cookies.get('tm_signup_source')).toBeUndefined();
   });
 });

@@ -104,7 +104,7 @@ migration files copied in started with "nothing to apply".
      then restore uploads the same way, and upload the previous ZIP unchanged. Everything
      written since that backup is lost; export it first if it matters.
    - Never delete `schema_migrations` rows by hand to make old code start.
-5. **Upload and build on Hostinger** (hPanel, the existing Web app for `tmanage.peetrix.com`):
+5. **Upload and build on Hostinger** (hPanel, the existing Web app for `tmanageapp.com`):
    1. Open the app's deployments and upload the ZIP from step 4 as **`tmanage-hostinger.zip`**
       (look for _Deployments_ / _Redeploy_ / _Upload new files_). Check the uploaded size
       matches the local file.

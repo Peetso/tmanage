@@ -26,10 +26,7 @@ test('the socket is on with the in-process relay, and only then', () => {
 });
 
 test('the public URL is the same origin over wss, on the realtime path', () => {
-  assert.equal(
-    realtimePublicUrlFor('https://tmanage.peetrix.com'),
-    'wss://tmanage.peetrix.com/realtime',
-  );
+  assert.equal(realtimePublicUrlFor('https://tmanageapp.com'), 'wss://tmanageapp.com/realtime');
   assert.equal(realtimePublicUrlFor('https://example.test/app/'), 'wss://example.test/realtime');
   assert.equal(realtimePublicUrlFor('http://localhost:3000'), 'ws://localhost:3000/realtime');
   assert.equal(realtimePublicUrlFor(undefined), undefined);

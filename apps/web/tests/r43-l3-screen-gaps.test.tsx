@@ -83,7 +83,7 @@ describe('56-17 security disclosure page', () => {
   it('publishes a security.txt that points at the policy and has not expired', () => {
     const text = readFileSync(join(process.cwd(), 'public', '.well-known', 'security.txt'), 'utf8');
     expect(text).toContain('Contact: mailto:tm-support@peetrix.com');
-    expect(text).toContain('Policy: https://tmanage.peetrix.com/security/disclosure');
+    expect(text).toContain('Policy: https://tmanageapp.com/security/disclosure');
     const expires = /^Expires: (.+)$/m.exec(text)?.[1];
     expect(new Date(expires!).getTime()).toBeGreaterThan(Date.now());
   });
@@ -151,7 +151,7 @@ describe('56-11 audit log integrity check', () => {
 
 describe('56-07 work item links', () => {
   it('reduces a pasted item link to its id', () => {
-    expect(linkedItemIdFrom(' https://tmanage.peetrix.com/acme/work/wi-42?tab=1 ')).toBe('wi-42');
+    expect(linkedItemIdFrom(' https://tmanageapp.com/acme/work/wi-42?tab=1 ')).toBe('wi-42');
     expect(linkedItemIdFrom('/acme/work/wi-7/activity')).toBe('wi-7');
     expect(linkedItemIdFrom('wi-9')).toBe('wi-9');
   });
@@ -195,7 +195,7 @@ describe('56-07 work item links', () => {
 
     fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'relates' } });
     fireEvent.change(screen.getByLabelText(/Linked item/), {
-      target: { value: 'https://tmanage.peetrix.com/acme/work/wi-3' },
+      target: { value: 'https://tmanageapp.com/acme/work/wi-3' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add link' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true));
@@ -209,7 +209,7 @@ describe('56-07 work item links', () => {
 describe('54-12 inbound mail settings', () => {
   const ADDRESS = {
     id: 'a1',
-    address: 'inbox-7k2q9@in.tmanage.peetrix.com',
+    address: 'inbox-7k2q9@in.tmanageapp.com',
     status: 'active',
     defaultProjectId: 'p1',
     createdAt: '2026-11-01T00:00:00Z',

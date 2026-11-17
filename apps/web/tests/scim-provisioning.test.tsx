@@ -45,7 +45,7 @@ function mount(routes: (call: Call) => { status: number; body?: unknown }) {
 
 const settings = (over: Partial<ScimSettingsView> = {}): ScimSettingsView => ({
   available: true,
-  baseUrl: 'https://tmanage.peetrix.com/v1/scim/v2',
+  baseUrl: 'https://tmanageapp.com/v1/scim/v2',
   keys: [],
   ...over,
 });
@@ -73,7 +73,7 @@ describe('54-16 User provisioning (SCIM) card', () => {
       }
       return { status: 200, body: settings({ keys }) };
     });
-    expect(await screen.findByText(/https:\/\/tmanage\.peetrix\.com\/v1\/scim\/v2/u)).toBeTruthy();
+    expect(await screen.findByText(/https:\/\/tmanageapp\.com\/v1\/scim\/v2/u)).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/Key name/u), { target: { value: 'Okta' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create key' }));
     expect((await screen.findByTestId('scim-secret')).textContent).toBe('tmanage_scim_secretvalue');

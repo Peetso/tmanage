@@ -35,7 +35,7 @@ describe('52-20 · QR code encoder', () => {
   });
 
   it('draws the three finder patterns, timing lines and a readable format word', () => {
-    const { modules, size, version } = encodeQr('https://tmanage.peetrix.com/f/vpfzzphuz9');
+    const { modules, size, version } = encodeQr('https://tmanageapp.com/f/vpfzzphuz9');
     expect(version).toBe(3);
     expect(size).toBe(29);
     for (const [x, y] of [
@@ -51,7 +51,7 @@ describe('52-20 · QR code encoder', () => {
       Array.from({ length: size - 16 }, (_, i) => (i + 8) % 2 === 0),
     );
     expect(modules[size - 8]![8]).toBe(true); // the dark module
-    expect(formatMask('https://tmanage.peetrix.com/f/vpfzzphuz9')).toBeTypeOf('number');
+    expect(formatMask('https://tmanageapp.com/f/vpfzzphuz9')).toBeTypeOf('number');
   });
 
   it('grows the version with the text and refuses text past version 10', () => {

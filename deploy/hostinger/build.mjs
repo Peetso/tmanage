@@ -82,9 +82,49 @@ export function dirtyBundleInputs(porcelain) {
  * The public site's origin, as apps/web/src/lib/site-origin.ts derives it: the hreflang
  * alternates carry absolute URLs (agent-ready site, c44d28e4).
  */
-const SITE_ORIGIN = (
-  process.env['TMANAGE_SITE_URL']?.trim() || 'https://tmanage.peetrix.com'
-).replace(/\/+$/, '');
+const SITE_ORIGIN = (process.env['TMANAGE_SITE_URL']?.trim() || 'https://tmanageapp.com').replace(
+  /\/+$/,
+  '',
+);
+
+/**
+ * Applied migrations whose bytes must never change, by sha256. The migrator records each file's
+ * checksum and refuses to start ("Checksum mismatch") when a recorded file differs. 0208 names
+ * the old host (tmanage.peetrix.com) in a comment; on 2026-11-17 Hostinger's domain change
+ * rewrote that address inside the server's files and the live start failed until the owner
+ * restored the file by hand. The text, old address included, stays byte-identical forever.
+ */
+export const PINNED_MIGRATIONS = Object.freeze({
+  '0208_oauth_core.sql': 'd6cc88c7c8d1bd4489e50b2398adc1ba80a0dd1eec5fa482da784429208826dd',
+});
+
+/**
+ * What is wrong with the pinned migrations in `dir` (a migrations folder): a missing file or a
+ * different sha256. Empty when every pinned file is present with its pinned bytes.
+ *
+ * @param {string} dir
+ * @returns {string[]}
+ */
+export function pinnedMigrationProblems(dir) {
+  return Object.entries(PINNED_MIGRATIONS).flatMap(([name, expected]) => {
+    const file = join(dir, name);
+    if (!existsSync(file)) return [`${name} is missing from ${dir}`];
+    const actual = createHash('sha256').update(readFileSync(file)).digest('hex');
+    return actual === expected ? [] : [`${name} has sha256 ${actual}, pinned ${expected}`];
+  });
+}
+
+/**
+ * What a bundle's start log says went wrong that must fail the deploy check loudly: the migrator's
+ * "Checksum mismatch" (an applied migration's bytes changed, see PINNED_MIGRATIONS).
+ *
+ * @param {string} log  the server's combined stdout and stderr
+ * @returns {string[]}
+ */
+export function startLogProblems(log) {
+  const line = log.split(/\r?\n/).find((l) => l.includes('Checksum mismatch'));
+  return line === undefined ? [] : [`migration checksum mismatch on start: ${line.trim()}`];
+}
 
 /**
  * A string from the web app's message catalog (apps/web/src/lib/i18n/messages/<locale>.json), so
@@ -836,6 +876,10 @@ function assemble() {
   // (scripts/db/users.sql) is NOT shipped: Hostinger gives one database user, so it is inert
   // there, and the security review asked for it out of the bundle.
   copyTree(join(REPO, 'apps/api/migrations'), join(STAGE, 'migrations'));
+  const pinned = pinnedMigrationProblems(join(STAGE, 'migrations'));
+  if (pinned.length > 0) {
+    throw new Error(`the bundle's applied migrations changed:\n  ${pinned.join('\n  ')}`);
+  }
 
   // The root manifest npm installs on Hostinger. The private packages are file: links; the direct
   // registry dependencies are pinned to the EXACT versions the build resolved (so the installed

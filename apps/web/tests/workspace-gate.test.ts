@@ -16,7 +16,7 @@ vi.mock('next/navigation', () => ({ redirect, notFound }));
 vi.mock('next/headers', () => ({
   headers: async () =>
     new Headers({
-      host: 'tmanage.peetrix.com',
+      host: 'tmanageapp.com',
       ...(state.path === null ? {} : { 'x-tmanage-path': state.path }),
     }),
   cookies: async () => ({ has: (name: string) => state.csrf && name === 'tmanage_session_csrf' }),
@@ -93,7 +93,7 @@ describe('workspace gate', () => {
   });
 
   it('sees the cookie only for a same-origin or same-host API', () => {
-    expect(sessionCookieVisible('', 'tmanage.peetrix.com')).toBe(true);
+    expect(sessionCookieVisible('', 'tmanageapp.com')).toBe(true);
     expect(sessionCookieVisible('http://localhost:3001', 'localhost:3000')).toBe(true);
     expect(sessionCookieVisible('https://api.example.com', 'app.example.org')).toBe(false);
   });

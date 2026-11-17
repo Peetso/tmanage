@@ -21,13 +21,13 @@ describe('the browser security policy', () => {
   it('nonces scripts with strict-dynamic, never unsafe-inline, and allows the boot script by hash', () => {
     const policy = buildContentSecurityPolicy({
       nonce: 'abc123==',
-      host: 'tmanage.peetrix.com',
+      host: 'tmanageapp.com',
       development: false,
       scriptHashes: ['sha256-xyz='],
     });
     const scripts = directive(policy, 'script-src');
     expect(scripts).toBe("script-src 'self' 'nonce-abc123==' 'strict-dynamic' 'sha256-xyz='");
-    expect(directive(policy, 'connect-src')).toContain('wss://tmanage.peetrix.com');
+    expect(directive(policy, 'connect-src')).toContain('wss://tmanageapp.com');
     expect(policy).toContain("object-src 'none'");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(policy).toContain('report-uri /csp-report');
@@ -37,7 +37,7 @@ describe('the browser security policy', () => {
   it('lets the viewer embed Figma frames (R4 slice 13) and nothing else from Figma', () => {
     const policy = buildContentSecurityPolicy({
       nonce: 'abc123==',
-      host: 'tmanage.peetrix.com',
+      host: 'tmanageapp.com',
       development: false,
     });
     const frames = directive(policy, 'frame-src');
@@ -51,7 +51,7 @@ describe('the browser security policy', () => {
   it('lets the viewer frame a blob it made (sandboxed HTML preview) but never a data: URL', () => {
     const policy = buildContentSecurityPolicy({
       nonce: 'abc123==',
-      host: 'tmanage.peetrix.com',
+      host: 'tmanageapp.com',
       development: false,
     });
     const frames = directive(policy, 'frame-src');

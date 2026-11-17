@@ -17,7 +17,7 @@ import { workspaceGate } from '../src/lib/workspace-gate';
 let mockPathname = '/';
 vi.mock('next/navigation', () => ({ usePathname: () => mockPathname }));
 
-const ORIGIN = 'https://tmanage.peetrix.com';
+const ORIGIN = 'https://tmanageapp.com';
 
 function chromeHtml(pathname: string): string {
   mockPathname = pathname;

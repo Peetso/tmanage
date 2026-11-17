@@ -18,7 +18,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
-const ORIGIN = 'https://tmanage.peetrix.com';
+const ORIGIN = 'https://tmanageapp.com';
 const UNKNOWN = 'nope-xyz';
 
 /**

@@ -32,8 +32,8 @@ function install(development: boolean, inlineTexts: string[] = []): Rules {
     },
     URL,
     location: {
-      href: 'https://tmanage.peetrix.com/acme/home',
-      origin: 'https://tmanage.peetrix.com',
+      href: 'https://tmanageapp.com/acme/home',
+      origin: 'https://tmanageapp.com',
     },
     document: { scripts: inlineTexts.map((text) => ({ src: '', text })) },
   };

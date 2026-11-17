@@ -79,7 +79,7 @@ hydrating.
 When a full 7 days pass with no violation outside Trusted Types:
 
 1. hPanel → the Node app → Environment variables → `CSP_MODE=enforce` → Save → Restart.
-2. Check it: `curl -sI https://tmanage.peetrix.com/ | grep -i content-security-policy`. You should
+2. Check it: `curl -sI https://tmanageapp.com/ | grep -i content-security-policy`. You should
    see `content-security-policy:` with the nonce policy, plus `content-security-policy-report-only:`
    for Trusted Types.
 3. Open the home page, sign in, open a project, and open the client portal. The browser console
@@ -98,9 +98,9 @@ remember it for a year. Leave it alone.
 The header now carries `preload`, which makes the domain eligible for the browsers' built-in
 HTTPS-only list. Getting onto the list is a separate, voluntary step:
 
-1. Make sure every subdomain of the registrable domain (`peetrix.com`, not just `tmanage.`) serves
+1. Make sure every subdomain of the registrable domain (`tmanageapp.com`, now the apex itself) serves
    HTTPS. Preloading covers the whole domain, and any HTTP-only subdomain stops working.
-2. The list reads the header from the apex (`https://peetrix.com/`), not from this app. So the
+2. The list reads the header from the apex (`https://tmanageapp.com/`), which is this app since 2026-11-17. So the
    apex site has to send the same `Strict-Transport-Security` value first.
 3. Submit the domain at https://hstspreload.org. The form checks the header and lists any problem.
 4. Removing a domain from the list later takes months. If any doubt remains, skip this step. The

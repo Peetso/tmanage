@@ -18,7 +18,7 @@ describe('doc video embeds', () => {
   it('lets the video hosts frame, and nothing more', () => {
     const policy = buildContentSecurityPolicy({
       nonce: 'abc123==',
-      host: 'tmanage.peetrix.com',
+      host: 'tmanageapp.com',
       development: false,
     });
     const frames = /frame-src[^;]*/u.exec(policy)?.[0] ?? '';

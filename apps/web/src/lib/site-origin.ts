@@ -6,7 +6,7 @@
 export function siteOrigin(value: string | undefined = process.env['TMANAGE_SITE_URL']): string {
   const configured = value?.trim();
   return (
-    configured === undefined || configured === '' ? 'https://tmanage.peetrix.com' : configured
+    configured === undefined || configured === '' ? 'https://tmanageapp.com' : configured
   ).replace(/\/+$/, '');
 }
 

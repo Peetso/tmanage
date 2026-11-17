@@ -124,7 +124,7 @@ test('isLocalTarget accepts only local development hosts', () => {
     assert.equal(isLocalTarget(url), true, url);
   }
   for (const url of [
-    'https://tmanage.peetrix.com',
+    'https://tmanageapp.com',
     'http://localhost.evil.com',
     'http://10.0.0.5:3001',
     'http://127.0.0.1.nip.io',
@@ -170,7 +170,7 @@ test('formatReport marks each route and says how many missed', () => {
 test('isLocalTarget accepts a local socket URL and refuses other schemes', () => {
   assert.equal(isLocalTarget('ws://localhost:3102'), true);
   assert.equal(isLocalTarget('wss://rt.tmanage.test'), true);
-  assert.equal(isLocalTarget('wss://tmanage.peetrix.com'), false);
+  assert.equal(isLocalTarget('wss://tmanageapp.com'), false);
   assert.equal(isLocalTarget('ftp://localhost'), false);
   assert.equal(isLocalTarget('file:///C:/x'), false);
 });

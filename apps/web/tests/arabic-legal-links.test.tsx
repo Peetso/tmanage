@@ -18,7 +18,7 @@ afterEach(() => {
   act(() => activeLocale.set('en-US'));
 });
 
-const SITE = 'https://tmanage.peetrix.com';
+const SITE = 'https://tmanageapp.com';
 
 describe('Arabic legal links', () => {
   it('the Arabic legal copy cites only the Arabic legal pages of the site', () => {
@@ -26,7 +26,7 @@ describe('Arabic legal links', () => {
       const text = Object.values(LEGAL_DOCUMENTS_AR[key].sections)
         .map((section) => section.body)
         .join(' ');
-      const own = text.match(/https:\/\/tmanage\.peetrix\.com\/[^\s()]*/g) ?? [];
+      const own = text.match(/https:\/\/tmanageapp\.com\/[^\s()]*/g) ?? [];
       for (const url of own) {
         expect(url.startsWith(`${SITE}/ar/`), url).toBe(true);
       }

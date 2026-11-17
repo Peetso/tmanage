@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 function request(path: string, cookie?: string): NextRequest {
-  return new NextRequest(`https://tmanage.peetrix.com${path}`, {
+  return new NextRequest(`https://tmanageapp.com${path}`, {
     headers: cookie === undefined ? {} : { cookie },
   });
 }
@@ -33,7 +33,7 @@ describe('a signed-out unknown bare path', () => {
       response.headers.get('x-middleware-rewrite'),
       html.includes('find that page'),
       html.includes('href="/sign-in"'),
-    ]).toEqual([404, 'https://tmanage.peetrix.com/_not-found', true, true]);
+    ]).toEqual([404, 'https://tmanageapp.com/_not-found', true, true]);
   });
 
   it('leaves public pages, signed-in visitors and deep links alone', () => {

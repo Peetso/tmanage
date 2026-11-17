@@ -15,14 +15,14 @@ Do these in the same session as the Cloudflare DNS switch (56-05).
 
 1. **hPanel → Security → SSL**: note the current certificate's expiry date (Hostinger shows it).
 2. **Cloudflare → SSL/TLS → Origin Server → Create Certificate**: RSA 2048, hostnames
-   `tmanage.peetrix.com` and `*.peetrix.com`, validity **15 years**. Download the certificate and
+   `tmanageapp.com` and `*.tmanageapp.com`, validity **15 years**. Download the certificate and
    the private key. Keep the key private; it is only ever pasted into hPanel.
-3. **hPanel → SSL → Install custom SSL** for `tmanage.peetrix.com`: paste the certificate and the
+3. **hPanel → SSL → Install custom SSL** for `tmanageapp.com`: paste the certificate and the
    key. The origin now presents a certificate only Cloudflare trusts. That is fine: all traffic
    comes through Cloudflare, and the Cloudflare rule "Always use HTTPS" stays on.
 4. **Cloudflare → SSL/TLS → Full (strict)**. It works with Origin CA certificates.
 5. Optional belt-and-braces: **Cloudflare → Rules**, a Configuration (or Page) rule for
-   `tmanage.peetrix.com/.well-known/acme-challenge/*` with SSL **Off** and cache bypass, so
+   `tmanageapp.com/.well-known/acme-challenge/*` with SSL **Off** and cache bypass, so
    Hostinger's AutoSSL can still renew in the background if the custom certificate is ever removed.
 
 Hardening, where the host allows it:
@@ -39,14 +39,14 @@ Hardening, where the host allows it:
 
 ```sh
 # The origin itself presents the Cloudflare Origin CA certificate (issuer "CloudFlare Origin ...").
-openssl s_client -connect <origin ip>:443 -servername tmanage.peetrix.com </dev/null 2>/dev/null \
+openssl s_client -connect <origin ip>:443 -servername tmanageapp.com </dev/null 2>/dev/null \
   | openssl x509 -noout -issuer -subject -enddate
 
 # Through Cloudflare the site answers 200.
-curl -sI https://tmanage.peetrix.com | head -1
+curl -sI https://tmanageapp.com | head -1
 
 # The app's own reading: daysLeft above 365 right after the install.
-curl -s https://tmanage.peetrix.com/healthz/deep
+curl -s https://tmanageapp.com/healthz/deep
 ```
 
 `/healthz/deep` reports `checks.origin_tls` as `{ state, issuer, notAfter, daysLeft }` once the
@@ -59,9 +59,9 @@ mail per UTC day.
 The external check does the same from outside, bypassing Cloudflare:
 
 ```sh
-UPTIME_URL=https://tmanage.peetrix.com \
+UPTIME_URL=https://tmanageapp.com \
 UPTIME_ORIGIN_ADDRESS=<origin ip>:443 \
-UPTIME_ORIGIN_SERVERNAME=tmanage.peetrix.com \
+UPTIME_ORIGIN_SERVERNAME=tmanageapp.com \
 node scripts/ops/uptime-check.mjs --once
 ```
 

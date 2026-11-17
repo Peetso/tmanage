@@ -13,8 +13,7 @@ const { redirect, notFound } = vi.hoisted(() => ({
 }));
 vi.mock('next/navigation', () => ({ redirect, notFound }));
 vi.mock('next/headers', () => ({
-  headers: async () =>
-    new Headers({ host: 'tmanage.peetrix.com', 'x-tmanage-path': '/nile-studio' }),
+  headers: async () => new Headers({ host: 'tmanageapp.com', 'x-tmanage-path': '/nile-studio' }),
   cookies: async () => ({ has: (name: string) => state.csrf && name === 'tmanage_session_csrf' }),
 }));
 

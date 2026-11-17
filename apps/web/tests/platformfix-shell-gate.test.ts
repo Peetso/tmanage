@@ -5,7 +5,7 @@ import { safeReturnPath } from '../src/lib/sign-in-return';
 import { signedOutAreaRedirect } from '../src/lib/signed-in-shell-gate';
 import { proxy } from '../src/proxy';
 
-const ORIGIN = 'https://tmanage.peetrix.com';
+const ORIGIN = 'https://tmanageapp.com';
 
 function request(path: string, cookie?: string): NextRequest {
   return new NextRequest(`${ORIGIN}${path}`, { headers: cookie === undefined ? {} : { cookie } });

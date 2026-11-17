@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { createPool } from 'mysql2/promise';
 import { hash as argonHash } from '@node-rs/argon2';
 import { startMariaDb } from '../../scripts/db/mariadb-server.mjs';
-import { ROUTE_CONTENT, routeContentProblems } from './build.mjs';
+import { ROUTE_CONTENT, routeContentProblems, startLogProblems } from './build.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../..');
@@ -49,9 +49,9 @@ const REPORT = join(CHECK, 'REPORT.md');
 const PORT = 3390;
 // A local stand-in for Hostinger's TLS-terminating reverse proxy: HTTPS on this port, one hop,
 // forwarding to PORT with X-Forwarded-* — so a real browser signs in over https exactly as it
-// would at https://tmanage.peetrix.com (the hostname is mapped to 127.0.0.1 in the browser).
+// would at https://tmanageapp.com (the hostname is mapped to 127.0.0.1 in the browser).
 const TLS_PORT = 3443;
-const HOST = 'tmanage.peetrix.com';
+const HOST = 'tmanageapp.com';
 const ORIGIN = `https://${HOST}:${TLS_PORT}`;
 const DB = 'tmanage';
 // The single user, named and password-shaped as Hostinger makes them (prefix; symbols that must
@@ -274,7 +274,7 @@ async function main() {
       AUTH_MFA_SEED_KEYS: `1:${Buffer.from('smoke-mfa-key-000000000000000000').toString('base64url')}`,
       AUTH_TOTP_ISSUER: 'TManage',
       EMAIL_DRIVER: 'smtp',
-      EMAIL_FROM_ADDRESS: 'no-reply@tmanage.peetrix.com',
+      EMAIL_FROM_ADDRESS: 'no-reply@tmanageapp.com',
       EMAIL_FROM_NAME: 'TManage',
       SMTP_HOST: 'localhost',
       STORAGE_DRIVER: 's3',
@@ -311,12 +311,21 @@ async function main() {
         early.headers.get('retry-after') !== null,
       `status ${early.status}`,
     );
-    await waitFor(() => /ready on :/.test(stderr), 180_000, 'server did not become ready').catch(
-      (e) => {
-        process.stdout.write(`\n----- server output -----\n${stderr}\n-------------------------\n`);
-        throw e;
-      },
-    );
+    // A "Checksum mismatch" (an applied migration's bytes changed, 2026-11-17) fails at once and
+    // by name, not as a timeout.
+    await waitFor(
+      () => /ready on :/.test(stderr) || startLogProblems(stderr).length > 0,
+      180_000,
+      'server did not become ready',
+    ).catch((e) => {
+      process.stdout.write(`\n----- server output -----\n${stderr}\n-------------------------\n`);
+      throw e;
+    });
+    const startProblems = startLogProblems(stderr);
+    if (startProblems.length > 0) {
+      process.stdout.write(`\n----- server output -----\n${stderr}\n-------------------------\n`);
+      throw new Error(`FAIL: ${startProblems.join('; ')}`);
+    }
     // The web child is reached over a private socket file (a named pipe on Windows), never
     // loopback TCP, which Hostinger refuses between the app's own processes.
     const via = firstMatch(stderr, /ready on :\d+ \(web via [^,]+/);
@@ -376,7 +385,7 @@ async function main() {
       const res = await hit(path, {
         headers: {
           'x-forwarded-proto': 'https',
-          'x-forwarded-host': 'tmanage.peetrix.com',
+          'x-forwarded-host': 'tmanageapp.com',
           ...(accept ? { accept } : {}),
         },
       });

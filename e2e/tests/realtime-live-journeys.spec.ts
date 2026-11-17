@@ -26,7 +26,7 @@ import { API_URL } from '../setup/stack.js';
  * **Live** (the R1 gate evidence, `docs/runbooks/realtime-live-proof.md`):
  *
  * ```
- * E2E_BASE_URL=https://tmanage.peetrix.com \
+ * E2E_BASE_URL=https://tmanageapp.com \
  * E2E_RT_STORAGE_A=./.auth/rt-a.json E2E_RT_STORAGE_B=./.auth/rt-b.json \
  * E2E_RT_CHANNEL_PATH=/<org-slug>/chat/<channel-id> \
  * pnpm --filter @tmanage/e2e exec playwright test -c playwright.live.config.ts

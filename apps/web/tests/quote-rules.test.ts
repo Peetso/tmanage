@@ -82,8 +82,6 @@ describe('quote presentation', () => {
     expect(quoteCapsule('accepted')).toBe('done');
     expect(quoteCapsule('sent')).toBe('waiting');
     expect(quoteCapsule('declined')).toBe('blocked');
-    expect(quoteLinkUrl('https://tmanage.peetrix.com', 'a/b')).toBe(
-      'https://tmanage.peetrix.com/q/a%2Fb',
-    );
+    expect(quoteLinkUrl('https://tmanageapp.com', 'a/b')).toBe('https://tmanageapp.com/q/a%2Fb');
   });
 });

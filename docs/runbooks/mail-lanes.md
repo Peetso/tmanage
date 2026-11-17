@@ -18,7 +18,7 @@ Off (the default) keeps the pre-56-31 path: each producer submits through `SendC
 Turn it on only where the drainer runs beside the API (the single Hostinger app runs both).
 
 Peter's 10-minute step for the second mailbox: hPanel → Emails → create
-`security@tmanage.peetrix.com`, then set the three `SMTP_SECURITY_*` / `EMAIL_SECURITY_*`
+`security@tmanageapp.com`, then set the three `SMTP_SECURITY_*` / `EMAIL_SECURITY_*`
 variables. Without it there is one mailbox (noreply@) and the lane order alone protects `auth`.
 
 ## Lanes

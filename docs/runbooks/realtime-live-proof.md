@@ -50,14 +50,14 @@ The test needs two test accounts, both members of one channel, and must not crea
 data on live. Sign each account in by hand once and save its browser state:
 
 ```
-pnpm --filter @tmanage/e2e exec playwright codegen --save-storage=.auth/rt-a.json https://tmanage.peetrix.com
-pnpm --filter @tmanage/e2e exec playwright codegen --save-storage=.auth/rt-b.json https://tmanage.peetrix.com
+pnpm --filter @tmanage/e2e exec playwright codegen --save-storage=.auth/rt-a.json https://tmanageapp.com
+pnpm --filter @tmanage/e2e exec playwright codegen --save-storage=.auth/rt-b.json https://tmanageapp.com
 ```
 
 (The files land in `e2e/.auth/`, and the paths below resolve from `e2e/`. Keep `.auth/` out of git: the files hold session cookies.) Then, from the repo root:
 
 ```
-E2E_BASE_URL=https://tmanage.peetrix.com \
+E2E_BASE_URL=https://tmanageapp.com \
 E2E_RT_STORAGE_A=./.auth/rt-a.json \
 E2E_RT_STORAGE_B=./.auth/rt-b.json \
 E2E_RT_CHANNEL_PATH=/<org-slug>/chat/<channel-id> \

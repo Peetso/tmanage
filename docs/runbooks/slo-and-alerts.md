@@ -67,10 +67,10 @@ not through the database, so "the database is down" still reaches you.
 
 1. Sign up for a free monitor (for example UptimeRobot free plan or Better Stack free tier). Do
    not enter payment details; the free plan is enough.
-2. New monitor → type **HTTP(s)** → URL `https://tmanage.peetrix.com/healthz/deep`.
+2. New monitor → type **HTTP(s)** → URL `https://tmanageapp.com/healthz/deep`.
 3. Interval **5 minutes**. Alert when the status is not 200 (a "keyword" check is not needed).
 4. Alert contact: the same address as `ALERT_EMAILS`.
-5. Add a second monitor for `https://tmanage.peetrix.com/healthz` — it tells "the app is down"
+5. Add a second monitor for `https://tmanageapp.com/healthz` — it tells "the app is down"
    apart from "the app is up but the database or worker is not".
 6. The monitor's monthly uptime figure is the number to compare with the 99.5% target in §1.
 
@@ -80,7 +80,7 @@ not through the database, so "the database is down" still reaches you.
 mail settings, at most once per 15 minutes, plus one "recovered" mail.
 
 1. On a Windows PC that stays on: install Node.js, copy the `scripts/ops` folder.
-2. Set the environment variables `UPTIME_URL=https://tmanage.peetrix.com`, `ALERT_EMAILS` and the
+2. Set the environment variables `UPTIME_URL=https://tmanageapp.com`, `ALERT_EMAILS` and the
    `SMTP_*` / `EMAIL_FROM_ADDRESS` values from §2.
 3. Task Scheduler → **Create Basic Task** → repeat every 5 minutes → action
    `node C:\path\to\scripts\ops\uptime-check.mjs`. One run exits with code 1 while anything fails.
@@ -98,7 +98,7 @@ user name or password is accepted.
 
 ## 4. When an alert arrives
 
-1. Open `https://tmanage.peetrix.com/healthz/deep` — the body says which check is `fail`.
+1. Open `https://tmanageapp.com/healthz/deep` — the body says which check is `fail`.
 2. `database` fail: hPanel → Databases — is MariaDB up, is storage full?
 3. `migrations` fail: the last deploy did not finish; follow the rollback in `backup-restore.md`.
 4. `worker` fail: restart the Node.js app in hPanel; check the app log.
