@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ClientsScreen } from '../src/components/screens/ClientsScreen';
 import { DecisionRegisterScreen } from '../src/components/screens/DecisionRegisterScreen';
 import { DocsHubScreen } from '../src/components/screens/DocsHubScreen';
+import { FilesHubScreen } from '../src/components/screens/FilesHubScreen';
 import { InboxScreen } from '../src/components/screens/InboxScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { translate } from '../src/lib/i18n/t';
@@ -143,5 +144,37 @@ describe('teaching empty states (55-10p)', () => {
     });
     await screen.findByRole('rowheader', { name: /go/i });
     expect(screen.queryByRole('heading', { name: /no decisions yet/i })).toBeNull();
+  });
+
+  it('Files: an empty All projects teaches with Upload files; one chosen project does not', async () => {
+    const routes = {
+      '/projects': { projects: [{ id: 'p1', name: 'Site' }] },
+      '/projects/p1/files': { files: [] },
+    };
+    mount(
+      (client) => (
+        <FilesHubScreen organizationSlug="acme" organizationName="Acme" client={client} />
+      ),
+      routes,
+    );
+    const section = (await teaching(/no files yet/i)).closest('section') as HTMLElement;
+    expect(section.querySelector('button')?.textContent).toBe('Upload files');
+    expect(section.querySelector('a')?.getAttribute('data-help-slug')).toBe(
+      'upload-and-share-files',
+    );
+    cleanup();
+    mount(
+      (client) => (
+        <FilesHubScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          initialProjectId="p1"
+          client={client}
+        />
+      ),
+      routes,
+    );
+    await screen.findByText('No files yet');
+    expect(screen.queryByRole('heading', { name: /no files yet/i })).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/docs.css';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -21,6 +21,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { useDeleteFile } from '../viewer/DeleteFileDialog';
 import { CheckedLabel } from './CheckedLabel';
 import { HelpTip } from '../help/HelpTip';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
 import { needsPreviewThumb, PreviewThumb } from '../viewer/PreviewThumb';
 
@@ -278,7 +279,28 @@ export function FilesHubScreen({
           </LoadingRegion>
         ) : null}
 
-        {(projects.isSuccess && scope.length === 0) || (files.isSuccess && rows.length === 0) ? (
+        {/*
+          55-10p: "All projects" with nothing in it is a truly empty Files and teaches; one chosen
+          project with no files keeps its own short line.
+        */}
+        {projectId === '' &&
+        ((projects.isSuccess && scope.length === 0) || (files.isSuccess && rows.length === 0)) ? (
+          <TeachingEmptyState
+            title={tOr('FilesHub.emptyTitle', 'No files yet')}
+            explanation={t('EmptyStates.filesBody')}
+            action={
+              available.length > 0 ? (
+                <Button tone="lime" size="accessible" onClick={() => picker.current?.click()}>
+                  {tOr('FilesHub.upload', 'Upload files')}
+                </Button>
+              ) : undefined
+            }
+            helpSlug="upload-and-share-files"
+            helpLabel={t('EmptyStates.howFilesWork')}
+          />
+        ) : null}
+
+        {projectId !== '' && files.isSuccess && rows.length === 0 ? (
           <div className="tm-dx-empty">
             <p className="tm-dx-empty__title">{tOr('FilesHub.emptyTitle', 'No files yet')}</p>
             <p className="tm-dx-empty__body">
