@@ -10,6 +10,11 @@ import {
   type CompareCell,
   type CompareEntry,
 } from '../../../../content/compare/compare-entries';
+import { ALTERNATIVE_COPY } from '../../../../content/alternatives/alternative-copy';
+import {
+  alternativeHref,
+  hasAlternativePage,
+} from '../../../../content/alternatives/alternative-slugs';
 import { SWITCH_COPY, compareCopy } from '../../../../content/compare/compare-copy';
 import { switchLinks } from '../../../../content/compare/compare-slugs';
 import type { SwitchEntry } from '../../../../content/compare/switch-entries';
@@ -109,6 +114,7 @@ export function ComparePage({ entry }: { entry: CompareEntry }) {
         <p className="tm-web-compare-all">
           <Link href={compareHref(undefined, language)}>{copy.allCompare}</Link>
         </p>
+        <AlternativeLink slug={entry.slug} name={entry.name} language={language} />
       </WebSection>
 
       <CtaBand
@@ -197,6 +203,7 @@ export function SwitchPage({ entry }: { entry: SwitchEntry }) {
             <Link href={href(`/help/${links.helpSlug}`)}>{words.helpLink(entry.name)}</Link>
           </p>
         )}
+        <AlternativeLink slug={entry.slug} name={entry.name} language={language} />
       </WebSection>
 
       <CtaBand
@@ -214,6 +221,26 @@ export function SwitchPage({ entry }: { entry: SwitchEntry }) {
 /** 54-29: the switch page's "Start free" carries the tool to the Import page (allow-listed id). */
 export function switchStartHref(entry: SwitchEntry): string {
   return withImportTool(SIGN_UP_HREF, entry.source);
+}
+
+/** SEOF — the link to the "X alternative" page of the same product, when there is one. */
+function AlternativeLink({
+  slug,
+  name,
+  language,
+}: {
+  slug: string;
+  name: string;
+  language: 'en' | 'ar';
+}) {
+  if (!hasAlternativePage(slug)) return null;
+  return (
+    <p className="tm-web-compare-all">
+      <Link href={alternativeHref(slug, language)}>
+        {ALTERNATIVE_COPY[language].tabTitle(name)}
+      </Link>
+    </p>
+  );
 }
 
 function SuitsCard({ title, items }: { title: string; items: readonly string[] }) {

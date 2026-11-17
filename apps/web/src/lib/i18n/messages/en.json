@@ -19628,6 +19628,8 @@
   "aiApprove.op.automations.templates.flow.save": "Save an automation's branching steps",
   "aiApprove.op.automations.templates.flow.turn_on": "Turn an automation on",
   "SiteNav.compare": "Compare",
+  "SiteNav.alternatives": "Alternatives",
+  "SiteNav.facts": "TManage facts",
   "SiteNav.compareHint": "TManage side by side with other tools",
   "RouteTitle.portalApprovalRecord": "Approval record",
   "RouteTitle.projectApprovalRecord": "Approval record",

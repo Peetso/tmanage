@@ -1065,5 +1065,7 @@
   "ProjectExport.csvHint": ".csv — Excel میں کھلتی ہے؛ ClickUp CSV کے طور پر دوبارہ امپورٹ ہو سکتی ہے",
   "ProjectExport.json": "JSON",
   "ProjectExport.jsonHint": ".json — تمام فیلڈز، اسکرپٹس اور بیک اپ کے لیے",
-  "ProjectExport.failed": "ایکسپورٹ ڈاؤن لوڈ نہیں ہوا۔ چند منٹ بعد دوبارہ کوشش کریں، یا ایڈمن سے ایکسپورٹ کی اجازت مانگیں۔"
+  "ProjectExport.failed": "ایکسپورٹ ڈاؤن لوڈ نہیں ہوا۔ چند منٹ بعد دوبارہ کوشش کریں، یا ایڈمن سے ایکسپورٹ کی اجازت مانگیں۔",
+  "SiteNav.alternatives": "متبادل",
+  "SiteNav.facts": "TManage کے حقائق"
 }

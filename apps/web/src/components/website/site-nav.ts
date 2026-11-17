@@ -332,6 +332,8 @@ export const FOOTER_COLUMNS: readonly WebFooterColumn[] = [
       { label: 'SiteNav.guides', href: '/resources#guides' },
       { label: 'SiteNav.templates', href: '/resources#templates' },
       { label: 'SiteNav.compare', href: '/compare' },
+      { label: 'SiteNav.alternatives', href: '/alternatives' },
+      { label: 'SiteNav.facts', href: '/facts' },
       { label: 'SiteNav.helpCenter', href: '/help' },
       { label: 'SiteNav.status', href: '/status' },
       { label: 'SiteNav.developers', href: '/developers' },

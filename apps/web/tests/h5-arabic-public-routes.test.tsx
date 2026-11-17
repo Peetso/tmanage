@@ -21,7 +21,9 @@ import {
   arabicPublicMetadata,
   arabicPublicTitle,
   englishPublicPath,
+  ALTERNATIVE_PATHS,
   COMPARE_PATHS,
+  FACTS_PATH,
   HELP_PATHS,
   isArabicPublicPath,
   languageSwitchTarget,
@@ -75,13 +77,16 @@ afterEach(() => {
 describe('the Arabic route table', () => {
   it('covers every static public page, and only those', () => {
     const english = pageRoutes(WEBSITE)
-      // The Help centre (55-16) and compare pages (57-06) have their own Arabic routes.
+      // The Help centre (55-16), compare pages (57-06), alternatives and facts page (SEOF) have
+      // their own Arabic routes.
       .filter(
         (route) =>
           route !== '/website-kit' &&
           !route.includes('[') &&
           !HELP_PATHS.includes(route) &&
-          !COMPARE_PATHS.includes(route),
+          !COMPARE_PATHS.includes(route) &&
+          !ALTERNATIVE_PATHS.includes(route) &&
+          route !== FACTS_PATH,
       )
       .sort();
     expect([...PUBLIC_LOCALIZED_PATHS].sort()).toEqual(english);

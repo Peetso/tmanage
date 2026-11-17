@@ -6,6 +6,7 @@ import { metadata as signUpMetadata } from '@/app/sign-up/page';
 import { metadata as arabicSignInMetadata } from '@/app/ar/sign-in/page';
 import { metadata as arabicSignUpMetadata } from '@/app/ar/sign-up/page';
 import { ALL_RESOURCES } from '@/components/website/pages/resources/resources-data';
+import { ALTERNATIVE_ENTRIES } from '@/content/alternatives/alternative-entries';
 import { COMPARE_ENTRIES } from '@/content/compare/compare-entries';
 import { SWITCH_ENTRIES } from '@/content/compare/switch-entries';
 import { HELP_ARTICLES } from '@/content/help/help-articles';
@@ -38,7 +39,8 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
     );
     // Each indexed page with a twin in English and Arabic: the website pages, sign-up (not the
     // noindex sign-in, SEOFIX), the library articles, the Help centre and its articles (55-16),
-    // the compare index and its pages (57-06) and the switch pages (54-29); and each single-language
+    // the compare index and its pages (57-06), the switch pages (54-29), the alternatives index and
+    // its pages and the facts page (SEOF); and each single-language
     // page once (B12). Counted from the content, so a new page does not break this test (SEOE).
     const withTwin =
       PUBLIC_LOCALIZED_PATHS.length +
@@ -49,7 +51,10 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
       HELP_ARTICLES.length +
       1 +
       COMPARE_ENTRIES.length +
-      SWITCH_ENTRIES.length;
+      SWITCH_ENTRIES.length +
+      1 +
+      ALTERNATIVE_ENTRIES.length +
+      1;
     expect(urls.length).toBe(2 * withTwin + SINGLE_LOCALE_PATHS.length);
     expect(new Set(urls).size).toBe(urls.length);
   });

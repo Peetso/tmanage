@@ -1,5 +1,7 @@
 import { BETA_FAQ, BETA_INCLUDED } from '../components/website/pages/pricing/pricing-data';
 import { ALL_RESOURCES } from '../components/website/pages/resources/resources-data';
+import { alternativeMarkdown } from '../content/alternatives/alternative-markdown';
+import { factsMarkdown } from '../content/facts/facts';
 import { COMPARE_COPY, SWITCH_COPY } from '../content/compare/compare-copy';
 import { COMPARE_ENTRIES, COMPARE_FEATURES, OURS } from '../content/compare/compare-entries';
 import { findSwitchEntry } from '../content/compare/switch-entries';
@@ -203,6 +205,8 @@ function resourceBody(slug: string): string[] {
  */
 const PAGE_BODIES: readonly (readonly [string, (rest: string) => string[]])[] = [
   ['/pricing', pricingBody],
+  ['/facts', () => factsMarkdown(siteOrigin())],
+  ['/alternatives/', alternativeMarkdown],
   ['/compare/', compareBody],
   ['/switch/', switchBody],
   ['/help/', helpBody],

@@ -1,0 +1,150 @@
+/*
+ * SEOF alternative pages and facts page — Figma 685:13383. TManage tokens and website-layer
+ * variables only; logical properties, so the Arabic pages mirror unchanged. The table is the
+ * compare pages' (`compare.css`), stacked into cards on a phone.
+ */
+
+.tm-web-alt-crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0 0 var(--s6);
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-web-alt-crumbs li + li::before {
+  content: '/';
+  margin-inline-end: var(--s2);
+}
+
+.tm-web-alt-crumbs a {
+  color: var(--ink-650);
+}
+
+.tm-web-alt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-block-start: var(--s2);
+}
+
+.tm-web-alt-micro,
+.tm-web-alt-updated,
+.tm-web-alt-note {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-web-alt-updated {
+  color: var(--ink-500);
+}
+
+.tm-web-alt-note {
+  margin-block-start: var(--s6);
+}
+
+.tm-web-alt-reasons,
+.tm-web-alt-related {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s4);
+  margin-inline: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-web-alt-card,
+.tm-web-alt-quote {
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-web-alt-card__number {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-web-alt-card__title {
+  margin-block-start: var(--s3);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-web-alt-card__body {
+  margin-block-start: var(--s3);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-web-alt-ahead {
+  color: var(--ink-650);
+  font-weight: 500;
+}
+
+.tm-web-alt-keep {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+}
+
+.tm-web-alt-keep + .tm-web-alt-actions {
+  margin-block-start: var(--s8);
+}
+
+.tm-web-alt-facts tbody tr:first-child th,
+.tm-web-alt-facts tbody tr:first-child td {
+  border-block-start: 0;
+}
+
+.tm-web-alt-facts th {
+  inline-size: 30%;
+  font-weight: 400;
+  color: var(--ink-650);
+}
+
+.tm-web-alt-features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3) var(--s8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-800);
+}
+
+.tm-web-alt-quote p {
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+  color: var(--ink-950);
+}
+
+@media (max-width: 767px) {
+  .tm-web-alt-reasons,
+  .tm-web-alt-related,
+  .tm-web-alt-keep,
+  .tm-web-alt-features {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-web-alt-facts td::before {
+    content: none;
+  }
+
+  .tm-web-alt-facts th {
+    inline-size: auto;
+  }
+}

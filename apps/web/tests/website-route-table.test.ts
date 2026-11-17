@@ -32,6 +32,18 @@ const ROUTES: Record<string, RouteRow> = {
     from: 'screens/ChangelogScreen',
     title: 'Changelog',
   },
+  // SEOF: the alternative and facts titles come from ALTERNATIVE_COPY and FACTS_COPY.
+  '/alternatives': {
+    component: 'AlternativesIndexPage',
+    from: 'website/pages/alternatives/AlternativesIndexPage',
+    title: null,
+  },
+  '/alternatives/[slug]': {
+    component: 'AlternativePage',
+    from: 'website/pages/alternatives/AlternativePage',
+    title: null,
+  },
+  '/facts': { component: 'FactsPage', from: 'website/pages/facts/FactsPage', title: null },
   '/client-portal': {
     component: 'ClientPortalPage',
     from: 'website/pages/client-portal/ClientPortalPage',

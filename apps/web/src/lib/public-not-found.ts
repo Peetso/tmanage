@@ -19,7 +19,7 @@ import { NOT_FOUND_PAGE } from './workspace-gate';
 export const ARABIC_NOT_FOUND_PAGE = '/ar/page-not-found';
 
 /** English public sections whose `[slug]` page calls `notFound()` for an unknown slug. */
-const ENGLISH_SLUG_SECTIONS = ['/help/', '/compare/', '/switch/'] as const;
+const ENGLISH_SLUG_SECTIONS = ['/help/', '/compare/', '/switch/', '/alternatives/'] as const;
 
 /**
  * The prerendered not-found page `pathname` is answered with, or `undefined` when the path is a
@@ -27,8 +27,8 @@ const ENGLISH_SLUG_SECTIONS = ['/help/', '/compare/', '/switch/'] as const;
  *
  * - `/ar` and everything under it: the Arabic not-found page unless the path is the Arabic twin
  *   of an existing page (the catch-all, help, compare, resources, sign-in and sign-up).
- * - `/help/<x>`, `/compare/<x>` and `/switch/<x>` (one segment): the English not-found page unless
- *   `<x>` is a published article, comparison or switch page.
+ * - `/help/<x>`, `/compare/<x>`, `/switch/<x>` and `/alternatives/<x>` (one segment): the English
+ *   not-found page unless `<x>` is a published article, comparison, switch or alternative page.
  * - `/website-kit` in production, where the page calls `notFound()`.
  */
 export function publicNotFoundPage(

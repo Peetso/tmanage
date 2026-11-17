@@ -19628,6 +19628,8 @@
   "aiApprove.op.automations.templates.flow.save": "حفظ خطوات الأتمتة المتفرعة",
   "aiApprove.op.automations.templates.flow.turn_on": "تشغيل أتمتة",
   "SiteNav.compare": "مقارنة",
+  "SiteNav.alternatives": "البدائل",
+  "SiteNav.facts": "حقائق عن TManage",
   "SiteNav.compareHint": "مقارنة TManage بالأدوات الأخرى",
   "RouteTitle.portalApprovalRecord": "سجل الموافقة",
   "RouteTitle.projectApprovalRecord": "سجل الموافقة",

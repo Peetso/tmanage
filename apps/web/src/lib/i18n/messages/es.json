@@ -19435,6 +19435,8 @@
   "aiApprove.op.automations.templates.flow.save": "Guardar los pasos con ramas de una automatización",
   "aiApprove.op.automations.templates.flow.turn_on": "Activar una automatización",
   "SiteNav.compare": "Comparar",
+  "SiteNav.alternatives": "Alternativas",
+  "SiteNav.facts": "Datos de TManage",
   "SiteNav.compareHint": "TManage frente a otras herramientas",
   "RouteTitle.portalApprovalRecord": "Registro de aprobación",
   "RouteTitle.projectApprovalRecord": "Registro de aprobación",

@@ -1,7 +1,10 @@
 'use client';
 
 import { COMPARE_ENTRIES, compareHref } from '../../../../content/compare/compare-entries';
+import { ALTERNATIVE_COPY } from '../../../../content/alternatives/alternative-copy';
+import { alternativeHref } from '../../../../content/alternatives/alternative-slugs';
 import { compareCopy } from '../../../../content/compare/compare-copy';
+import Link from 'next/link';
 import { LinkCard, WebSection } from '../../sections';
 import { useCompareLanguage } from './use-compare-language';
 import './compare.css';
@@ -30,6 +33,11 @@ export function CompareIndexPage() {
           </li>
         ))}
       </ul>
+      <p className="tm-web-compare-all tm-web-compare-all--index">
+        <Link href={alternativeHref(undefined, language)}>
+          {ALTERNATIVE_COPY[language].indexTitle}
+        </Link>
+      </p>
     </WebSection>
   );
 }

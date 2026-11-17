@@ -181,6 +181,10 @@
   font-size: var(--t-ui-md);
 }
 
+.tm-web-compare-all--index {
+  text-align: center;
+}
+
 .tm-web-compare-index {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -1,7 +1,13 @@
 import { ALL_RESOURCES } from '../components/website/pages/resources/resources-data';
+import { ALTERNATIVE_COPY } from '../content/alternatives/alternative-copy';
+import {
+  ALTERNATIVE_PAGES,
+  ALTERNATIVES_UPDATED_ON,
+} from '../content/alternatives/alternative-entries';
 import { COMPARE_COPY, SWITCH_COPY } from '../content/compare/compare-copy';
 import { COMPARE_ENTRIES } from '../content/compare/compare-entries';
 import { SWITCH_ENTRIES } from '../content/compare/switch-entries';
+import { FACTS_COPY, FACTS_UPDATED_ON } from '../content/facts/facts';
 import { HELP_ARTICLES } from '../content/help/help-articles';
 import { ARABIC_AUTH_PATHS, PUBLIC_LOCALIZED_PATHS } from './i18n/public-locale-routes';
 import { translate } from './i18n/t';
@@ -154,13 +160,45 @@ function switchPages(): PublicPage[] {
   }));
 }
 
+/** SEOF (B1) — the "X alternative" pages and their index, listed with the comparisons. */
+function alternativePages(): PublicPage[] {
+  const copy = ALTERNATIVE_COPY.en;
+  return [
+    {
+      path: '/alternatives',
+      title: copy.indexTitle,
+      summary: copy.indexDescription,
+      section: 'compare',
+      lastModified: ALTERNATIVES_UPDATED_ON,
+    },
+    ...ALTERNATIVE_PAGES.map(({ entry, rival }): PublicPage => ({
+      path: `/alternatives/${entry.slug}`,
+      title: copy.tabTitle(rival.name),
+      summary: copy.description(rival.name),
+      section: 'compare',
+      lastModified: ALTERNATIVES_UPDATED_ON,
+    })),
+  ];
+}
+
+/** SEOF (B7) — the facts page, first among the product pages. */
+const FACTS_PAGE: PublicPage = {
+  path: '/facts',
+  title: FACTS_COPY.en.title,
+  summary: FACTS_COPY.en.description,
+  section: 'product',
+  lastModified: FACTS_UPDATED_ON,
+};
+
 /** Every English public page, in the sitemap's order. */
 export const PUBLIC_PAGES: readonly PublicPage[] = [
   ...PUBLIC_LOCALIZED_PATHS.map(websitePage),
+  FACTS_PAGE,
   ...resourcePages(),
   ...helpPages(),
   ...comparePages(),
   ...switchPages(),
+  ...alternativePages(),
   ...ARABIC_AUTH_PATHS.map(websitePage),
 ];
 

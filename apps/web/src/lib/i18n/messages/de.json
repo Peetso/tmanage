@@ -19433,6 +19433,8 @@
   "aiApprove.op.automations.templates.flow.save": "Die verzweigten Schritte einer Automatisierung speichern",
   "aiApprove.op.automations.templates.flow.turn_on": "Eine Automatisierung aktivieren",
   "SiteNav.compare": "Vergleichen",
+  "SiteNav.alternatives": "Alternativen",
+  "SiteNav.facts": "Fakten zu TManage",
   "SiteNav.compareHint": "TManage im Vergleich mit anderen Tools",
   "RouteTitle.portalApprovalRecord": "Freigabeprotokoll",
   "RouteTitle.projectApprovalRecord": "Freigabeprotokoll",

@@ -19433,6 +19433,8 @@
   "aiApprove.op.automations.templates.flow.save": "保存自动化的分支步骤",
   "aiApprove.op.automations.templates.flow.turn_on": "开启自动化",
   "SiteNav.compare": "对比",
+  "SiteNav.alternatives": "替代方案",
+  "SiteNav.facts": "TManage 概况",
   "SiteNav.compareHint": "将 TManage 与其他工具并排对比",
   "RouteTitle.portalApprovalRecord": "审批记录",
   "RouteTitle.projectApprovalRecord": "审批记录",

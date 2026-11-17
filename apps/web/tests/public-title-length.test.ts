@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { describe, expect, it } from 'vitest';
 import { ALL_RESOURCES } from '../src/components/website/pages/resources/resources-data';
+import { ALTERNATIVE_COPY } from '../src/content/alternatives/alternative-copy';
+import { ALTERNATIVE_PAGES } from '../src/content/alternatives/alternative-entries';
+import { FACTS_COPY } from '../src/content/facts/facts';
 import { COMPARE_COPY, SWITCH_COPY } from '../src/content/compare/compare-copy';
 import { COMPARE_ENTRIES } from '../src/content/compare/compare-entries';
 import { SWITCH_ENTRIES } from '../src/content/compare/switch-entries';
@@ -55,7 +58,7 @@ function englishTitles(): [string, string][] {
   ]);
 }
 
-/** Arabic: the titles the `/ar` routes write (catch-all, auth twins, help, compare, library). */
+/** Arabic: the titles the `/ar` routes write (catch-all, auth twins, help, compare, alternatives, facts, library). */
 function arabicTitles(): [string, string][] {
   const ar = (name: string): string => `${name}${TITLE_SUFFIX}`;
   return [
@@ -75,6 +78,12 @@ function arabicTitles(): [string, string][] {
       `/switch/${e.slug}`,
       ar(SWITCH_COPY.ar.title(e.name)),
     ]),
+    ['/alternatives', ar(ALTERNATIVE_COPY.ar.indexTitle)],
+    ...ALTERNATIVE_PAGES.map(({ rival }): [string, string] => [
+      `/alternatives/${rival.slug}`,
+      ar(ALTERNATIVE_COPY.ar.tabTitle(rival.name)),
+    ]),
+    ['/facts', ar(FACTS_COPY.ar.title)],
     ...ALL_RESOURCES.map((item): [string, string] => [
       `/resources/${item.slug}`,
       ar(translate(ARABIC_ROUTE_LOCALE, item.tabTitleKey ?? item.titleKey)),

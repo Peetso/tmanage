@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ALTERNATIVE_SLUGS } from '../../content/alternatives/alternative-slugs';
 import { RESOURCE_SLUGS } from '../../components/website/pages/resources/resource-slugs';
 import { COMPARE_SLUGS, SWITCH_SLUGS } from '../../content/compare/compare-slugs';
 import { HELP_SLUGS } from '../../content/help/help-slugs';
@@ -89,7 +90,7 @@ export function authPageRobots(path: ArabicAuthPath): NonNullable<Metadata['robo
 }
 
 /*
- * The article, help, compare and switch paths are built from slug-only lists (SEOE): this module
+ * The article, help, compare, switch and alternative paths are built from slug-only lists (SEOE): this module
  * runs in the browser on every public page, and the full content must not come with it.
  */
 
@@ -111,6 +112,15 @@ export const COMPARE_PATHS: readonly string[] = [
 /** The "switch from X" pages (row 54-29), each with an Arabic twin under `/ar/switch`. */
 export const SWITCH_PATHS: readonly string[] = SWITCH_SLUGS.map((slug) => `/switch/${slug}`);
 
+/** The "X alternative" pages and their index (SEOF, B1), each with a twin under `/ar/alternatives`. */
+export const ALTERNATIVE_PATHS: readonly string[] = [
+  '/alternatives',
+  ...ALTERNATIVE_SLUGS.map((slug) => `/alternatives/${slug}`),
+];
+
+/** The facts page (SEOF, B7), with its twin at `/ar/facts`. */
+export const FACTS_PATH = '/facts';
+
 const WITH_TWIN: ReadonlySet<string> = new Set<string>([
   ...PUBLIC_LOCALIZED_PATHS,
   ...ARABIC_AUTH_PATHS,
@@ -118,6 +128,8 @@ const WITH_TWIN: ReadonlySet<string> = new Set<string>([
   ...HELP_PATHS,
   ...COMPARE_PATHS,
   ...SWITCH_PATHS,
+  ...ALTERNATIVE_PATHS,
+  FACTS_PATH,
 ]);
 
 /**
