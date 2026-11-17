@@ -22,6 +22,7 @@ const K = 'StoppedAddresses';
  * one case the server's own words support "does not exist"; everything else keeps refusing mail.
  */
 export function stoppedReason(status: Pick<MailBounceStatus, 'lastKind' | 'lastStatus'>) {
+  if (status.lastKind === 'complaint') return 'complaint';
   return status.lastKind === 'hard' && status.lastStatus?.startsWith('5.1.') === true
     ? 'missing'
     : 'refusing';
@@ -84,6 +85,7 @@ export function StoppedAddressesCard({ api, organizationSlug }: StoppedAddresses
 
   const failure = check.isError ? check.error : clear.isError ? clear.error : null;
   const stopped = result?.view.status === 'suppressed' ? result : null;
+  const reason = stopped === null ? null : stoppedReason(stopped.view);
   const named = (template: string) =>
     withIsolates(template, {
       address: result?.address ?? '',
@@ -155,9 +157,11 @@ export function StoppedAddressesCard({ api, organizationSlug }: StoppedAddresses
                 ? t(`${K}.stoppedUndated`, 'We stopped sending to {address}.')
                 : t(`${K}.stopped`, 'We stopped sending to {address} on {date}.'),
             )}{' '}
-            {stoppedReason(stopped.view) === 'missing'
-              ? t(`${K}.reasonMissing`, 'The mailbox does not exist.')
-              : t(`${K}.reasonRefusing`, 'The mailbox keeps refusing mail.')}
+            {reason === 'complaint'
+              ? t(`${K}.reasonComplaint`, 'The person marked your mail as spam.')
+              : reason === 'missing'
+                ? t(`${K}.reasonMissing`, 'The mailbox does not exist.')
+                : t(`${K}.reasonRefusing`, 'The mailbox keeps refusing mail.')}
           </InlineAlert>
         )}
       </div>

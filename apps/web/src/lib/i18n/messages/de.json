@@ -18526,6 +18526,7 @@
   "StoppedAddresses.stoppedUndated": "Wir senden nicht mehr an {address}.",
   "StoppedAddresses.reasonMissing": "Das Postfach existiert nicht.",
   "StoppedAddresses.reasonRefusing": "Das Postfach weist Mails immer wieder ab.",
+  "StoppedAddresses.reasonComplaint": "Die Person hat Ihre Mail als Spam markiert.",
   "StoppedAddresses.confirm": "Wir senden wieder an diese Adresse. Wenn Mails weiter zurückkommen, hören wir von selbst wieder auf.",
   "StoppedAddresses.cancel": "Abbrechen",
   "StoppedAddresses.yes": "Ja, wieder senden",

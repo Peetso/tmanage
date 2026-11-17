@@ -10,7 +10,8 @@ import type { ApiClient } from './client';
 export interface MailBounceStatus {
   /** `suppressed` = TManage stopped sending to it; `bounced` = came back, still sending. */
   readonly status: 'clear' | 'bounced' | 'suppressed';
-  readonly lastKind: 'hard' | 'soft' | null;
+  /** `complaint` = the person marked the mail as spam (a feedback-loop report, 0370). */
+  readonly lastKind: 'hard' | 'soft' | 'complaint' | null;
   /** The last delivery status code the mail server gave (`5.1.1`), when one was read. */
   readonly lastStatus: string | null;
   readonly lastBouncedAt: string | null;

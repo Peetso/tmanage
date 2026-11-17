@@ -18528,6 +18528,7 @@
   "StoppedAddresses.stoppedUndated": "Dejamos de enviar a {address}.",
   "StoppedAddresses.reasonMissing": "El buzón no existe.",
   "StoppedAddresses.reasonRefusing": "El buzón sigue rechazando el correo.",
+  "StoppedAddresses.reasonComplaint": "La persona marcó tu correo como spam.",
   "StoppedAddresses.confirm": "Volveremos a enviar a esta dirección. Si el correo sigue volviendo, dejaremos de enviar por nuestra cuenta.",
   "StoppedAddresses.cancel": "Cancelar",
   "StoppedAddresses.yes": "Sí, volver a enviarle",

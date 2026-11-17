@@ -18526,6 +18526,7 @@
   "StoppedAddresses.stoppedUndated": "Nous avons cessé d’envoyer à {address}.",
   "StoppedAddresses.reasonMissing": "La boîte aux lettres n’existe pas.",
   "StoppedAddresses.reasonRefusing": "La boîte aux lettres refuse sans cesse le courrier.",
+  "StoppedAddresses.reasonComplaint": "La personne a signalé votre e-mail comme spam.",
   "StoppedAddresses.confirm": "Nous enverrons de nouveau à cette adresse. Si le courrier revient encore, nous arrêterons de nous-mêmes.",
   "StoppedAddresses.cancel": "Annuler",
   "StoppedAddresses.yes": "Oui, y envoyer de nouveau",

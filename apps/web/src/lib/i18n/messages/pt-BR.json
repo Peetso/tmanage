@@ -18526,6 +18526,7 @@
   "StoppedAddresses.stoppedUndated": "Paramos de enviar para {address}.",
   "StoppedAddresses.reasonMissing": "A caixa de correio não existe.",
   "StoppedAddresses.reasonRefusing": "A caixa de correio continua recusando e-mails.",
+  "StoppedAddresses.reasonComplaint": "A pessoa marcou seu e-mail como spam.",
   "StoppedAddresses.confirm": "Voltaremos a enviar para este endereço. Se o e-mail continuar voltando, paramos de novo por conta própria.",
   "StoppedAddresses.cancel": "Cancelar",
   "StoppedAddresses.yes": "Sim, enviar de novo",

@@ -18711,6 +18711,7 @@
   "StoppedAddresses.stoppedUndated": "We stopped sending to {address}.",
   "StoppedAddresses.reasonMissing": "The mailbox does not exist.",
   "StoppedAddresses.reasonRefusing": "The mailbox keeps refusing mail.",
+  "StoppedAddresses.reasonComplaint": "The person marked your mail as spam.",
   "StoppedAddresses.confirm": "We will send to this address again. If mail keeps coming back, we stop again on our own.",
   "StoppedAddresses.cancel": "Cancel",
   "StoppedAddresses.yes": "Yes, send to it again",

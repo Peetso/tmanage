@@ -18526,6 +18526,7 @@
   "StoppedAddresses.stoppedUndated": "我们已停止向 {address} 发送。",
   "StoppedAddresses.reasonMissing": "该邮箱不存在。",
   "StoppedAddresses.reasonRefusing": "该邮箱一直拒收邮件。",
+  "StoppedAddresses.reasonComplaint": "对方将你的邮件标记为垃圾邮件。",
   "StoppedAddresses.confirm": "我们将重新向此地址发送。如果邮件仍被退回，我们会自动再次停止。",
   "StoppedAddresses.cancel": "取消",
   "StoppedAddresses.yes": "是，重新发送",

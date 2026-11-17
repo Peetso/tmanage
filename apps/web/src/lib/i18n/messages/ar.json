@@ -18711,6 +18711,7 @@
   "StoppedAddresses.stoppedUndated": "أوقفنا الإرسال إلى {address}.",
   "StoppedAddresses.reasonMissing": "صندوق البريد غير موجود.",
   "StoppedAddresses.reasonRefusing": "صندوق البريد يرفض الرسائل باستمرار.",
+  "StoppedAddresses.reasonComplaint": "وضع صاحب العنوان رسائلك في البريد المزعج.",
   "StoppedAddresses.confirm": "سنرسل إلى هذا العنوان من جديد. إن عادت الرسائل مرة أخرى، نوقف الإرسال تلقائيًا.",
   "StoppedAddresses.cancel": "إلغاء",
   "StoppedAddresses.yes": "نعم، أعِد الإرسال إليه",

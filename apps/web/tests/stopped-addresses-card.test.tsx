@@ -77,6 +77,13 @@ describe('56-26 Addresses we stopped sending to', () => {
     expect(request.mock.calls.some(([input]) => input.path.endsWith('/clear'))).toBe(true);
   });
 
+  it('names a spam complaint as the reason (0370)', async () => {
+    mount('owner', () => ({ ...STOPPED, lastKind: 'complaint', lastStatus: 'abuse' }));
+    await check('youssef@atlas-hospitality.com');
+    expect(await screen.findByText(/The person marked your mail as spam\./u)).toBeTruthy();
+    expect(screen.queryByText(/keeps refusing/u)).toBeNull();
+  });
+
   it('shows a calm error when the check fails', async () => {
     mount('owner', () => new Error('offline'));
     await check('a@b.co');
