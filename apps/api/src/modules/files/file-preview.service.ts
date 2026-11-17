@@ -17,6 +17,9 @@ import { FilePreviewsRepository } from './file-previews.repository.js';
 import type { FilePreview, PreviewKind } from './file-previews.repository.js';
 import { previewPlanFor } from './preview-generators/index.js';
 import type { PreviewRequester } from './preview-job.js';
+import { readResolvedFlags } from '../admin/feature-gate.js';
+import { FeatureFlagsRepository } from '../admin/feature-flags.repository.js';
+import { DEFAULT_MODULE_ENABLED } from '../admin/feature-flags.service.js';
 
 /**
  * R4 slice 4 — the viewer's manifest, the derivative bytes, and "Try again".
@@ -120,6 +123,11 @@ export interface PreviewChainView {
 }
 
 export interface PreviewCapabilitiesView {
+  /**
+   * 52-24: the organization's `proofing` flag. Off, the review routes answer 404, so the viewer
+   * neither reads nor shows comments, and every comment capability below is off.
+   */
+  readonly canReview: boolean;
   readonly canComment: boolean;
   readonly canDraw: boolean;
   readonly canResolve: boolean;
@@ -408,6 +416,7 @@ export class FilePreviewService {
     private readonly deliverableVersions: DeliverableVersionsRepository = new DeliverableVersionsRepository(),
     private readonly debounce: ViewAuditDebounce = new ViewAuditDebounce(),
     private readonly now: () => Date = () => new Date(),
+    private readonly flags: FeatureFlagsRepository = new FeatureFlagsRepository(),
   ) {}
 
   /** `GET …/files/:fileAssetId/preview` (studio) and `…/portal/files/:fileAssetId/preview`. */
@@ -461,6 +470,7 @@ export class FilePreviewService {
         : null;
 
     if (servable) await this.auditView(context, principal, asset, version, null);
+    const canReview = await this.proofingOn(context);
 
     return {
       file: { id: asset.id, name: asset.name, projectId: asset.projectId },
@@ -481,7 +491,7 @@ export class FilePreviewService {
       office: servable ? officeViewFrom(rows) : null,
       versions: chain,
       decisionContext,
-      capabilities: this.capabilitiesFor(principal, resolved, rows, bound),
+      capabilities: this.capabilitiesFor(principal, resolved, rows, bound, canReview),
     };
   }
 
@@ -593,12 +603,15 @@ export class FilePreviewService {
     resolved: ResolvedFile,
     rows: readonly FilePreview[],
     boundToDeliverable: boolean,
+    canReview: boolean,
   ): PreviewCapabilitiesView {
     const active = resolved.project.archivedAt === null;
-    const canComment = active && this.allowed(principal, resolved, 'file.upload');
+    const mayWrite = active && this.allowed(principal, resolved, 'file.upload');
+    const canComment = canReview && mayWrite;
     const internal = principal.kind === 'internal';
-    const canUploadVersion = internal && canComment;
+    const canUploadVersion = internal && mayWrite;
     return {
+      canReview,
       canComment,
       canDraw: canComment,
       canResolve: canComment,
@@ -608,6 +621,15 @@ export class FilePreviewService {
       canRetry: canUploadVersion && rows.some((row) => row.status === 'failed'),
       canDelete: mayDeleteFile(principal, resolved.asset, !active, boundToDeliverable),
     };
+  }
+
+  /** The `proofing` rollout flag; a failed read keeps the code default (on), as the web does. */
+  private async proofingOn(context: TenantContext): Promise<boolean> {
+    try {
+      return (await readResolvedFlags(this.database, context, this.flags)).proofing;
+    } catch {
+      return DEFAULT_MODULE_ENABLED.proofing;
+    }
   }
 
   private allowed(principal: Principal, resolved: ResolvedFile, capability: Capability): boolean {

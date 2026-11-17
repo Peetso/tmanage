@@ -68,6 +68,8 @@ export interface PreviewChain {
 }
 
 export interface PreviewCapabilities {
+  /** 52-24: the `proofing` flag. Off, comments are neither read nor shown (the routes answer 404). */
+  readonly canReview: boolean;
   readonly canComment: boolean;
   readonly canDraw: boolean;
   readonly canResolve: boolean;

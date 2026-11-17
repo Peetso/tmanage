@@ -213,6 +213,7 @@ function manifest(overrides: Partial<FilePreviewManifest>): FilePreviewManifest 
     versions: { rootFileAssetId: 'f1', versions: [] },
     decisionContext: { kind: 'file', deliverableId: null, deliverableVersionId: null },
     capabilities: {
+      canReview: true,
       canComment: true,
       canDraw: true,
       canResolve: true,

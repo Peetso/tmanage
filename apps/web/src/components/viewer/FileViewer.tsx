@@ -75,7 +75,6 @@ import { ReviewDoorProvider } from './review-door';
 import { FigFileStage } from './FigFileStage';
 import { ViewerCanvas, type ViewerTool } from './ViewerCanvas';
 import { ViewerShell, ViewerTools } from './ViewerShell';
-import { FeatureOn } from '../shell/FeatureOn';
 import { ViewerStatePanel, type ViewerCanvasState } from './ViewerStatePanel';
 import { ZoomControls } from './ZoomControls';
 import { MAX_ZOOM, clampZoom, fitZoom, stepZoom } from './viewer-geometry';
@@ -380,7 +379,8 @@ export function FileViewer({
   const threadsQuery = useQuery({
     queryKey: threadsKey,
     queryFn: () => listReviewThreads(api, organizationSlug, fileId, { status: 'all' }, apiDoor),
-    enabled: manifest !== undefined,
+    // 52-24: with proofing off the route answers 404; there is nothing to read or show.
+    enabled: manifest?.capabilities.canReview === true,
     refetchInterval: THREAD_POLL_MS,
   });
   const allThreads = useMemo(() => threadsQuery.data?.threads ?? [], [threadsQuery.data]);
@@ -1125,21 +1125,21 @@ export function FileViewer({
         <ViewerShell
           toolbar={
             <>
-              <FeatureOn organizationSlug={organizationSlug} flag="proofing">
-                <ViewerTools
-                  tool={tool}
-                  onTool={(next) => {
-                    setTool(next);
-                    if (next !== 'select') setSelectedThreadId(null);
-                  }}
-                  canComment={caps.canComment && canvasState === null && onCanvas && !comparing}
-                />
-              </FeatureOn>
-              <span className="tm-viewer-counter tm-viewer-counter--toolbar">
-                {t('Viewer.counter')
-                  .replace('{open}', String(open))
-                  .replace('{resolved}', String(threads.length - open))}
-              </span>
+              <ViewerTools
+                tool={tool}
+                onTool={(next) => {
+                  setTool(next);
+                  if (next !== 'select') setSelectedThreadId(null);
+                }}
+                canComment={caps.canComment && canvasState === null && onCanvas && !comparing}
+              />
+              {caps.canReview ? (
+                <span className="tm-viewer-counter tm-viewer-counter--toolbar">
+                  {t('Viewer.counter')
+                    .replace('{open}', String(open))
+                    .replace('{resolved}', String(threads.length - open))}
+                </span>
+              ) : null}
               {canvasState === null && onCanvas && !comparing ? (
                 <ZoomControls
                   zoom={zoom}

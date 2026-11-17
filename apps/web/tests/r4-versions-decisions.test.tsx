@@ -81,6 +81,7 @@ function manifest(overrides: Record<string, unknown> = {}) {
     },
     decisionContext: { kind: 'file', deliverableId: null, deliverableVersionId: null },
     capabilities: {
+      canReview: true,
       canComment: true,
       canDraw: true,
       canResolve: true,

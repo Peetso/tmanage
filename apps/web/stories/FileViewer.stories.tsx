@@ -83,6 +83,7 @@ const MANIFEST = {
   },
   decisionContext: { kind: 'file', deliverableId: null, deliverableVersionId: null },
   capabilities: {
+    canReview: true,
     canComment: true,
     canDraw: true,
     canResolve: true,

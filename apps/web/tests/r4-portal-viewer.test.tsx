@@ -74,6 +74,7 @@ function manifest(door: 'portal' | 'studio') {
     },
     decisionContext: { kind: 'deliverable', deliverableId: 'del1', deliverableVersionId: 'dv1' },
     capabilities: {
+      canReview: true,
       canComment: true,
       canDraw: true,
       canResolve: true,

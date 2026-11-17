@@ -36,18 +36,21 @@ const FORM = {
   publicSlug: null,
 } as unknown as WorkFormSummary;
 
-const MANIFEST = {
-  capabilities: { canComment: true },
-  file: { projectId: 'p1' },
-  versions: { versions: [] },
-} as unknown as FilePreviewManifest;
+/** The server folds the `proofing` flag into the manifest: off, nothing may be commented. */
+function manifestFor(proofing: boolean) {
+  return {
+    capabilities: { canReview: proofing, canComment: proofing },
+    file: { projectId: 'p1' },
+    versions: { versions: [] },
+  } as unknown as FilePreviewManifest;
+}
 
-function threadPanel() {
+function threadPanel(proofing: boolean) {
   return (
     <ThreadPanel
       api={api}
       organizationSlug="acme"
-      manifest={MANIFEST}
+      manifest={manifestFor(proofing)}
       threads={[]}
       threadsLoading={false}
       threadsError={null}
@@ -79,7 +82,7 @@ function approvers() {
 
 describe('52-24 web buttons follow their rollout flag', () => {
   it.each([false, true])('proofing "Add comment" shows only while on (%s)', (on) => {
-    mount('proofing', on, threadPanel());
+    mount('proofing', on, threadPanel(on));
     expect(screen.queryByRole('button', { name: 'Add comment' }) !== null).toBe(on);
   });
 

@@ -22,6 +22,7 @@ import {
   viewerKindFor,
 } from './file-preview.service.js';
 import type { FilePreview, FilePreviewsRepository } from './file-previews.repository.js';
+import type { FeatureFlagsRepository } from '../admin/feature-flags.repository.js';
 
 /**
  * R4 slice 4 — the viewer manifest, derivative content, Range/inline on the original, and the
@@ -127,6 +128,8 @@ interface World {
   readonly deliverablePublished?: boolean;
   readonly chain?: readonly FileAssetRow[];
   readonly archived?: boolean;
+  /** 52-24: the organization's `proofing` flag; absent = no row, the code default. */
+  readonly proofing?: boolean;
 }
 
 function build(world: World = {}) {
@@ -238,6 +241,10 @@ function build(world: World = {}) {
     deliverableVersions,
     new ViewAuditDebounce(),
     () => new Date('2026-11-01T10:00:00Z'),
+    {
+      list: async () =>
+        world.proofing === undefined ? [] : [{ flagKey: 'proofing', enabled: world.proofing }],
+    } as unknown as FeatureFlagsRepository,
   );
   return { service, downloads, store, denials, allowed, rows, requested: () => requested };
 }
@@ -852,6 +859,24 @@ describe('the manifest', () => {
     const archived = build({ archived: true });
     const readOnly = await archived.service.manifest(context, staff, 'internal', input);
     expect(readOnly.capabilities).toMatchObject({ canComment: false, canUploadVersion: false });
+  });
+
+  it('52-24: with proofing off it offers no review, but staff may still upload a version', async () => {
+    const off = await build({ proofing: false }).service.manifest(
+      context,
+      staff,
+      'internal',
+      input,
+    );
+    expect(off.capabilities).toMatchObject({
+      canReview: false,
+      canComment: false,
+      canDraw: false,
+      canResolve: false,
+      canUploadVersion: true,
+    });
+    const on = await build({ proofing: true }).service.manifest(context, staff, 'internal', input);
+    expect(on.capabilities).toMatchObject({ canReview: true, canComment: true });
   });
 
   it('names the deliverable version only when it really names this file', async () => {

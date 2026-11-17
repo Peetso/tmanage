@@ -74,6 +74,11 @@
   min-block-size: min(780px, calc(100dvh - 180px));
 }
 
+/* 52-24: no rail (a client's viewer with proofing off): the stage takes the full width. */
+.tm-viewer:not(:has(> :nth-child(2))) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .tm-viewer__canvas {
   display: flex;
   flex-direction: column;

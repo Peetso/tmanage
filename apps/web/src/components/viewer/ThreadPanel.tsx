@@ -29,7 +29,6 @@ import {
 import { useReviewDoor } from './review-door';
 import { ThreadComposer, type ComposerSubmit } from './ThreadComposer';
 import { ViewerIcon } from './viewer-icons';
-import { FeatureOn } from '../shell/FeatureOn';
 
 export type ThreadFilter = 'all' | 'open' | 'resolved' | 'mine' | 'page';
 export type PanelTab = 'comments' | 'layers' | 'versions' | 'details';
@@ -125,7 +124,9 @@ export function ThreadPanel({
   const portal = door === 'portal';
   const describeError = useDescribeApiError();
   const id = useId();
-  const [tab, setTab] = useState<PanelTab>('comments');
+  // 52-24: with proofing off there are no comments to read; the rail opens on Versions.
+  const review = manifest.capabilities.canReview;
+  const [tab, setTab] = useState<PanelTab>(review ? 'comments' : 'versions');
   const [filter, setFilter] = useState<ThreadFilter>('all');
   const [active, setActive] = useState(0);
   const [writingGeneral, setWritingGeneral] = useState(false);
@@ -192,11 +193,23 @@ export function ThreadPanel({
 
   const versionCount = manifest.versions.versions.length;
   const tabs: readonly { id: PanelTab; label: string; count?: number }[] = [
-    { id: 'comments', label: t('Viewer.tab.comments'), count: threads.length },
+    ...(review
+      ? [{ id: 'comments' as const, label: t('Viewer.tab.comments'), count: threads.length }]
+      : []),
     ...(layersContent ? [{ id: 'layers' as const, label: t('ViewerFormats.psd.title') }] : []),
     { id: 'versions', label: t('Viewer.tab.versions'), count: versionCount },
     { id: 'details', label: t('Viewer.tab.details') },
   ];
+
+  // The client's rail is the comments alone: without proofing only the decision card remains.
+  if (portal && !review) {
+    return commentsFooter ? (
+      <aside className="tm-viewer-rail" aria-label={t('Viewer.rail.label')}>
+        <div className="tm-viewer-rail__handle" aria-hidden="true" />
+        <div className="tm-viewer-rail__body">{commentsFooter}</div>
+      </aside>
+    ) : null;
+  }
 
   return (
     <aside className="tm-viewer-rail" aria-label={t('Viewer.rail.label')}>
@@ -339,53 +352,49 @@ export function ThreadPanel({
               )}
 
               {caps.canComment ? (
-                <FeatureOn organizationSlug={organizationSlug} flag="proofing">
-                  <div className="tm-viewer-rail__foot">
-                    {writingGeneral ? (
-                      <ThreadComposer
-                        api={api}
-                        organizationSlug={organizationSlug}
-                        projectId={manifest.file.projectId}
-                        label={t('Viewer.composer.newLabel')}
-                        submitLabel={t('Viewer.composer.post')}
-                        pendingLabel={t('Viewer.composer.posting')}
-                        audience={portal ? 'client_visible' : 'internal'}
-                        canChooseAudience={!portal}
-                        pending={creatingGeneral}
-                        focusOnOpen
-                        error={
-                          createGeneralError ? (
-                            <InlineAlert tone="danger" title={t('Viewer.composer.postError')} live>
-                              {describeError(createGeneralError)}
-                            </InlineAlert>
-                          ) : null
-                        }
-                        onSubmit={onCreateGeneral}
-                        onCancel={() => setWritingGeneral(false)}
-                      />
-                    ) : (
-                      <>
-                        <p className="tm-viewer-rail__note">
-                          {stageAcceptsPins
-                            ? t('Viewer.rail.hintPins')
-                            : t('Viewer.rail.hintGeneral')}
-                        </p>
-                        <Button
-                          type="button"
-                          tone="ink"
-                          size="accessible"
-                          className="tm-viewer-rail__add"
-                          onClick={() =>
-                            stageAcceptsPins ? onStartPin() : setWritingGeneral(true)
-                          }
-                        >
-                          <ViewerIcon name={stageAcceptsPins ? 'pin' : 'comment'} />
-                          {t('Viewer.rail.addComment')}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </FeatureOn>
+                <div className="tm-viewer-rail__foot">
+                  {writingGeneral ? (
+                    <ThreadComposer
+                      api={api}
+                      organizationSlug={organizationSlug}
+                      projectId={manifest.file.projectId}
+                      label={t('Viewer.composer.newLabel')}
+                      submitLabel={t('Viewer.composer.post')}
+                      pendingLabel={t('Viewer.composer.posting')}
+                      audience={portal ? 'client_visible' : 'internal'}
+                      canChooseAudience={!portal}
+                      pending={creatingGeneral}
+                      focusOnOpen
+                      error={
+                        createGeneralError ? (
+                          <InlineAlert tone="danger" title={t('Viewer.composer.postError')} live>
+                            {describeError(createGeneralError)}
+                          </InlineAlert>
+                        ) : null
+                      }
+                      onSubmit={onCreateGeneral}
+                      onCancel={() => setWritingGeneral(false)}
+                    />
+                  ) : (
+                    <>
+                      <p className="tm-viewer-rail__note">
+                        {stageAcceptsPins
+                          ? t('Viewer.rail.hintPins')
+                          : t('Viewer.rail.hintGeneral')}
+                      </p>
+                      <Button
+                        type="button"
+                        tone="ink"
+                        size="accessible"
+                        className="tm-viewer-rail__add"
+                        onClick={() => (stageAcceptsPins ? onStartPin() : setWritingGeneral(true))}
+                      >
+                        <ViewerIcon name={stageAcceptsPins ? 'pin' : 'comment'} />
+                        {t('Viewer.rail.addComment')}
+                      </Button>
+                    </>
+                  )}
+                </div>
               ) : null}
               {portal ? (
                 <p className="tm-viewer-rail__note tm-viewer-rail__note--team">
@@ -401,9 +410,12 @@ export function ThreadPanel({
         ) : tab === 'layers' ? (
           layersContent
         ) : tab === 'versions' ? (
-          (versionsContent ?? (
-            <VersionsList manifest={manifest} organizationSlug={organizationSlug} />
-          ))
+          <>
+            {review ? null : commentsFooter}
+            {versionsContent ?? (
+              <VersionsList manifest={manifest} organizationSlug={organizationSlug} />
+            )}
+          </>
         ) : (
           <>
             <DetailsList manifest={manifest} naturalSize={naturalSize} />

@@ -151,6 +151,7 @@ describe('File delete (FIX5 item 5)', () => {
       },
       decisionContext: { kind: 'file', deliverableId: null, deliverableVersionId: null },
       capabilities: {
+        canReview: true,
         canComment: true,
         canDraw: true,
         canResolve: true,
