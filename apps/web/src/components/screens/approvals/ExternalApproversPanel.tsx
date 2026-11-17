@@ -14,6 +14,7 @@ import {
   sendExternalApproval,
   type ExternalApprover,
 } from './ExternalApprovalApi';
+import { FeatureOn } from '../../shell/FeatureOn';
 import '../../../styles/screens/external-approver.css';
 
 export interface ExternalApproversPanelProps {
@@ -51,8 +52,17 @@ export function approverState(row: ExternalApprover): {
  * Send for external approval"). A member with `deliverable.publish` types an e-mail; the API
  * mails a link and a 6-digit code, no account needed. The list shows who was asked and what they
  * answered (verified by the code). The link is shown once after sending so it can be copied.
+ * Hidden while the `approval_links` rollout flag is off (52-24): the API refuses its routes then.
  */
-export function ExternalApproversPanel({
+export function ExternalApproversPanel(props: ExternalApproversPanelProps) {
+  return (
+    <FeatureOn organizationSlug={props.organizationSlug} flag="approval_links">
+      <ExternalApproversCard {...props} />
+    </FeatureOn>
+  );
+}
+
+function ExternalApproversCard({
   api,
   organizationSlug,
   deliverableId,

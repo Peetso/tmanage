@@ -8,6 +8,7 @@ import { publishWorkForm, unpublishWorkForm, type WorkFormSummary } from '../../
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { WorkFormShareExtras } from './WorkFormShareExtras';
+import { FeatureOn } from '../shell/FeatureOn';
 import '../../styles/screens/work-forms-public.css';
 
 export interface WorkFormPublicLinkProps {
@@ -27,9 +28,18 @@ export function publicFormUrl(slug: string): string {
  *
  * Figma: "Forms · Public link (2026-10-31 live-test fix)" 446:36140 — three states: shared
  * (446:36141), not shared (446:36171), link copied (446:36183). The API's publish/unpublish routes
- * existed (52-20) but nothing on screen reached them.
+ * existed (52-20) but nothing on screen reached them. Hidden while the `public_forms` rollout flag
+ * is off (52-24): the API refuses publish / unpublish then.
  */
-export function WorkFormPublicLink({ api, organizationSlug, form }: WorkFormPublicLinkProps) {
+export function WorkFormPublicLink(props: WorkFormPublicLinkProps) {
+  return (
+    <FeatureOn organizationSlug={props.organizationSlug} flag="public_forms">
+      <WorkFormPublicLinkCard {...props} />
+    </FeatureOn>
+  );
+}
+
+function WorkFormPublicLinkCard({ api, organizationSlug, form }: WorkFormPublicLinkProps) {
   const t = useT();
   const describeError = useDescribeApiError();
   const queryClient = useQueryClient();

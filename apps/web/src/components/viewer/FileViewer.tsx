@@ -75,6 +75,7 @@ import { ReviewDoorProvider } from './review-door';
 import { FigFileStage } from './FigFileStage';
 import { ViewerCanvas, type ViewerTool } from './ViewerCanvas';
 import { ViewerShell, ViewerTools } from './ViewerShell';
+import { FeatureOn } from '../shell/FeatureOn';
 import { ViewerStatePanel, type ViewerCanvasState } from './ViewerStatePanel';
 import { ZoomControls } from './ZoomControls';
 import { MAX_ZOOM, clampZoom, fitZoom, stepZoom } from './viewer-geometry';
@@ -1124,14 +1125,16 @@ export function FileViewer({
         <ViewerShell
           toolbar={
             <>
-              <ViewerTools
-                tool={tool}
-                onTool={(next) => {
-                  setTool(next);
-                  if (next !== 'select') setSelectedThreadId(null);
-                }}
-                canComment={caps.canComment && canvasState === null && onCanvas && !comparing}
-              />
+              <FeatureOn organizationSlug={organizationSlug} flag="proofing">
+                <ViewerTools
+                  tool={tool}
+                  onTool={(next) => {
+                    setTool(next);
+                    if (next !== 'select') setSelectedThreadId(null);
+                  }}
+                  canComment={caps.canComment && canvasState === null && onCanvas && !comparing}
+                />
+              </FeatureOn>
               <span className="tm-viewer-counter tm-viewer-counter--toolbar">
                 {t('Viewer.counter')
                   .replace('{open}', String(open))

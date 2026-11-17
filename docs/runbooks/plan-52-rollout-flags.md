@@ -20,9 +20,9 @@ company's own row (`org_feature_flags`, migration 0147) already hold them.
 | Client invoices                   | `client_invoicing`      | 52-09, 10, 11, 13 | `…/client-invoices/*`, `…/finance/exports/*`, `…/portal/invoices/*`, `…/portal/projects/:id/budget`, `…/portal/retainers/*`                         | Invoices card and tab                                                                                   |
 | E-invoicing (Saudi Arabia)        | `einvoicing_ksa`        | 52-12             | `…/finance/einvoicing/*` (certificate, chain)                                                                                                       | none (reached from the finance profile)                                                                 |
 | Finance reports                   | `finance_reports`       | 52-14             | `…/insights/finance/*` (profitability, unbilled, utilisation, export)                                                                               | Reports card and tab                                                                                    |
-| Proofing                          | `proofing`              | 52-15, 16, 17     | `…/files/:id/review/*`, `…/review/*`, `…/projects/:id/review/*` and their portal twins                                                              | none yet (see "Not covered")                                                                            |
-| Outside approval links            | `approval_links`        | 52-18, 19         | `…/deliverables/:id/versions/:id/external-approvals`                                                                                                | none yet                                                                                                |
-| Public request forms              | `public_forms`          | 52-20, 21         | `…/work-forms/:id/publish`, `unpublish`, submissions triage; every anonymous door `v1/public/forms/:slug` (form, upload token, uploads, submission) | none yet                                                                                                |
+| Proofing                          | `proofing`              | 52-15, 16, 17     | `…/files/:id/review/*`, `…/review/*`, `…/projects/:id/review/*` and their portal twins                                                              | File viewer: the Pin / Box / Draw tools and the rail's "Add comment" button                             |
+| Outside approval links            | `approval_links`        | 52-18, 19         | `…/deliverables/:id/versions/:id/external-approvals`                                                                                                | "Send for approval" card on the deliverable page                                                        |
+| Public request forms              | `public_forms`          | 52-20, 21         | `…/work-forms/:id/publish`, `unpublish`, submissions triage; every anonymous door `v1/public/forms/:slug` (form, upload token, uploads, submission) | Work forms: the "Public link" card and the "Let people attach files" switch                             |
 
 The finance profile (52-23, shared foundations) has no flag: every money feature needs it.
 
@@ -89,9 +89,8 @@ restart. No data migration is involved either way.
 
 ## Not covered yet
 
-- Web entry points for `proofing` (review threads in the file viewer), `approval_links` (the send
-  for outside approval action) and `public_forms` (the publish card on Work forms) still show while
-  off; the server refuses them. They need their screens edited.
+- With `proofing` off the file viewer still opens the file, but its Comments rail shows the
+  "could not load" notice (the thread read is refused) instead of an empty, hidden rail.
 - Links already sent to outside approvers and public quote-accept links (56-07 `v1/public/links`)
   are shared by several features and are not gated by these flags.
 - The company screen ("What this studio uses") and the platform screen list the new flags with plain names; no new

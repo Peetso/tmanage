@@ -11,6 +11,7 @@ import { useDescribeApiError } from '../../lib/api/describe-error';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useOrganizationSummary } from '../projects/NewProjectLink';
 import { withIsolates } from '../../lib/i18n/with-isolates';
+import { FeatureOn } from '../shell/FeatureOn';
 
 /** The visitor limit the helper states; the API's `PUBLIC_FORM_UPLOAD_LIMITS` enforces it. */
 const SIZE_EACH = '25 MB';
@@ -60,8 +61,17 @@ export interface WorkFormAttachmentSettingProps {
  * Figma: "Intake form attachments (2026-11-17)" 673:37507 — off (673:37508), on with a project
  * (673:37565), on without one (673:37631); AR 673:37701 / 673:37758 / 673:37826. Save sends
  * `PUT …/attachments` with the project, or `null` when off; the server re-checks the project.
+ * Hidden while the `public_forms` rollout flag is off (52-24): the API refuses the route then.
  */
-export function WorkFormAttachmentSetting({
+export function WorkFormAttachmentSetting(props: WorkFormAttachmentSettingProps) {
+  return (
+    <FeatureOn organizationSlug={props.organizationSlug} flag="public_forms">
+      <WorkFormAttachmentCard {...props} />
+    </FeatureOn>
+  );
+}
+
+function WorkFormAttachmentCard({
   api,
   organizationSlug,
   form,

@@ -185,6 +185,18 @@
   text-decoration: none;
   border-block-end: var(--b-quiet) solid var(--line-300);
   white-space: nowrap;
+  position: relative;
+}
+
+/* The tap target is 24 px tall (WCAG 2.5.8) while the text keeps its own line: the extra area is
+   an invisible layer centred on the link, so nothing moves, the same in RTL. */
+.tm-id-link::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 50%;
+  min-block-size: var(--s6);
+  translate: 0 -50%;
 }
 
 .tm-id-link:hover {
