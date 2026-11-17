@@ -58,6 +58,7 @@ function resolver(options: Partial<SenderResolverOptions> = {}) {
   return { capture, mailer };
 }
 
+const TIP = { personRef: { kind: 'assigned', userId: 'user-1', topic: 'features' } } as const;
 const base = { to: 'owner@client.example', subject: 's', text: 't', organizationId: 'org-1' };
 
 describe('EMAILBUILD — sender categories', () => {
@@ -170,7 +171,7 @@ describe('EMAILBUILD — SenderResolvingMailer', () => {
     ];
     expect(cases).toHaveLength(SENDER_CATEGORIES.length);
     for (const [templateKey, from, replyTo] of cases) {
-      await mailer.send({ ...base, templateKey, replyTo: 'producer@x.example' });
+      await mailer.send({ ...base, ...TIP, templateKey, replyTo: 'producer@x.example' });
       const sent = capture.last;
       expect(`"${sent.from?.name ?? ''}" ${sent.from?.address ?? ''}`, templateKey).toBe(from);
       expect(sent.replyTo, templateKey).toBe(
@@ -181,7 +182,7 @@ describe('EMAILBUILD — SenderResolvingMailer', () => {
 
   it('send-as off keeps the SMTP identity address and shows the name only', async () => {
     const { capture, mailer } = resolver({ sendAs: false });
-    await mailer.send({ ...base, templateKey: 'tip' });
+    await mailer.send({ ...base, templateKey: 'tip', ...TIP });
     expect(capture.last.from).toEqual({ name: 'Mariam from TManage' });
     expect(capture.last.replyTo).toBe('mariam@tmanageapp.com');
   });
@@ -209,6 +210,7 @@ describe('EMAILBUILD — SenderResolvingMailer', () => {
       await mailer.send({
         ...base,
         templateKey: 'tip',
+        ...TIP,
         text: `${SIGNATURE_TOKENS.by}\n${SIGNATURE_TOKENS.note}`,
       });
       expect(capture.last.from).toEqual({ name: 'TManage', address: 'hello@tmanageapp.com' });
@@ -221,26 +223,39 @@ describe('EMAILBUILD — SenderResolvingMailer', () => {
     await mailer.send({
       ...base,
       templateKey: 'tip',
+      ...TIP,
       text: SIGNATURE_TOKENS.note,
       html: `<p>${SIGNATURE_TOKENS.by}</p>`,
     });
     expect(capture.last.text).toContain("Sent automatically in Mariam's name.");
     expect(capture.last.html).toBe('<p>Mariam, R&amp;D at TManage</p>');
-    await mailer.send({ ...base, templateKey: 'tip', language: 'ar', text: SIGNATURE_TOKENS.by });
+    await mailer.send({
+      ...base,
+      templateKey: 'tip',
+      ...TIP,
+      language: 'ar',
+      text: SIGNATURE_TOKENS.by,
+    });
     expect(capture.last.from?.name).toBe('Mariam من TManage');
   });
 
-  it('caches the person for 60 s per workspace and language', async () => {
+  it('caches the person for 60 s per user, topic and language', async () => {
     const calls = { count: 0 };
     let clock = 0;
     const { mailer } = resolver({ directory: directoryOf(MARIAM, calls), now: () => clock });
-    await mailer.send({ ...base, templateKey: 'tip' });
-    await mailer.send({ ...base, templateKey: 'tip' });
-    await mailer.send({ ...base, templateKey: 'tip', language: 'ar' });
+    await mailer.send({ ...base, templateKey: 'tip', ...TIP });
+    await mailer.send({ ...base, templateKey: 'tip', ...TIP });
+    await mailer.send({ ...base, templateKey: 'tip', ...TIP, language: 'ar' });
     expect(calls.count).toBe(2);
     clock = 61_000;
-    await mailer.send({ ...base, templateKey: 'tip' });
+    await mailer.send({ ...base, templateKey: 'tip', ...TIP });
     expect(calls.count).toBe(3);
+    await mailer.send({
+      ...base,
+      templateKey: 'tip',
+      personRef: { kind: 'assigned', userId: 'user-1', topic: 'security' },
+    });
+    expect(calls.count).toBe(4);
   });
 
   it('names the agency for client mail, cleaned, and never a person', async () => {
@@ -254,6 +269,16 @@ describe('EMAILBUILD — SenderResolvingMailer', () => {
     });
     expect(capture.last.from?.name).toBe('Omar o at Atlas Studio via TManage');
     expect(capture.last.replyTo).toBeUndefined();
+  });
+
+  it('signs no person without a person reference, and none on non-tip mail', async () => {
+    const { capture, mailer } = resolver();
+    await mailer.send({ ...base, templateKey: 'tip' });
+    expect(capture.last.from?.address).toBe('hello@tmanageapp.com');
+    await mailer.send({ ...base, ...TIP, templateKey: 'collaboration_notice' });
+    expect(capture.last.from?.address).toBe('noreply@tmanageapp.com');
+    await mailer.send({ ...base, ...TIP, templateKey: 'tip', audience: 'client' });
+    expect(capture.last.from?.address).toBe('noreply@tmanageapp.com');
   });
 
   it('stamps Auto-Submitted on automated mail, not on a staff notice', async () => {

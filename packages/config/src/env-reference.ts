@@ -24,6 +24,8 @@ export const SECRET_ENV_KEYS: ReadonlySet<string> = new Set([
   'SETUP_TOKEN',
   'GOOGLE_CLIENT_SECRET',
   'SMTP_PASSWORD',
+  'SMTP_HELLO_PASS',
+  'SMTP_SUPPORT_PASS',
 ]);
 
 /**

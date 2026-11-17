@@ -208,6 +208,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- 56-03p ---- +2: the key rotation re-encrypts the token vault's `connector_installations`
     // and `figma_connections`.
     // ---- 56-26 ---- +1: the worker's company mail reads `mail_recipient_bounces` before a send.
+    // ---- EMAILBUILD 0371 ---- +3: the tips sweep reads `platform_mail_people`, and
+    // `mail_person_assignments` and `mail_tip_log` where it writes them.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -242,7 +244,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         1 +
         1 +
         2 +
-        1,
+        1 +
+        3,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

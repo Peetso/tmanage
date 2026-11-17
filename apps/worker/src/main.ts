@@ -8,15 +8,17 @@ import {
   SendCeilingMailer,
   SenderResolvingMailer,
   SmtpMailer,
+  createIdentityMailers,
   composeSecurityAlertDigest,
   deriveBounceKey,
   deriveUnsubscribeKey,
   withTemplateKey,
 } from '@tmanage/mail';
-import type { Mailer } from '@tmanage/mail';
+import type { Mailer, ReceiptMailer, SmtpMailerOptions } from '@tmanage/mail';
 import { CONTACT_EMAILS } from '@tmanage/domain';
 // ---- 56-31 ---- the mail priority lanes: the queue store and its drainer.
 import { createMailQueueStore } from './common/database/mail-queue-store.js';
+import { createMailPeopleDirectory } from './common/database/mail-people-store.js';
 import { createBounceSuppressionLookup } from './common/database/bounce-suppression-store.js';
 import type { MailQueueStore } from './common/database/mail-queue-store.js';
 import { createMailDrainerState, drainMailOnce, runMailDrainLoop } from './jobs/mail-drainer.js';
@@ -189,19 +191,40 @@ function describe(report: BatchReport): string {
  * narrowing TypeScript needs. `packages/config` refuses `EMAIL_DRIVER=smtp` without
  * `SMTP_HOST` at boot, which is why the fallback below is a type guard and not a policy.
  */
-function mailerFrom(env: Env): Mailer | null {
-  const from = { fromAddress: env.EMAIL_FROM_ADDRESS, fromName: env.EMAIL_FROM_NAME };
-  if (env.EMAIL_DRIVER === 'console') return new ConsoleMailer(from);
-  if (env.SMTP_HOST === undefined || env.SMTP_HOST === '') return null;
-  return new SmtpMailer({
-    ...from,
-    host: env.SMTP_HOST,
+function smtpOptionsFrom(env: Env, host: string): SmtpMailerOptions {
+  return {
+    fromAddress: env.EMAIL_FROM_ADDRESS,
+    fromName: env.EMAIL_FROM_NAME,
+    host,
     port: env.SMTP_PORT,
     secure: env.SMTP_SECURE,
     username: env.SMTP_USERNAME,
     password: env.SMTP_PASSWORD,
     // 56-26: queued company mail gets the signed Message-ID its bounce is matched by.
     bounceKey: deriveBounceKey(env.SESSION_SECRET),
+  };
+}
+
+function mailerFrom(env: Env): Mailer | null {
+  const from = { fromAddress: env.EMAIL_FROM_ADDRESS, fromName: env.EMAIL_FROM_NAME };
+  if (env.EMAIL_DRIVER === 'console') return new ConsoleMailer(from);
+  if (env.SMTP_HOST === undefined || env.SMTP_HOST === '') return null;
+  return new SmtpMailer(smtpOptionsFrom(env, env.SMTP_HOST));
+}
+
+/**
+ * EMAILBUILD (amendment 3): the noreply driver plus the hello and support mailboxes' own logins,
+ * each behind its own send ceiling. The console driver prints everything under one banner.
+ */
+function sendersFrom(env: Env, driver: Mailer): Mailer | ReceiptMailer {
+  if (env.EMAIL_DRIVER !== 'smtp' || env.SMTP_HOST === undefined || env.SMTP_HOST === '') {
+    return new SendCeilingMailer(driver);
+  }
+  return createIdentityMailers({
+    base: smtpOptionsFrom(env, env.SMTP_HOST),
+    noreply: driver,
+    hello: { username: env.SMTP_HELLO_USER, password: env.SMTP_HELLO_PASS },
+    support: { username: env.SMTP_SUPPORT_USER, password: env.SMTP_SUPPORT_PASS },
   });
 }
 
@@ -569,30 +592,30 @@ async function main(): Promise<void> {
     ? createMailQueueStore(database)
     : null;
   const securityDriver = securityMailerFrom(env);
+  const senders = driver === null ? null : sendersFrom(env, driver);
   const drainer: MailDrainerDeps | null =
-    queueStore === null || driver === null
+    queueStore === null || senders === null
       ? null
       : {
           store: queueStore,
-          noreply: new SendCeilingMailer(driver),
+          noreply: senders,
           security: securityDriver === null ? null : new SendCeilingMailer(securityDriver),
           suppressions: createEmailSuppressionLookup(database),
           alert: mailAlertsFor(env, new QueueMailer(queueStore)),
         };
   // 56-26: company mail to an address that bounced in that company is held (auth mail never).
   const transport: Mailer | null =
-    driver === null
+    senders === null
       ? null
       : new BounceGuardMailer(
           // EMAILBUILD: the sender is chosen from the template key here, above the queue.
-          new SenderResolvingMailer(
-            queueStore !== null ? new QueueMailer(queueStore) : new SendCeilingMailer(driver),
-            {
-              identityAddress: env.EMAIL_FROM_ADDRESS,
-              sendAs: env.EMAIL_SEND_AS,
-              addresses: CONTACT_EMAILS,
-            },
-          ),
+          new SenderResolvingMailer(queueStore !== null ? new QueueMailer(queueStore) : senders, {
+            identityAddress: env.EMAIL_FROM_ADDRESS,
+            sendAs: env.EMAIL_SEND_AS,
+            addresses: CONTACT_EMAILS,
+            // 0371: tips are signed by the person assigned to the user for the topic.
+            directory: createMailPeopleDirectory(database),
+          }),
           createBounceSuppressionLookup(database),
         );
   const keyed = (key: string): Mailer | null =>

@@ -18,6 +18,8 @@
  * Only the new tips (`tip`) reach `person`. Mail to a client never does (see `CLIENT_ONLY`).
  */
 
+import type { MailIdentity } from './mailer.js';
+
 export type SenderCategory =
   'security' | 'notice' | 'welcome' | 'support' | 'person' | 'workspace' | 'internal';
 
@@ -30,6 +32,17 @@ export const SENDER_CATEGORIES: readonly SenderCategory[] = Object.freeze([
   'workspace',
   'internal',
 ]);
+
+/** The sending mailboxes (amendment 3): a closed list, checked again when a queued row is read. */
+export const MAIL_IDENTITIES: readonly MailIdentity[] = Object.freeze([
+  'noreply',
+  'hello',
+  'support',
+]);
+
+export function isMailIdentity(value: unknown): value is MailIdentity {
+  return typeof value === 'string' && (MAIL_IDENTITIES as readonly string[]).includes(value);
+}
 
 /** The language a message is written in; it picks the sender's display words. */
 export type MailLanguage = 'en' | 'ar';

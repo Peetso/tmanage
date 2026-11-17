@@ -14378,3 +14378,89 @@ export const clientJourneySteps = mysqlTable(
 export type ClientJourneyStepRow = typeof clientJourneySteps.$inferSelect;
 
 Object.assign(TABLES, { client_journey_steps: clientJourneySteps });
+
+// ---- EMAILBUILD · the people who sign tips and reminders (0371) ----
+export const MAIL_PERSON_REGIONS = ['me', 'west', 'asia'] as const;
+export type MailPersonRegion = (typeof MAIL_PERSON_REGIONS)[number];
+export const MAIL_PERSON_TOPICS = [
+  'onboarding',
+  'features',
+  'news',
+  'security',
+  'success',
+] as const;
+export type MailPersonTopic = (typeof MAIL_PERSON_TOPICS)[number];
+export const MAIL_PERSON_LANGUAGES = ['en', 'ar', 'en+ar'] as const;
+export type MailPersonLanguages = (typeof MAIL_PERSON_LANGUAGES)[number];
+
+/**
+ * 0371. One TManage person who signs tips on one topic for one region. GLOBAL (platform record);
+ * edited by platform admins only, every write audited. `0371_mail_people.sql` is the source of truth.
+ */
+export const platformMailPeople = mysqlTable(
+  'platform_mail_people',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    nameEn: varchar('name_en', { length: 80 }).notNull(),
+    nameAr: varchar('name_ar', { length: 80 }).notNull(),
+    roleEn: varchar('role_en', { length: 80 }).notNull(),
+    roleAr: varchar('role_ar', { length: 80 }).notNull(),
+    address: varchar('address', { length: 190 }).notNull(),
+    languages: varchar('languages', { length: 8 })
+      .$type<MailPersonLanguages>()
+      .notNull()
+      .default('en'),
+    region: varchar('region', { length: 8 }).$type<MailPersonRegion>().notNull(),
+    topic: varchar('topic', { length: 16 }).$type<MailPersonTopic>().notNull(),
+    active: boolean('active').notNull().default(true),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_platform_mail_people_address').on(table.address),
+    index('ix_platform_mail_people_pick').on(table.region, table.topic, table.active),
+  ],
+);
+
+export type PlatformMailPersonRow = typeof platformMailPeople.$inferSelect;
+
+/** 0371. The person a user hears from on one topic, picked once and kept. TENANT. */
+export const mailPersonAssignments = mysqlTable(
+  'mail_person_assignments',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    topic: varchar('topic', { length: 16 }).$type<MailPersonTopic>().notNull(),
+    personId: char('person_id', { length: 36 }).notNull(),
+    assignedAt: datetime('assigned_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.userId, table.topic] }),
+    index('ix_mail_person_assignments_person').on(table.personId),
+  ],
+);
+
+export type MailPersonAssignmentRow = typeof mailPersonAssignments.$inferSelect;
+
+/** 0371. One tip sent to one user, once ever; `sentAt` answers the spacing rules. TENANT. */
+export const mailTipLog = mysqlTable(
+  'mail_tip_log',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    tipId: varchar('tip_id', { length: 40 }).notNull(),
+    sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.userId, table.tipId] }),
+    index('ix_mail_tip_log_user_sent').on(table.organizationId, table.userId, table.sentAt),
+  ],
+);
+
+export type MailTipLogRow = typeof mailTipLog.$inferSelect;
+
+Object.assign(TABLES, {
+  platform_mail_people: platformMailPeople,
+  mail_person_assignments: mailPersonAssignments,
+  mail_tip_log: mailTipLog,
+});

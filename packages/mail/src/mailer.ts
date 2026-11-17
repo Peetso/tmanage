@@ -82,7 +82,30 @@ export interface MailMessage {
    * `address` the SMTP identity's own address is shown under `name`.
    */
   readonly from?: MailSender;
+  /**
+   * EMAILBUILD. Which registry person signs a `tip` mail: the one assigned to this user for this
+   * topic, or (a platform admin's test send) one named row. Server code only; ignored for every
+   * other template, so it can never put a person on a notification, code or client mail.
+   */
+  readonly personRef?: MailPersonRef;
+  /**
+   * EMAILBUILD (amendment 3). Which real mailbox login the message leaves through. ONLY the
+   * sender resolver sets it (any incoming value is discarded); the identity router sends through
+   * that mailbox, or through `noreply` when its login is not configured.
+   */
+  readonly identity?: MailIdentity;
 }
+
+/** EMAILBUILD. The sending mailboxes, each with its own SMTP login. */
+export type MailIdentity = 'noreply' | 'hello' | 'support';
+
+/** EMAILBUILD. The five subjects a TManage person writes about. */
+export type MailPersonTopic = 'onboarding' | 'features' | 'news' | 'security' | 'success';
+
+/** EMAILBUILD. How a tip names its signer. */
+export type MailPersonRef =
+  | { readonly kind: 'assigned'; readonly userId: string; readonly topic: MailPersonTopic }
+  | { readonly kind: 'test'; readonly personId: string };
 
 /** EMAILBUILD. A resolved sender. */
 export interface MailSender {

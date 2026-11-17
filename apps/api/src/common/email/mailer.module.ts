@@ -5,10 +5,11 @@ import {
   QueueMailer,
   SenderResolvingMailer,
   SmtpMailer,
+  createIdentityMailers,
   withTemplateKey,
 } from '@tmanage/mail';
 import { CONTACT_EMAILS } from '@tmanage/domain';
-import type { Mailer } from '@tmanage/mail';
+import type { IdentityLogin, Mailer } from '@tmanage/mail';
 import { MailBounceLookup } from '../../modules/mail-bounces/mail-bounces.service.js';
 import { MailQueueRepository } from '../database/mail-queue.repository.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
@@ -63,6 +64,9 @@ export interface MailerModuleConfig {
   readonly bounceKey?: Buffer | undefined;
   /** EMAILBUILD. EMAIL_SEND_AS: show the sender's own address in `From` (default off). */
   readonly sendAs?: boolean | undefined;
+  /** EMAILBUILD (amendment 3): the welcome and support mailboxes' own logins, when configured. */
+  readonly helloLogin?: IdentityLogin | undefined;
+  readonly supportLogin?: IdentityLogin | undefined;
 }
 
 /**
@@ -186,8 +190,24 @@ export class MailerModule {
         config,
       );
     }
+    // Without the queue the API submits itself: each mail leaves through its own mailbox login.
     const driver = driverFrom(config);
-    return guardedModule(() => driver, config);
+    const senders = createIdentityMailers({
+      base: {
+        host: config.smtpHost ?? '',
+        port: config.smtpPort ?? 587,
+        secure: config.smtpSecure ?? false,
+        username: config.smtpUsername,
+        password: config.smtpPassword,
+        fromAddress: config.fromAddress,
+        fromName: config.fromName,
+        bounceKey: config.bounceKey,
+      },
+      noreply: driver,
+      hello: config.helloLogin,
+      support: config.supportLogin,
+    });
+    return guardedModule(() => senders, config);
   }
 
   /** A suite's transport, held by the suite. `webPublicUrl` shapes the link under test. */

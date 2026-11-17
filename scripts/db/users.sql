@@ -2522,6 +2522,16 @@ GRANT INSERT, UPDATE ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_worker'@'%';
 -- 0370 (56-26 ARF). `mail_recipient_bounces.last_kind` widened for 'complaint': a spam complaint
 -- is recorded by the same intake through the existing 0366 grants; no new grant.
+-- 0371 (EMAILBUILD). `platform_mail_people` (global): platform admins add, change and switch off
+-- the people who sign tips (INSERT, UPDATE; no DELETE). `mail_person_assignments` and
+-- `mail_tip_log` (tenant) are written by the worker's hourly tips sweep: it remembers the person
+-- per (user, topic) (INSERT; UPDATE only to move a user off a person who was switched off) and
+-- logs each tip once (INSERT; reads where it writes). The API reads all
+-- three through the database-wide read (the people card and its load counts).
+GRANT INSERT, UPDATE ON `tmanage`.`platform_mail_people` TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`platform_mail_people` TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`mail_person_assignments` TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT ON `tmanage`.`mail_tip_log` TO 'tmanage_worker'@'%';
 -- 0367 (57-13 follow-up). `storage_migration_jobs.total_bytes` (the size the job set out to move) is
 -- written once in the job's INSERT by the existing `storage_migration_jobs` grant; no new grant.
 -- 0359 (ADTRACK). `organizations` gains four nullable `signup_utm_*` columns, written once in the

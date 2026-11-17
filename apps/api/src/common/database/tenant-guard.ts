@@ -1370,6 +1370,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0366 (56-26). Tenant-owned: a company's bounce record per recipient address hash. Its only
   // parent is `organizations`, so the company erasure may empty it in any order.
   mail_recipient_bounces: 'organization_id',
+  // 0371 (EMAILBUILD). Tenant-owned: the person a user hears from per topic, and the tips a user
+  // was sent. Their only parent is `organizations`, so the company erasure may empty them in any order.
+  mail_person_assignments: 'organization_id',
+  mail_tip_log: 'organization_id',
   // 0363 (52-27). Tenant-owned: a client's journey steps on one project. Registered after
   // `project_clients` and `form_submissions` so the company erasure empties it first.
   client_journey_steps: 'organization_id',
@@ -1510,6 +1514,8 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // `identityTransaction(['mail_queue'])` / `identityRead([...])`; the worker drains it.
   'mail_queue',
   'mail_hour_windows',
+  // 0371 (EMAILBUILD). The TManage people who sign tips: a platform record, no organization.
+  'platform_mail_people',
   // ---- 52-21 ----
   // 0255. Public abuse telemetry and issued challenges. GLOBAL: the callers are anonymous (no
   // organization yet, or a visitor of one), every key is a hash (submitted values, the challenge

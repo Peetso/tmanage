@@ -184,6 +184,10 @@ describe('the grants and the schema agree', () => {
         'engine-authored: the 0008 trigger writes it with definer privileges — ' +
         'a runtime credential that could INSERT could forge history',
       schema_migrations: 'the migrator alone writes the ledger',
+      mail_person_assignments:
+        'EMAILBUILD 0371: written only by the worker tips sweep; the API reads it (people card)',
+      mail_tip_log:
+        'EMAILBUILD 0371: written only by the worker tips sweep; the API never writes it',
       changelog_entries:
         'x160 read-only from the application: the public changelog route only SELECTs (via the ' +
         'database-wide read grant); no app write path exists this slice — entries are authored by ' +

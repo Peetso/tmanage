@@ -1,9 +1,21 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { authDeadlineMs, laneForTemplate, mailboxForLane } from './lanes.js';
 import type { MailLane, Mailbox } from './lanes.js';
-import type { MailAttachment, MailDelivery, Mailer, MailMessage, MailSender } from './mailer.js';
+import type {
+  MailAttachment,
+  MailDelivery,
+  MailIdentity,
+  Mailer,
+  MailMessage,
+  MailSender,
+} from './mailer.js';
 import { MAX_MAIL_MESSAGE_BYTES, safeAttachment } from './mailer.js';
-import { MAX_DISPLAY_NAME, validateSenderAddress, validateSenderName } from './sender.js';
+import {
+  MAX_DISPLAY_NAME,
+  isMailIdentity,
+  validateSenderAddress,
+  validateSenderName,
+} from './sender.js';
 
 /**
  * 56-31 — the `Mailer` producers send through once the queue is on: `send` writes one
@@ -58,6 +70,8 @@ interface QueuedPayload {
   readonly attachments?: readonly QueuedAttachment[];
   /** EMAILBUILD. The resolver's sender; re-validated on decode and again by the SMTP driver. */
   readonly from?: MailSender;
+  /** EMAILBUILD (amendment 3). The mailbox key only, never a credential; checked on decode. */
+  readonly identity?: MailIdentity;
 }
 
 /** INVMAIL. An attachment as stored: its content base64-encoded. */
@@ -76,6 +90,7 @@ export function encodeQueuedMessage(message: MailMessage): string {
     ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
     ...(message.headers === undefined ? {} : { headers: { ...message.headers } }),
     ...(message.from === undefined ? {} : { from: { ...message.from } }),
+    ...(message.identity === undefined ? {} : { identity: message.identity }),
     ...(message.attachments === undefined || message.attachments.length === 0
       ? {}
       : {
@@ -148,6 +163,8 @@ export function decodeQueuedMessage(json: string, templateKey: string): MailMess
   const { to, subject, text, html, replyTo, headers } = value;
   const attachments = decodeAttachments(value['attachments']);
   const from = decodeSender(value['from']);
+  // A key off the closed list is refused: the row then leaves through noreply@.
+  const identity = isMailIdentity(value['identity']) ? value['identity'] : undefined;
   if (typeof to !== 'string' || typeof subject !== 'string' || typeof text !== 'string') {
     return null;
   }
@@ -169,6 +186,7 @@ export function decodeQueuedMessage(json: string, templateKey: string): MailMess
     ...(headerMap === undefined ? {} : { headers: headerMap }),
     ...(attachments === undefined ? {} : { attachments }),
     ...(from === undefined ? {} : { from }),
+    ...(identity === undefined ? {} : { identity }),
   };
 }
 

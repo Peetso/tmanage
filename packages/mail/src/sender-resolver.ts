@@ -1,4 +1,11 @@
-import type { MailDelivery, Mailer, MailMessage, MailSender } from './mailer.js';
+import type {
+  MailDelivery,
+  MailIdentity,
+  Mailer,
+  MailMessage,
+  MailPersonRef,
+  MailSender,
+} from './mailer.js';
 import {
   MAX_DISPLAY_NAME,
   addressDomain,
@@ -32,8 +39,17 @@ export interface MailPerson {
 }
 
 /** Where the person for a workspace comes from (the registry, through its own store). */
+/**
+ * Where the person for a message comes from (the registry, through its own store). `assigned`
+ * is the person a user hears from on a topic (picked once, kept); `test` is one registry row, for
+ * a platform admin's "Send test" to their own address.
+ */
 export interface SenderDirectory {
-  personFor(organizationId: string, language: MailLanguage): Promise<MailPerson | null>;
+  personFor(
+    organizationId: string | undefined,
+    ref: MailPersonRef,
+    language: MailLanguage,
+  ): Promise<MailPerson | null>;
 }
 
 export interface SenderResolverOptions {
@@ -69,6 +85,8 @@ interface Identity {
   readonly address: string;
   readonly replyTo: string | null;
   readonly person: MailPerson | null;
+  /** The mailbox login it leaves through (amendment 3). */
+  readonly mailbox: MailIdentity;
 }
 
 const WORDS = {
@@ -124,7 +142,7 @@ export class SenderResolvingMailer implements Mailer {
 
   async send(incoming: MailMessage): Promise<MailDelivery> {
     // Whatever arrived in `from` is discarded: only this resolver names a sender.
-    const { from: _discarded, ...message } = incoming;
+    const { from: _discarded, identity: _discardedIdentity, ...message } = incoming;
     const language: MailLanguage = message.language === 'ar' ? 'ar' : 'en';
     const category = categoryForTemplate(message.templateKey, message.audience);
     const identity = await this.identityFor(category, message, language);
@@ -150,6 +168,7 @@ export class SenderResolvingMailer implements Mailer {
     return this.inner.send({
       ...rest,
       from,
+      identity: identity.mailbox,
       subject: fill(message.subject, false),
       text: fill(message.text, false),
       ...(message.html === undefined ? {} : { html: fill(message.html, true) }),
@@ -167,12 +186,12 @@ export class SenderResolvingMailer implements Mailer {
     const address = this.usable(this.options.addresses.noreply)
       ? this.options.addresses.noreply
       : this.options.identityAddress;
-    return { name, address, replyTo: null, person: null };
+    return { name, address, replyTo: null, person: null, mailbox: 'noreply' };
   }
 
-  private mailbox(name: string, address: string): Identity {
+  private mailbox(name: string, address: string, mailbox: MailIdentity): Identity {
     return this.usable(address)
-      ? { name, address, replyTo: address, person: null }
+      ? { name, address, replyTo: address, person: null, mailbox }
       : this.noreply(name);
   }
 
@@ -185,20 +204,22 @@ export class SenderResolvingMailer implements Mailer {
     const { hello, support } = this.options.addresses;
     switch (category) {
       case 'welcome':
-        return this.mailbox('TManage', hello);
+        return this.mailbox('TManage', hello, 'hello');
       case 'support':
-        return this.mailbox(words.support, support);
+        return this.mailbox(words.support, support, 'support');
       case 'person': {
         const person =
-          message.organizationId === undefined
+          message.personRef === undefined
             ? null
-            : await this.personFor(message.organizationId, language);
-        if (person === null) return this.mailbox('TManage', hello);
+            : await this.personFor(message.organizationId, message.personRef, language);
+        if (person === null) return this.mailbox('TManage', hello, 'hello');
+        // Person mail leaves through the support login; replies go to the person's own alias.
         return {
           name: words.from(person.name),
           address: person.address,
           replyTo: person.address,
           person,
+          mailbox: 'support',
         };
       }
       case 'workspace':
@@ -232,18 +253,20 @@ export class SenderResolvingMailer implements Mailer {
   }
 
   private async personFor(
-    organizationId: string,
+    organizationId: string | undefined,
+    ref: MailPersonRef,
     language: MailLanguage,
   ): Promise<MailPerson | null> {
     const directory = this.options.directory;
     if (directory === undefined) return null;
-    const key = `${organizationId}:${language}`;
+    const who = ref.kind === 'test' ? `test:${ref.personId}` : `${ref.userId}:${ref.topic}`;
+    const key = `${organizationId ?? '-'}:${who}:${language}`;
     const at = this.now();
     const cached = this.cache.get(key);
     if (cached !== undefined && at - cached.at < CACHE_MS) return cached.person;
     let person: MailPerson | null = null;
     try {
-      const found = await directory.personFor(organizationId, language);
+      const found = await directory.personFor(organizationId, ref, language);
       person =
         found !== null &&
         validateSenderName(found.name) &&

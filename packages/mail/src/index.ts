@@ -27,8 +27,11 @@ export type {
   MailDelivery,
   MailActingFor,
   MailFromOptions,
+  MailIdentity,
   Mailer,
   MailMessage,
+  MailPersonRef,
+  MailPersonTopic,
   MailSender,
   MailReceipt,
   ReceiptMailer,
@@ -40,17 +43,23 @@ export {
   MAX_DISPLAY_NAME,
   MAX_SENDER_ADDRESS,
   MAX_SENDER_NAME,
+  MAIL_IDENTITIES,
   SENDER_CATEGORIES,
   addressDomain,
   categoryForTemplate,
   cleanDisplayPart,
   formatFrom,
   isClientOnlyTemplate,
+  isMailIdentity,
   validateSenderAddress,
   validateSenderName,
 } from './sender.js';
 export type { MailLanguage, SenderCategory } from './sender.js';
 export { SIGNATURE_TOKENS, SenderResolvingMailer } from './sender-resolver.js';
+export { IdentityRoutingMailer, createIdentityMailers } from './identity-mailer.js';
+export type { IdentityLogin, IdentityMailersOptions } from './identity-mailer.js';
+export { MAIL_PERSON_TOPICS, isMailPersonTopic, regionForTimezone } from './person-region.js';
+export type { MailPersonRegion } from './person-region.js';
 export type { MailPerson, SenderDirectory, SenderResolverOptions } from './sender-resolver.js';
 export { SmtpMailer } from './smtp-mailer.js';
 export type { SmtpMailerOptions } from './smtp-mailer.js';

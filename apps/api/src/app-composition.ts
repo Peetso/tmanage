@@ -66,6 +66,8 @@ export function composeAppModule(env: Env): DynamicModule {
       // 56-26: the key company mail's Message-ID is signed with, so its bounce can be matched.
       bounceKey: deriveBounceKey(env.SESSION_SECRET),
       sendAs: env.EMAIL_SEND_AS,
+      helloLogin: { username: env.SMTP_HELLO_USER, password: env.SMTP_HELLO_PASS },
+      supportLogin: { username: env.SMTP_SUPPORT_USER, password: env.SMTP_SUPPORT_PASS },
     }),
     // FILE-001b. `local` is the production single-host driver (Hostinger shared hosting):
     // it stores under `STORAGE_LOCAL_ROOT`, which the module checks at boot is absolute and

@@ -47,6 +47,11 @@ export interface SmtpMailerOptions extends MailFromOptions {
    * random id is used and a bounce cannot be tied to the company.
    */
   readonly bounceKey?: Buffer | undefined;
+  /**
+   * EMAILBUILD (amendment 3). Keep one pooled connection open (max 1) instead of one per send:
+   * each sending mailbox holds at most one socket on a host near its process limit.
+   */
+  readonly pooled?: boolean | undefined;
 }
 
 export class SmtpMailer implements ReceiptMailer {
@@ -90,6 +95,7 @@ export class SmtpMailer implements ReceiptMailer {
        * it holds no credential to lose, and the operator chose it knowingly.
        */
       requireTLS: auth !== undefined && !options.secure,
+      ...(options.pooled === true ? { pool: true, maxConnections: 1 } : {}),
       ...(auth === undefined ? {} : { auth }),
       ...(options.tls === undefined ? {} : { tls: { ...options.tls } }),
     });

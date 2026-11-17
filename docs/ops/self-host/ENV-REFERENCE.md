@@ -112,6 +112,10 @@ one credential, so a one-user install sets only the database connection.
 | `SMTP_USERNAME` | no |  | no | yes |  |
 | `SMTP_PASSWORD` | no |  | yes | yes |  |
 | `SMTP_SECURE` | no | `false` | no |  | Implicit TLS from the first byte (port 465). |
+| `SMTP_HELLO_USER` | no |  | no |  | EMAILBUILD (amendment 3). |
+| `SMTP_HELLO_PASS` | no |  | yes |  |  |
+| `SMTP_SUPPORT_USER` | no |  | no |  |  |
+| `SMTP_SUPPORT_PASS` | no |  | yes |  |  |
 | `EMAIL_SEND_AS` | no | `false` | no |  |  |
 | `PLAN_LADDER` | no |  | no |  | The versioned plan ladder's switch: only `on` turns it on, and only when billing is paid; anything else keeps every workspace on the free beta plan. |
 | `MALWARE_SCAN_DRIVER` | no | `stub` | no | yes |  |

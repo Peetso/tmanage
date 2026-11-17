@@ -683,6 +683,15 @@ export const envSchema = z
      * sender's own address on the same domain is shown in `From`; switch it on only after one
      * test mail proves the SMTP host accepts it. The envelope sender never changes.
      */
+    /**
+     * EMAILBUILD (amendment 3). The welcome and support mailboxes' own SMTP logins on the same
+     * host (the user is the mailbox address). Absent = that mail leaves through the SMTP_USERNAME
+     * (noreply) login. The passwords are secrets: never logged, never returned by any API.
+     */
+    SMTP_HELLO_USER: z.string().optional(),
+    SMTP_HELLO_PASS: z.string().optional(),
+    SMTP_SUPPORT_USER: z.string().optional(),
+    SMTP_SUPPORT_PASS: z.string().optional(),
     EMAIL_SEND_AS: z
       .enum(['on', 'off'])
       .default('off')
