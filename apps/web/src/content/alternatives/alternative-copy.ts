@@ -1,4 +1,5 @@
 import { RLM, type CompareLanguage } from '../compare/compare-entries';
+import type { AlternativeFit } from './alternative-entries';
 
 /**
  * SEOF (B1) — the alternative pages' own words, English and Arabic side by side (the compare
@@ -24,7 +25,7 @@ const dateOf = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
 /** The rows of an alternative page's table, in display order (`strong` is always last). */
 export type AlternativeRow =
-  'pricing' | 'tasks' | 'clients' | 'time' | 'arabic' | 'files' | 'strong';
+  'pricing' | 'tasks' | 'clients' | 'time' | 'invoices' | 'arabic' | 'files' | 'strong';
 
 /** The words both the hero of every alternative page and the facts page use. */
 export const PUBLIC_HERO_COPY = {
@@ -59,14 +60,21 @@ export const ALTERNATIVE_COPY = {
     compareButton: 'Compare side by side',
     whyEyebrow: 'Why teams look',
     whyTitle: (name: string) => `Why teams look for a ${name} alternative`,
-    reasons: (name: string) => [
-      {
-        title: 'Your team works in Arabic',
-        body: 'In TManage every screen works in Arabic, right to left, and in English. Each person picks their own language.',
-      },
+    reasons: (name: string, fit: AlternativeFit) => [
+      fit.theyHaveArabic
+        ? {
+            title: 'Each person picks a language',
+            body: `Like ${name}, TManage works in Arabic, right to left. Each person picks Arabic or English for their own screens.`,
+          }
+        : {
+            title: 'Your team works in Arabic',
+            body: 'In TManage every screen works in Arabic, right to left, and in English. Each person picks their own language.',
+          },
       {
         title: 'Clients need to sign off',
-        body: `The table below shows how ${name} lets clients in. TManage adds approvals tied to the exact version.`,
+        body: fit.theyListClients
+          ? `The table below shows how ${name} lets clients in. TManage adds approvals tied to the exact version.`
+          : 'In TManage clients work in their own portal and approve the exact version. Client users are always free.',
       },
       {
         title: 'The team keeps growing',
@@ -84,6 +92,7 @@ export const ALTERNATIVE_COPY = {
       clients: 'Client access',
       time: 'Time tracking',
       arabic: 'Arabic interface',
+      invoices: 'Invoices',
       files: 'Files',
     },
     strongRow: (name: string) => `Where ${name} is strong`,
@@ -92,6 +101,7 @@ export const ALTERNATIVE_COPY = {
       tasks: 'Projects, tasks, boards, lists and calendar',
       clients: 'Client portal; clients approve the exact version',
       time: 'Running timer for time tracking',
+      invoices: 'Yes, invoices and quotes (no online payment yet)',
       arabic: 'Yes, fully right to left',
       files: 'In your own Google Drive or OneDrive',
       strong: 'Client approvals, a client portal and every screen in Arabic or English',
@@ -113,15 +123,15 @@ export const ALTERNATIVE_COPY = {
       'Clients in the loop',
     ],
     changeTitle: 'What changes',
-    changes: [
+    changes: (fit: AlternativeFit) => [
       'Approvals tied to the exact version',
       'A workload view for the whole team',
-      'Every screen in Arabic or English',
+      fit.theyHaveArabic ? 'Client users are always free' : 'Every screen in Arabic or English',
     ],
     switchButton: (name: string) => `See how to switch from ${name}`,
     faqEyebrow: 'Questions',
     faqTitle: (name: string) => `Questions about moving from ${name}`,
-    faq: (name: string, work: string) => [
+    faq: (name: string, work: string, fit: AlternativeFit) => [
       {
         question: `Is TManage a good ${name} alternative for a 10-person agency?`,
         answer:
@@ -132,10 +142,16 @@ export const ALTERNATIVE_COPY = {
         answer:
           'Yes. Every screen works in Arabic, right to left, and in English. Each person picks their own language.',
       },
-      {
-        question: `Can I move my ${name} projects to TManage?`,
-        answer: `Yes. The switch guide shows, step by step, how to bring your projects and ${work} across.`,
-      },
+      fit.hasSwitchPage
+        ? {
+            question: `Can I move my ${name} projects to TManage?`,
+            answer: `Yes. The switch guide shows, step by step, how to bring your projects and ${work} across.`,
+          }
+        : {
+            question: 'Do my clients need a paid seat in TManage?',
+            answer:
+              'No. Client users are always free, and they see and approve work in their own portal.',
+          },
     ],
     relatedEyebrow: 'Related',
     relatedTitle: 'Keep comparing',
@@ -143,13 +159,15 @@ export const ALTERNATIVE_COPY = {
     compareCardHint: 'The full side-by-side comparison',
     switchCard: (name: string) => `Switch from ${name}`,
     switchCardHint: 'Move your projects step by step',
+    portalCard: 'The client portal',
+    portalCardHint: 'What your clients see and approve',
     allCard: 'All alternatives',
     allCardHint: (names: readonly string[]) => `${names.join(', ')} and more`,
     indexTitle: 'Alternatives to the tools agencies use',
     indexDescription:
-      'TManage is an alternative to Basecamp, monday.com, ClickUp, Asana and more, for agencies that need client approvals, a client portal and Arabic.',
+      'TManage is an alternative to Basecamp, monday.com, ClickUp, Asana, Wrike, Notion and more, for agencies that need client approvals, a client portal and Arabic.',
     indexLede:
-      'TManage is an alternative to Basecamp, monday.com, ClickUp, Asana and more, for agencies that need client approvals, a client portal and Arabic. Each page compares fairly, with dated facts and sources.',
+      'TManage is an alternative to Basecamp, monday.com, ClickUp, Asana, Wrike, Notion and more, for agencies that need client approvals, a client portal and Arabic. Each page compares fairly, with dated facts and sources.',
     listEyebrow: 'Compare',
     listTitle: 'Pick the tool you use today',
     listLede: 'Each page shows where TManage fits, where the other tool is ahead, and how to move.',
@@ -169,14 +187,21 @@ export const ALTERNATIVE_COPY = {
     compareButton: 'شاهد المقارنة كاملة',
     whyEyebrow: 'لماذا يبحثون عن بديل',
     whyTitle: (name: string) => `لماذا تنتقل بعض الفرق من ${RLM}${name}؟`,
-    reasons: (name: string) => [
-      {
-        title: 'فريقك يعمل بالعربية',
-        body: `في ${RLM}TManage كل شاشة تعمل بالعربية من اليمين لليسار، وبالإنجليزية أيضًا، وكل شخص يختار لغته.`,
-      },
+    reasons: (name: string, fit: AlternativeFit) => [
+      fit.theyHaveArabic
+        ? {
+            title: 'كل شخص يختار لغته',
+            body: `مثل ${RLM}${name}، يعمل ${RLM}TManage بالعربية من اليمين لليسار، وكل شخص يختار العربية أو الإنجليزية لشاشاته.`,
+          }
+        : {
+            title: 'فريقك يعمل بالعربية',
+            body: `في ${RLM}TManage كل شاشة تعمل بالعربية من اليمين لليسار، وبالإنجليزية أيضًا، وكل شخص يختار لغته.`,
+          },
       {
         title: 'عملاؤك يعتمدون الأعمال',
-        body: `يوضّح الجدول أدناه كيف يُدخل ${RLM}${name} العملاء في العمل. و ${RLM}TManage يضيف اعتمادًا مرتبطًا بالنسخة نفسها.`,
+        body: fit.theyListClients
+          ? `يوضّح الجدول أدناه كيف يُدخل ${RLM}${name} العملاء في العمل. و ${RLM}TManage يضيف اعتمادًا مرتبطًا بالنسخة نفسها.`
+          : `في ${RLM}TManage يعمل العملاء من بوابتهم الخاصة ويعتمدون النسخة نفسها، وحسابات العملاء مجانية دائمًا.`,
       },
       {
         title: 'الفريق يكبر باستمرار',
@@ -194,6 +219,7 @@ export const ALTERNATIVE_COPY = {
       clients: 'وصول العملاء',
       time: 'تسجيل الوقت',
       arabic: 'واجهة عربية',
+      invoices: 'الفواتير',
       files: 'الملفات',
     },
     strongRow: (name: string) => `نقاط قوة ${RLM}${name}`,
@@ -202,6 +228,7 @@ export const ALTERNATIVE_COPY = {
       tasks: 'المشاريع والمهام واللوحات والقوائم والتقويم',
       clients: 'بوابة للعملاء، والعميل يعتمد النسخة نفسها',
       time: 'مؤقّت لتسجيل الوقت',
+      invoices: 'نعم، فواتير وعروض أسعار (الدفع الإلكتروني غير متاح بعد)',
       arabic: 'نعم، من اليمين لليسار بالكامل',
       files: `في ${RLM}Google Drive أو ${RLM}OneDrive الخاص بشركتك`,
       strong: 'اعتماد العملاء، وبوابة خاصة بهم، وكل شاشة بالعربية أو الإنجليزية',
@@ -219,15 +246,15 @@ export const ALTERNATIVE_COPY = {
     keepTitle: 'ما يبقى',
     keep: (_work: string) => ['المشاريع والمهام', 'الملفات والمحادثات', 'العملاء على اطلاع دائم'],
     changeTitle: 'ما يتغيّر',
-    changes: [
+    changes: (fit: AlternativeFit) => [
       'اعتماد مرتبط بالنسخة نفسها',
       'عرض لعبء العمل على الفريق كله',
-      'كل شاشة بالعربية أو الإنجليزية',
+      fit.theyHaveArabic ? 'حسابات العملاء مجانية دائمًا' : 'كل شاشة بالعربية أو الإنجليزية',
     ],
     switchButton: (name: string) => `خطوات الانتقال من ${RLM}${name}`,
     faqEyebrow: 'أسئلة',
     faqTitle: (name: string) => `أسئلة عن الانتقال من ${RLM}${name}`,
-    faq: (name: string, _work: string) => [
+    faq: (name: string, _work: string, fit: AlternativeFit) => [
       {
         question: `هل ${RLM}TManage بديل مناسب عن ${RLM}${name} لوكالة من 10 أشخاص؟`,
         answer: `نعم، إذا كان عملاؤك يعتمدون الأعمال وتريد سعرًا ثابتًا للفريق. ${RLM}TManage مجاني طوال البيتا، وحسابات العملاء مجانية دائمًا.`,
@@ -237,10 +264,15 @@ export const ALTERNATIVE_COPY = {
         answer:
           'نعم. كل شاشة تعمل بالعربية من اليمين لليسار، وبالإنجليزية أيضًا، وكل شخص يختار لغته.',
       },
-      {
-        question: `هل أستطيع نقل مشاريعي من ${RLM}${name}؟`,
-        answer: 'نعم. دليل الانتقال يشرح خطوة بخطوة كيف تنقل مشاريعك ومهامك.',
-      },
+      fit.hasSwitchPage
+        ? {
+            question: `هل أستطيع نقل مشاريعي من ${RLM}${name}؟`,
+            answer: 'نعم. دليل الانتقال يشرح خطوة بخطوة كيف تنقل مشاريعك ومهامك.',
+          }
+        : {
+            question: `هل يحتاج عملائي إلى مقاعد مدفوعة في ${RLM}TManage؟`,
+            answer: 'لا. حسابات العملاء مجانية دائمًا، ويرون الأعمال ويعتمدونها من بوابتهم الخاصة.',
+          },
     ],
     relatedEyebrow: 'روابط ذات صلة',
     relatedTitle: 'تابع المقارنة',
@@ -248,12 +280,14 @@ export const ALTERNATIVE_COPY = {
     compareCardHint: 'المقارنة الكاملة جنبًا إلى جنب',
     switchCard: (name: string) => `الانتقال من ${RLM}${name}`,
     switchCardHint: 'انقل مشاريعك خطوة بخطوة',
+    portalCard: 'بوابة العملاء',
+    portalCardHint: 'ما يراه عملاؤك ويعتمدونه',
     allCard: 'كل البدائل',
     allCardHint: (names: readonly string[]) =>
       `${names.map((name) => `${RLM}${name}`).join(' و ')} وغيرها`,
     indexTitle: 'بدائل للأدوات التي تستخدمها الوكالات',
-    indexDescription: `${RLM}TManage بديل عن ${RLM}Basecamp و ${RLM}monday.com و ${RLM}ClickUp و ${RLM}Asana وغيرها، للوكالات التي تحتاج إلى اعتماد العملاء وبوابة خاصة بهم وواجهة عربية.`,
-    indexLede: `${RLM}TManage بديل عن ${RLM}Basecamp و ${RLM}monday.com و ${RLM}ClickUp و ${RLM}Asana وغيرها، للوكالات التي تحتاج إلى اعتماد العملاء وبوابة خاصة بهم وواجهة عربية. كل صفحة تقارن بإنصاف، بحقائق مؤرخة ومصادر واضحة.`,
+    indexDescription: `${RLM}TManage بديل عن ${RLM}Basecamp و ${RLM}monday.com و ${RLM}ClickUp و ${RLM}Asana و ${RLM}Wrike و ${RLM}Notion وغيرها، للوكالات التي تحتاج إلى اعتماد العملاء وبوابة خاصة بهم وواجهة عربية.`,
+    indexLede: `${RLM}TManage بديل عن ${RLM}Basecamp و ${RLM}monday.com و ${RLM}ClickUp و ${RLM}Asana و ${RLM}Wrike و ${RLM}Notion وغيرها، للوكالات التي تحتاج إلى اعتماد العملاء وبوابة خاصة بهم وواجهة عربية. كل صفحة تقارن بإنصاف، بحقائق مؤرخة ومصادر واضحة.`,
     listEyebrow: 'قارن',
     listTitle: 'اختر الأداة التي تستخدمها اليوم',
     listLede: `كل صفحة توضّح أين يناسبك ${RLM}TManage، وأين تتفوّق الأداة الأخرى، وكيف تنتقل.`,

@@ -13,6 +13,7 @@ import {
 import './consultancies.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 import { useT } from '../../../../lib/i18n/use-t';
+import { CompareLinks } from '../alternatives/CompareLinks';
 
 /**
  * Solutions · Consultancies (SITE-SPEC "PAGE: Solutions · Consultancies", Figma shot
@@ -305,6 +306,8 @@ export function ConsultanciesPage() {
       </WebSection>
 
       {/* 8 · CTA band with the Delivery risk saved view, as drawn */}
+      <CompareLinks topic="solutions-consultancies" />
+
       <CtaBand title={t('ConsultanciesPage.ctaTitle')} lede={t('ConsultanciesPage.ctaLede')} />
     </div>
   );

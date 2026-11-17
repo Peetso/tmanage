@@ -25,13 +25,15 @@ export function alternativeMarkdown(slug: string): string[] {
     copy.lede(name),
     `## ${copy.whyTitle(name)}`,
     copy
-      .reasons(name)
+      .reasons(name, page.fit)
       .map((reason) => `- **${reason.title}.** ${reason.body}`)
       .join('\n'),
     `## ${copy.tableTitle(name)}`,
     [`| ${copy.need} | TManage | ${name} |`, '| --- | --- | --- |', ...rows].join('\n'),
     `${copy.checked(page.rival.checkedOn)}. ${copy.trademark(name)}`,
     `## ${copy.faqTitle(name)}`,
-    ...copy.faq(name, page.entry.workWord).map((item) => `### ${item.question}\n\n${item.answer}`),
+    ...copy
+      .faq(name, page.entry.workWord, page.fit)
+      .map((item) => `### ${item.question}\n\n${item.answer}`),
   ];
 }

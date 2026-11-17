@@ -24,6 +24,7 @@ import {
 } from './scenes';
 import './features-communication.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { CompareLinks } from '../alternatives/CompareLinks';
 
 /**
  * Features · Chat & calendar (SITE-SPEC "PAGE: Features · Chat & calendar", WEB-04).
@@ -227,6 +228,8 @@ export function FeaturesCommunicationPage() {
       </WebSection>
 
       {/* 9 · CTA band */}
+      <CompareLinks topic="features-communication" />
+
       <CtaBand
         title={t('FeaturesCommunicationPage.ctaRequestTitle')}
         lede={t('FeaturesCommunicationPage.ctaRequestLede')}

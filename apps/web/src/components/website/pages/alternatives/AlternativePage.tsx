@@ -32,6 +32,7 @@ export function AlternativePage({ page }: { page: AlternativePageData }) {
   const language = useCompareLanguage();
   const copy = ALTERNATIVE_COPY[language];
   const { name, slug } = page.rival;
+  const { fit } = page;
   const others = ALTERNATIVE_PAGES.filter((other) => other.rival.slug !== slug)
     .slice(0, 3)
     .map((other) => other.rival.name);
@@ -56,7 +57,7 @@ export function AlternativePage({ page }: { page: AlternativePageData }) {
           lede={page.entry.whyLede[language]}
         />
         <ol className="tm-web-alt-reasons">
-          {copy.reasons(name).map((reason, index) => (
+          {copy.reasons(name, fit).map((reason, index) => (
             <li key={reason.title} className="tm-web-alt-card">
               <span className="tm-web-alt-card__number">{String(index + 1).padStart(2, '0')}</span>
               <h3 className="tm-web-alt-card__title">{reason.title}</h3>
@@ -118,19 +119,21 @@ export function AlternativePage({ page }: { page: AlternativePageData }) {
         />
         <div className="tm-web-alt-keep">
           <CheckCard title={copy.keepTitle} items={copy.keep(page.entry.workWord)} />
-          <CheckCard title={copy.changeTitle} items={copy.changes} />
+          <CheckCard title={copy.changeTitle} items={copy.changes(fit)} />
         </div>
-        <div className="tm-web-alt-actions">
-          <ButtonLink href={`/switch/${slug}`} tone="outline" size="default">
-            {copy.switchButton(name)}
-          </ButtonLink>
-        </div>
+        {fit.hasSwitchPage ? (
+          <div className="tm-web-alt-actions">
+            <ButtonLink href={`/switch/${slug}`} tone="outline" size="default">
+              {copy.switchButton(name)}
+            </ButtonLink>
+          </div>
+        ) : null}
       </WebSection>
 
       <WebSection aria-labelledby="alternative-faq">
         <SectionHeader id="alternative-faq" eyebrow={copy.faqEyebrow} title={copy.faqTitle(name)} />
         <div className="tm-web-faq-list">
-          {copy.faq(name, page.entry.workWord).map((item) => (
+          {copy.faq(name, page.entry.workWord, fit).map((item) => (
             <FaqRow key={item.question} question={item.question} answer={item.answer} defaultOpen />
           ))}
         </div>
@@ -151,11 +154,15 @@ export function AlternativePage({ page }: { page: AlternativePageData }) {
             />
           </li>
           <li>
-            <LinkCard
-              title={copy.switchCard(name)}
-              hint={copy.switchCardHint}
-              href={`/switch/${slug}`}
-            />
+            {fit.hasSwitchPage ? (
+              <LinkCard
+                title={copy.switchCard(name)}
+                hint={copy.switchCardHint}
+                href={`/switch/${slug}`}
+              />
+            ) : (
+              <LinkCard title={copy.portalCard} hint={copy.portalCardHint} href="/client-portal" />
+            )}
           </li>
           <li>
             <LinkCard title={copy.allCard} hint={copy.allCardHint(others)} href="/alternatives" />

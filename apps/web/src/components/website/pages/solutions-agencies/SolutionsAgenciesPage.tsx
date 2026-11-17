@@ -15,6 +15,7 @@ import './solutions-agencies.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';
+import { CompareLinks } from '../alternatives/CompareLinks';
 
 /**
  * Solutions · Agencies & studios (WEB-08), built to the round-2 Figma frame 308:33: hero with the
@@ -345,6 +346,8 @@ export function SolutionsAgenciesPage() {
       </WebSection>
 
       {/* 8 · CTA band */}
+      <CompareLinks topic="solutions-agencies" />
+
       <CtaBand title={t('SolutionsAgencies.ctaTitle')} lede={t('SolutionsAgencies.ctaLede')} />
     </>
   );

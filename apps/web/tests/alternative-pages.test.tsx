@@ -11,12 +11,19 @@ import ArabicAlternativeRoute from '../src/app/ar/(site)/alternatives/[slug]/pag
 import ArabicAlternativesRoute from '../src/app/ar/(site)/alternatives/page';
 import ArabicFactsRoute from '../src/app/ar/(site)/facts/page';
 import { WebsiteChrome } from '../src/components/website/WebsiteChrome';
+import { CompareLinks } from '../src/components/website/pages/alternatives/CompareLinks';
 import { ALTERNATIVE_COPY } from '../src/content/alternatives/alternative-copy';
 import {
   ALTERNATIVE_ENTRIES,
   ALTERNATIVE_PAGES,
 } from '../src/content/alternatives/alternative-entries';
 import { ALTERNATIVE_SLUGS } from '../src/content/alternatives/alternative-slugs';
+import {
+  TOPIC_LINKS,
+  compareLinks,
+  type CompareLinkTopic,
+} from '../src/content/alternatives/compare-links';
+import { COMPARE_COPY } from '../src/content/compare/compare-copy';
 import { COMPARE_SLUGS, SWITCH_SLUGS } from '../src/content/compare/compare-slugs';
 import { FACTS_COPY } from '../src/content/facts/facts';
 import { hasArabicTwin } from '../src/lib/i18n/public-locale-routes';
@@ -83,6 +90,7 @@ describe('SEOF alternative pages and facts page', () => {
         const { name, slug } = page.rival;
         const path = `${language === 'ar' ? '/ar' : ''}/alternatives/${slug}`;
         const { html, root } = await render(path);
+        expect(root.querySelectorAll('h1'), path).toHaveLength(1);
         expect(text(root.querySelector('h1')), path).toBe(copy.title(name));
         const headings = [...root.querySelectorAll('h2')].map(text);
         expect(headings).toEqual(
@@ -95,7 +103,8 @@ describe('SEOF alternative pages and facts page', () => {
           ]),
         );
         // Every answer is in the HTML, open.
-        for (const item of copy.faq(name, page.entry.workWord)) expect(html).toContain(item.answer);
+        for (const item of copy.faq(name, page.entry.workWord, page.fit))
+          expect(html).toContain(item.answer);
         expect(jsonLdTypes(root)).toEqual(['BreadcrumbList', 'WebPage', 'FAQPage']);
         expect(html).not.toContain('@peetrix.com');
       }
@@ -110,8 +119,7 @@ describe('SEOF alternative pages and facts page', () => {
         );
         for (const [feature, cell] of Object.entries(page.rival.rows)) {
           const shown = root.querySelector(`[data-testid="theirs-${feature}"]`);
-          if (feature === 'invoices') expect(shown).toBeNull();
-          else expect(text(shown), `${page.rival.slug} ${feature}`).toBe(cell.text[language]);
+          expect(text(shown), `${page.rival.slug} ${feature}`).toBe(cell.text[language]);
         }
         const pricing = root.querySelector('[data-testid="theirs-pricing"] a');
         expect(pricing?.getAttribute('href')).toBe(page.rival.pricingUrl);
@@ -164,10 +172,8 @@ describe('SEOF alternative pages and facts page', () => {
 
   it('keeps the slug list, the twin table and the page list complete', () => {
     expect([...ALTERNATIVE_SLUGS]).toEqual(ALTERNATIVE_ENTRIES.map((entry) => entry.slug));
-    for (const slug of ALTERNATIVE_SLUGS) {
+    for (const slug of ALTERNATIVE_SLUGS)
       expect(COMPARE_SLUGS as readonly string[]).toContain(slug);
-      expect(SWITCH_SLUGS).toContain(slug);
-    }
     for (const path of [
       '/alternatives',
       '/facts',
@@ -195,11 +201,71 @@ describe('SEOF alternative pages and facts page', () => {
       return root;
     };
     for (const slug of ALTERNATIVE_SLUGS) {
-      for (const route of [CompareEntryRoute, SwitchEntryRoute]) {
+      const routes = SWITCH_SLUGS.includes(slug)
+        ? [CompareEntryRoute, SwitchEntryRoute]
+        : [CompareEntryRoute];
+      for (const route of routes) {
         const root = await html(await route(slugParams(slug)));
         expect(root.querySelector(`a[href="/alternatives/${slug}"]`), slug).not.toBeNull();
       }
     }
     expect((await html(CompareRoute())).querySelector('a[href="/alternatives"]')).not.toBeNull();
+  });
+
+  it('never promises a switch guide, or implies a gap, that the entries do not back (SEOG)', async () => {
+    for (const page of ALTERNATIVE_PAGES) {
+      const { slug } = page.rival;
+      const { root, html } = await render(`/alternatives/${slug}`);
+      const switchLink = root.querySelector(`a[href="/switch/${slug}"]`);
+      if (SWITCH_SLUGS.includes(slug)) expect(switchLink, slug).not.toBeNull();
+      else {
+        expect(switchLink, slug).toBeNull();
+        expect(html, slug).not.toContain('switch guide');
+      }
+      if (page.fit.theyHaveArabic) expect(html, slug).not.toContain('Your team works in Arabic');
+      if (!page.fit.theyListClients) expect(html, slug).not.toContain('lets clients in');
+    }
+    // The design's next four cards (Wrike, Teamwork, Notion, Jira) are on the index.
+    expect(ALTERNATIVE_SLUGS).toEqual(
+      expect.arrayContaining(['wrike', 'teamwork', 'notion', 'jira']),
+    );
+  });
+
+  it('links each feature and solution page to at most three live compare or alternative pages', () => {
+    for (const [topic, targets] of Object.entries(TOPIC_LINKS)) {
+      expect(targets.length, topic).toBeLessThanOrEqual(3);
+      for (const language of ['en', 'ar'] as const) {
+        const links = compareLinks(topic as CompareLinkTopic, language);
+        targets.forEach((target, index) => {
+          const link = links[index];
+          const prefix = language === 'ar' ? '/ar' : '';
+          if (target.kind === 'compare') {
+            expect(COMPARE_SLUGS as readonly string[]).toContain(target.slug);
+            expect(link).toEqual({
+              href: `${prefix}/compare/${target.slug}`,
+              label: COMPARE_COPY[language].title(target.name),
+            });
+          } else {
+            expect(ALTERNATIVE_SLUGS as readonly string[]).toContain(target.slug);
+            expect(link).toEqual({
+              href: `${prefix}/alternatives/${target.slug}`,
+              label: ALTERNATIVE_COPY[language].tabTitle(target.name),
+            });
+          }
+        });
+      }
+    }
+    mockPathname = '/ar/solutions/agencies';
+    const arabic = document.createElement('div');
+    arabic.innerHTML = renderToString(
+      <RouteLocaleProvider locale="ar-EG">
+        <CompareLinks topic="solutions-agencies" />
+      </RouteLocaleProvider>,
+    );
+    expect(arabic.querySelector('a[href="/ar/alternatives/teamwork"]')).not.toBeNull();
+    mockPathname = '/solutions/agencies';
+    const english = document.createElement('div');
+    english.innerHTML = renderToString(<CompareLinks topic="solutions-agencies" />);
+    expect(english.querySelectorAll('[data-testid="compare-links"] a')).toHaveLength(3);
   });
 });

@@ -25,6 +25,7 @@ import {
 } from './scenes';
 import './features-knowledge.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { CompareLinks } from '../alternatives/CompareLinks';
 
 /**
  * Features · Docs, decisions & approvals (`/features/knowledge`) — SITE-SPEC "PAGE: Features ·
@@ -297,6 +298,8 @@ export function FeaturesKnowledgePage() {
       </WebSection>
 
       {/* 9 · CTA band */}
+      <CompareLinks topic="features-knowledge" />
+
       <CtaBand
         title={
           <>

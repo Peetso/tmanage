@@ -16,6 +16,7 @@ import {
 } from './scenes';
 import './features-insights.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { CompareLinks } from '../alternatives/CompareLinks';
 
 /**
  * Features · Insights & automations (WEB-06, SITE-SPEC "PAGE: Features · Insights &
@@ -198,6 +199,8 @@ export function FeaturesInsightsPage() {
       {/* 8 · CTA band (9 · Footer comes from the layout) */}
       {/* This page keeps object titles in Latin (see `scenes.tsx`), so the CTA crop's deliverable
           row does too, instead of the catalog's translated title. */}
+      <CompareLinks topic="features-insights" />
+
       <CtaBand
         title={t('FeaturesInsightsPage.ctaApprovalTitle')}
         visual={<DeliveryRiskScene deliverable="DEL · Homepage Concept v2" />}

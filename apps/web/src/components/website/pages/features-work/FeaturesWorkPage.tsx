@@ -29,6 +29,7 @@ import {
 } from './scenes';
 import './features-work.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { CompareLinks } from '../alternatives/CompareLinks';
 
 /**
  * Features · Work, requests & projects (`/features/work`, Figma 03-features-work, SITE-SPEC
@@ -451,6 +452,8 @@ export function FeaturesWorkPage() {
       </WebSection>
 
       {/* 9 · CTA band (footer comes from the website chrome) */}
+      <CompareLinks topic="features-work" />
+
       <CtaBand
         title={t('FeaturesWorkPage.ctaTitle')}
         lede={t('FeaturesWorkPage.ctaLede')}

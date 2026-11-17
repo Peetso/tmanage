@@ -50,7 +50,7 @@ function alternativeData(context: PageContext, slug: string): JsonLd[] {
       about: ['TManage', name],
       dateModified: ALTERNATIVES_UPDATED_ON,
     }),
-    faqPage({ language, url, items: copy.faq(name, page.entry.workWord) }),
+    faqPage({ language, url, items: copy.faq(name, page.entry.workWord, page.fit) }),
   ];
 }
 

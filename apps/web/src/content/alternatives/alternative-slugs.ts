@@ -5,7 +5,26 @@
  * this list, so the entries stay out of every public page's bundle; `alternative-pages.test.tsx`
  * keeps it equal to the slugs of `ALTERNATIVE_ENTRIES`, in the same order.
  */
-export const ALTERNATIVE_SLUGS = ['basecamp', 'monday', 'clickup', 'asana', 'trello'] as const;
+export const ALTERNATIVE_SLUGS = [
+  'basecamp',
+  'monday',
+  'clickup',
+  'asana',
+  'trello',
+  'wrike',
+  'teamwork',
+  'notion',
+  'jira',
+  'zoho-projects',
+  'productive',
+  'scoro',
+  'accelo',
+  'bonsai',
+  'plutio',
+  'suitedash',
+  'moxo',
+  'assembly',
+] as const;
 
 export type AlternativeSlug = (typeof ALTERNATIVE_SLUGS)[number];
 

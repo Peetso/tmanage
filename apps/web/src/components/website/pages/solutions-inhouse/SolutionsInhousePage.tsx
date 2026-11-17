@@ -14,6 +14,7 @@ import {
 import './solutions-inhouse.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 import { useT } from '../../../../lib/i18n/use-t';
+import { CompareLinks } from '../alternatives/CompareLinks';
 
 /**
  * Solutions · In-house teams — `/solutions/in-house`, built to the approved design
@@ -284,6 +285,8 @@ export function SolutionsInhousePage() {
           </dl>
         </figure>
       </WebSection>
+
+      <CompareLinks topic="solutions-in-house" />
 
       {/* CTA band */}
       <section className="tm-web-cta-section tm-inh-cta" aria-labelledby="inh-cta-title">
