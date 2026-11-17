@@ -38,6 +38,7 @@ import {
   microsoftErrorOf,
   useMicrosoftAvailability,
 } from './MicrosoftSignInButton';
+import { InAppBrowserNotice, useInAppBrowser } from './InAppBrowserNotice';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { refusalLine } from '../../lib/api/auth-refusal';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -192,6 +193,8 @@ export function SignInScreen({
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   // 51-05 "Continue with Microsoft": the same, beside Google.
   const microsoft = useMicrosoftAvailability(api);
+  // LANDFIX: inside Facebook/Instagram/TikTok webviews the providers refuse the sign-in.
+  const inAppBrowser = useInAppBrowser();
   const [microsoftError, setMicrosoftError] = useState<readonly [string, string] | undefined>(
     undefined,
   );
@@ -413,7 +416,7 @@ export function SignInScreen({
         </InlineAlert>
       ) : null}
 
-      {google || microsoft ? (
+      {!inAppBrowser.inApp && (google || microsoft) ? (
         <>
           <div className="tm-id-methods">
             {google ? <GoogleSignInButton api={api} input={() => ({ intent: 'sign-in' })} /> : null}
@@ -495,6 +498,14 @@ export function SignInScreen({
           </div>
         </fieldset>
       </form>
+
+      {inAppBrowser.inApp ? (
+        <InAppBrowserNotice
+          google={Boolean(google)}
+          microsoft={Boolean(microsoft)}
+          android={inAppBrowser.android}
+        />
+      ) : null}
 
       {signUpOffered ? (
         <p className="tm-id-lede">

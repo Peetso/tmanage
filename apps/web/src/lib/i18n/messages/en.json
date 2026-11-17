@@ -1,4 +1,11 @@
 {
+  "InAppBrowser.noticeGoogle": "To continue with Google, open this page in your browser.",
+  "InAppBrowser.noticeMicrosoft": "To continue with Microsoft, open this page in your browser.",
+  "InAppBrowser.noticeBoth": "To continue with Google or Microsoft, open this page in your browser.",
+  "InAppBrowser.copyLink": "Copy link",
+  "InAppBrowser.copied": "Link copied",
+  "InAppBrowser.copyManual": "Copy this address into your browser:",
+  "InAppBrowser.openInBrowser": "Open in browser",
   "displayPreferences.title": "Display preferences",
   "displayPreferences.description": "Theme, density, locale, timezone and date format — saved to your account for this studio.",
   "displayPreferences.sectionDisplay": "Display",

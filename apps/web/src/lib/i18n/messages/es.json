@@ -1,4 +1,11 @@
 {
+  "InAppBrowser.noticeGoogle": "Para continuar con Google, abre esta página en tu navegador.",
+  "InAppBrowser.noticeMicrosoft": "Para continuar con Microsoft, abre esta página en tu navegador.",
+  "InAppBrowser.noticeBoth": "Para continuar con Google o Microsoft, abre esta página en tu navegador.",
+  "InAppBrowser.copyLink": "Copiar enlace",
+  "InAppBrowser.copied": "Enlace copiado",
+  "InAppBrowser.copyManual": "Copia esta dirección en tu navegador:",
+  "InAppBrowser.openInBrowser": "Abrir en el navegador",
   "IntegrationDirectoryScreen.lede": "Conecta las apps que tu equipo ya usa. La mayoría con un clic; Jira pide una vez una clave de la app. Puedes desconectarlas cuando quieras.",
   "IntegrationDirectoryScreen.scopePersonalFigma": "Solo para ti: tu propia cuenta de Figma",
   "IntegrationDirectoryScreen.askAdmin": "Un propietario o administrador lo conecta para toda la empresa.",

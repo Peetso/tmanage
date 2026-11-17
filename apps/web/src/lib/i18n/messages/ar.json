@@ -1,4 +1,11 @@
 {
+  "InAppBrowser.noticeGoogle": "للمتابعة باستخدام Google، افتح هذه الصفحة في متصفحك.",
+  "InAppBrowser.noticeMicrosoft": "للمتابعة باستخدام Microsoft، افتح هذه الصفحة في متصفحك.",
+  "InAppBrowser.noticeBoth": "للمتابعة باستخدام Google أو Microsoft، افتح هذه الصفحة في متصفحك.",
+  "InAppBrowser.copyLink": "نسخ الرابط",
+  "InAppBrowser.copied": "تم نسخ الرابط",
+  "InAppBrowser.copyManual": "انسخ هذا العنوان في متصفحك:",
+  "InAppBrowser.openInBrowser": "افتح في المتصفح",
   "displayPreferences.title": "تفضيلات العرض",
   "displayPreferences.description": "المظهر، وتباعد العناصر على الشاشة، واللغة، والمنطقة الزمنية، وشكل التاريخ — تُحفظ في حسابك داخل هذا الاستوديو.",
   "displayPreferences.sectionDisplay": "العرض",

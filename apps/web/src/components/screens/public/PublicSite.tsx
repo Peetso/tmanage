@@ -7,6 +7,7 @@ import { Wordmark } from '../../brand/Wordmark';
 import { useInWebsiteChrome } from '../../website/WebsiteChrome';
 import type { MessageKey } from '../../../lib/i18n/t';
 import { useT } from '../../../lib/i18n/use-t';
+import { SIGN_UP_HREF } from '../../../lib/public-signup';
 import '../../../styles/screens/public.css';
 
 /**
@@ -106,7 +107,7 @@ export function PublicPage({
                 <Link href="/sign-in" className="tm-pub__signin">
                   {t('PublicSite.signIn')}
                 </Link>
-                <OrbLink href="/sign-in">{t('PublicSite.startFree')}</OrbLink>
+                <OrbLink href={SIGN_UP_HREF}>{t('PublicSite.startFree')}</OrbLink>
               </div>
             </header>
           )}

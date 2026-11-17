@@ -1,4 +1,11 @@
 {
+  "InAppBrowser.noticeGoogle": "Google کے ساتھ جاری رکھنے کے لیے یہ صفحہ اپنے براؤزر میں کھولیں۔",
+  "InAppBrowser.noticeMicrosoft": "Microsoft کے ساتھ جاری رکھنے کے لیے یہ صفحہ اپنے براؤزر میں کھولیں۔",
+  "InAppBrowser.noticeBoth": "Google یا Microsoft کے ساتھ جاری رکھنے کے لیے یہ صفحہ اپنے براؤزر میں کھولیں۔",
+  "InAppBrowser.copyLink": "لنک کاپی کریں",
+  "InAppBrowser.copied": "لنک کاپی ہو گیا",
+  "InAppBrowser.copyManual": "یہ پتہ اپنے براؤزر میں کاپی کریں:",
+  "InAppBrowser.openInBrowser": "براؤزر میں کھولیں",
   "displayPreferences.title": "ڈسپلے کی ترجیحات",
   "displayPreferences.description": "تھیم، کثافت، زبان، ٹائم زون اور تاریخ کا انداز — اس اسٹوڈیو کے لیے آپ کے اکاؤنٹ میں محفوظ۔",
   "displayPreferences.sectionDisplay": "ڈسپلے",

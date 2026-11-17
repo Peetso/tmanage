@@ -1,4 +1,11 @@
 {
+  "InAppBrowser.noticeGoogle": "如需使用 Google 继续，请在浏览器中打开此页面。",
+  "InAppBrowser.noticeMicrosoft": "如需使用 Microsoft 继续，请在浏览器中打开此页面。",
+  "InAppBrowser.noticeBoth": "如需使用 Google 或 Microsoft 继续，请在浏览器中打开此页面。",
+  "InAppBrowser.copyLink": "复制链接",
+  "InAppBrowser.copied": "链接已复制",
+  "InAppBrowser.copyManual": "请将此地址复制到浏览器中：",
+  "InAppBrowser.openInBrowser": "在浏览器中打开",
   "IntegrationDirectoryScreen.lede": "连接你的团队已经在用的应用。大多数一键即可连接；Jira 需要你提供一次应用里的密钥。你可以随时断开连接。",
   "IntegrationDirectoryScreen.scopePersonalFigma": "仅限你本人：你自己的 Figma 账号",
   "IntegrationDirectoryScreen.askAdmin": "由所有者或管理员为整个公司连接。",

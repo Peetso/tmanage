@@ -1,5 +1,6 @@
 import type { MessageKey } from '../../lib/i18n/t';
 import type { WebIconName } from './WebIcon';
+import { SIGN_UP_HREF } from '../../lib/public-signup';
 
 /**
  * The website's navigation content — one source for the desktop mega menus, the mobile drawer
@@ -279,7 +280,7 @@ export const NAV_ENTRIES: readonly WebNavEntry[] = [
 export const NAV_ACTIONS = {
   signIn: { label: 'SiteNav.signIn', href: '/sign-in' },
   demo: { label: 'SiteNav.bookDemo', href: '/contact' },
-  start: { label: 'SiteNav.startFree', href: '/sign-in' },
+  start: { label: 'SiteNav.startFree', href: SIGN_UP_HREF },
 } as const;
 
 export interface WebFooterColumn {
