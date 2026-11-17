@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, Select } from '@tmanage/ui';
+import { Button, Field, InlineAlert, Select, Switch } from '@tmanage/ui';
 import { apiBaseUrl } from '../../../lib/api/browser-client';
 import type { ApiClient } from '../../../lib/api/client';
 import { useDescribeApiError } from '../../../lib/api/describe-error';
@@ -22,6 +22,7 @@ import {
   previewPayment,
 } from './InvoiceFormRules';
 import { InvoiceStateWord } from './InvoiceStateWord';
+import '../../../styles/screens/finance-invoice-editor.css';
 
 interface ActionProps {
   readonly api: ApiClient;
@@ -74,7 +75,8 @@ export function InvoicePrintLink({
 
 /**
  * **Send invoice** (52-09) — a draft only. Issues the number and e-mails each recipient the link to
- * the invoice (`POST …/send`, `finance.manage`). One idempotency key per attempt makes a retry after
+ * the invoice (`POST …/send`, `finance.manage`), with the invoice attached as a PDF unless the
+ * switch is turned off (INVMAIL `attachPdf`). One idempotency key per attempt makes a retry after
  * a lost answer return the first send; above the organization's threshold the API asks for a fresh
  * password and the refusal is shown as a sentence.
  */
@@ -84,6 +86,7 @@ export function InvoiceSendCard({ api, organizationSlug, invoice, apiOrigin }: A
   const remember = useRemember(organizationSlug);
   const [to, setTo] = useState('');
   const [message, setMessage] = useState('');
+  const [attachPdf, setAttachPdf] = useState(true);
   const [problem, setProblem] = useState(false);
   const [attemptKey, setAttemptKey] = useState<string>(() => crypto.randomUUID());
 
@@ -93,7 +96,7 @@ export function InvoiceSendCard({ api, organizationSlug, invoice, apiOrigin }: A
         api,
         organizationSlug,
         invoice.id,
-        { to: recipients, message: message.trim() === '' ? null : message.trim() },
+        { to: recipients, message: message.trim() === '' ? null : message.trim(), attachPdf },
         attemptKey,
       ),
     onSuccess: (sent) => {
@@ -134,14 +137,25 @@ export function InvoiceSendCard({ api, organizationSlug, invoice, apiOrigin }: A
         maxLength={2000}
         onChange={(event) => setMessage(event.target.value)}
       />
+      <Switch
+        className="tm-inv-attach"
+        label={tOr('InvoiceSend.attachPdf', 'Attach the invoice as a PDF')}
+        hint={
+          attachPdf
+            ? tOr(
+                'InvoiceSend.attachPdfOn',
+                'The e-mail carries the PDF and a link to the invoice.',
+              )
+            : tOr('InvoiceSend.attachPdfOff', 'The e-mail carries a link to the invoice only.')
+        }
+        checked={attachPdf}
+        onChange={(event) => setAttachPdf(event.target.checked)}
+      />
       <InvoicePrintLink
         organizationSlug={organizationSlug}
         invoice={invoice}
         apiOrigin={apiOrigin}
       />
-      <p className="tm-fin-muted">
-        {tOr('InvoiceSend.mailNote', 'The e-mail carries a link to the invoice.')}
-      </p>
       {invoice.lines.length === 0 ? (
         <InlineAlert tone="neutral">
           {tOr('InvoiceSend.needsLines', 'Add at least one line before sending.')}

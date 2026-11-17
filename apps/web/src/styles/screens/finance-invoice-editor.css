@@ -49,3 +49,12 @@
     grid-column: 1 / -1;
   }
 }
+
+/* INVPDFUI — the send card's attach switch: a 44 px row, its helper 4 px under it. */
+.tm-inv-attach {
+  gap: var(--s1);
+}
+
+.tm-inv-attach .tm-choice__row {
+  min-block-size: 44px;
+}

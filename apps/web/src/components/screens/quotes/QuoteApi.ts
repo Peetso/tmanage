@@ -152,6 +152,11 @@ export async function sendQuote(
   return data;
 }
 
+/** 52-10 — the quote as a PDF in its own language (`project.manage`), relative to the API origin. */
+export function quotePdfPath(organizationSlug: string, quoteId: string): string {
+  return `${base(organizationSlug)}/${encodeURIComponent(quoteId)}/pdf`;
+}
+
 // ── the client's side: the quote link ──────────────────────────────────────
 
 /** The client-safe projection the `quote` link target shows: no ids, no internal notes. */

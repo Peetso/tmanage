@@ -10,9 +10,10 @@ import { useDescribeApiError } from '../../../lib/api/describe-error';
 import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useTOr } from '../../../lib/i18n/use-t-or';
+import { DocumentPdfButton, DocumentPdfFailure, useDocumentPdf } from './DocumentPdf';
 import { FinanceReportSectionTabs } from './FinanceReportSectionTabs';
 import { InvoicePaymentCard, InvoicePrintLink, InvoiceSendCard } from './InvoiceActions';
-import { getClientInvoice } from './InvoiceApi';
+import { getClientInvoice, invoicePdfPath } from './InvoiceApi';
 import { invoiceMayTakePayment } from './InvoiceFormRules';
 import { invoiceCapsule, invoiceStateKey } from './InvoiceRules';
 import { InvoiceStateWord, useClientNames } from './InvoiceStateWord';
@@ -44,6 +45,7 @@ export function InvoiceDetailScreen({
   const describe = useDescribeApiError();
   const { money, day } = useDisplayFormatters();
   const clientNames = useClientNames(api, organizationSlug);
+  const pdf = useDocumentPdf();
 
   const invoice = useQuery({
     queryKey: ['client-invoice', organizationSlug, invoiceId],
@@ -63,6 +65,13 @@ export function InvoiceDetailScreen({
           <Link className="tm-chip" href={`/${organizationSlug}/finance/invoices`}>
             {tOr('InvoiceDetail.back', 'All invoices')}
           </Link>
+          {data ? (
+            <DocumentPdfButton
+              pdf={pdf}
+              path={invoicePdfPath(organizationSlug, invoiceId)}
+              fileName={`${data.number ?? 'invoice-draft'}.pdf`}
+            />
+          ) : null}
           {data?.state === 'draft' ? (
             <Link
               className="tm-button tm-button--ink"
@@ -75,6 +84,7 @@ export function InvoiceDetailScreen({
       }
     >
       <div className="tm-stack">
+        <DocumentPdfFailure pdf={pdf} />
         <FinanceReportSectionTabs organizationSlug={organizationSlug} current="invoices" />
 
         {invoice.isPending ? (

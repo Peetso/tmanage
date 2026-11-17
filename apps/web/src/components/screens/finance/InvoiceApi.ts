@@ -224,6 +224,13 @@ export async function pullInvoiceLines(
   return data;
 }
 
+export interface InvoiceSendBody {
+  readonly to: readonly string[];
+  readonly message: string | null;
+  /** INVMAIL — the mail also carries the issued invoice as a PDF; the link is there either way. */
+  readonly attachPdf: boolean;
+}
+
 /**
  * Issues the draft and e-mails each recipient the link to the invoice. The same `idempotencyKey`
  * makes a retry answer the first send instead of a 409.
@@ -232,7 +239,7 @@ export async function sendClientInvoice(
   client: ApiClient,
   organizationSlug: string,
   invoiceId: string,
-  body: { readonly to: readonly string[]; readonly message: string | null },
+  body: InvoiceSendBody,
   idempotencyKey: string,
 ): Promise<ClientInvoiceDocument> {
   const { data } = await client.request<ClientInvoiceDocument>({
@@ -256,6 +263,11 @@ export async function recordInvoicePayment(
     body,
   });
   return data;
+}
+
+/** 52-10 — the invoice as a PDF in its own language (`finance.view`), relative to the API origin. */
+export function invoicePdfPath(organizationSlug: string, invoiceId: string): string {
+  return `${base(organizationSlug)}/${encodeURIComponent(invoiceId)}/pdf`;
 }
 
 /** The API's HTML print view (A4, AR/EN) — "Save as PDF" from the browser's print dialog. */
