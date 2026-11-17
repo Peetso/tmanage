@@ -16,6 +16,7 @@ import type { TenantContext } from '../../common/database/tenant-context.js';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { TIME_MANAGE_ANY, TIME_TRACK_OWN } from './time-capabilities.js';
 import type { TeamWeekView, TimesheetsService, TimesheetView } from './timesheets.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const TIMESHEETS_SERVICE = Symbol.for('tmanage.TimesheetsService');
 
@@ -36,6 +37,7 @@ const CSV_CONTENT_TYPE = 'text/csv; charset=utf-8';
  * stand on track-own here because a member edits their own week; the service lets a manager edit
  * somebody else's only when they hold TIME_MANAGE_ANY. Org-internal: no portal or public route.
  */
+@RequireFeature('time_tracking')
 @Controller('v1/organizations/:orgSlug/time/timesheets')
 export class TimesheetsController {
   constructor(@Inject(TIMESHEETS_SERVICE) private readonly service: TimesheetsService) {}

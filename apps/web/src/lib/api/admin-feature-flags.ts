@@ -1,3 +1,4 @@
+import type { MessageKey } from '../i18n/t';
 import type { ApiClient } from './client';
 
 /**
@@ -25,6 +26,17 @@ export const OPTIONAL_MODULE_FLAGS = [
   'client_portal',
   'billing',
   'copilot',
+  // Plan 52 rollout flags (52-24): the server refuses a gated route with 404 while one is off.
+  'time_tracking',
+  'finance_rates_budgets',
+  'expenses',
+  'quotes',
+  'client_invoicing',
+  'einvoicing_ksa',
+  'finance_reports',
+  'proofing',
+  'approval_links',
+  'public_forms',
 ] as const;
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
 
@@ -44,7 +56,31 @@ export const DEFAULT_MODULE_ENABLED: Record<OptionalModuleFlag, boolean> = {
   client_portal: true,
   billing: true,
   copilot: false,
+  time_tracking: true,
+  finance_rates_budgets: true,
+  expenses: true,
+  quotes: true,
+  client_invoicing: true,
+  einvoicing_ksa: true,
+  finance_reports: true,
+  proofing: true,
+  approval_links: true,
+  public_forms: true,
 };
+
+/** The plan-52 rollout flags' plain names, shared by the org Modules screen and the platform screen. */
+export const PLAN_52_FLAG_LABELS = {
+  time_tracking: 'FeatureFlags.timeTracking',
+  finance_rates_budgets: 'FeatureFlags.financeRatesBudgets',
+  expenses: 'FeatureFlags.expenses',
+  quotes: 'FeatureFlags.quotes',
+  client_invoicing: 'FeatureFlags.clientInvoicing',
+  einvoicing_ksa: 'FeatureFlags.einvoicingKsa',
+  finance_reports: 'FeatureFlags.financeReports',
+  proofing: 'FeatureFlags.proofing',
+  approval_links: 'FeatureFlags.approvalLinks',
+  public_forms: 'FeatureFlags.publicForms',
+} as const satisfies Partial<Record<OptionalModuleFlag, MessageKey>>;
 
 /** One flag's admin projection: its key, enabled state, and who/when last changed it. */
 export interface FeatureFlagAdminView {

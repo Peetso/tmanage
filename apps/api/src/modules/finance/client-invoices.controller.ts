@@ -33,6 +33,7 @@ import type {
   InvoiceView,
   PullResult,
 } from './client-invoices.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const CLIENT_INVOICES_SERVICE = Symbol.for('tmanage.ClientInvoicesService');
 
@@ -45,6 +46,7 @@ export const CLIENT_INVOICES_SERVICE = Symbol.for('tmanage.ClientInvoicesService
  * 52-28 (R19-a): `PATCH …/label` (draft only) and `POST …/tax-registration` (any state but void)
  * need `finance.manage`; a client principal gets the 404 every org route gives it.
  */
+@RequireFeature('client_invoicing')
 @Controller('v1/organizations/:orgSlug')
 export class ClientInvoicesController {
   constructor(@Inject(CLIENT_INVOICES_SERVICE) private readonly service: ClientInvoicesService) {}

@@ -9,6 +9,7 @@ import {
 } from '../../common/http/decorators.js';
 import type { AuthenticatedSession } from '../identity/session.service.js';
 import type { CertificateStatusView, EinvoiceSigningService } from './einvoice-signing.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const EINVOICE_SIGNING_SERVICE = Symbol.for('tmanage.EinvoiceSigningService');
 
@@ -27,6 +28,7 @@ export const EINVOICE_SIGNING_SERVICE = Symbol.for('tmanage.EinvoiceSigningServi
  * The PUT body's two fields are redacted from logs by name (`common/observability/redact.ts`).
  * PUT and DELETE are NEVER AI tools; the GET is a status-only read op.
  */
+@RequireFeature('einvoicing_ksa')
 @Controller('v1/organizations/:orgSlug/finance/einvoicing')
 export class EinvoicingCertificateController {
   constructor(@Inject(EINVOICE_SIGNING_SERVICE) private readonly service: EinvoiceSigningService) {}

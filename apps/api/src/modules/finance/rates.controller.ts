@@ -20,6 +20,7 @@ import type {
   RatesService,
   ResolvedRateView,
 } from './rates.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const RATES_SERVICE = Symbol.for('tmanage.RatesService');
 
@@ -30,6 +31,7 @@ export const RATES_SERVICE = Symbol.for('tmanage.RatesService');
  * `rate.view_cost` (52-23 rule — no new capability key here), so a Manager holding only
  * `finance.view` never sees a cost figure. The service asks the same capability again.
  */
+@RequireFeature('finance_rates_budgets')
 @Controller('v1/organizations/:orgSlug/finance')
 export class RatesController {
   constructor(@Inject(RATES_SERVICE) private readonly service: RatesService) {}

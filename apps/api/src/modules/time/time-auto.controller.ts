@@ -20,6 +20,7 @@ import type {
   TimeAutoService,
 } from './time-auto.service.js';
 import type { TeamDayView, TeamTimeView, TimeTeamService } from './time-team.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const TIME_AUTO_SERVICE = Symbol.for('tmanage.TimeAutoService');
 export const TIME_TEAM_SERVICE = Symbol.for('tmanage.TimeTeamService');
@@ -30,6 +31,7 @@ export const TIME_TEAM_SERVICE = Symbol.for('tmanage.TimeTeamService');
  * and never reads a person or a time from the body. The heartbeat is rate-limited per member.
  * `PATCH policy` is the company owner's (checked in the service, audited).
  */
+@RequireFeature('time_tracking')
 @Controller('v1/organizations/:orgSlug/time/auto')
 export class TimeAutoController {
   constructor(@Inject(TIME_AUTO_SERVICE) private readonly service: TimeAutoService) {}
@@ -99,6 +101,7 @@ export class TimeAutoController {
  * FIX-2026-11-10 — `/v1/organizations/:orgSlug/time/team`: everyone's tracked time, for holders of
  * `time.view_team` (owner, admins, and people an admin authorized). Read-only.
  */
+@RequireFeature('time_tracking')
 @Controller('v1/organizations/:orgSlug/time/team')
 export class TimeTeamController {
   constructor(@Inject(TIME_TEAM_SERVICE) private readonly service: TimeTeamService) {}

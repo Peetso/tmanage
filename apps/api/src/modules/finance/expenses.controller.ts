@@ -16,6 +16,7 @@ import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import type { ExpensePage, ExpenseView, ExpensesService } from './expenses.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 interface HeaderWriter {
   header(name: string, value: string): unknown;
@@ -30,6 +31,7 @@ export const EXPENSES_SERVICE = Symbol.for('tmanage.ExpensesService');
  * `expense.view_all` and the export → `finance.manage`. The service re-checks each against the
  * row. Org-internal: no portal route, so cost and markup never reach a client principal.
  */
+@RequireFeature('expenses')
 @Controller('v1/organizations/:orgSlug/expenses')
 export class ExpensesController {
   constructor(@Inject(EXPENSES_SERVICE) private readonly service: ExpensesService) {}

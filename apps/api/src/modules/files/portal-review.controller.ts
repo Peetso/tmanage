@@ -25,6 +25,7 @@ import type {
   ReviewThreadListView,
   ReviewThreadView,
 } from './review.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 /**
  * R4 slice 8 — the client's twins of the proofing viewer's thread routes, under `/portal`.
@@ -51,6 +52,7 @@ function requireId(value: unknown, field: string): asserts value is string {
   }
 }
 
+@RequireFeature('proofing')
 @Controller('v1/organizations/:orgSlug/portal/files/:fileId/review')
 export class PortalFileReviewController {
   constructor(@Inject(REVIEW_SERVICE) private readonly review: ReviewService) {}
@@ -83,6 +85,7 @@ export class PortalFileReviewController {
   }
 }
 
+@RequireFeature('proofing')
 @Controller('v1/organizations/:orgSlug/portal/review')
 export class PortalReviewThreadsController {
   constructor(@Inject(REVIEW_SERVICE) private readonly review: ReviewService) {}
@@ -167,6 +170,7 @@ export class PortalReviewThreadsController {
   }
 }
 
+@RequireFeature('proofing')
 @Controller('v1/organizations/:orgSlug/portal/projects/:projectId/review')
 export class PortalReviewMentionCandidatesController {
   constructor(@Inject(REVIEW_SERVICE) private readonly review: ReviewService) {}

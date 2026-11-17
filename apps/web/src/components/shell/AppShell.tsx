@@ -34,6 +34,7 @@ import { HelpContextLink } from '../help/HelpContextLink';
 import { SupportLauncher } from '../support/SupportLauncher';
 import { AutoTimerStatus } from '../time/AutoTimerStatus';
 import { RunningTimerPill } from '../time/TimerControls';
+import { FeatureOn } from './FeatureOn';
 import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
 import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
@@ -333,10 +334,12 @@ export function AppShell({
                       {/* 52-01: the running-timer pill, only while a timer runs (needs the
                           query client). */}
                       {queryClient ? (
-                        <RunningTimerPill organizationSlug={organizationSlug} />
+                        <FeatureOn organizationSlug={organizationSlug} flag="time_tracking">
+                          <RunningTimerPill organizationSlug={organizationSlug} />
+                          {/* FIX-2026-11-10: the automatic timer (whole-computer activity). */}
+                          <AutoTimerStatus organizationSlug={organizationSlug} />
+                        </FeatureOn>
                       ) : null}
-                      {/* FIX-2026-11-10: the automatic timer (whole-computer activity). */}
-                      {queryClient ? <AutoTimerStatus organizationSlug={organizationSlug} /> : null}
                       {/* Row 55-11: the getting-started checklist, until dismissed or done. */}
                       {queryClient ? (
                         <GettingStartedLauncher organizationSlug={organizationSlug} />

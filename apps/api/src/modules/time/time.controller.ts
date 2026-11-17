@@ -9,6 +9,7 @@ import type {
   TimeService,
   TimerStateView,
 } from './time.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const TIME_SERVICE = Symbol.for('tmanage.TimeService');
 
@@ -20,6 +21,7 @@ export const TIME_SERVICE = Symbol.for('tmanage.TimeService');
  * route. `PATCH rounding` is the company owner's (`org.manage` here, the owner checked in the
  * service, audited).
  */
+@RequireFeature('time_tracking')
 @Controller('v1/organizations/:orgSlug/time')
 export class TimeController {
   constructor(@Inject(TIME_SERVICE) private readonly service: TimeService) {}

@@ -20,6 +20,7 @@ import type {
   PortalInvoiceSummary,
   PortalInvoiceView,
 } from '../finance/client-invoices.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 /**
  * 52-09 — the client's view of its invoices, on the `/portal` path (registered in the finance
@@ -37,6 +38,7 @@ import type {
  * language), `taxNotice` (the "not a tax invoice" line when it went out with the document, else
  * null) and `taxRegistrationRef` — never the rule text or the organization's VAT status.
  */
+@RequireFeature('client_invoicing')
 @Controller('v1/organizations/:orgSlug')
 export class PortalInvoicesController {
   constructor(@Inject(CLIENT_INVOICES_SERVICE) private readonly invoices: ClientInvoicesService) {}

@@ -20,6 +20,7 @@ import {
 import type { AuthenticatedSession } from '../identity/session.service.js';
 import { Throttle } from '../rate-limits/throttle-policies.js';
 import type { FinanceExportView, FinanceExportsService } from './finance-exports.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const FINANCE_EXPORTS_SERVICE = Symbol.for('tmanage.FinanceExportsService');
 
@@ -38,6 +39,7 @@ interface HeaderWriter {
  * the bytes leave (fails closed), served `attachment`, `nosniff`, `private, no-store`.
  * Org-internal; the POST is never an AI tool (NEVER, `finance_settings`).
  */
+@RequireFeature('client_invoicing')
 @Controller('v1/organizations/:orgSlug/finance/exports')
 export class FinanceExportsController {
   constructor(@Inject(FINANCE_EXPORTS_SERVICE) private readonly service: FinanceExportsService) {}

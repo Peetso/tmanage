@@ -20,6 +20,7 @@ import type {
   UnbilledView,
   UtilisationView,
 } from './finance-reports.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const FINANCE_REPORTS_SERVICE = Symbol.for('tmanage.FinanceReportsService');
 
@@ -36,6 +37,7 @@ const CSV_CONTENT_TYPE = 'text/csv; charset=utf-8';
  * (`orgSlug`) by the durable throttle and held to once per 5 minutes by the service from the
  * newest `computed_at`.
  */
+@RequireFeature('finance_reports')
 @Controller('v1/organizations/:orgSlug/insights/finance')
 export class FinanceReportsController {
   constructor(@Inject(FINANCE_REPORTS_SERVICE) private readonly service: FinanceReportsService) {}

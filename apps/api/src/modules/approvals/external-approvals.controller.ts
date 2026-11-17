@@ -7,6 +7,7 @@ import type {
   ExternalApproverView,
   SentExternalApproval,
 } from './external-approvals.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const EXTERNAL_APPROVALS_SERVICE = Symbol.for('tmanage.ExternalApprovalsService');
 
@@ -19,6 +20,7 @@ export const EXTERNAL_APPROVALS_SERVICE = Symbol.for('tmanage.ExternalApprovalsS
  * service. NEVER for the AI connector: sending hands an outsider access, which an AI never issues.
  * The outsider's side is the 56-07 `v1/public/links/:token` routes (open, code, decision).
  */
+@RequireFeature('approval_links')
 @Controller('v1/organizations/:orgSlug/deliverables/:deliverableId/versions/:versionId')
 export class ExternalApprovalsController {
   constructor(

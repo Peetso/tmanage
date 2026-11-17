@@ -4,6 +4,7 @@ import type { WorkFormRow } from '../../common/database/schema.js';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import type { FeatureRequirement } from '../admin/feature-gate.js';
 import { FORM_ATTACHMENT_LIMIT, FORM_ATTACHMENT_MAX_FILES } from '../files/purpose-policy.js';
 import type { PublicFormUploadTarget } from '../files/files.service.js';
 import { constantTimeEquals } from '../identity/session-token.js';
@@ -146,6 +147,8 @@ export class PublicFormAttachmentGate {
     private readonly repository: PublicFormsRepository,
     private readonly scanner: ScannerPresence | undefined,
     private readonly secret: string,
+    /** 52-24: the rollout-flag check (`feature-gate.ts`); both modules wire it. */
+    private readonly requireFeature: FeatureRequirement | null = null,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -165,6 +168,9 @@ export class PublicFormAttachmentGate {
       correlationId,
       policyVersion: SERVICE_POLICY,
     });
+    // 52-24: the `public_forms` rollout flag closes every anonymous door (definition, upload token,
+    // uploads, submission) with the same 404 as an unknown slug.
+    await this.requireFeature?.(context, 'public_forms');
     const form = await this.database.read(context, (runner) =>
       this.repository.findForm(runner, context, found.id),
     );

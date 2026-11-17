@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import {
   DEFAULT_MODULE_ENABLED,
   OPTIONAL_MODULE_FLAGS,
+  PLAN_52_FLAG_LABELS,
   listFeatureFlags,
   setFeatureFlag,
 } from '../../lib/api/admin-feature-flags';
@@ -59,6 +60,16 @@ export function AdminFeatureFlagsScreen({
     client_portal: t('AdminFeatureFlagsScreen.flagClientPortal'),
     billing: t('AdminFeatureFlagsScreen.flagBilling'),
     copilot: t('AdminFeatureFlagsScreen.flagCopilot'),
+    time_tracking: t(PLAN_52_FLAG_LABELS.time_tracking),
+    finance_rates_budgets: t(PLAN_52_FLAG_LABELS.finance_rates_budgets),
+    expenses: t(PLAN_52_FLAG_LABELS.expenses),
+    quotes: t(PLAN_52_FLAG_LABELS.quotes),
+    client_invoicing: t(PLAN_52_FLAG_LABELS.client_invoicing),
+    einvoicing_ksa: t(PLAN_52_FLAG_LABELS.einvoicing_ksa),
+    finance_reports: t(PLAN_52_FLAG_LABELS.finance_reports),
+    proofing: t(PLAN_52_FLAG_LABELS.proofing),
+    approval_links: t(PLAN_52_FLAG_LABELS.approval_links),
+    public_forms: t(PLAN_52_FLAG_LABELS.public_forms),
   };
 
   /** A short "when last changed" note, or the module's default for a flag never set. */

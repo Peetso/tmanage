@@ -7,6 +7,7 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import { EinvoiceChainRepository } from './einvoice-chain.repository.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export type EinvoiceChainView =
   | {
@@ -43,6 +44,7 @@ export function toChainView(row: EinvoiceChainCheckRow | null): EinvoiceChainVie
  * principal is refused 403 (org-internal). Read-only, `private, no-store`. Holds ids, counts and
  * closed tokens only — never a hash, never an amount.
  */
+@RequireFeature('einvoicing_ksa')
 @Controller('v1/organizations/:orgSlug/finance/einvoicing')
 export class EinvoiceChainController {
   constructor(

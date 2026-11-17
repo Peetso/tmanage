@@ -134,6 +134,7 @@ import { BlockedFilesController } from './blocked-files.controller.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
 import { PublicFormUploadsController } from './public-form-uploads.controller.js';
+import { featureRequirement } from '../admin/feature-gate.js';
 import { PublicFormAttachmentGate } from '../public-forms/public-form-attachments.js';
 import { PUBLIC_FORM_ATTACHMENT_GATE } from '../public-forms/public-forms.controller.js';
 import { PublicFormsRepository } from '../public-forms/public-forms.repository.js';
@@ -713,6 +714,7 @@ export class FilesModule {
           new PublicFormsRepository(),
           malwareScanner,
           config.sessionSecret,
+          featureRequirement(database),
         ),
     };
 

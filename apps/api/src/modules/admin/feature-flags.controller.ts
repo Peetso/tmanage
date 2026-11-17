@@ -22,11 +22,9 @@ import {
   DEFAULT_MODULE_ENABLED,
   OPTIONAL_MODULE_FLAGS,
   isOptionalModuleFlag,
-  resolveFlags,
 } from './feature-flags.service.js';
 import type { OptionalModuleFlag } from './feature-flags.service.js';
-// ---- platform-admin v2 · PA-10 ---- the platform half of the read chain
-import { PlatformFlagsRepository } from '../platform-admin/settings/flags.repository.js';
+import { readResolvedFlags } from './feature-gate.js';
 
 /**
  * Per-org optional-module feature flags (Administration module 18, x278).
@@ -173,21 +171,9 @@ export class FeatureFlagsController {
   @Get()
   @RequireCapability('work.read')
   async resolved(@Ctx() context: TenantContext): Promise<FeatureFlagsResolvedView> {
-    const rows = await this.database.read(context, (runner) => this.flags.list(runner, context));
-    // PA-10: platform override → this row → platform default → code default. Without the
-    // platform tables (a unit harness, a failed read) the org-only result stands.
-    let platform = null;
-    if (typeof this.database.identityRead === 'function') {
-      try {
-        platform = await new PlatformFlagsRepository(this.database).contextFor(
-          context.organizationId,
-          context.correlationId,
-        );
-      } catch {
-        platform = null;
-      }
-    }
-    return { flags: resolveFlags(rows, platform) };
+    // PA-10: platform override → this row → platform default → code default; the same read the
+    // 52-24 route gate uses, so the web and the server can never disagree.
+    return { flags: await readResolvedFlags(this.database, context, this.flags) };
   }
 }
 

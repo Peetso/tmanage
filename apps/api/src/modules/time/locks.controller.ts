@@ -13,6 +13,7 @@ import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import type { TimeLockPage, TimeLockView, TimeLocksService } from './locks.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const TIME_LOCKS_SERVICE = Symbol.for('tmanage.TimeLocksService');
 
@@ -23,6 +24,7 @@ export const TIME_LOCKS_SERVICE = Symbol.for('tmanage.TimeLocksService');
  * stand-in of `time-capabilities.ts`); the service refuses client principals. Org-internal: no
  * portal or public route.
  */
+@RequireFeature('time_tracking')
 @Controller('v1/organizations/:orgSlug/time/locks')
 export class TimeLocksController {
   constructor(@Inject(TIME_LOCKS_SERVICE) private readonly service: TimeLocksService) {}

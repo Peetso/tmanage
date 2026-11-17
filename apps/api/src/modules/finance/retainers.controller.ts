@@ -8,6 +8,7 @@ import type {
   RetainerView,
   RetainersService,
 } from './retainers.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const RETAINERS_SERVICE = Symbol.for('tmanage.RetainersService');
 
@@ -19,6 +20,7 @@ export const RETAINERS_SERVICE = Symbol.for('tmanage.RetainersService');
  * projection in `portal/portal-retainers.controller.ts`. 52-09 is not built, so there is no
  * "Invoice this period" route yet.
  */
+@RequireFeature('finance_rates_budgets')
 @Controller('v1/organizations/:orgSlug')
 export class RetainersController {
   constructor(@Inject(RETAINERS_SERVICE) private readonly service: RetainersService) {}

@@ -28,6 +28,18 @@ export const OPTIONAL_MODULE_FLAGS = [
   // provider-agnostic copilot `ask` route, whose only provider today is the deterministic local
   // stub. Turning it on exposes no paid model; a real provider is Needs-Peter (NS-13).
   'copilot',
+  // Plan 52 (52-24, spec 52 §11.6): the agency money-and-work features, one key per rollout unit.
+  // Each gates its routes on the server (`RequireFeature`, feature-gate.ts); off → the calm 404.
+  'time_tracking',
+  'finance_rates_budgets',
+  'expenses',
+  'quotes',
+  'client_invoicing',
+  'einvoicing_ksa',
+  'finance_reports',
+  'proofing',
+  'approval_links',
+  'public_forms',
 ] as const;
 
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
@@ -49,6 +61,18 @@ export const DEFAULT_MODULE_ENABLED: Record<OptionalModuleFlag, boolean> = {
   client_portal: true,
   billing: true,
   copilot: false,
+  // Plan 52: every wave has passed its gate and is live, so each defaults on (spec 52 §11.6:
+  // "on for new beta orgs once each wave passes its gate"); the platform owner turns one off.
+  time_tracking: true,
+  finance_rates_budgets: true,
+  expenses: true,
+  quotes: true,
+  client_invoicing: true,
+  einvoicing_ksa: true,
+  finance_reports: true,
+  proofing: true,
+  approval_links: true,
+  public_forms: true,
 };
 
 const KNOWN_FLAGS: ReadonlySet<string> = new Set(OPTIONAL_MODULE_FLAGS);

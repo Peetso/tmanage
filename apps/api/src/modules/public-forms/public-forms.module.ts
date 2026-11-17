@@ -17,6 +17,7 @@ import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { WorkItemsService } from '../work/work-items.service.js';
 import { PUBLIC_ABUSE_ASSESS } from '../public-abuse/public-abuse.guard.js';
 import type { AssessPublicWrite } from '../public-abuse/public-abuse.guard.js';
+import { featureRequirement } from '../admin/feature-gate.js';
 import { PublicFormAttachmentGate } from './public-form-attachments.js';
 import {
   PUBLIC_FORM_ATTACHMENT_GATE,
@@ -45,6 +46,7 @@ export class PublicFormsModule {
           new PublicFormsRepository(),
           malwareScanner,
           config.sessionSecret,
+          featureRequirement(database),
         ),
     };
     const service: Provider = {

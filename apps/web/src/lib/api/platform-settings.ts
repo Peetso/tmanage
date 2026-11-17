@@ -89,7 +89,18 @@ export type PlatformFlagKey =
   | 'automations'
   | 'client_portal'
   | 'billing'
-  | 'copilot';
+  | 'copilot'
+  // Plan 52 rollout flags (52-24).
+  | 'time_tracking'
+  | 'finance_rates_budgets'
+  | 'expenses'
+  | 'quotes'
+  | 'client_invoicing'
+  | 'einvoicing_ksa'
+  | 'finance_reports'
+  | 'proofing'
+  | 'approval_links'
+  | 'public_forms';
 export type PlatformFlagRollout = 'everyone' | 'allowlist' | 'percentage';
 
 export interface PlatformFlagView {

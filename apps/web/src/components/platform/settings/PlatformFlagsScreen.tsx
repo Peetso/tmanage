@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, SearchField, Switch, VisuallyHidden } from '@tmanage/ui';
+import { PLAN_52_FLAG_LABELS } from '../../../lib/api/admin-feature-flags';
 import { browserApiClient } from '../../../lib/api/browser-client';
 import type { ApiClient } from '../../../lib/api/client';
 import { ApiRequestError } from '../../../lib/api/errors';
@@ -53,6 +54,7 @@ export const FLAG_LABELS: Record<PlatformFlagKey, MessageKey> = {
   client_portal: 'PlatformSettings.flagClientPortal',
   billing: 'PlatformSettings.flagBilling',
   copilot: 'PlatformSettings.flagCopilot',
+  ...PLAN_52_FLAG_LABELS,
 };
 
 type Filter = 'all' | 'on' | 'off' | 'locked';

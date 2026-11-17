@@ -31,6 +31,7 @@ import type {
 import type { SubmissionView } from './public-forms.service.js';
 import { PUBLIC_FORM_UPLOAD_LIMITS } from './public-form-attachments.js';
 import type { DraftTokenView, PublicFormAttachmentGate } from './public-form-attachments.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const PUBLIC_FORMS_SERVICE = Symbol.for('tmanage.PublicFormsService');
 /** 52-20a. The attachment gate (stateless): built by this module and by the files module. */
@@ -41,6 +42,7 @@ export const PUBLIC_FORM_ATTACHMENT_GATE = Symbol.for('tmanage.PublicFormAttachm
  * The route guard asks the coarse capability; {@link PublicFormsService} resolves the form or
  * submission tenant-scoped first (another organization's id is a 404) and then authorizes again.
  */
+@RequireFeature('public_forms')
 @Controller('v1/organizations/:orgSlug/work-forms')
 export class PublicFormsAdminController {
   constructor(@Inject(PUBLIC_FORMS_SERVICE) private readonly service: PublicFormsService) {}

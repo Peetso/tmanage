@@ -23,6 +23,7 @@ import type {
   QuoteView,
   SentQuote,
 } from './quotes.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 export const QUOTES_SERVICE = Symbol.for('tmanage.QuotesService');
 
@@ -32,6 +33,7 @@ export const QUOTES_SERVICE = Symbol.for('tmanage.QuotesService');
  * loads the quote tenant-scoped (another organization's id is a 404). The outsider side has no
  * route here: it is the 56-07 link (`/v1/public/links/:token`) with the `quote` target adapter.
  */
+@RequireFeature('quotes')
 @Controller('v1/organizations/:orgSlug/quotes')
 export class QuotesController {
   constructor(@Inject(QUOTES_SERVICE) private readonly service: QuotesService) {}
@@ -118,6 +120,7 @@ export class QuotesController {
 }
 
 /** 52-10 — the client's own sent quote as a PDF, in the portal (anything else is a 404). */
+@RequireFeature('quotes')
 @Controller('v1/organizations/:orgSlug/portal/quotes')
 export class PortalQuotesController {
   constructor(@Inject(QUOTES_SERVICE) private readonly service: QuotesService) {}

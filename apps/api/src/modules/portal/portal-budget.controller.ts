@@ -7,6 +7,7 @@ import {
   type BudgetBurnService,
   type PortalBudgetView,
 } from '../projects/budget-burn.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 /**
  * 52-05 (R16-b) — the client's view of a project's budget, on the `/portal` path.
@@ -16,6 +17,7 @@ import {
  * unknown project. The body is the dedicated three-field projection `{percentUsed, remainingHours?,
  * status}` (25 §7): never an amount, a rate, a cost or a minor-unit figure, and never a name.
  */
+@RequireFeature('client_invoicing')
 @Controller('v1/organizations/:orgSlug/portal/projects')
 export class PortalBudgetController {
   constructor(@Inject(BUDGET_BURN_SERVICE) private readonly burns: BudgetBurnService) {}

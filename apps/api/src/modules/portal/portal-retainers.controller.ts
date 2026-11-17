@@ -8,6 +8,7 @@ import type {
   PortalRetainerView,
   RetainersService,
 } from '../finance/retainers.service.js';
+import { RequireFeature } from '../admin/feature-gate.js';
 
 /**
  * 52-06 — the client's view of its retainers, on the `/portal` path (registered in the finance
@@ -19,6 +20,7 @@ import type {
  * allowanceHours, usedHours, remainingHours, renewsOn, entries:[{date, taskTitle, hours}]}` (25 §7):
  * no person, no amount, rate or cost, and an internal item's title reads "Internal work".
  */
+@RequireFeature('client_invoicing')
 @Controller('v1/organizations/:orgSlug/portal/retainers')
 export class PortalRetainersController {
   constructor(@Inject(RETAINERS_SERVICE) private readonly retainers: RetainersService) {}
