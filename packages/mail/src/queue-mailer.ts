@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { authDeadlineMs, laneForTemplate, mailboxForLane } from './lanes.js';
 import type { MailLane, Mailbox } from './lanes.js';
-import type { MailDelivery, Mailer, MailMessage } from './mailer.js';
+import type { MailAttachment, MailDelivery, Mailer, MailMessage } from './mailer.js';
+import { MAX_MAIL_MESSAGE_BYTES, safeAttachment } from './mailer.js';
 
 /**
  * 56-31 — the `Mailer` producers send through once the queue is on: `send` writes one
@@ -53,6 +54,14 @@ interface QueuedPayload {
   readonly html?: string;
   readonly replyTo?: string;
   readonly headers?: Readonly<Record<string, string>>;
+  readonly attachments?: readonly QueuedAttachment[];
+}
+
+/** INVMAIL. An attachment as stored: its content base64-encoded. */
+interface QueuedAttachment {
+  readonly filename: string;
+  readonly contentType: string;
+  readonly contentBase64: string;
 }
 
 export function encodeQueuedMessage(message: MailMessage): string {
@@ -63,8 +72,52 @@ export function encodeQueuedMessage(message: MailMessage): string {
     ...(message.html === undefined ? {} : { html: message.html }),
     ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
     ...(message.headers === undefined ? {} : { headers: { ...message.headers } }),
+    ...(message.attachments === undefined || message.attachments.length === 0
+      ? {}
+      : {
+          attachments: message.attachments.map((attachment) => {
+            const safe = safeAttachment(attachment);
+            return {
+              filename: safe.filename,
+              contentType: safe.contentType,
+              contentBase64: Buffer.from(safe.content).toString('base64'),
+            };
+          }),
+        }),
   };
   return JSON.stringify(payload);
+}
+
+/**
+ * INVMAIL. `message` with `attachment` when the whole message still fits the mailer's limit
+ * (`MAX_MAIL_MESSAGE_BYTES`, measured as stored), else `message` unchanged: the caller's text
+ * carries a link to the same file, so a large file is skipped, never the mail.
+ */
+export function attachIfFits(message: MailMessage, attachment: MailAttachment): MailMessage {
+  const withFile = { ...message, attachments: [...(message.attachments ?? []), attachment] };
+  return Buffer.byteLength(encodeQueuedMessage(withFile), 'utf8') <= MAX_MAIL_MESSAGE_BYTES
+    ? withFile
+    : message;
+}
+
+function decodeAttachments(value: unknown): MailAttachment[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const files: MailAttachment[] = [];
+  for (const item of value as unknown[]) {
+    if (item === null || typeof item !== 'object') continue;
+    const { filename, contentType, contentBase64 } = item as Record<string, unknown>;
+    if (
+      typeof filename !== 'string' ||
+      typeof contentType !== 'string' ||
+      typeof contentBase64 !== 'string'
+    ) {
+      continue;
+    }
+    files.push(
+      safeAttachment({ filename, contentType, content: Buffer.from(contentBase64, 'base64') }),
+    );
+  }
+  return files.length === 0 ? undefined : files;
 }
 
 /** The message back from `payload_json`, or `null` for a stripped or malformed row. */
@@ -78,6 +131,7 @@ export function decodeQueuedMessage(json: string, templateKey: string): MailMess
   if (parsed === null || typeof parsed !== 'object') return null;
   const value = parsed as Record<string, unknown>;
   const { to, subject, text, html, replyTo, headers } = value;
+  const attachments = decodeAttachments(value['attachments']);
   if (typeof to !== 'string' || typeof subject !== 'string' || typeof text !== 'string') {
     return null;
   }
@@ -97,6 +151,7 @@ export function decodeQueuedMessage(json: string, templateKey: string): MailMess
     ...(typeof html === 'string' ? { html } : {}),
     ...(typeof replyTo === 'string' ? { replyTo } : {}),
     ...(headerMap === undefined ? {} : { headers: headerMap }),
+    ...(attachments === undefined ? {} : { attachments }),
   };
 }
 

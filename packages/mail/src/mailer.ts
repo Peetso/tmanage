@@ -51,6 +51,41 @@ export interface MailMessage {
    * `transactional`, never `auth`.
    */
   readonly templateKey?: string;
+  /**
+   * INVMAIL. Files sent with the message (today: an invoice PDF). Every driver passes them
+   * through `safeAttachment`, so a file name never carries a path, quote or line break and the
+   * content type is a plain `type/subtype`.
+   */
+  readonly attachments?: readonly MailAttachment[];
+}
+
+/** INVMAIL. One file attached to a message. */
+export interface MailAttachment {
+  readonly filename: string;
+  readonly contentType: string;
+  readonly content: Uint8Array;
+}
+
+/**
+ * INVMAIL. The largest message the mailer carries: a queued message is stored whole in
+ * `mail_queue.payload_json`, a `TEXT` column (0256), which holds 65,535 bytes. An attachment
+ * travels there base64-encoded, so `attachIfFits` measures the encoded message.
+ */
+export const MAX_MAIL_MESSAGE_BYTES = 65_535;
+
+/** INVMAIL. The attachment with a header-safe file name and content type. */
+export function safeAttachment(attachment: MailAttachment): MailAttachment {
+  const name = attachment.filename
+    .replace(/[^A-Za-z0-9._ -]+/gu, '-')
+    .replace(/^[.\s-]+/u, '')
+    .slice(0, 120)
+    .trim();
+  const type = attachment.contentType.trim().toLowerCase();
+  return {
+    filename: name === '' ? 'attachment' : name,
+    contentType: /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/u.test(type) ? type : 'application/octet-stream',
+    content: attachment.content,
+  };
 }
 
 /** What became of one message: accepted by a server, or printed by the console driver. */

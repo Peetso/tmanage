@@ -23,6 +23,7 @@
  */
 
 export type {
+  MailAttachment,
   MailDelivery,
   MailFromOptions,
   Mailer,
@@ -30,6 +31,7 @@ export type {
   MailReceipt,
   ReceiptMailer,
 } from './mailer.js';
+export { MAX_MAIL_MESSAGE_BYTES, safeAttachment } from './mailer.js';
 export { ConsoleMailer } from './console-mailer.js';
 export { SmtpMailer } from './smtp-mailer.js';
 export type { SmtpMailerOptions } from './smtp-mailer.js';
@@ -72,6 +74,7 @@ export {
 export type { MailLane, Mailbox } from './lanes.js';
 export {
   QueueMailer,
+  attachIfFits,
   decodeQueuedMessage,
   encodeQueuedMessage,
   recipientHash,

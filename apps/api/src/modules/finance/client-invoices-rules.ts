@@ -419,7 +419,7 @@ export function validateSend(raw: unknown): SendInput {
   return {
     to: recipients,
     message: optionalText(body['message'], 'message', MAX_MESSAGE),
-    // 52-10 is not built: accepted and ignored (the mail carries the portal link only).
+    // INVMAIL: the send mail attaches the issued PDF (the portal link stays in the text).
     attachPdf: body['attachPdf'] === true,
   };
 }

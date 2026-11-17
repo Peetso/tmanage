@@ -874,3 +874,63 @@ describe('52-12 Phase-2 signing at send (R22-a)', () => {
     expect(decodeTlv(view.qr!)).toHaveLength(5);
   });
 });
+
+describe('INVMAIL the send mail attaches the issued PDF', () => {
+  type Sent = {
+    attachments?: readonly { filename: string; contentType: string; content: Buffer }[];
+  };
+  /** This harness's billing record leaves optional fields out; a real row has them null. */
+  const printable = (w: ReturnType<typeof world>) => {
+    w.invoice.poNumber = null;
+    w.invoice.contentHash = null;
+    const repo = (w.service as unknown as { repo: Record<string, unknown> }).repo;
+    repo['clientBilling'] = async () => ({
+      id: CLIENT,
+      name: 'Acme',
+      paymentTermsDays: 15,
+      legalNameEn: 'Acme',
+      legalNameAr: null,
+      taxRegistrationNo: null,
+      billingAddressEn: null,
+      billingAddressAr: null,
+      billingEmail: null,
+    });
+  };
+  const mailed = (w: ReturnType<typeof world>) =>
+    (w.mailer.send.mock.calls[0] as unknown[])[0] as Sent;
+
+  it('attaches the PDF of the stored document when the option is on', async () => {
+    const w = world();
+    w.invoice.internalNote = 'margin is thin';
+    printable(w);
+    const body = { to: ['ap@acme.test'], attachPdf: true };
+    await w.service.send(context, owner, w.invoice.id, body, meta);
+    const files = mailed(w).attachments ?? [];
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatchObject({
+      filename: 'invoice-INV-2026-0001.pdf',
+      contentType: 'application/pdf',
+    });
+    expect(Buffer.from(files[0]!.content).subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(Buffer.from(files[0]!.content).toString('latin1')).not.toContain('margin is thin');
+  });
+
+  it('sends no attachment when the option is off', async () => {
+    const w = world();
+    await w.service.send(context, owner, w.invoice.id, { to: ['ap@acme.test'] }, meta);
+    expect(mailed(w).attachments).toBeUndefined();
+  });
+
+  it('never builds one for a draft', async () => {
+    const w = world();
+    printable(w);
+    // The same draft does print (the download previews it), so the null below is the guard.
+    await expect(w.service.pdf(context, owner, w.invoice.id, undefined)).resolves.toBeTruthy();
+    const attach = (
+      w.service as unknown as {
+        pdfAttachment(c: TenantContext, p: Principal, id: string): Promise<unknown>;
+      }
+    ).pdfAttachment.bind(w.service);
+    expect(await attach(context, owner, w.invoice.id)).toBeNull();
+  });
+});

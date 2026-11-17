@@ -7,6 +7,7 @@ import type {
   MailReceipt,
   ReceiptMailer,
 } from './mailer.js';
+import { safeAttachment } from './mailer.js';
 
 /**
  * The `smtp` driver — nodemailer over one configured submission endpoint.
@@ -92,6 +93,18 @@ export class SmtpMailer implements ReceiptMailer {
       ...(message.html === undefined ? {} : { html: message.html }),
       ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
       ...(message.headers === undefined ? {} : { headers: { ...message.headers } }),
+      ...(message.attachments === undefined || message.attachments.length === 0
+        ? {}
+        : {
+            attachments: message.attachments.map((attachment) => {
+              const safe = safeAttachment(attachment);
+              return {
+                filename: safe.filename,
+                contentType: safe.contentType,
+                content: Buffer.from(safe.content),
+              };
+            }),
+          }),
     });
     // `sendMail` resolves once the server accepts the message; a recipient the server
     // refused is in `rejected` without the promise rejecting, and swallowing that would

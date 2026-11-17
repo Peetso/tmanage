@@ -2,9 +2,16 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { QueueMailer, decodeQueuedMessage, recipientHash } from './queue-mailer.js';
+import {
+  QueueMailer,
+  attachIfFits,
+  decodeQueuedMessage,
+  encodeQueuedMessage,
+  recipientHash,
+} from './queue-mailer.js';
 import type { MailQueueEntry } from './queue-mailer.js';
 import type { MailMessage } from './mailer.js';
+import { MAX_MAIL_MESSAGE_BYTES } from './mailer.js';
 
 function capture(): { entries: MailQueueEntry[]; mailer: QueueMailer } {
   const entries: MailQueueEntry[] = [];
@@ -76,4 +83,32 @@ describe('only the drainer submits to SMTP', () => {
       .filter((file) => direct.test(readFileSync(join(root, file), 'utf8')));
     expect(offenders).toEqual([]);
   }, 30_000);
+});
+
+describe('INVMAIL attachments', () => {
+  const message = { to: 'ap@acme.test', subject: 'Invoice', text: 'Open it: https://x.test/i/1' };
+  const pdf = (bytes: number) => ({
+    filename: '../INV "1"\r\n.pdf',
+    contentType: 'Application/PDF',
+    content: Buffer.alloc(bytes, 7),
+  });
+
+  it('keeps a small file, stored safely and read back whole', () => {
+    const sent = attachIfFits(message, pdf(10_000));
+    const back = decodeQueuedMessage(encodeQueuedMessage(sent), 'client_invoice');
+    expect(back?.attachments).toHaveLength(1);
+    expect(back?.attachments?.[0]).toMatchObject({
+      filename: 'INV -1-.pdf',
+      contentType: 'application/pdf',
+    });
+    expect(Buffer.from(back!.attachments![0]!.content).equals(Buffer.alloc(10_000, 7))).toBe(true);
+  });
+
+  it('skips a file over the size limit and keeps the mail', () => {
+    const sent = attachIfFits(message, pdf(60_000));
+    expect(sent).toEqual(message);
+    expect(
+      Buffer.byteLength(encodeQueuedMessage(attachIfFits(message, pdf(40_000)))),
+    ).toBeLessThanOrEqual(MAX_MAIL_MESSAGE_BYTES);
+  });
 });

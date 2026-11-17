@@ -35,7 +35,8 @@ import type {
 } from '@tmanage/domain';
 import { phase2Qr, verifyXmlSignature } from '@tmanage/domain/zatca-sign';
 import { withTemplateKey } from '@tmanage/mail';
-import type { Mailer, MailMessage } from '@tmanage/mail';
+import { attachIfFits } from '@tmanage/mail';
+import type { MailAttachment, Mailer, MailMessage } from '@tmanage/mail';
 import type {
   ClientCreditNoteLineRow,
   ClientCreditNoteRow,
@@ -132,7 +133,9 @@ import type { PulledLine } from './invoice-pull.js';
  *
  * Totals are always recomputed on the server from the lines (`invoiceTotals`). A sent invoice is
  * frozen by the 0301 triggers; a correction is a credit note. 52-10: the PDF is a download (team
- * and portal); `attachPdf` is still accepted and ignored and the mail carries the portal link only.
+ * and portal). INVMAIL: with `attachPdf` the send mail also carries that PDF, built after the
+ * commit from the stored document in its own language, when it fits the mailer's size limit; the
+ * mail keeps the portal link either way.
  */
 
 export interface InvoiceLineView {
@@ -644,6 +647,26 @@ export class ClientInvoicesService {
     return documentBrand((await this.options.branding?.findForOrganization(r, context)) ?? null);
   }
 
+  /**
+   * INVMAIL. The issued invoice as a mail attachment, built from the stored document in the
+   * document's own language. Never for a draft or a void invoice; `null` when it cannot be built,
+   * because the mail still carries the portal link.
+   */
+  private async pdfAttachment(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+  ): Promise<MailAttachment | null> {
+    try {
+      const facts = await this.printFacts(context, principal, id);
+      if (facts.view.state === 'draft' || facts.view.state === 'void') return null;
+      const file = await this.documentPdf(facts, documentLanguage(undefined, facts.view.language));
+      return { filename: file.fileName, contentType: 'application/pdf', content: file.bytes };
+    } catch {
+      return null;
+    }
+  }
+
   private documentPdf(facts: PrintFacts, language: 'en' | 'ar' | 'bi'): Promise<RecordPdfFile> {
     return renderDocumentPdf(
       'invoice',
@@ -1150,6 +1173,7 @@ export class ClientInvoicesService {
       };
     });
     if (outcome.fresh && mail) {
+      const attachment = input.attachPdf ? await this.pdfAttachment(context, principal, id) : null;
       await this.deliver(
         input.to,
         outcome.view,
@@ -1157,6 +1181,7 @@ export class ClientInvoicesService {
         'invoice',
         input.message,
         outcome.country,
+        attachment,
       );
     }
     return outcome.view;
@@ -2059,14 +2084,24 @@ export class ClientInvoicesService {
     kind: 'invoice' | 'reminder',
     message: string | null,
     country: string | null,
+    attachment: MailAttachment | null = null,
   ): Promise<void> {
     if (this.mailer === null || to.length === 0) return;
     const base = (this.options.webPublicUrl ?? '').replace(/\/+$/u, '');
     const link = `${base}/${encodeURIComponent(orgSlug)}/portal/invoices/${encodeURIComponent(view.id)}`;
     for (const recipient of to) {
       try {
+        const mailMessage = composeInvoiceEmail({
+          to: recipient,
+          view,
+          link,
+          kind,
+          message,
+          country,
+        });
+        // INVMAIL: a PDF over the mailer's size limit is skipped; the link above still reaches it.
         await this.mailer.send(
-          composeInvoiceEmail({ to: recipient, view, link, kind, message, country }),
+          attachment === null ? mailMessage : attachIfFits(mailMessage, attachment),
         );
       } catch {
         // A mail failure never undoes an issued invoice; the timeline already holds the send.

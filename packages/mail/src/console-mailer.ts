@@ -1,4 +1,5 @@
 import type { MailDelivery, MailFromOptions, Mailer, MailMessage } from './mailer.js';
+import { safeAttachment } from './mailer.js';
 
 /**
  * The `console` driver — `.env.example`'s "writes to the log and sends nothing".
@@ -24,6 +25,10 @@ export class ConsoleMailer implements Mailer {
         `From: ${this.options.fromName} <${this.options.fromAddress}>`,
         `To: ${message.to}`,
         `Subject: ${message.subject}`,
+        ...(message.attachments ?? []).map((attachment) => {
+          const safe = safeAttachment(attachment);
+          return `Attachment: ${safe.filename} (${safe.contentType}, ${String(safe.content.byteLength)} bytes)`;
+        }),
         '',
         message.text,
       ].join('\n'),
