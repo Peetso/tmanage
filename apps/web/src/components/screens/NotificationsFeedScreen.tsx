@@ -10,6 +10,7 @@ import type { NotificationView } from '../../lib/api/notifications-feed';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { translateOr } from '../../lib/i18n/compact-time';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -142,10 +143,10 @@ export function NotificationsFeedScreen({
       ) : null}
 
       {!feed.isPending && !feed.isError && items.length === 0 && !feed.hasNextPage ? (
-        <div className="tm-card tm-card--empty tm-notif-empty">
-          <h2 className="tm-card__title">{t('NotificationsFeedScreen.emptyTitle')}</h2>
-          <p className="tm-card__meta">{t('NotificationsFeedScreen.emptyBody')}</p>
-        </div>
+        <TeachingEmptyState
+          title={t('NotificationsFeedScreen.emptyTitle')}
+          explanation={t('teachEmpty.notificationsBody')}
+        />
       ) : null}
 
       {items.length > 0 ? (

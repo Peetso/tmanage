@@ -168,7 +168,6 @@
   "PinnedMessagesView.unpinErrorTitle": "پیغام کا پن نہیں ہٹایا جا سکا",
   "PinnedMessagesView.unpinGenericError": "کچھ غلط ہو گیا۔ دوبارہ کوشش کریں۔",
   "SavedMessagesScreen.description": "وہ پیغامات جو آپ نے اپنی گفتگوؤں میں نجی طور پر محفوظ کیے ہیں۔",
-  "SavedMessagesScreen.empty": "آپ نے ابھی تک کوئی پیغام محفوظ نہیں کیا۔",
   "SavedMessagesScreen.heading": "میرے محفوظ پیغامات",
   "SavedMessagesScreen.loadFailedApi": "آپ کے محفوظ پیغامات لوڈ نہیں ہو سکے۔",
   "SavedMessagesScreen.loadFailedGeneric": "کچھ غلط ہو گیا۔",

@@ -12,6 +12,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { getConversation } from '../../lib/api/conversations';
 import { useMembers } from '../../lib/use-members';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import '../../styles/screens/chat.css';
 import { appLocale } from '../../lib/i18n/app-locale';
 import { channelLabel } from '../../lib/text/channel-label';
@@ -193,12 +194,10 @@ export function ConversationSearchView({
         ) : null}
 
         {hasSearched && !query.isPending && !query.isError && results.length === 0 ? (
-          <p className="tm-chat-empty">
-            <span>
-              <strong>{t('ConversationSearchView.noMatchTitle')}</strong>
-              {t('ConversationSearchView.noMatchBody')}
-            </span>
-          </p>
+          <TeachingEmptyState
+            title={t('ConversationSearchView.noMatchTitle')}
+            explanation={t('teachEmpty.chatSearchBody')}
+          />
         ) : null}
 
         {results.length > 0 ? (

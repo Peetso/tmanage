@@ -15,6 +15,7 @@ import type {
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightMetricAlertsScreenProps {
@@ -219,7 +220,12 @@ function AlertsTable({
 }) {
   const t = useT();
   if (rows.length === 0) {
-    return <p className="tm-prose">{t('InsightMetricAlertsScreen.empty')}</p>;
+    return (
+      <TeachingEmptyState
+        title={t('teachEmpty.metricAlertsTitle')}
+        explanation={t('teachEmpty.metricAlertsBody')}
+      />
+    );
   }
 
   return (

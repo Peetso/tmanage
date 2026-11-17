@@ -11,6 +11,7 @@ import type { SnapshotKind, SnapshotView } from '../../lib/api/insights-snapshot
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import type { MessageKey } from '../../lib/i18n/t';
 import { appLocale } from '../../lib/i18n/app-locale';
 
@@ -168,7 +169,12 @@ function SnapshotHistory({
 }) {
   const t = useT();
   if (snapshots.length === 0) {
-    return <p className="tm-prose">{t('InsightSnapshotsScreen.empty')}</p>;
+    return (
+      <TeachingEmptyState
+        title={t('teachEmpty.snapshotsTitle')}
+        explanation={t('teachEmpty.snapshotsBody')}
+      />
+    );
   }
 
   return (

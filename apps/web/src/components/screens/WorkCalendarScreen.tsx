@@ -27,6 +27,8 @@ import {
 } from '../../lib/work-calendar-range';
 import type { CalendarRange } from '../../lib/work-calendar-range';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
+import { NewProjectLink } from '../projects/NewProjectLink';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/work-planning.css';
 import '../../styles/screens/work-calendar.css';
@@ -297,10 +299,19 @@ export function WorkCalendarScreen({
       ) : null}
 
       {noProjects ? (
-        <div className="wp-empty">
-          <h2 className="wp-empty__title">{t('WorkCalendarScreen.noProjectTitle')}</h2>
-          <p className="wp-empty__body">{t('WorkCalendarScreen.noProjectBody')}</p>
-        </div>
+        <TeachingEmptyState
+          title={t('WorkCalendarScreen.noProjectTitle')}
+          explanation={t('teachEmpty.calendarBody')}
+          action={
+            <NewProjectLink
+              organizationSlug={organizationSlug}
+              tone="lime"
+              {...(client ? { client } : {})}
+            />
+          }
+          helpSlug="start-a-project"
+          helpLabel={t('EmptyStates.howProjectsWork')}
+        />
       ) : null}
 
       {moveError ? (
