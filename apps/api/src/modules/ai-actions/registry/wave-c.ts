@@ -42,7 +42,8 @@ export const waveCDetails: readonly AiActionDetail[] = [
   ...importDetails,
   ...privacyDetails,
   ...financeTimeDetails,
-  ...financeDocumentDetails,
+  // 52-22p: quotes, client invoices, portal invoices, lock requests (`work_forms.*` is wave A).
+  ...financeDocumentDetails.filter((d) => !d.id.startsWith('work_forms.')),
   ...taxDocumentDetails,
   ...financeExportDetails,
   ...einvoiceChainDetails,

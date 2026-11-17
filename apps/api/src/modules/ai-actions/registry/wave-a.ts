@@ -16,6 +16,7 @@ import { homeDetails } from './home.js';
 import { inboxDetails } from './inbox.js';
 import { notificationsDetails } from './notifications.js';
 import { workViewsDetails } from './work-views.js';
+import { financeDocumentDetails } from './finance-documents.js';
 
 export const waveADetails: readonly AiActionDetail[] = [
   ...workDetails,
@@ -25,6 +26,8 @@ export const waveADetails: readonly AiActionDetail[] = [
   ...inboxDetails,
   ...notificationsDetails,
   ...workViewsDetails,
+  // 52-22p: public-form triage (`work_forms.*`) is wave A; the rest of the file is wave C.
+  ...financeDocumentDetails.filter((d) => d.id.startsWith('work_forms.')),
 ];
 
 /** Wave-A details indexed by op id (throws on a duplicate id within the wave). */
