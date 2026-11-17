@@ -2905,3 +2905,10 @@ html[lang^='zh'] body {
 .tm-file-pick:has(input:focus-visible) {
   box-shadow: var(--focus-ring);
 }
+
+/* SMALLFIX 5 (WCAG 2.5.8): each language-switch button (website footer, sign-in card, state
+   screens) is at least 24 px high to tap, with its text, colours and row unchanged. Here, once,
+   because the three switch styles live in stylesheets that load on different pages. */
+.tm-web-lang__option {
+  min-height: var(--s6);
+}
