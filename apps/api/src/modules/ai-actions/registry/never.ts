@@ -1338,6 +1338,13 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/quotes/:quoteId/convert',
     reason: 'client_quote',
   },
+  // 52-10: the quote PDF, team and the client's own in the portal.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/quotes/:quoteId/pdf', reason: 'client_quote' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/quotes/:quoteId/pdf',
+    reason: 'client_quote',
+  },
   // 56-17. The anonymous vulnerability report door and the confidential platform triage.
   { method: 'POST', path: '/v1/public/security-reports/', reason: 'public_site' },
   { method: 'GET', path: '/v1/platform/security-reports/', reason: 'platform_admin' },
@@ -2110,6 +2117,17 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId/print',
+    reason: 'finance_settings',
+  },
+  // 52-10: the invoice PDF, team and the client's own in the portal — NEVER, as every invoice route.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/pdf',
+    reason: 'finance_settings',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId/pdf',
     reason: 'finance_settings',
   },
   // ---- R19-a · 52-28 tax-document labels ---- a label on a fiscal document and a recorded tax

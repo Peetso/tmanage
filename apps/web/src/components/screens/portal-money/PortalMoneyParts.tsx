@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { StateCapsule, Tooltip } from '@tmanage/ui';
 import type { BurnStatus, InvoiceStanding } from '@tmanage/domain';
 import type { PortalBudget, PortalRetainer } from '../../../lib/api/portal-money';
-import { portalInvoicePrintUrl } from '../../../lib/api/portal-money';
+import { portalInvoicePdfUrl } from '../../../lib/api/portal-money';
 import { apiBaseUrl } from '../../../lib/api/browser-client';
 import { ApiRequestError, NetworkError } from '../../../lib/api/errors';
 import { pluralPhrase } from '../../../lib/i18n/plural';
@@ -90,7 +90,7 @@ export function StandingCapsule({ standing }: { readonly standing: InvoiceStandi
 }
 
 /**
- * "Download PDF": the print document of the client's own invoice in a new tab, a separate target
+ * "Download PDF": the PDF of the client's own invoice (52-10), a separate target
  * from the row (the row opens the invoice). Its name carries the invoice number; hover or focus
  * shows the help text.
  */
@@ -107,12 +107,7 @@ export function DownloadPdfLink({
 }) {
   const tOr = useTOr();
   const arabic = useActiveLocale().startsWith('ar');
-  const href = portalInvoicePrintUrl(
-    apiBaseUrl(),
-    organizationSlug,
-    invoiceId,
-    arabic ? 'ar' : 'en',
-  );
+  const href = portalInvoicePdfUrl(apiBaseUrl(), organizationSlug, invoiceId, arabic ? 'ar' : 'en');
   const help = tOr('PortalMoney.downloadPdf', 'Download PDF');
   if (variant === 'button') {
     return (

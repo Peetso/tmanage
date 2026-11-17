@@ -13,15 +13,16 @@ export const APPROVAL_CERTIFICATE_PDF_SERVICE = Symbol.for('tmanage.ApprovalCert
 export const SIGNED_PDF_SERVICE = Symbol.for('tmanage.SignedPdf');
 
 /** The one method a download needs of the framework reply: set a header before the first byte. */
-interface HeaderWriter {
+export interface HeaderWriter {
   header(name: string, value: string): unknown;
 }
 
 /**
  * The safe-download headers of the document export (x131): `attachment`, `nosniff`, and
- * `private, no-store` so no shared cache keeps a copy. The file name is built from ids only.
+ * `private, no-store` so no shared cache keeps a copy. The file name is built from ids (52-10:
+ * or a sanitised document number) only. Shared by the record and finance document downloads.
  */
-function pdf(reply: HeaderWriter, file: RecordPdfFile): StreamableFile {
+export function pdfDownload(reply: HeaderWriter, file: RecordPdfFile): StreamableFile {
   reply.header('content-type', 'application/pdf');
   reply.header('content-disposition', `attachment; filename="${file.fileName}"`);
   reply.header('x-content-type-options', 'nosniff');
@@ -49,7 +50,7 @@ export class ApprovalCertificatePdfController {
     @Param('approvalId') approvalId: string,
     @Res({ passthrough: true }) reply: HeaderWriter,
   ): Promise<StreamableFile> {
-    return pdf(reply, await this.certificates.workspace(context, principal, approvalId));
+    return pdfDownload(reply, await this.certificates.workspace(context, principal, approvalId));
   }
 
   @Get('projections/:deliverableVersionId/record.pdf')
@@ -60,7 +61,10 @@ export class ApprovalCertificatePdfController {
     @Param('deliverableVersionId') deliverableVersionId: string,
     @Res({ passthrough: true }) reply: HeaderWriter,
   ): Promise<StreamableFile> {
-    return pdf(reply, await this.certificates.portal(context, principal, deliverableVersionId));
+    return pdfDownload(
+      reply,
+      await this.certificates.portal(context, principal, deliverableVersionId),
+    );
   }
 }
 
@@ -77,7 +81,7 @@ export class SignedPdfController {
     @Param('signatureRequestId') requestId: string,
     @Res({ passthrough: true }) reply: HeaderWriter,
   ): Promise<StreamableFile> {
-    return pdf(reply, await this.signed.workspace(context, principal, requestId));
+    return pdfDownload(reply, await this.signed.workspace(context, principal, requestId));
   }
 }
 
@@ -94,6 +98,6 @@ export class PortalSignedPdfController {
     @Param('signatureRequestId') requestId: string,
     @Res({ passthrough: true }) reply: HeaderWriter,
   ): Promise<StreamableFile> {
-    return pdf(reply, await this.signed.portal(context, principal, requestId));
+    return pdfDownload(reply, await this.signed.portal(context, principal, requestId));
   }
 }

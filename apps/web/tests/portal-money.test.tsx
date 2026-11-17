@@ -131,7 +131,7 @@ describe('52-13 portal Money overview', () => {
     expect(within(table).getByText('Paid')).toBeTruthy();
     // The download is its own target, named with the invoice number, on the portal print route.
     const download = within(table).getByRole('link', { name: 'Download PDF of INV-2026-0142' });
-    expect(download.getAttribute('href')).toContain('/portal/invoices/inv-142/print?lang=en');
+    expect(download.getAttribute('href')).toContain('/portal/invoices/inv-142/pdf?lang=en');
     // Clicking anywhere else on the row opens the invoice.
     fireEvent.click(within(table).getByText('Overdue · 3 days'));
     expect(push).toHaveBeenCalledWith('/northstar/portal/money/inv-142');
@@ -210,7 +210,7 @@ describe('52-13 portal invoice', () => {
     expect(screen.getByText('Tax (14%)')).toBeTruthy();
     expect(screen.getByText('No payments yet.')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Download PDF/u }).getAttribute('href')).toContain(
-      '/portal/invoices/inv-142/print',
+      '/portal/invoices/inv-142/pdf',
     );
     expect(screen.queryByText(/tax registration/iu)).toBeNull();
     expect(screen.queryByText(/Note from/u)).toBeNull();

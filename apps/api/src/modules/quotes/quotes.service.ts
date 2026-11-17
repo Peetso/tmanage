@@ -8,7 +8,16 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import type { OrgBrandingRepository } from '../admin/org-branding.repository.js';
+import type { RecordPdfFile } from '../approvals/record-pdf.service.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { portalMoneyClient } from '../finance/client-invoices.service.js';
+import {
+  documentBrand,
+  documentLanguage,
+  quotePdfDocument,
+  renderDocumentPdf,
+} from '../finance/finance-document-pdf.js';
 import type { ProjectsService } from '../projects/projects.service.js';
 import type { PublicLinksService } from '../public-links/public-links.service.js';
 import {
@@ -101,6 +110,8 @@ export interface QuotesServiceOptions {
   /** 52-08 convert: the one project-create path, and the plan writes. */
   readonly projects?: Pick<ProjectsService, 'requireMayCreate' | 'createInTransaction'>;
   readonly conversion?: QuoteConversionWriter;
+  /** 52-10: the workspace's stored branding (name, accent) on the quote PDF; absent = none. */
+  readonly branding?: Pick<OrgBrandingRepository, 'findForOrganization'>;
   readonly now?: () => Date;
 }
 
@@ -387,6 +398,68 @@ export class QuotesService {
       };
       return { quote: toView(converted), projectId: project.id, created: true };
     });
+  }
+
+  /** 52-10 — the quote as a PDF for the team (`project.manage`; another org's id is a 404). */
+  async pdf(
+    context: TenantContext,
+    principal: Principal,
+    quoteId: string,
+    lang: unknown,
+  ): Promise<RecordPdfFile> {
+    this.require(principal, context);
+    return this.quotePdf(context, quoteId, lang, { kind: 'team' });
+  }
+
+  /**
+   * 52-10 — the client's own quote as a PDF in the portal: a quote that was sent (never a draft)
+   * to the principal's own client organization; a lead's quote, another client's, a draft or an
+   * unknown id is the same 404.
+   */
+  async portalPdf(
+    context: TenantContext,
+    principal: Principal,
+    quoteId: string,
+    lang: unknown,
+  ): Promise<RecordPdfFile> {
+    const clientOrganizationId = portalMoneyClient(principal);
+    return this.quotePdf(context, quoteId, lang, { kind: 'client', clientOrganizationId });
+  }
+
+  private async quotePdf(
+    context: TenantContext,
+    quoteId: string,
+    lang: unknown,
+    reader:
+      | { readonly kind: 'team' }
+      | { readonly kind: 'client'; readonly clientOrganizationId: string },
+  ): Promise<RecordPdfFile> {
+    const { detail, recipient, brand } = await this.options.database.read(context, async (r) => {
+      const quote = await this.load(r, context, quoteId, false);
+      if (
+        reader.kind === 'client' &&
+        (quote.status === 'draft' || quote.clientOrganizationId !== reader.clientOrganizationId)
+      ) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'quote.not_visible');
+      }
+      const client =
+        quote.clientOrganizationId === null
+          ? null
+          : await this.options.repository.clientName(r, context, quote.clientOrganizationId);
+      return {
+        detail: toDetail(quote, await this.options.repository.lines(r, context, quote.id)),
+        recipient: client ?? quote.leadName,
+        brand: documentBrand(
+          (await this.options.branding?.findForOrganization(r, context)) ?? null,
+        ),
+      };
+    });
+    const language = documentLanguage(lang, detail.language);
+    return renderDocumentPdf(
+      'quote',
+      detail.number,
+      quotePdfDocument({ ...detail, recipient }, language, brand),
+    );
   }
 
   // ── internals ──────────────────────────────────────────────────────────────

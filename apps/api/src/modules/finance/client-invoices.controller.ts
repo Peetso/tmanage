@@ -22,6 +22,8 @@ import {
   CurrentSession,
   RequireCapability,
 } from '../../common/http/decorators.js';
+import { pdfDownload } from '../approvals/record-pdf.controller.js';
+import type { HeaderWriter } from '../approvals/record-pdf.controller.js';
 import type { AuthenticatedSession } from '../identity/session.service.js';
 import type {
   AgingView,
@@ -304,5 +306,21 @@ export class ClientInvoicesController {
     reply.header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'");
     reply.header('cache-control', 'private, no-store');
     return new StreamableFile(body, { type: 'text/html; charset=utf-8' });
+  }
+
+  /**
+   * 52-10 — the invoice as a PDF download: same authorization as the read, `attachment`,
+   * `nosniff`, never cached; the file name is the sanitised invoice number only.
+   */
+  @Get('client-invoices/:invoiceId/pdf')
+  @RequireCapability('finance.view')
+  async pdf(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('invoiceId') invoiceId: string,
+    @Query('lang') lang: string | undefined,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    return pdfDownload(reply, await this.service.pdf(context, principal, invoiceId, lang));
   }
 }

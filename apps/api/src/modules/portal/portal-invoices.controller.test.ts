@@ -49,6 +49,7 @@ function controller(row: Record<string, unknown> = {}): {
     termsText: null,
     contentHash: null,
     taxRegistrationRef: null,
+    poNumber: null,
     createdAt: new Date('2026-11-01T08:00:00Z'),
     updatedAt: new Date('2026-11-01T08:00:00Z'),
     ...row,
@@ -203,6 +204,32 @@ describe('52-13 portal invoice standing and print', () => {
     ).rejects.toMatchObject({ status: 404 });
     await expect(
       controller({ state: 'draft' }).controller.print(context, client('acme'), 'i1', 'en', reply),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+/** 52-10 — "Download PDF": the client's own invoice as a real PDF; another client's is a 404. */
+describe('52-10 portal invoice PDF', () => {
+  it('gives the client its own invoice as a PDF attachment named by number', async () => {
+    const headers = new Map<string, string>();
+    const reply = { header: (name: string, value: string) => headers.set(name, value) };
+    const file = await controller().controller.pdf(context, client('acme'), 'i1', 'ar', reply);
+    const bytes = Buffer.from(await new Response(file.getStream() as never).arrayBuffer());
+    expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(headers.get('content-type')).toBe('application/pdf');
+    expect(headers.get('content-disposition')).toBe(
+      'attachment; filename="invoice-INV-2026-0001.pdf"',
+    );
+    expect(headers.get('x-content-type-options')).toBe('nosniff');
+  });
+
+  it("refuses another client's invoice and a draft with the 404 of an unknown id", async () => {
+    const reply = { header: () => undefined };
+    await expect(
+      controller().controller.pdf(context, client('globex'), 'i1', 'en', reply),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      controller({ state: 'draft' }).controller.pdf(context, client('acme'), 'i1', 'en', reply),
     ).rejects.toMatchObject({ status: 404 });
   });
 });

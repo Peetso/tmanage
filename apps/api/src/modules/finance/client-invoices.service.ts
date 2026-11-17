@@ -51,6 +51,8 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { escapeHtml, renderActionEmail } from '../../common/email/action-email.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import type { OrgBrandingRepository } from '../admin/org-branding.repository.js';
+import type { RecordPdfFile } from '../approvals/record-pdf.service.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { NotificationsRepository } from '../inbox/notifications.repository.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
@@ -102,6 +104,15 @@ import type { DocumentSignature, EinvoiceSigningService } from './einvoice-signi
 import type { OrgSecretsRepository } from './org-secrets.repository.js';
 import type { EinvoiceDocument } from './einvoice-rules.js';
 import { defaultProfile, taxNoticeFor } from './finance-rules.js';
+import {
+  documentBrand,
+  documentDescription,
+  documentLanguage,
+  formatMinor,
+  invoicePdfDocument,
+  renderDocumentPdf,
+} from './finance-document-pdf.js';
+import type { DocumentBrand } from './finance-document-pdf.js';
 import type { FinanceProfileValues } from './finance-rules.js';
 import type { FinanceRepository } from './finance.repository.js';
 import { FINANCE_MANAGE, FINANCE_VIEW } from './finance.service.js';
@@ -120,8 +131,8 @@ import type { PulledLine } from './invoice-pull.js';
  * = the principal's own; anything else is a 404, as for an unknown invoice.
  *
  * Totals are always recomputed on the server from the lines (`invoiceTotals`). A sent invoice is
- * frozen by the 0301 triggers; a correction is a credit note. 52-10 (PDF) is not built: `attachPdf`
- * is accepted and ignored, `pdf` is `null`, and the mail carries the portal link only.
+ * frozen by the 0301 triggers; a correction is a credit note. 52-10: the PDF is a download (team
+ * and portal); `attachPdf` is still accepted and ignored and the mail carries the portal link only.
  */
 
 export interface InvoiceLineView {
@@ -209,7 +220,7 @@ export interface InvoiceView extends InvoiceSummary {
     readonly totalMinor: number;
     readonly issuedAt: string;
   }[];
-  /** 52-10 is not built. */
+  /** 52-10: no stored PDF file; the PDF is drawn on each `…/pdf` download. */
   readonly pdf: null;
   /** 52-12 (0311): the hash-chain facts; null when the invoice is outside the chain. */
   readonly einvoice: { readonly status: string; readonly icv: number | null } | null;
@@ -324,6 +335,8 @@ export interface ClientInvoicesServiceOptions {
   readonly signingStore?: Pick<OrgSecretsRepository, 'signFailuresSince'>;
   readonly outbox?: Pick<OutboxEventsRepository, 'append'>;
   readonly mailer?: Mailer | null;
+  /** 52-10: the workspace's stored branding (name, accent) on the invoice PDF; absent = none. */
+  readonly branding?: Pick<OrgBrandingRepository, 'findForOrganization'>;
   readonly webPublicUrl?: string;
   readonly sessionSecret?: string;
   readonly now?: () => Date;
@@ -588,17 +601,55 @@ export class ClientInvoicesService {
     id: string,
     lang: unknown,
   ): Promise<string> {
+    const facts = await this.printFacts(context, principal, id);
+    return renderPrint(facts.view, documentLanguage(lang, facts.view.language), facts);
+  }
+
+  /**
+   * 52-10 — the invoice as a PDF, drawn by the shared record PDF writer from the same stored
+   * document and parties as the print view, with the workspace's branding. Same authorization as
+   * the read (`finance.view`, this organization's invoice, else 404).
+   */
+  async pdf(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    lang: unknown,
+  ): Promise<RecordPdfFile> {
+    const facts = await this.printFacts(context, principal, id);
+    return this.documentPdf(facts, documentLanguage(lang, facts.view.language));
+  }
+
+  /** What the team's print and PDF show: the invoice, its parties and whether the notice prints. */
+  private async printFacts(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+  ): Promise<PrintFacts> {
     const view = await this.get(context, principal, id);
     const org = context.organizationId;
-    const { parties, country } = await this.options.database.read(context, async (r) => {
+    return this.options.database.read(context, async (r) => {
       const row = await this.repo.findInvoice(r, org, id);
       if (row === null) throw notFound();
-      return this.printParties(r, org, row, view.state);
+      const { parties, country } = await this.printParties(r, org, row, view.state);
+      // A sent document shows the notice it went out with; a draft previews today's rule.
+      const notice =
+        view.state === 'draft' ? taxNoticeRequired(country, view.documentLabel) : noticeOf(view);
+      return { view, notice, parties, country, brand: await this.brand(r, context) };
     });
-    // A sent document shows the notice it went out with; a draft previews today's rule.
-    const notice =
-      view.state === 'draft' ? taxNoticeRequired(country, view.documentLabel) : noticeOf(view);
-    return renderPrint(view, printLanguage(lang, view.language), { notice, parties, country });
+  }
+
+  /** The workspace's stored branding (none when the module is wired without it). */
+  private async brand(r: TenantQueryRunner, context: TenantContext): Promise<DocumentBrand> {
+    return documentBrand((await this.options.branding?.findForOrganization(r, context)) ?? null);
+  }
+
+  private documentPdf(facts: PrintFacts, language: 'en' | 'ar' | 'bi'): Promise<RecordPdfFile> {
+    return renderDocumentPdf(
+      'invoice',
+      facts.view.number,
+      invoicePdfDocument(facts.view, language, facts),
+    );
   }
 
   /**
@@ -1648,10 +1699,9 @@ export class ClientInvoicesService {
   }
 
   /**
-   * 52-13 — the client's "Download PDF": the same A4 print document the team prints ("Save as
-   * PDF" from the browser), behind the portal read's checks (own client organization, never a
-   * draft or void; otherwise 404). A by-person line names nobody unless the setting allows it,
-   * exactly as the portal read.
+   * 52-13 — the client's print document: the same A4 print document the team prints, behind the
+   * portal read's checks (own client organization, never a draft or void; otherwise 404). A
+   * by-person line names nobody unless the setting allows it, exactly as the portal read.
    */
   async portalPrint(
     context: TenantContext,
@@ -1659,22 +1709,40 @@ export class ClientInvoicesService {
     id: string,
     lang: unknown,
   ): Promise<string> {
+    const facts = await this.portalPrintFacts(context, principal, id);
+    return renderPrint(facts.view, documentLanguage(lang, facts.view.language), facts);
+  }
+
+  /** 52-10 — the client's "Download PDF" of its own invoice, behind the same checks as above. */
+  async portalPdf(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    lang: unknown,
+  ): Promise<RecordPdfFile> {
+    const facts = await this.portalPrintFacts(context, principal, id);
+    return this.documentPdf(facts, documentLanguage(lang, facts.view.language));
+  }
+
+  private async portalPrintFacts(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+  ): Promise<PrintFacts> {
     const org = context.organizationId;
-    const { view, parties, country } = await this.options.database.read(context, async (r) => {
+    return this.options.database.read(context, async (r) => {
       const row = await this.repo.findInvoice(r, org, id);
       if (row === null || PORTAL_HIDDEN_STATES.has(row.state)) throw notFound();
       this.portalClient(principal, row.clientOrganizationId);
       const showNames = (await this.repo.setting(r, org, PORTAL_SHOW_NAMES_SETTING_KEY)) === 'on';
       const full = await this.view(r, org, row);
+      const view = { ...full, lines: full.lines.map((l) => portalPrintLine(l, showNames)) };
       return {
-        view: { ...full, lines: full.lines.map((l) => portalPrintLine(l, showNames)) },
+        view,
+        notice: noticeOf(view),
         ...(await this.printParties(r, org, row, full.state)),
+        brand: await this.brand(r, context),
       };
-    });
-    return renderPrint(view, printLanguage(lang, view.language), {
-      notice: noticeOf(view),
-      parties,
-      country,
     });
   }
 
@@ -1689,23 +1757,8 @@ export class ClientInvoicesService {
    * `client_projection.read`) and, for one invoice, when it is its own. Anything else is a 404.
    */
   private portalClient(principal: Principal, invoiceClientOrg: string | null): string {
-    const own = principal.clientOrganizationId;
-    if (principal.kind !== 'client' || own === null || !PORTAL_ROLES.has(principal.role)) {
-      throw notFound();
-    }
+    const own = portalMoneyClient(principal);
     if (invoiceClientOrg !== null && invoiceClientOrg !== own) throw notFound();
-    const allowed = authorize({
-      principal,
-      capability: 'client_projection.read',
-      resource: {
-        organizationId: principal.organizationId,
-        projectId: null,
-        audience: 'client_visible',
-        clientOrganizationId: own,
-        lifecycle: 'active',
-      },
-    }).allowed;
-    if (!allowed) throw notFound();
     return own;
   }
 
@@ -2114,13 +2167,6 @@ function langOf(language: string): 'en' | 'ar' | 'bi' {
   return language === 'en' || language === 'ar' ? language : 'bi';
 }
 
-/** The print language asked for, else the invoice's own. */
-function printLanguage(lang: unknown, invoiceLanguage: string | null): 'en' | 'ar' | 'bi' {
-  return lang === 'en' || lang === 'ar' || lang === 'bi'
-    ? lang
-    : (invoiceLanguage as 'en' | 'ar' | 'bi');
-}
-
 /** A print line for the client: a by-person line names nobody unless allowed (as the portal read). */
 function portalPrintLine(line: InvoiceLineView, showNames: boolean): InvoiceLineView {
   if (line.groupKey?.startsWith('person:') !== true || showNames) return line;
@@ -2167,20 +2213,11 @@ function portalDescription(
   if (line.groupKey?.startsWith('person:') === true && !showNames) {
     return language === 'ar' ? PERSON_LINE_AR : PERSON_LINE_EN;
   }
-  const en = line.descriptionEn ?? line.descriptionAr ?? '';
-  const ar = arabicExpenseDescription(line.descriptionAr ?? line.descriptionEn ?? '');
-  if (language === 'ar') return ar;
-  if (language === 'en') return en;
-  return en === ar ? en : `${en} / ${ar}`;
-}
-
-function formatMinor(amountMinor: number, currency: string): string {
-  const digits = currencyDigits(currency);
-  const negative = amountMinor < 0;
-  const text = String(Math.abs(amountMinor)).padStart(digits + 1, '0');
-  const whole = digits === 0 ? text : text.slice(0, -digits);
-  const fraction = digits === 0 ? '' : `.${text.slice(-digits)}`;
-  return `${negative ? '-' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/gu, ',')}${fraction} ${currency}`;
+  return documentDescription(
+    line.descriptionEn,
+    line.descriptionAr,
+    language === 'ar' || language === 'en' ? language : 'bi',
+  );
 }
 
 export function composeInvoiceEmail(facts: {
@@ -2265,6 +2302,40 @@ export function composeInvoiceEmail(facts: {
       footer: copy.footer,
     }),
   };
+}
+
+/**
+ * The client organization of a principal that may read the portal's money documents (a client
+ * admin or member with `client_projection.read` on its own client organization); anything else is
+ * the 404 an unknown document gives. 52-10: shared by the invoice and quote portal downloads.
+ */
+export function portalMoneyClient(principal: Principal): string {
+  const own = principal.clientOrganizationId;
+  if (principal.kind !== 'client' || own === null || !PORTAL_ROLES.has(principal.role)) {
+    throw notFound();
+  }
+  const allowed = authorize({
+    principal,
+    capability: 'client_projection.read',
+    resource: {
+      organizationId: principal.organizationId,
+      projectId: null,
+      audience: 'client_visible',
+      clientOrganizationId: own,
+      lifecycle: 'active',
+    },
+  }).allowed;
+  if (!allowed) throw notFound();
+  return own;
+}
+
+/** What an invoice print or PDF is drawn from, gathered under the read's authorization. */
+interface PrintFacts {
+  readonly view: InvoiceView;
+  readonly notice: boolean;
+  readonly parties: PrintParties;
+  readonly country: string | null;
+  readonly brand: DocumentBrand;
 }
 
 /** B5: one party on the print — the seller (agency) or the buyer (client). */

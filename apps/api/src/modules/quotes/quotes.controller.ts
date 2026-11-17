@@ -1,7 +1,21 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { StreamableFile } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
+import { pdfDownload } from '../approvals/record-pdf.controller.js';
+import type { HeaderWriter } from '../approvals/record-pdf.controller.js';
 import type {
   ConvertedQuote,
   QuoteDetail,
@@ -87,5 +101,36 @@ export class QuotesController {
     @Body() body: unknown,
   ): Promise<ConvertedQuote> {
     return this.service.convert(context, principal, quoteId, body);
+  }
+
+  /** 52-10 — the quote as a PDF download (`attachment`, `nosniff`, never cached). */
+  @Get(':quoteId/pdf')
+  @RequireCapability('project.manage')
+  async pdf(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('quoteId') quoteId: string,
+    @Query('lang') lang: string | undefined,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    return pdfDownload(reply, await this.service.pdf(context, principal, quoteId, lang));
+  }
+}
+
+/** 52-10 — the client's own sent quote as a PDF, in the portal (anything else is a 404). */
+@Controller('v1/organizations/:orgSlug/portal/quotes')
+export class PortalQuotesController {
+  constructor(@Inject(QUOTES_SERVICE) private readonly service: QuotesService) {}
+
+  @Get(':quoteId/pdf')
+  @RequireCapability('client_projection.read')
+  async pdf(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('quoteId') quoteId: string,
+    @Query('lang') lang: string | undefined,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    return pdfDownload(reply, await this.service.portalPdf(context, principal, quoteId, lang));
   }
 }

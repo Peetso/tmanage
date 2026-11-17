@@ -213,7 +213,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 51-17 slice 2: Google Drive and OneDrive company root options (+2 NEVER, storage_connection).
 // 52-13: the client portal invoice print document (+1 NEVER).
 // MFAOPTIONS: sign-in e-mail code, turn e-mail on and confirm, choose the default (+4 NEVER).
-const EXPECTED_ROUTE_COUNT = 1504;
+// 52-10: invoice and quote PDFs, team and portal (+4 NEVER).
+const EXPECTED_ROUTE_COUNT = 1508;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

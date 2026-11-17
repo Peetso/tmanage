@@ -33,6 +33,7 @@ import {
   EINVOICE_SIGNING_SERVICE,
   EinvoicingCertificateController,
 } from './einvoicing-certificate.controller.js';
+import { OrgBrandingRepository } from '../admin/org-branding.repository.js';
 import { OrgSecretsRepository } from './org-secrets.repository.js';
 import { EinvoiceChainController } from './einvoice-chain.controller.js';
 
@@ -131,6 +132,7 @@ export class FinanceModule {
           notifications: new NotificationsRepository(),
           audit,
           mailer: mailer ?? null,
+          branding: new OrgBrandingRepository(),
           ...(config?.webPublicUrl === undefined ? {} : { webPublicUrl: config.webPublicUrl }),
           ...(config?.sessionSecret === undefined ? {} : { sessionSecret: config.sessionSecret }),
         }),

@@ -191,3 +191,56 @@ describe('52-08 quotes · convert to project', () => {
     expect(h.projects.createInTransaction).not.toHaveBeenCalled();
   });
 });
+
+describe('52-10 quote PDF in the portal', () => {
+  const QUOTE_ID = '0193a1b2-7c3d-7e4f-8a5b-6c7d8e9f0a1b';
+  const pdfService = (row: Partial<QuoteRow>) =>
+    new QuotesService({
+      database: {
+        read: async (_c: unknown, work: (r: unknown) => unknown) => work(runner),
+      } as never,
+      repository: {
+        find: async () => ({
+          ...quote,
+          sentAt: now,
+          decidedAt: null,
+          convertedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          clientOrganizationId: 'acme',
+          ...row,
+        }),
+        lines: async () => [],
+        clientName: async () => 'Acme',
+      } as unknown as QuotesRepository,
+      audit: {} as never,
+      links: {} as never,
+    });
+  const client = (clientOrganizationId: string) =>
+    ({
+      userId: 'client-user-1',
+      organizationId: 'org-1',
+      kind: 'client',
+      role: 'client_admin',
+      membershipId: 'membership-client-1',
+      membershipStatus: 'active',
+      clientOrganizationId,
+      projectIds: [],
+      hasOrgWideScope: false,
+    }) as unknown as Principal;
+
+  it("gives a client its own sent quote and nobody else's, nor a draft", async () => {
+    const file = await pdfService({}).portalPdf(context, client('acme'), QUOTE_ID, 'ar');
+    expect(file.fileName).toBe('quote-Q-0001.pdf');
+    expect(file.bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    for (const [row, who] of [
+      [{}, 'globex'],
+      [{ clientOrganizationId: null }, 'acme'],
+      [{ status: 'draft' }, 'acme'],
+    ] as const) {
+      await expect(
+        pdfService(row as Partial<QuoteRow>).portalPdf(context, client(who), QUOTE_ID, 'en'),
+      ).rejects.toMatchObject({ status: 404 });
+    }
+  });
+});

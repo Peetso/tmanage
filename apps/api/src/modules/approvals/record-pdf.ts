@@ -77,6 +77,8 @@ export interface PdfDocument {
   /** Written into the document information as the subject (searchable in any reader). */
   readonly subject: string;
   readonly attachments: readonly PdfAttachment[];
+  /** 52-10: the workspace's stored accent (`#rrggbb`) for the title; black when absent or bad. */
+  readonly accent?: string;
 }
 
 export interface RenderOptions {
@@ -145,6 +147,16 @@ export function recordPdfObjectId(parts: readonly string[]): string {
     .digest('hex');
   const variant = ((parseInt(h.charAt(16), 16) & 0x3) | 0x8).toString(16);
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+type Colour = ReturnType<typeof rgb>;
+const BLACK = rgb(0, 0, 0);
+
+/** A stored `#rrggbb` accent as a fill colour; anything else is black. */
+export function accentColour(hex: string | undefined): Colour {
+  if (hex === undefined || !/^#[0-9a-f]{6}$/iu.test(hex)) return BLACK;
+  const part = (at: number) => parseInt(hex.slice(at, at + 2), 16) / 255;
+  return rgb(part(1), part(3), part(5));
 }
 
 function isWinAnsi(code: number): boolean {
@@ -285,7 +297,14 @@ class Layout {
   }
 
   /** Draw one line inside `[x, x + width]`, right-aligned when it reads right to left. */
-  text(x: number, width: number, style: Style, size: number, raw: string): void {
+  text(
+    x: number,
+    width: number,
+    style: Style,
+    size: number,
+    raw: string,
+    color: Colour = BLACK,
+  ): void {
     const line = setLine(raw, this.fonts.covers);
     if (line.lossy) this.lossy = true;
     const font = this.fontOf(line, style);
@@ -301,7 +320,7 @@ class Layout {
     }
     for (const run of line.runs) {
       if (run.text !== '') {
-        this.page.drawText(run.text, { x: cursor, y: this.y, size, font, color: rgb(0, 0, 0) });
+        this.page.drawText(run.text, { x: cursor, y: this.y, size, font, color });
       }
       cursor += font.widthOfTextAtSize(run.text, size);
     }
@@ -335,12 +354,12 @@ class Layout {
     return lines;
   }
 
-  block(style: Style, size: number, value: string, gapAfter: number): void {
+  block(style: Style, size: number, value: string, gapAfter: number, color = BLACK): void {
     const width = PAGE_W - 2 * MARGIN;
     for (const line of this.wrap(value, width, style, size)) {
       this.room(size * 1.4);
       this.y -= size * 1.4;
-      this.text(MARGIN, width, style, size, line);
+      this.text(MARGIN, width, style, size, line, color);
     }
     this.y -= gapAfter;
   }
@@ -436,7 +455,7 @@ export async function renderRecordPdf(
     options.original === undefined ? null : await prependOriginal(doc, options.original);
   const fonts = await embedFonts(doc);
   const layout = new Layout(doc, fonts);
-  layout.block('bold', 18, document.title, 2);
+  layout.block('bold', 18, document.title, 2, accentColour(document.accent));
   layout.block('regular', 10, document.subtitle, 4);
   for (const section of document.sections) await layout.section(section);
   layout.gap(8);

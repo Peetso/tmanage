@@ -2,6 +2,7 @@ import { Inject, Injectable, Module, Optional } from '@nestjs/common';
 import type { DynamicModule, OnModuleInit, Provider } from '@nestjs/common';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import { OrgBrandingRepository } from '../admin/org-branding.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { PUBLIC_LINKS_SERVICE } from '../public-links/public-links.controller.js';
 import { PUBLIC_LINK_TARGETS } from '../public-links/public-link-targets.js';
@@ -11,7 +12,7 @@ import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import { repositoryConversionWriter } from './quote-conversion.js';
 import { quoteTarget } from './quote-target.js';
-import { QUOTES_SERVICE, QuotesController } from './quotes.controller.js';
+import { PortalQuotesController, QUOTES_SERVICE, QuotesController } from './quotes.controller.js';
 import { QuotesRepository } from './quotes.repository.js';
 import { QuotesService } from './quotes.service.js';
 
@@ -51,12 +52,13 @@ export class QuotesModule {
           // The shared project-create path, built as ProjectTemplatesModule builds it.
           projects: new ProjectsService(database, new ProjectsRepository(), audit),
           conversion: repositoryConversionWriter(),
+          branding: new OrgBrandingRepository(),
         }),
     };
     return {
       module: QuotesModule,
       providers: [service, QuoteTargetRegistrar],
-      controllers: [QuotesController],
+      controllers: [QuotesController, PortalQuotesController],
     };
   }
 }

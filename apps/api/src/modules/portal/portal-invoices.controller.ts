@@ -12,6 +12,8 @@ import {
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
+import { pdfDownload } from '../approvals/record-pdf.controller.js';
+import type { HeaderWriter } from '../approvals/record-pdf.controller.js';
 import { CLIENT_INVOICES_SERVICE } from '../finance/client-invoices.controller.js';
 import type {
   ClientInvoicesService,
@@ -85,5 +87,22 @@ export class PortalInvoicesController {
     reply.header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'");
     reply.header('cache-control', 'private, no-store');
     return new StreamableFile(body, { type: 'text/html; charset=utf-8' });
+  }
+
+  /**
+   * 52-10 — "Download PDF": the client's own invoice as a PDF, behind the same checks as the read
+   * (own client organization, never a draft or void; else 404). `attachment`, `nosniff`, never
+   * cached; the file name is the sanitised invoice number only.
+   */
+  @Get('portal/invoices/:invoiceId/pdf')
+  @RequireCapability('client_projection.read')
+  async pdf(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('invoiceId') invoiceId: string,
+    @Query('lang') lang: string | undefined,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+  ): Promise<StreamableFile> {
+    return pdfDownload(reply, await this.invoices.portalPdf(context, principal, invoiceId, lang));
   }
 }

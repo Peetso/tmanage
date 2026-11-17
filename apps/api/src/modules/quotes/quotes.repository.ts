@@ -77,6 +77,25 @@ export class QuotesRepository {
     return rows.length > 0;
   }
 
+  /** 52-10: the client's name for the quote PDF (archived clients keep their name). */
+  async clientName(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    clientOrganizationId: string,
+  ): Promise<string | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ name: clientOrganizations.name })
+      .from(clientOrganizations)
+      .where(
+        and(
+          eq(clientOrganizations.organizationId, context.organizationId),
+          eq(clientOrganizations.id, clientOrganizationId),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.name ?? null;
+  }
+
   /** The next per-organization sequence number; the locking read serializes two creates. */
   async nextSeq(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
     const rows = await tenantDrizzle(runner)

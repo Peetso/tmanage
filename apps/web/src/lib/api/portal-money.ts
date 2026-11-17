@@ -118,14 +118,14 @@ export async function getPortalBudget(
 }
 
 /**
- * "Download PDF": the API's A4 print document of the client's own invoice ("Save as PDF" from the
- * browser), behind the same checks as the read. Opened in a new tab with the session cookie.
+ * "Download PDF" (52-10): the API's PDF of the client's own invoice (`attachment`), drawn on the
+ * server behind the same checks as the read. Opened with the session cookie.
  */
-export function portalInvoicePrintUrl(
+export function portalInvoicePdfUrl(
   apiOrigin: string,
   organizationSlug: string,
   invoiceId: string,
   language: 'en' | 'ar',
 ): string {
-  return `${apiOrigin.replace(/\/+$/u, '')}${portalPath(organizationSlug)}/invoices/${encodeURIComponent(invoiceId)}/print?lang=${language}`;
+  return `${apiOrigin.replace(/\/+$/u, '')}${portalPath(organizationSlug)}/invoices/${encodeURIComponent(invoiceId)}/pdf?lang=${language}`;
 }
