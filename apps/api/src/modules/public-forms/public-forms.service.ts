@@ -2,34 +2,20 @@ import { authorize } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
 import { FORM_SUBMISSION_STATES } from '../../common/database/schema.js';
 import type { FormSubmissionRow, FormSubmissionState } from '../../common/database/schema.js';
-import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { ChallengeView } from '../public-abuse/challenge.service.js';
 import type { AssessPublicWrite } from '../public-abuse/public-abuse.guard.js';
-import type { PublicFormsRepository } from './public-forms.repository.js';
+import type { PublicFormAttachmentGate, PublicAttachmentRule } from './public-form-attachments.js';
+import type { PublicFormsRepository, SubmissionAttachmentRow } from './public-forms.repository.js';
 import {
   checkPublicValues,
-  isPublicSlug,
   newPublicSlug,
   newSubmissionReference,
   submissionDescription,
   toPublicDefinition,
 } from './public-forms.validate.js';
 import type { PublicFormDefinition, SubmittedValue } from './public-forms.validate.js';
-import { classifyUpload, DEFAULT_PRESETS } from '../files/file-safety.js';
-import type { ClassifyResult } from '../files/file-safety.js';
-
-/** 56-06 / 52-20a: a public form's attachment, judged by the one file-safety rule (images + PDF). */
-export function classifyPublicFormAttachment(file: {
-  readonly fileName: string;
-  readonly declaredType: string;
-  readonly sizeBytes: number;
-  readonly head?: Buffer;
-}): ClassifyResult {
-  const maxBytes = 25 * 1024 * 1024;
-  return classifyUpload({ ...file, channel: 'public_form', presets: DEFAULT_PRESETS, maxBytes });
-}
 
 /**
  * 52-20 — public intake forms, backend half (spec 52 §52-20, migration 0258).
@@ -46,16 +32,19 @@ export function classifyPublicFormAttachment(file: {
  * ## Public (no session)
  *
  * The slug is shape-checked, then resolved on `bootstrapRead(['work_forms'])` to the form's
- * `(organization_id, id)`; everything after runs under a service context for that organization.
+ * `(organization_id, id)` ({@link PublicFormAttachmentGate.resolve}); everything after runs under
+ * a service context for that organization.
  * Unknown, malformed and unpublished slugs give the same 404. A submission's values are checked
  * against the form (opaque keys, typed, length-capped) before 52-21's `assessPublicWrite` runs;
  * `blocked` stores nothing, `challenge` is a 202 the page renders, `hold` is stored as `new` for a
  * person, `spam` is stored as `spam` — and the visitor gets the same `{ reference }` either way.
+ *
+ * ## Attachments (52-20a)
+ *
+ * The owner's setting (`setAttachments`) and the gate decide whether a visitor may attach files.
+ * A submission that carries the visit's `uploadToken` is stored under the token's submission id,
+ * which is the `object_id` its files were uploaded under; triage lists them with the submission.
  */
-
-const SERVICE_POLICY = 'public-form-intake';
-const BOOTSTRAP_REASON =
-  'resolving which organization a published public form slug belongs to (slug is globally unique; the organization comes from the form row)';
 const MAX_PAGE = 100;
 const DEFAULT_PAGE = 50;
 const MAX_TITLE = 300;
@@ -75,6 +64,23 @@ export interface PublicFormState {
   readonly slug: string | null;
 }
 
+/** 52-20a. The owner's attachment setting: the project visitors' files go to, or `null` (off). */
+export interface PublicFormAttachmentSetting {
+  readonly attachmentProjectId: string | null;
+}
+
+/** `GET /v1/public/forms/:slug`: the opaque definition and the attachment rule (or `null`). */
+export interface PublicFormView extends PublicFormDefinition {
+  readonly attachments: PublicAttachmentRule | null;
+}
+
+/** 52-20a. A visitor's file as triage sees it; opened through the normal (scan-gated) download. */
+export interface SubmissionAttachmentView {
+  readonly fileAssetId: string;
+  readonly name: string;
+  readonly status: string;
+}
+
 export interface SubmissionView {
   readonly id: string;
   readonly reference: string;
@@ -83,6 +89,7 @@ export interface SubmissionView {
   readonly language: string | null;
   readonly risk: { readonly decision: string; readonly score: number; readonly reasons: string[] };
   readonly workItemId: string | null;
+  readonly attachments: readonly SubmissionAttachmentView[];
   readonly createdAt: string;
 }
 
@@ -99,7 +106,10 @@ export interface PublicSubmitRequest {
   readonly correlationId: string;
 }
 
-export function toSubmissionView(row: FormSubmissionRow): SubmissionView {
+export function toSubmissionView(
+  row: FormSubmissionRow,
+  files: readonly SubmissionAttachmentRow[] = [],
+): SubmissionView {
   return {
     id: row.id,
     reference: row.reference,
@@ -112,6 +122,9 @@ export function toSubmissionView(row: FormSubmissionRow): SubmissionView {
       reasons: row.riskReasons === null || row.riskReasons === '' ? [] : row.riskReasons.split(','),
     },
     workItemId: row.createdWorkItemId,
+    attachments: files
+      .filter((file) => file.submissionId === row.id)
+      .map((file) => ({ fileAssetId: file.fileAssetId, name: file.name, status: file.status })),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -140,6 +153,7 @@ export class PublicFormsService {
     private readonly repository: PublicFormsRepository,
     private readonly workItems: WorkItemCreator,
     private readonly assess: AssessPublicWrite | null,
+    private readonly gate: PublicFormAttachmentGate,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -188,6 +202,47 @@ export class PublicFormsService {
     }
   }
 
+  /**
+   * 52-20a. The owner's attachment setting. `projectId: null` switches attachments off; a project
+   * id switches them on and keeps visitors' files there — a live project of this organization that
+   * the caller may upload to (anything else is the same 404). The next upload re-reads it.
+   */
+  async setAttachments(
+    context: TenantContext,
+    principal: Principal,
+    formId: string,
+    body: { readonly projectId?: unknown } | undefined,
+  ): Promise<PublicFormAttachmentSetting> {
+    const raw = body?.projectId;
+    if (raw !== null && (typeof raw !== 'string' || raw.trim() === '' || raw.length > 36)) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'projectId', message: 'must be a project id, or null to turn attachments off' },
+      ]);
+    }
+    const projectId = raw === null ? null : raw.trim();
+    return this.database.transaction(context, async (tx) => {
+      const form = await this.repository.findForm(tx, context, formId);
+      if (!form) throw notFound('public_form_not_visible');
+      this.requireOrg(principal, context, 'work.create');
+      if (projectId !== null) {
+        const live = await this.repository.isLiveProject(tx, context, projectId);
+        const may = authorize({
+          principal,
+          capability: 'file.upload',
+          resource: {
+            organizationId: context.organizationId,
+            projectId,
+            audience: 'internal',
+            lifecycle: 'active',
+          },
+        }).allowed;
+        if (!live || !may) throw notFound('attachment_project_not_visible');
+      }
+      await this.repository.setAttachmentProject(tx, context, formId, projectId);
+      return { attachmentProjectId: projectId };
+    });
+  }
+
   async listSubmissions(
     context: TenantContext,
     principal: Principal,
@@ -211,16 +266,21 @@ export class PublicFormsService {
           : [{ field: 'limit', message: `must be an integer 1–${MAX_PAGE}` }]),
       ]);
     }
-    const rows = await this.database.read(context, async (runner) => {
+    return this.database.read(context, async (runner) => {
       const form = await this.repository.findForm(runner, context, formId);
       if (!form) throw notFound('public_form_not_visible');
       this.requireOrg(principal, context, 'client_request.triage');
-      return this.repository.listSubmissions(runner, context, formId, {
+      const rows = await this.repository.listSubmissions(runner, context, formId, {
         ...(state === undefined ? {} : { state }),
         limit,
       });
+      const files = await this.repository.listAttachments(
+        runner,
+        context,
+        rows.map((row) => row.id),
+      );
+      return rows.map((row) => toSubmissionView(row, files));
     });
-    return rows.map(toSubmissionView);
   }
 
   async markSpam(
@@ -233,13 +293,14 @@ export class PublicFormsService {
       const row = await this.repository.findSubmission(tx, context, formId, submissionId);
       if (!row) throw notFound('form_submission_not_visible');
       this.requireOrg(principal, context, 'client_request.triage');
-      if (row.state === 'spam') return toSubmissionView(row);
+      const files = await this.repository.listAttachments(tx, context, [row.id]);
+      if (row.state === 'spam') return toSubmissionView(row, files);
       const moved = await this.repository.transition(tx, context, submissionId, ['new'], {
         state: 'spam',
         spamMarkedBy: context.userId,
       });
       if (moved === 0) throw this.conflict();
-      return toSubmissionView({ ...row, state: 'spam', spamMarkedBy: context.userId });
+      return toSubmissionView({ ...row, state: 'spam', spamMarkedBy: context.userId }, files);
     });
   }
 
@@ -273,10 +334,11 @@ export class PublicFormsService {
         state: 'converting',
       });
       if (moved === 0) throw this.conflict();
-      return { row, formName: form.name };
+      const files = await this.repository.listAttachments(tx, context, [row.id]);
+      return { row, formName: form.name, files };
     });
 
-    const view = toSubmissionView(claimed.row);
+    const view = toSubmissionView(claimed.row, claimed.files);
     let workItemId: string;
     try {
       const item = await this.workItems.create(context, principal, {
@@ -309,14 +371,25 @@ export class PublicFormsService {
 
   // ── Public ─────────────────────────────────────────────────────────────────
 
-  async publicDefinition(slug: unknown, correlationId: string): Promise<PublicFormDefinition> {
-    const found = await this.resolvePublic(slug, correlationId);
-    return toPublicDefinition(found.form.name, found.form.fieldsJson);
+  async publicDefinition(slug: unknown, correlationId: string): Promise<PublicFormView> {
+    const { form } = await this.gate.resolve(slug, correlationId);
+    return {
+      ...toPublicDefinition(form.name, form.fieldsJson),
+      attachments: this.gate.rule(form),
+    };
   }
 
   async submit(request: PublicSubmitRequest): Promise<PublicSubmitResult> {
-    const { context, form } = await this.resolvePublic(request.slug, request.correlationId);
+    const resolved = await this.gate.resolve(request.slug, request.correlationId);
+    const { context, form } = resolved;
     const values = checkPublicValues(form.fieldsJson, request.body['values']);
+    // 52-20a: a visit that attached files sends its draft token; the submission takes the token's
+    // id, which is the one its files were uploaded under. A token for another form is a 400.
+    const rawToken = request.body['uploadToken'];
+    const submissionId =
+      rawToken === undefined || rawToken === null
+        ? undefined
+        : this.gate.submissionIdFor(resolved, rawToken);
 
     const acceptLanguage = request.acceptLanguage;
     const verdict = await this.assess?.({
@@ -341,11 +414,24 @@ export class PublicFormsService {
 
     const store = (): Promise<string> =>
       this.database.transaction(context, async (tx) => {
+        if (
+          submissionId !== undefined &&
+          (await this.repository.findSubmission(tx, context, form.id, submissionId)) !== null
+        ) {
+          throw new ApiError(
+            409,
+            'conflict',
+            'This form was already sent.',
+            undefined,
+            'form_submission_sent',
+          );
+        }
         const reference = newSubmissionReference();
         await this.repository.insertSubmission(
           tx,
           context,
           {
+            ...(submissionId === undefined ? {} : { id: submissionId }),
             formId: form.id,
             reference,
             valuesJson: JSON.stringify(values),
@@ -368,25 +454,6 @@ export class PublicFormsService {
       reference = await store();
     }
     return { kind: 'stored', reference };
-  }
-
-  private async resolvePublic(slug: unknown, correlationId: string) {
-    if (!isPublicSlug(slug)) throw notFound('public_form_unknown');
-    const found = await this.database.bootstrapRead(
-      { correlationId, reason: BOOTSTRAP_REASON, tables: ['work_forms'] },
-      (runner) => this.repository.findPublishedBySlug(runner, slug),
-    );
-    if (!found) throw notFound('public_form_unknown');
-    const context = createServiceContext({
-      organizationId: found.organizationId,
-      correlationId,
-      policyVersion: SERVICE_POLICY,
-    });
-    const form = await this.database.read(context, (runner) =>
-      this.repository.findForm(runner, context, found.id),
-    );
-    if (!form || !form.publicEnabled) throw notFound('public_form_unknown');
-    return { context, form };
   }
 
   // ── Policy ─────────────────────────────────────────────────────────────────

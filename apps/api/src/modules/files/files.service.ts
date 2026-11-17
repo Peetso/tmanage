@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { authorize, clientRequestStateMachine } from '@tmanage/domain';
-import type { Audience, AuditMetadata, ClientRequestState, Principal } from '@tmanage/domain';
+import type {
+  Audience,
+  AuditMetadata,
+  ClientRequestState,
+  Principal,
+  PrincipalKind,
+} from '@tmanage/domain';
 import {
   MissingPartError,
   MultipartUploadNotFoundError,
@@ -38,7 +44,12 @@ import {
 import { STORAGE_BYTES_METRIC, type UsageCountersRepository } from './usage-counters.repository.js';
 import { USAGE_LEDGER_REASON, type UsageLedgerRepository } from './usage-ledger.repository.js';
 import type { UsageThresholdEvaluator } from './usage-thresholds.js';
-import { mayUploadFor, objectTableFor } from './purpose-policy.js';
+import {
+  FORM_ATTACHMENT_MAX_FILES,
+  mayUploadFor,
+  objectTableFor,
+  withinPurposeLimit,
+} from './purpose-policy.js';
 import type { ParsedPart, ParsedUploadBody } from './upload-input.js';
 import {
   CLIENT_DAILY_UPLOAD_LIMIT,
@@ -214,7 +225,7 @@ function completionRefusal(
   return null;
 }
 
-function toView(row: UploadSessionRow, principal: Principal): UploadSessionView {
+function toView(row: UploadSessionRow, viewerUserId: string): UploadSessionView {
   return {
     id: row.id,
     fileAssetId: row.fileAssetId,
@@ -237,7 +248,7 @@ function toView(row: UploadSessionRow, principal: Principal): UploadSessionView 
     // can find and release a colleague's reservation, names the session and never its
     // targets (amended decision 7 — the wide scope may never read its parts).
     uploadUrls:
-      row.status === 'reserved' && row.actorUserId === principal.userId
+      row.status === 'reserved' && row.actorUserId === viewerUserId
         ? row.uploadTargetsJson.map((t) => ({ partNumber: t.partNumber, url: t.url }))
         : [],
     expiresAt: row.expiresAt.toISOString(),
@@ -281,6 +292,45 @@ function scanSourceOf(version: FileVersionRow): ScanSource {
 /** FIX6 C1. The provider handle of a session the server wrote itself: no multipart upload exists. */
 export const SERVER_IMPORT_UPLOAD_ID = 'server-import';
 
+/**
+ * 52-20a. Where a public form visitor's files go. Resolved by the public-forms gate from the form
+ * row and the visitor's signed token — never from anything else the request says.
+ */
+export interface PublicFormUploadTarget {
+  readonly projectId: string;
+  /** The form's author: the user the session and the asset are recorded under. */
+  readonly ownerUserId: string;
+  /** The submission the files belong to (`objectId`), minted into the visitor's signed token. */
+  readonly submissionId: string;
+}
+
+/** 52-20a. What a visitor is told about an upload: its part targets and nothing internal. */
+export interface PublicFormUploadView {
+  readonly id: string;
+  readonly status: string;
+  readonly partSizeBytes: number;
+  readonly uploadUrls: readonly { readonly partNumber: number; readonly url: string }[];
+  readonly expiresAt: string;
+}
+
+/** 52-20a. A visitor's finished upload: the session's id, the name and where the checks stand. */
+export interface PublicFormFileView {
+  readonly id: string;
+  readonly name: string;
+  readonly sizeBytes: number;
+  readonly status: string;
+}
+
+function toPublicUploadView(view: UploadSessionView): PublicFormUploadView {
+  return {
+    id: view.id,
+    status: view.status,
+    partSizeBytes: view.partSizeBytes,
+    uploadUrls: view.uploadUrls,
+    expiresAt: view.expiresAt,
+  };
+}
+
 /** FIX6 C1. A file the server fetched with the company's own connection. */
 export interface ImportFetchedInput {
   readonly projectId: string;
@@ -297,9 +347,22 @@ export interface ImportedFileView {
   readonly uploadSessionId: string;
 }
 
+/** Reads one upload session for a door, or answers its 404. */
+type SessionReader = (uploadSessionId: string) => Promise<UploadSessionRow>;
+
+/** The count cap a door opens uploads under: how many it holds, the limit, and its refusal. */
+interface OpenCap {
+  readonly limit: number;
+  count(runner: TenantQueryRunner): Promise<number>;
+  refuse(open: number): Promise<ApiError>;
+}
+
 interface Draft {
   readonly context: TenantContext;
-  readonly principal: Principal;
+  /** Who opens the upload: a principal's kind, or (52-20a) a public form's visitor. */
+  readonly actorKind: PrincipalKind | 'public_form';
+  /** The user the session and asset are recorded under (52-20a: the form's author). */
+  readonly actorUserId: string;
   readonly clientOrganizationId: string | null;
   readonly audience: Audience;
   readonly input: CreateUploadInput;
@@ -371,13 +434,17 @@ export class FilesService {
         'not_an_internal_principal',
       );
     }
-    return this.createSession({
-      context,
+    return this.createSession(
+      {
+        context,
+        actorKind: principal.kind,
+        actorUserId: principal.userId,
+        clientOrganizationId: null,
+        audience: input.audience,
+        input,
+      },
       principal,
-      clientOrganizationId: null,
-      audience: input.audience,
-      input,
-    });
+    );
   }
 
   async get(
@@ -394,7 +461,7 @@ export class FilesService {
         'not_an_internal_principal',
       );
     }
-    return toView(await this.readOr404(context, principal, uploadSessionId), principal);
+    return toView(await this.readOr404(context, principal, uploadSessionId), principal.userId);
   }
 
   /**
@@ -431,7 +498,7 @@ export class FilesService {
     );
     return rows
       .filter((row) => (wide ? this.mayRelease : this.mayUpload)(principal, row))
-      .map((row) => toView(row, principal));
+      .map((row) => toView(row, principal.userId));
   }
 
   async complete(
@@ -449,7 +516,12 @@ export class FilesService {
         'not_an_internal_principal',
       );
     }
-    return this.completeSession(context, principal, uploadSessionId, parts);
+    return this.completeSession(
+      context,
+      this.ownSession(context, principal),
+      uploadSessionId,
+      parts,
+    );
   }
 
   async cancel(
@@ -466,7 +538,12 @@ export class FilesService {
         'not_an_internal_principal',
       );
     }
-    return this.cancelSession(context, principal, uploadSessionId);
+    return this.cancelSession(
+      context,
+      this.ownSession(context, principal, 'release'),
+      principal.userId,
+      uploadSessionId,
+    );
   }
 
   // ── The client's door ──────────────────────────────────────────────────────
@@ -484,13 +561,17 @@ export class FilesService {
     input: CreateUploadInput,
   ): Promise<UploadSessionView> {
     const clientOrganizationId = this.requireClient(principal);
-    return this.createSession({
-      context,
+    return this.createSession(
+      {
+        context,
+        actorKind: principal.kind,
+        actorUserId: principal.userId,
+        clientOrganizationId,
+        audience: 'client_visible',
+        input: { ...input, audience: 'client_visible' },
+      },
       principal,
-      clientOrganizationId,
-      audience: 'client_visible',
-      input: { ...input, audience: 'client_visible' },
-    });
+    );
   }
 
   async listForClient(
@@ -503,7 +584,7 @@ export class FilesService {
     );
     return rows
       .filter((row) => this.mayUpload(principal, row))
-      .map((row) => toView(row, principal));
+      .map((row) => toView(row, principal.userId));
   }
 
   async completeForClient(
@@ -514,7 +595,12 @@ export class FilesService {
   ): Promise<ClientFileAssetView> {
     this.requireClient(principal);
     return clientFileAssetView(
-      await this.completeSession(context, principal, uploadSessionId, parts),
+      await this.completeSession(
+        context,
+        this.ownSession(context, principal),
+        uploadSessionId,
+        parts,
+      ),
     );
   }
 
@@ -524,13 +610,156 @@ export class FilesService {
     uploadSessionId: string,
   ): Promise<UploadSessionView> {
     this.requireClient(principal);
-    return this.cancelSession(context, principal, uploadSessionId);
+    return this.cancelSession(
+      context,
+      this.ownSession(context, principal, 'release'),
+      principal.userId,
+      uploadSessionId,
+    );
+  }
+
+  // ── A public form's door (52-20a) ──────────────────────────────────────────
+
+  /**
+   * A visitor attaches a file to a public form submission. There is no principal: the authority is
+   * the target the public-forms gate resolved (the owner's setting and the visitor's signed token).
+   * Whatever the request said, the upload is pinned here to `form_attachment`, the owner's project
+   * and the token's submission; the type, size, quota and scan rules are the ones every upload
+   * meets, with the public channel's narrower list (images and PDF, 25 MB) and at most
+   * {@link FORM_ATTACHMENT_MAX_FILES} files per submission.
+   */
+  async createForPublicForm(
+    context: TenantContext,
+    target: PublicFormUploadTarget,
+    requested: CreateUploadInput,
+  ): Promise<PublicFormUploadView> {
+    const input: CreateUploadInput = {
+      ...requested,
+      projectId: target.projectId,
+      purpose: 'form_attachment',
+      objectId: target.submissionId,
+      audience: 'internal',
+    };
+    const draft: Draft = {
+      context,
+      actorKind: 'public_form',
+      actorUserId: target.ownerUserId,
+      clientOrganizationId: null,
+      audience: 'internal',
+      input,
+    };
+    await this.requireFileSafety(context, draft);
+    if (!withinPurposeLimit('form_attachment', input.mimeType, input.sizeBytes)) {
+      await this.recordRefusal(context, draft, {
+        denial_code: 'file_not_allowed',
+        file_safety_code: 'type_not_allowed',
+      });
+      throw new ApiError(
+        422,
+        'file_not_allowed',
+        'This file cannot be uploaded',
+        [{ field: 'reason', message: 'type_not_allowed' }],
+        'file_not_allowed:purpose_limit',
+      );
+    }
+    await this.requireLiveProject(context, target.projectId);
+
+    const existing = await this.database.read(context, (runner) =>
+      this.sessions.findByIdempotencyKey(runner, context, input.idempotencyKey),
+    );
+    const viewer = target.ownerUserId;
+    if (existing) {
+      return toPublicUploadView(toView(this.replay(existing, viewer, input), viewer));
+    }
+
+    const created = await this.openSession(draft, {
+      limit: FORM_ATTACHMENT_MAX_FILES,
+      count: (runner) =>
+        this.sessions.countForObject(runner, context, 'form_attachment', target.submissionId),
+      refuse: async (held) => {
+        await this.recordRefusal(context, draft, {
+          denial_code: 'form_attachment_limit',
+          held_files: held,
+          limit_files: FORM_ATTACHMENT_MAX_FILES,
+        });
+        return new ApiError(
+          422,
+          'validation_failed',
+          'The request body is invalid',
+          [{ field: 'files', message: `at most ${FORM_ATTACHMENT_MAX_FILES} files` }],
+          'form_attachment_limit',
+        );
+      },
+    });
+    return toPublicUploadView(toView(created, viewer));
+  }
+
+  async completeForPublicForm(
+    context: TenantContext,
+    target: PublicFormUploadTarget,
+    uploadSessionId: string,
+    parts: readonly ParsedPart[],
+  ): Promise<PublicFormFileView> {
+    const file = await this.completeSession(
+      context,
+      this.formSession(context, target),
+      uploadSessionId,
+      parts,
+    );
+    return { id: uploadSessionId, name: file.name, sizeBytes: file.sizeBytes, status: file.status };
+  }
+
+  async cancelForPublicForm(
+    context: TenantContext,
+    target: PublicFormUploadTarget,
+    uploadSessionId: string,
+  ): Promise<PublicFormUploadView> {
+    return toPublicUploadView(
+      await this.cancelSession(
+        context,
+        this.formSession(context, target),
+        target.ownerUserId,
+        uploadSessionId,
+      ),
+    );
+  }
+
+  /**
+   * 52-20a. A visitor reaches only the uploads of their own submission: the session must be a
+   * `form_attachment` of the token's submission, in the owner's project, in this organization (the
+   * context). Anything else — another visitor's upload, a member's — is the same 404.
+   */
+  private formSession(context: TenantContext, target: PublicFormUploadTarget): SessionReader {
+    return async (uploadSessionId) => {
+      const row = await this.database.read(context, (runner) =>
+        this.sessions.findById(runner, context, uploadSessionId),
+      );
+      if (
+        !row ||
+        row.purpose !== 'form_attachment' ||
+        row.objectId !== target.submissionId ||
+        row.projectId !== target.projectId ||
+        row.actorUserId !== target.ownerUserId
+      ) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+      return row;
+    };
+  }
+
+  /** A signed-in door's reader: the opener's own session (or, to release, the wide scope's). */
+  private ownSession(
+    context: TenantContext,
+    principal: Principal,
+    scope: 'own' | 'release' = 'own',
+  ): SessionReader {
+    return (uploadSessionId) => this.readOr404(context, principal, uploadSessionId, scope);
   }
 
   // ── The aggregate ──────────────────────────────────────────────────────────
 
-  private async createSession(draft: Draft): Promise<UploadSessionView> {
-    const { context, principal, input } = draft;
+  private async createSession(draft: Draft, principal: Principal): Promise<UploadSessionView> {
+    const { context, input } = draft;
 
     if (!mayUploadFor(principal.kind, input.purpose)) {
       throw new ApiError(
@@ -574,21 +803,34 @@ export class FilesService {
     const existing = await this.database.read(context, (runner) =>
       this.sessions.findByIdempotencyKey(runner, context, input.idempotencyKey),
     );
-    if (existing) return this.replay(existing, principal, input);
+    if (existing) return toView(this.replay(existing, principal.userId, input), principal.userId);
 
     // 56-06: a client user starts at most 20 uploads per UTC day (one COUNT). A replay above is
     // not a new upload, so it is answered before this.
     if (principal.kind === 'client') await this.requireDailyAllowance(context, draft);
 
     // The open-upload cap (security review 2026-09-04): the quota bounds the bytes, this
-    // bounds the count. Read here so a person at the cap costs no provider upload; read
-    // again inside the reservation, after the counter's row lock, so two requests arriving
-    // together cannot both be the twentieth.
+    // bounds the count.
     const cap = this.config.uploadMaxOpenSessionsPerUser;
-    const openBefore = await this.database.read(context, (runner) =>
-      this.sessions.countOpenFor(runner, context, principal.userId),
-    );
-    if (openBefore >= cap) throw await this.refuseOpenUploads(context, draft, openBefore, cap);
+    const created = await this.openSession(draft, {
+      limit: cap,
+      count: (runner) => this.sessions.countOpenFor(runner, context, principal.userId),
+      refuse: (open) => this.refuseOpenUploads(context, draft, open, cap),
+    });
+    return toView(created, principal.userId);
+  }
+
+  /**
+   * The half of opening an upload every door shares, after the door has decided who may open it:
+   * the count cap, the provider upload, the quota reservation, the asset and session rows, and the
+   * abort when anything refuses. The cap is read here so an actor at it costs no provider upload,
+   * and again inside the reservation, after the counter's row lock, so two requests arriving
+   * together cannot both be the last one allowed.
+   */
+  private async openSession(draft: Draft, cap: OpenCap): Promise<UploadSessionRow> {
+    const { context, input } = draft;
+    const openBefore = await this.database.read(context, (runner) => cap.count(runner));
+    if (openBefore >= cap.limit) throw await cap.refuse(openBefore);
 
     const id = this.sessions.nextId();
     const objectKey = uploadObjectKey({
@@ -622,13 +864,13 @@ export class FilesService {
         if (!reserved) throw new QuotaExhausted();
         // Reversal: drop this second count and two simultaneous requests can both land
         // as the cap-th session; the sequential case above is what the suite can see.
-        const open = await this.sessions.countOpenFor(tx, context, principal.userId);
-        if (open >= cap) throw new TooManyOpenUploads(open);
+        const open = await cap.count(tx);
+        if (open >= cap.limit) throw new TooManyOpenUploads(open);
 
         const asset = await this.assets.create(tx, context, {
           projectId: input.projectId,
           clientOrganizationId: draft.clientOrganizationId,
-          ownerUserId: principal.userId,
+          ownerUserId: draft.actorUserId,
           name: input.fileName,
           purpose: input.purpose,
           objectId: input.objectId,
@@ -638,7 +880,7 @@ export class FilesService {
           id,
           projectId: input.projectId,
           clientOrganizationId: draft.clientOrganizationId,
-          actorUserId: principal.userId,
+          actorUserId: draft.actorUserId,
           fileAssetId: asset.id,
           idempotencyKey: input.idempotencyKey,
           purpose: input.purpose,
@@ -674,9 +916,7 @@ export class FilesService {
         // nothing said which (security review 2026-09-04).
         await this.recordAbortFailure(context, draft, upload.providerUploadId, error, abortError);
       }
-      if (error instanceof TooManyOpenUploads) {
-        throw await this.refuseOpenUploads(context, draft, error.open, cap);
-      }
+      if (error instanceof TooManyOpenUploads) throw await cap.refuse(error.open);
       if (error instanceof QuotaExhausted)
         throw await this.quotaRefusal(context, draft, limitBytes);
       if (error instanceof UploadSessionKeyTakenError) {
@@ -684,12 +924,12 @@ export class FilesService {
         const winner = await this.database.read(context, (runner) =>
           this.sessions.findByIdempotencyKey(runner, context, input.idempotencyKey),
         );
-        if (winner) return this.replay(winner, principal, input);
+        if (winner) return this.replay(winner, draft.actorUserId, input);
       }
       throw error;
     }
 
-    return toView(created, principal);
+    return created;
   }
 
   /**
@@ -801,7 +1041,8 @@ export class FilesService {
   ): Promise<ImportedFileView> {
     const draft: Draft = {
       context,
-      principal,
+      actorKind: principal.kind,
+      actorUserId: principal.userId,
       clientOrganizationId: null,
       audience: 'internal',
       input: {
@@ -941,11 +1182,11 @@ export class FilesService {
 
   private async completeSession(
     context: TenantContext,
-    principal: Principal,
+    read: SessionReader,
     uploadSessionId: string,
     parts: readonly ParsedPart[],
   ): Promise<FileAssetView> {
-    const session = await this.readOr404(context, principal, uploadSessionId);
+    const session = await read(uploadSessionId);
 
     if (session.status === 'completed') return this.completedView(context, session);
     if (session.status === 'completing') throw this.inFlight();
@@ -995,7 +1236,7 @@ export class FilesService {
       ),
     );
     if (!claimed) {
-      const fresh = await this.readOr404(context, principal, uploadSessionId);
+      const fresh = await read(uploadSessionId);
       if (fresh.status === 'completed') return this.completedView(context, fresh);
       if (fresh.status === 'completing') throw this.inFlight();
       throw this.illegal(`a ${fresh.status} upload cannot be completed`);
@@ -1059,7 +1300,7 @@ export class FilesService {
       settled = result !== null;
       if (result === null) {
         // Somebody else flipped it first. Answer what they made.
-        const fresh = await this.readOr404(context, principal, uploadSessionId);
+        const fresh = await read(uploadSessionId);
         if (fresh.status === 'completed') return this.completedView(context, fresh);
         throw this.illegal(`a ${fresh.status} upload cannot be completed`);
       }
@@ -1210,11 +1451,12 @@ export class FilesService {
    */
   private async cancelSession(
     context: TenantContext,
-    principal: Principal,
+    read: SessionReader,
+    viewerUserId: string,
     uploadSessionId: string,
   ): Promise<UploadSessionView> {
-    const session = await this.readOr404(context, principal, uploadSessionId, 'release');
-    if (session.status === 'cancelled') return toView(session, principal);
+    const session = await read(uploadSessionId);
+    if (session.status === 'cancelled') return toView(session, viewerUserId);
     // A claim is refused here, before `releaseAs` can ask the provider to abandon an upload
     // a completion is assembling: the abort runs ahead of the status guard on that path.
     if (session.status === 'completing') throw this.inFlight();
@@ -1223,12 +1465,12 @@ export class FilesService {
     }
     const released = await this.releaseAs(context, session, 'cancelled');
     if (!released) {
-      const fresh = await this.readOr404(context, principal, uploadSessionId, 'release');
-      if (fresh.status === 'cancelled') return toView(fresh, principal);
+      const fresh = await read(uploadSessionId);
+      if (fresh.status === 'cancelled') return toView(fresh, viewerUserId);
       if (fresh.status === 'completing') throw this.inFlight();
       throw this.illegal(`a ${fresh.status} upload cannot be cancelled`);
     }
-    return toView(await this.readOr404(context, principal, uploadSessionId, 'release'), principal);
+    return toView(await read(uploadSessionId), viewerUserId);
   }
 
   /**
@@ -1566,14 +1808,17 @@ export class FilesService {
    */
   private replay(
     existing: UploadSessionRow,
-    principal: Principal,
+    actorUserId: string,
     input: CreateUploadInput,
-  ): UploadSessionView {
+  ): UploadSessionRow {
     const conflict = (message: string) =>
       new ApiError(409, 'conflict', 'This idempotency key belongs to another upload', [
         { field: 'Idempotency-Key', message },
       ]);
-    if (existing.actorUserId !== principal.userId) throw conflict('was used by a different person');
+    if (existing.actorUserId !== actorUserId) throw conflict('was used by a different person');
+    // 52-20a: every visitor's upload is recorded under the form's author, so a key is also held to
+    // the submission it was opened for — another visitor's key is a conflict, never their targets.
+    if (existing.objectId !== input.objectId) throw conflict('was used for a different file');
     if (existing.projectId !== input.projectId) throw conflict('was used for a different project');
     if (existing.status === 'completing') {
       // Not "use a new key": a second session for a file whose completion is in flight is
@@ -1583,7 +1828,7 @@ export class FilesService {
     if (existing.status !== 'reserved') {
       throw conflict(`was used by a session that is now ${existing.status}; use a new key`);
     }
-    return toView(existing, principal);
+    return existing;
   }
 
   /**
@@ -1658,7 +1903,7 @@ export class FilesService {
             failure: failure instanceof Error ? failure.name : typeof failure,
             project_id: draft.input.projectId,
             declared_bytes: draft.input.sizeBytes,
-            principal_kind: draft.principal.kind,
+            principal_kind: draft.actorKind,
           },
         }),
       );
@@ -1741,7 +1986,7 @@ export class FilesService {
           declared_bytes: draft.input.sizeBytes,
           purpose: draft.input.purpose,
           project_id: draft.input.projectId,
-          principal_kind: draft.principal.kind,
+          principal_kind: draft.actorKind,
         },
       }),
     );
@@ -1807,13 +2052,13 @@ export class FilesService {
    * magic or which name matched — and an `upload_session.refused` row records the token.
    */
   private async requireFileSafety(context: TenantContext, draft: Draft): Promise<void> {
-    const { input, principal } = draft;
+    const { input, actorKind } = draft;
     const settings = this.safety ? await this.safety.read(context) : null;
     const result = classifyUpload({
       fileName: input.fileName,
       declaredType: input.mimeType,
       sizeBytes: input.sizeBytes,
-      channel: principal.kind === 'client' ? 'client' : 'member',
+      channel: actorKind === 'public_form' || actorKind === 'client' ? actorKind : 'member',
       presets: settings?.presets ?? DEFAULT_PRESETS,
       maxBytes: settings?.maxFileBytes ?? this.config.uploadMaxBytes,
     });
@@ -1834,12 +2079,7 @@ export class FilesService {
   /** 56-06 (R19-e). The client's daily upload allowance: the 21st start of a UTC day is a 429. */
   private async requireDailyAllowance(context: TenantContext, draft: Draft): Promise<void> {
     const started = await this.database.read(context, (runner) =>
-      this.dailyUploads.countSince(
-        runner,
-        context,
-        draft.principal.userId,
-        startOfUtcDay(new Date()),
-      ),
+      this.dailyUploads.countSince(runner, context, draft.actorUserId, startOfUtcDay(new Date())),
     );
     if (started < CLIENT_DAILY_UPLOAD_LIMIT) return;
     await this.recordRefusal(context, draft, {

@@ -2330,6 +2330,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`milestone_client_projections`
 GRANT UPDATE ON `tmanage`.`project_milestones`                              TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`project_phases`                                  TO 'tmanage_app'@'%';
 
+-- 52-20a (0365): upload purpose `form_attachment` (a public form visitor's file) widens the two
+-- `purpose` ENUMs, and `work_forms.attachment_project_id` is written by the existing UPDATE grant on
+-- `work_forms`; the existing INSERT/UPDATE grants cover both; no new grant.
 -- 55-14a (0362): upload purpose `client_upload` (a client's portal file) widens the two `purpose`
 -- ENUMs on `file_assets` / `upload_sessions`; the existing INSERT/UPDATE grants cover it; no new grant.
 -- 57-13a (0361): `file_versions.storage_backend` / `provider_file_id` / `storage_connection_id` (where a

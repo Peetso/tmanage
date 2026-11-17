@@ -133,6 +133,10 @@ import { UsageController } from './usage.controller.js';
 import { BlockedFilesController } from './blocked-files.controller.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
+import { PublicFormUploadsController } from './public-form-uploads.controller.js';
+import { PublicFormAttachmentGate } from '../public-forms/public-form-attachments.js';
+import { PUBLIC_FORM_ATTACHMENT_GATE } from '../public-forms/public-forms.controller.js';
+import { PublicFormsRepository } from '../public-forms/public-forms.repository.js';
 import { UploadPartsController } from './upload-parts.controller.js';
 
 /**
@@ -698,11 +702,26 @@ export class FilesModule {
         }),
     };
 
+    // 52-20a. The public form's attachment gate, for `PublicFormUploadsController` (stateless; the
+    // public-forms module builds its own for the token and the submission).
+    const publicFormGate: Provider = {
+      provide: PUBLIC_FORM_ATTACHMENT_GATE,
+      inject: [TENANT_DATABASE, MALWARE_SCANNER, API_CONFIG],
+      useFactory: (database: TenantDatabase, malwareScanner: MalwareScanner, config: ApiConfig) =>
+        new PublicFormAttachmentGate(
+          database,
+          new PublicFormsRepository(),
+          malwareScanner,
+          config.sessionSecret,
+        ),
+    };
+
     return {
       module: FilesModule,
       providers: [
         ...repositories,
         service,
+        publicFormGate,
         cloudImport,
         cloudFolders,
         fileDelete,
@@ -748,6 +767,7 @@ export class FilesModule {
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,
+        PublicFormUploadsController,
         UploadPartsController,
         FileDownloadsController,
         PortalFileDownloadsController,

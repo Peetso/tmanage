@@ -3787,6 +3787,9 @@ export const UPLOAD_PURPOSES = [
   // 0362 (55-14a): a project file a client sent from the portal's Files page; no `objectId`, bound
   // to the project and the uploader's client organization. The team sees it as "Uploaded by client".
   'client_upload',
+  // 0365 (52-20a): a file a visitor attached on a public form; `objectId` is the submission, the
+  // project is the one the form's owner chose. Never uploaded through a signed-in door.
+  'form_attachment',
 ] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 
@@ -4210,6 +4213,11 @@ export const workForms = mysqlTable(
     /** 0258 (52-20). An unpublished slug answers the same 404 as an unknown one. */
     publicEnabled: boolean('public_enabled').notNull().default(false),
     publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }),
+    /**
+     * 0365 (52-20a). The owner's attachment setting: NULL = visitors attach nothing; a project id =
+     * visitors may attach images and PDF, kept in that project. No FK: checked tenant-scoped on use.
+     */
+    attachmentProjectId: char('attachment_project_id', { length: 36 }),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [

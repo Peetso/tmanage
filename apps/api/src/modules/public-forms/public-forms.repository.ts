@@ -1,7 +1,7 @@
-import { and, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { formSubmissions, workForms } from '../../common/database/schema.js';
+import { fileAssets, formSubmissions, projects, workForms } from '../../common/database/schema.js';
 import type {
   FormSubmissionRow,
   FormSubmissionState,
@@ -24,6 +24,8 @@ import type {
  */
 
 export interface NewSubmission {
+  /** 52-20a: the id a visitor's draft token carries, so its files are already bound; else fresh. */
+  readonly id?: string;
   readonly formId: string;
   readonly reference: string;
   readonly valuesJson: string;
@@ -32,6 +34,14 @@ export interface NewSubmission {
   readonly riskDecision: string;
   readonly riskScore: number;
   readonly riskReasons: string | null;
+}
+
+/** 52-20a. A visitor's attached file as triage lists it. */
+export interface SubmissionAttachmentRow {
+  readonly submissionId: string;
+  readonly fileAssetId: string;
+  readonly name: string;
+  readonly status: string;
 }
 
 export interface ListSubmissionsOptions {
@@ -91,7 +101,7 @@ export class PublicFormsRepository {
     input: NewSubmission,
     at: Date,
   ): Promise<string> {
-    const id = uuidv7();
+    const id = input.id ?? uuidv7();
     await tenantDrizzle(runner).insert(formSubmissions).values({
       id,
       organizationId: context.organizationId,
@@ -106,6 +116,68 @@ export class PublicFormsRepository {
       createdAt: at,
     });
     return id;
+  }
+
+  /** 52-20a. The owner's attachment setting: the project visitors' files go to, or NULL (off). */
+  async setAttachmentProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    formId: string,
+    projectId: string | null,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(workForms)
+      .set({ attachmentProjectId: projectId, updatedAt: sql`current_timestamp(3)` })
+      .where(and(eq(workForms.organizationId, context.organizationId), eq(workForms.id, formId)));
+  }
+
+  /** 52-20a. Whether `projectId` is a live (not archived) project of this organization. */
+  async isLiveProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.organizationId, context.organizationId),
+          eq(projects.id, projectId),
+          isNull(projects.archivedAt),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  /** 52-20a. The files visitors attached to these submissions (one query for a page). */
+  async listAttachments(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    submissionIds: readonly string[],
+  ): Promise<readonly SubmissionAttachmentRow[]> {
+    if (submissionIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({
+        submissionId: fileAssets.objectId,
+        fileAssetId: fileAssets.id,
+        name: fileAssets.name,
+        status: fileAssets.status,
+      })
+      .from(fileAssets)
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.purpose, 'form_attachment'),
+          inArray(fileAssets.objectId, [...submissionIds]),
+          isNull(fileAssets.deletedAt),
+        ),
+      )
+      .orderBy(fileAssets.createdAt, fileAssets.id);
+    return rows.flatMap((row) =>
+      row.submissionId === null ? [] : [{ ...row, submissionId: row.submissionId }],
+    );
   }
 
   /** Newest first, bounded, optionally one state; keyset over `(created_at, id)`. */

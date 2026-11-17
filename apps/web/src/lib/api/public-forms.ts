@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import { ApiRequestError } from './errors';
 import type { WorkFormFieldType } from './work-forms';
 
 /**
@@ -16,10 +17,19 @@ export interface PublicFormField {
   readonly maxLength?: number;
 }
 
-/** `GET /v1/public/forms/:slug`. Mirrors the API's `PublicFormDefinition`. */
+/** 52-20a. What a visitor may attach. Mirrors the API's `PublicAttachmentRule`. */
+export interface PublicAttachmentRule {
+  readonly maxFiles: number;
+  readonly maxBytes: number;
+  readonly mimeTypes: readonly string[];
+}
+
+/** `GET /v1/public/forms/:slug`. Mirrors the API's `PublicFormView`. */
 export interface PublicFormDefinition {
   readonly title: string;
   readonly fields: readonly PublicFormField[];
+  /** 52-20a. `null` (or absent, e.g. a portal journey step) when the form takes no files. */
+  readonly attachments?: PublicAttachmentRule | null;
 }
 
 /** A held submission's challenge. Mirrors the API's `ChallengeView`. */
@@ -38,6 +48,8 @@ export type PublicSubmitResult =
 /** The body a submission sends. Request-side (suffix `Input`). */
 export type PublicSubmitInput = Readonly<Record<string, unknown>> & {
   readonly values: Readonly<Record<string, string | number | boolean>>;
+  /** 52-20a. The visit's draft token when files were attached. */
+  readonly uploadToken?: string;
 };
 
 function path(slug: string): string {
@@ -67,4 +79,120 @@ export async function submitPublicForm(
     authentication: 'none',
   });
   return data;
+}
+
+// ── 52-20a: attachments ─────────────────────────────────────────────────────
+
+/** The header the API reads the visit's draft token from (never the URL). */
+const TOKEN_HEADER = 'x-form-upload-token';
+
+/** Why one file did not attach — each has its own calm sentence on the page. */
+export type AttachmentProblem = 'too_big' | 'wrong_type' | 'limit' | 'unavailable' | 'failed';
+
+export class AttachmentError extends Error {
+  constructor(readonly problem: AttachmentProblem) {
+    super(problem);
+    this.name = 'AttachmentError';
+  }
+}
+
+/** The browser's own check, so a wrong file is explained before anything is sent. */
+export function attachmentProblem(
+  file: { readonly size: number; readonly type: string },
+  rule: PublicAttachmentRule,
+): AttachmentProblem | null {
+  if (!rule.mimeTypes.includes(file.type.toLowerCase())) return 'wrong_type';
+  return file.size > rule.maxBytes ? 'too_big' : null;
+}
+
+/** `POST …/upload-token`: the draft token every upload of this visit carries. */
+export async function openPublicFormDraft(client: ApiClient, slug: string): Promise<string> {
+  try {
+    const { data } = await client.request<{ readonly uploadToken: string }>({
+      method: 'POST',
+      path: `${path(slug)}/upload-token`,
+      authentication: 'none',
+    });
+    return data.uploadToken;
+  } catch (error) {
+    throw new AttachmentError(problemOf(error));
+  }
+}
+
+interface PublicUploadReply {
+  readonly id: string;
+  readonly partSizeBytes: number;
+  readonly uploadUrls: readonly { readonly partNumber: number; readonly url: string }[];
+}
+
+function problemOf(error: unknown): AttachmentProblem {
+  if (!(error instanceof ApiRequestError)) return 'failed';
+  if (error.status === 409) return 'unavailable';
+  // The file-safety refusal (422) names its reason token in one `reason` detail.
+  const reason = error.details.find((detail) => detail.field === 'reason')?.message;
+  if (reason !== undefined) return reason === 'too_large' ? 'too_big' : 'wrong_type';
+  const fields = error.details.map((detail) => detail.field);
+  if (fields.includes('files')) return 'limit';
+  if (fields.includes('sizeBytes')) return 'too_big';
+  if (fields.includes('mimeType')) return 'wrong_type';
+  return 'failed';
+}
+
+/**
+ * One file through the form's attachment door: open the upload, send its parts to the targets the
+ * API minted (no cookie travels), complete it. A refusal is an {@link AttachmentError}; an upload
+ * that stops part-way is cancelled so it holds nothing.
+ */
+export async function uploadPublicFormFile(
+  client: ApiClient,
+  slug: string,
+  uploadToken: string,
+  file: File,
+  options: { readonly idempotencyKey: string; readonly fetcher?: typeof fetch } = {
+    idempotencyKey: crypto.randomUUID(),
+  },
+): Promise<void> {
+  const base = `${path(slug)}/uploads`;
+  const headers = { [TOKEN_HEADER]: uploadToken };
+  let session: PublicUploadReply;
+  try {
+    ({ data: session } = await client.request<PublicUploadReply>({
+      method: 'POST',
+      path: base,
+      authentication: 'none',
+      headers: { ...headers, 'idempotency-key': options.idempotencyKey },
+      body: { fileName: file.name, mimeType: file.type.toLowerCase(), sizeBytes: file.size },
+    }));
+  } catch (error) {
+    throw new AttachmentError(problemOf(error));
+  }
+  const at = `${base}/${encodeURIComponent(session.id)}`;
+  try {
+    const send = options.fetcher ?? fetch;
+    const parts: { partNumber: number; etag: string }[] = [];
+    for (const target of [...session.uploadUrls].sort((a, b) => a.partNumber - b.partNumber)) {
+      const start = (target.partNumber - 1) * session.partSizeBytes;
+      const response = await send(target.url, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: file.slice(start, start + session.partSizeBytes),
+        credentials: 'omit',
+      });
+      const etag = response.headers.get('etag');
+      if (!response.ok || !etag) throw new AttachmentError('failed');
+      parts.push({ partNumber: target.partNumber, etag });
+    }
+    await client.request<unknown>({
+      method: 'POST',
+      path: `${at}/complete`,
+      authentication: 'none',
+      headers,
+      body: { parts },
+    });
+  } catch (error) {
+    await client
+      .request<unknown>({ method: 'POST', path: `${at}/cancel`, authentication: 'none', headers })
+      .catch(() => undefined);
+    throw error instanceof AttachmentError ? error : new AttachmentError(problemOf(error));
+  }
 }

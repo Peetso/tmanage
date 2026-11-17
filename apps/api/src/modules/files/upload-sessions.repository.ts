@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
@@ -193,9 +193,36 @@ export class UploadSessionsRepository {
           eq(uploadSessions.organizationId, context.organizationId),
           inArray(uploadSessions.status, [...OPEN_STATUSES]),
           eq(uploadSessions.actorUserId, actorUserId),
+          // 52-20a: a public form's uploads are recorded under the form's author but are not the
+          // author's own; visitors never use up the cap the author uploads under.
+          ne(uploadSessions.purpose, 'form_attachment'),
         ),
       );
     return Number(rows[0]?.open ?? 0);
+  }
+
+  /**
+   * 52-20a. The uploads opened for one row of `purpose` (a public form's submission) that are
+   * still open or done — cancelled, failed and expired ones give their place back.
+   */
+  async countForObject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    purpose: UploadPurpose,
+    objectId: string,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ held: sql<number>`count(*)` })
+      .from(uploadSessions)
+      .where(
+        and(
+          eq(uploadSessions.organizationId, context.organizationId),
+          eq(uploadSessions.purpose, purpose),
+          eq(uploadSessions.objectId, objectId),
+          inArray(uploadSessions.status, [...OPEN_STATUSES, 'completed']),
+        ),
+      );
+    return Number(rows[0]?.held ?? 0);
   }
 
   /**

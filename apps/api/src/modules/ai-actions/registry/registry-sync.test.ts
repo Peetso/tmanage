@@ -217,7 +217,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 52-27: client journey steps (list, add, from template, edit, remove), journey templates, and the
 // portal form step read and send (+8 classified).
 // 57-13b: "Move to Drive" start, latest and one job (+3 NEVER, storage_connection).
-const EXPECTED_ROUTE_COUNT = 1519;
+// 52-20a: public form attachments — upload-token, uploads open/complete/cancel and the owner's
+// attachments switch (+5 NEVER, public_intake).
+const EXPECTED_ROUTE_COUNT = 1524;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

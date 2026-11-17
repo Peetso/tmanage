@@ -11,11 +11,9 @@ import { describe, expect, it } from 'vitest';
 const modules = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const IMPORTS_FILE_SAFETY = /from '(?:\.\/|\.\.\/files\/)file-safety\.js'/u;
 
-const CONSUMERS = [
-  'files/files.service.ts',
-  'public-forms/public-forms.service.ts',
-  'inbound-mail/inbound-mail.service.ts',
-] as const;
+// 52-20a: a public form's attachments open through `FilesService.createForPublicForm`, so the
+// files service is that door's consumer too; the public-forms module holds no copy of the rule.
+const CONSUMERS = ['files/files.service.ts', 'inbound-mail/inbound-mail.service.ts'] as const;
 
 describe('file-safety consumers', () => {
   it.each(CONSUMERS)('%s imports the shared module', (relative) => {

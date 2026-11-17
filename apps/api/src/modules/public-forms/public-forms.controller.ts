@@ -6,6 +6,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -22,13 +23,18 @@ import {
 } from '../rate-limits/throttle-policies.js';
 import type { ChallengeView } from '../public-abuse/challenge.service.js';
 import type {
+  PublicFormAttachmentSetting,
   PublicFormState,
   PublicFormsService,
-  SubmissionView,
+  PublicFormView,
 } from './public-forms.service.js';
-import type { PublicFormDefinition } from './public-forms.validate.js';
+import type { SubmissionView } from './public-forms.service.js';
+import { PUBLIC_FORM_UPLOAD_LIMITS } from './public-form-attachments.js';
+import type { DraftTokenView, PublicFormAttachmentGate } from './public-form-attachments.js';
 
 export const PUBLIC_FORMS_SERVICE = Symbol.for('tmanage.PublicFormsService');
+/** 52-20a. The attachment gate (stateless): built by this module and by the files module. */
+export const PUBLIC_FORM_ATTACHMENT_GATE = Symbol.for('tmanage.PublicFormAttachmentGate');
 
 /**
  * 52-20 — the signed-in half: publish / unpublish a work form and triage its public submissions.
@@ -59,6 +65,19 @@ export class PublicFormsAdminController {
     @Param('formId') formId: string,
   ): Promise<PublicFormState> {
     return this.service.unpublish(context, principal, formId);
+  }
+
+  /** 52-20a. The owner's attachment setting: `{ projectId }` turns it on, `{ projectId: null }` off. */
+  @Put(':formId/attachments')
+  @RequireCapability('work.create')
+  @HttpCode(200)
+  setAttachments(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('formId') formId: string,
+    @Body() body: { readonly projectId?: unknown } | undefined,
+  ): Promise<PublicFormAttachmentSetting> {
+    return this.service.setAttachments(context, principal, formId, body);
   }
 
   @Get(':formId/submissions')
@@ -103,18 +122,18 @@ export class PublicFormsAdminController {
   }
 }
 
-interface PublicRequest {
+export interface PublicRequest {
   readonly headers: Record<string, string | string[] | undefined>;
   readonly ip?: string;
 }
 
-interface PublicReply {
+export interface PublicReply {
   header(name: string, value: string): unknown;
   status(code: number): unknown;
 }
 
 /** Never cached, never indexed, never sent on as a referrer. */
-function privateHeaders(reply: PublicReply): void {
+export function privateHeaders(reply: PublicReply): void {
   reply.header('cache-control', 'no-store');
   reply.header('x-robots-tag', 'noindex');
   reply.header('referrer-policy', 'no-referrer');
@@ -127,7 +146,10 @@ function privateHeaders(reply: PublicReply): void {
  */
 @Controller('v1/public/forms')
 export class PublicFormsController {
-  constructor(@Inject(PUBLIC_FORMS_SERVICE) private readonly service: PublicFormsService) {}
+  constructor(
+    @Inject(PUBLIC_FORMS_SERVICE) private readonly service: PublicFormsService,
+    @Inject(PUBLIC_FORM_ATTACHMENT_GATE) private readonly gate: PublicFormAttachmentGate,
+  ) {}
 
   @Get(':slug')
   @Public()
@@ -136,9 +158,26 @@ export class PublicFormsController {
     @Param('slug') slug: string,
     @Req() request: PublicRequest,
     @Res({ passthrough: true }) reply: PublicReply,
-  ): Promise<PublicFormDefinition> {
+  ): Promise<PublicFormView> {
     privateHeaders(reply);
     return this.service.publicDefinition(slug, requireRequestState(request).correlationId);
+  }
+
+  /**
+   * 52-20a. A draft token for this visit's attachments (`uploadToken`, sent with every upload and
+   * with the submission). 409 `attachments_disabled` when the owner allows none or nothing scans.
+   */
+  @Post(':slug/upload-token')
+  @Public()
+  @Throttle('public_form_upload', { ...PUBLIC_FORM_UPLOAD_LIMITS, linkParam: 'slug' })
+  @HttpCode(201)
+  uploadToken(
+    @Param('slug') slug: string,
+    @Req() request: PublicRequest,
+    @Res({ passthrough: true }) reply: PublicReply,
+  ): Promise<DraftTokenView> {
+    privateHeaders(reply);
+    return this.gate.openDraft(slug, requireRequestState(request).correlationId);
   }
 
   @Post(':slug/submissions')

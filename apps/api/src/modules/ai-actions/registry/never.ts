@@ -1260,6 +1260,25 @@ export const NEVER: readonly NeverEntry[] = [
   // visitors sent are ops since 52-22 (`work_forms.*`, `finance-documents.ts`).
   { method: 'GET', path: '/v1/public/forms/:slug', reason: 'public_intake' },
   { method: 'POST', path: '/v1/public/forms/:slug/submissions', reason: 'public_intake' },
+  // 52-20a. A visitor's attachments (anonymous), and the owner's switch that lets strangers send
+  // files into a project — a person decides that, never an assistant.
+  { method: 'POST', path: '/v1/public/forms/:slug/upload-token', reason: 'public_intake' },
+  { method: 'POST', path: '/v1/public/forms/:slug/uploads/', reason: 'public_intake' },
+  {
+    method: 'POST',
+    path: '/v1/public/forms/:slug/uploads/:uploadSessionId/complete',
+    reason: 'public_intake',
+  },
+  {
+    method: 'POST',
+    path: '/v1/public/forms/:slug/uploads/:uploadSessionId/cancel',
+    reason: 'public_intake',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/work-forms/:formId/attachments',
+    reason: 'public_intake',
+  },
   // 56-07. Public links: the outsider's routes (anonymous, nothing an AI acts on) and the member
   // routes that hand an outsider access to one object — an AI never issues or revokes that.
   { method: 'GET', path: '/v1/public/links/:token/', reason: 'public_site' },

@@ -358,6 +358,9 @@ export class FileDownloadService {
     // the owner's call: `block` keeps a 409, `allow_labeled` serves it labelled `not_scanned`.
     // An infected, rejected, expired or cancelled file — or one not yet verified — never is.
     if (!awaitingScan(asset.status, version)) return { state: downloadStateFor(asset.status) };
+    // 52-20a: a file a stranger attached on a public form is served only once scanned clean,
+    // whatever the owner's policy — it never passed a person or a provider before staff open it.
+    if (asset.purpose === 'form_attachment') return { state: 'scan_required_by_policy' };
     const policy = await readDownloadScanPolicy(
       this.database,
       context,

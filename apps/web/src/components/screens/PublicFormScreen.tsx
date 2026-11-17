@@ -17,6 +17,7 @@ import { useFormProof } from '../../lib/form-proof';
 import { solvePow } from '../../lib/public-form-pow';
 import { useT } from '../../lib/i18n/use-t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { PublicFormAttachments, usePublicFormAttachments } from './PublicFormAttachments';
 import '../../styles/screens/work-forms-public.css';
 
 export interface PublicFormScreenProps {
@@ -46,6 +47,12 @@ export interface IntakeFormProps {
   readonly embedded?: { readonly backHref: string; readonly backLabel: string };
   /** Hidden inputs a door adds to the form (the public form proof). */
   readonly hidden?: ReactNode;
+  /** 52-20a. A door's extra part shown before Send (the public page's attachments). */
+  readonly extra?: ReactNode;
+  /** 52-20a. Send waits (disabled) while this is true — files still uploading. */
+  readonly holdSend?: boolean;
+  /** 52-20a. Called once a send went through, so a door can clear its own state. */
+  onSent?(): void;
 }
 
 /** A 400 with field details is a wrong answer; without details the studio refused it. */
@@ -78,12 +85,16 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
     queryFn: () => getPublicForm(api, slug),
     retry: false,
   });
+  const rule = definition.data?.attachments ?? null;
+  const attachments = usePublicFormAttachments(api, slug, rule);
 
   const send = async (values: IntakeFormValues): Promise<IntakeSendOutcome> => {
     try {
+      const uploadToken = attachments.token();
       const body = {
         values,
         pageLocale: locale.startsWith('ar') ? 'ar' : 'en',
+        ...(uploadToken === undefined ? {} : { uploadToken }),
         ...(await formProof.fields()),
       };
       let result: PublicSubmitResult = await submitPublicForm(api, slug, body);
@@ -112,6 +123,9 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
     <IntakeForm
       definition={definition}
       send={send}
+      extra={rule === null ? null : <PublicFormAttachments rule={rule} state={attachments} />}
+      holdSend={attachments.busy}
+      onSent={attachments.reset}
       hidden={
         <>
           <input type="hidden" name="startedAt" value={formProof.issue?.startedAt ?? ''} />
@@ -126,7 +140,15 @@ export function PublicFormScreen({ slug, client }: PublicFormScreenProps) {
  * The intake form itself — the public page's card, also shown by a 52-27 portal journey form step
  * (`embedded`). One field per question; the answers go to whichever door `send` names.
  */
-export function IntakeForm({ definition, send, embedded, hidden }: IntakeFormProps) {
+export function IntakeForm({
+  definition,
+  send,
+  embedded,
+  hidden,
+  extra,
+  holdSend = false,
+  onSent,
+}: IntakeFormProps) {
   const t = useT();
   const [values, setValues] = useState<Record<string, string>>({});
   const [checks, setChecks] = useState<Record<string, boolean>>({});
@@ -159,6 +181,7 @@ export function IntakeForm({ definition, send, embedded, hidden }: IntakeFormPro
       if (outcome.kind === 'sent') {
         setValues({});
         setChecks({});
+        onSent?.();
       }
     } finally {
       setSending(false);
@@ -241,7 +264,7 @@ export function IntakeForm({ definition, send, embedded, hidden }: IntakeFormPro
           noValidate
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
-            if (!sending && !missingRequired) void submit(form);
+            if (!sending && !missingRequired && !holdSend) void submit(form);
           }}
         >
           {hidden}
@@ -276,6 +299,8 @@ export function IntakeForm({ definition, send, embedded, hidden }: IntakeFormPro
             ),
           )}
 
+          {extra}
+
           {phase.kind === 'failed' ? (
             <InlineAlert tone="danger" title={t('PublicForm.failedTitle')} live>
               {phase.reason === 'invalid'
@@ -292,7 +317,7 @@ export function IntakeForm({ definition, send, embedded, hidden }: IntakeFormPro
             size="accessible"
             loading={sending}
             loadingLabel={t('PublicForm.sending')}
-            disabled={missingRequired}
+            disabled={missingRequired || holdSend}
           >
             {t('PublicForm.send')}
           </Button>

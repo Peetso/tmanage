@@ -248,3 +248,80 @@
   color: var(--ink-800);
   unicode-bidi: isolate;
 }
+
+/* ── 52-20a: attachments on the public form ─────────────────────────────── */
+
+.wf-attach {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.wf-attach__title {
+  padding: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.wf-attach__help {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.wf-attach__input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.wf-attach__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wf-attach__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-0);
+}
+
+.wf-attach__name {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-950);
+}
+
+.wf-attach__status {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.wf-attach__item[data-state='failed'] .wf-attach__status {
+  color: var(--ink-800);
+}

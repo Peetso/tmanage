@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WorkFormFieldDef, WorkFormRow } from '../../common/database/schema.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AssessPublicWrite } from '../public-abuse/public-abuse.guard.js';
+import {
+  openDraftToken,
+  PublicFormAttachmentGate,
+  sealDraftToken,
+} from './public-form-attachments.js';
 import type { PublicFormsRepository } from './public-forms.repository.js';
 import { PublicFormsService } from './public-forms.service.js';
 import {
@@ -12,6 +17,8 @@ import {
 } from './public-forms.validate.js';
 
 const ORG_A = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
+const SECRET = 'test-secret-0123456789abcdef0123456789';
+const SCANNER = { kind: 'engine' } as const;
 const FIELDS: WorkFormFieldDef[] = [
   { label: 'Name', type: 'text', required: true },
   { label: 'Budget', type: 'number', required: false },
@@ -81,6 +88,7 @@ describe('52-20 public intake forms', () => {
       repository,
       { create: vi.fn() },
       assess as AssessPublicWrite,
+      new PublicFormAttachmentGate(database, repository, SCANNER, SECRET),
     );
 
     await expect(
@@ -115,5 +123,118 @@ describe('52-20 public intake forms', () => {
     expect(assess).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'form_submit', orgId: ORG_A }),
     );
+  });
+});
+
+describe('52-20a public form attachments', () => {
+  const PROJECT = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c';
+  const formRow = (attachmentProjectId: string | null) =>
+    ({
+      id: 'form-1',
+      name: 'F',
+      fieldsJson: FIELDS,
+      publicEnabled: true,
+      createdBy: 'author-1',
+      attachmentProjectId,
+    }) as unknown as WorkFormRow;
+  const run = (_c: unknown, work: (db: unknown) => unknown) => work({});
+  const database = {
+    bootstrapRead: (_o: unknown, work: (db: unknown) => unknown) => work({}),
+    read: run,
+    transaction: run,
+  } as unknown as TenantDatabase;
+  const gateFor = (
+    attachmentProjectId: string | null,
+    scanner = SCANNER as { kind: 'none' | 'engine' },
+  ) => {
+    const repository = {
+      findPublishedBySlug: vi.fn().mockResolvedValue({ organizationId: ORG_A, id: 'form-1' }),
+      findForm: vi.fn().mockResolvedValue(formRow(attachmentProjectId)),
+      findSubmission: vi.fn().mockResolvedValue(null),
+      insertSubmission: vi.fn().mockResolvedValue('sub'),
+    };
+    const gate = new PublicFormAttachmentGate(
+      database,
+      repository as unknown as PublicFormsRepository,
+      scanner,
+      SECRET,
+    );
+    return { gate, repository };
+  };
+  const slug = newPublicSlug();
+
+  it('opens only a token it sealed, unexpired', () => {
+    const claims = {
+      organizationId: ORG_A,
+      formId: 'form-1',
+      submissionId: 's-1',
+      expiresAt: 2_000,
+    };
+    const token = sealDraftToken(claims, SECRET);
+    expect(openDraftToken(token, SECRET, 1_000)).toEqual(claims);
+    expect(openDraftToken(token, SECRET, 2_000)).toBeNull();
+    expect(openDraftToken(token, 'other-secret', 1_000)).toBeNull();
+    expect(openDraftToken(`${token}x`, SECRET, 1_000)).toBeNull();
+  });
+
+  it('offers attachments only when the owner allows them and a scanner runs', async () => {
+    await expect(gateFor(null).gate.openDraft(slug, ORG_A)).rejects.toMatchObject({
+      status: 409,
+      auditCode: 'attachments_disabled',
+    });
+    await expect(
+      gateFor(PROJECT, { kind: 'none' }).gate.openDraft(slug, ORG_A),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(gateFor(null).gate.uploadTarget(slug, 'x', ORG_A)).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(gateFor(null).gate.rule(formRow(null))).toBeNull();
+  });
+
+  it("binds an upload to this form's owner, project and token submission only", async () => {
+    const { gate } = gateFor(PROJECT);
+    const { uploadToken } = await gate.openDraft(slug, ORG_A);
+    const { context, target } = await gate.uploadTarget(slug, uploadToken, ORG_A);
+    expect(context.organizationId).toBe(ORG_A);
+    expect(target).toMatchObject({ projectId: PROJECT, ownerUserId: 'author-1' });
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    const otherForm = sealDraftToken(
+      { organizationId: ORG_A, formId: 'form-2', submissionId: 's', expiresAt: exp },
+      SECRET,
+    );
+    const otherOrg = sealDraftToken(
+      { organizationId: 'org-B', formId: 'form-1', submissionId: 's', expiresAt: exp },
+      SECRET,
+    );
+    for (const token of [otherForm, otherOrg, undefined]) {
+      await expect(gate.uploadTarget(slug, token, ORG_A)).rejects.toMatchObject({ status: 400 });
+    }
+  });
+
+  it('stores the submission under the token id, once', async () => {
+    const { gate, repository } = gateFor(PROJECT);
+    const service = new PublicFormsService(
+      database,
+      repository as unknown as PublicFormsRepository,
+      { create: vi.fn() },
+      null,
+      gate,
+    );
+    const { uploadToken } = await gate.openDraft(slug, ORG_A);
+    const { target } = await gate.uploadTarget(slug, uploadToken, ORG_A);
+    const submit = () =>
+      service.submit({
+        slug,
+        body: { values: { f1: 'Mona' }, uploadToken },
+        ip: undefined,
+        acceptLanguage: undefined,
+        correlationId: ORG_A,
+      });
+    await submit();
+    expect(repository.insertSubmission.mock.calls[0]?.[2]).toMatchObject({
+      id: target.submissionId,
+    });
+    repository.findSubmission.mockResolvedValue({ id: target.submissionId });
+    await expect(submit()).rejects.toMatchObject({ status: 409 });
   });
 });

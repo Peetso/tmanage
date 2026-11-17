@@ -154,6 +154,12 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/public/portal-sign-in/links/:token/not-you': 'named',
   'GET /v1/public/forms/:slug': 'named',
   'POST /v1/public/forms/:slug/submissions': 'named',
+  // 52-20a: a public form's attachments — the visit's draft token and one upload's open / complete
+  // / cancel, all under the `public_form_upload` budget (ip + form).
+  'POST /v1/public/forms/:slug/upload-token': 'named',
+  'POST /v1/public/forms/:slug/uploads/': 'named',
+  'POST /v1/public/forms/:slug/uploads/:uploadSessionId/complete': 'named',
+  'POST /v1/public/forms/:slug/uploads/:uploadSessionId/cancel': 'named',
   'POST /v1/public/security-reports/': 'named',
   // R16-e (54-10): GitHub repository webhook delivery — HMAC per hook, per-hook throttle.
   'POST /v1/public/integrations/github/:hookId': 'named',

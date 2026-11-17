@@ -18,6 +18,8 @@ import type { UploadPurpose } from '../../common/database/schema.js';
  * |                      |          | "Publish to client"; a client does not deliver      |
  * | `document`           | no       | no — Docs is deferred past the vertical slice (`13`) |
  * | `client_upload`      | no       | yes — 55-14a: a file sent from the portal's Files page |
+ * | `form_attachment`    | no       | no — 52-20a: only a public form's visitor, through    |
+ * |                      |          | `FilesService.createForPublicForm` (no principal)      |
  *
  * `document` refused for everyone means the enum member exists in the contract without a
  * live path, which is the honest state of a module nobody has built.
@@ -56,6 +58,7 @@ export function mayUploadFor(kind: PrincipalKind, purpose: UploadPurpose): boole
  * | `deliverable`        | yes      | only when published — R4 slice 4 (see below)              |
  * | `document`           | no       | no — Docs is deferred                                     |
  * | `client_upload`      | yes      | yes — their own client organization's portal uploads      |
+ * | `form_attachment`    | yes      | no — a stranger's file; served only once scanned clean    |
  *
  * R4 slice 4 supplies the published fact a client `deliverable` download waited for (CL-05): the
  * purpose is admitted here, and {@link FileClientRelation} then holds it to a deliverable version
@@ -75,6 +78,8 @@ const DOWNLOADABLE: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = 
     'expense_receipt',
     // 55-14a: the team reads what a client sent.
     'client_upload',
+    // 52-20a: the team reads what a public form's visitor attached (clean scan only, 56-06).
+    'form_attachment',
   ],
   // 55-14a: a client reads their own client organization's portal uploads (`FileClientRelation`).
   client: ['request_attachment', 'request_message', 'deliverable', 'client_upload'],
@@ -114,9 +119,22 @@ const EXPENSE_RECEIPT_LIMIT: PurposeUploadLimit = {
   mimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'],
 };
 
+/**
+ * 52-20a: a public form's attachment is an image (JPG, PNG, WebP, HEIC) or a PDF of at most 25 MB —
+ * the types a browser previews safely. No SVG, GIF, Office or archive from a stranger.
+ */
+export const FORM_ATTACHMENT_LIMIT: PurposeUploadLimit = {
+  maxBytes: 25 * 1024 * 1024,
+  mimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'],
+};
+
+/** 52-20a: at most this many attachments on one public form submission. */
+export const FORM_ATTACHMENT_MAX_FILES = 5;
+
 /** The purpose's own bounds, or `null` when only the global ones apply. */
 export function purposeUploadLimit(purpose: UploadPurpose): PurposeUploadLimit | null {
-  return purpose === 'expense_receipt' ? EXPENSE_RECEIPT_LIMIT : null;
+  if (purpose === 'expense_receipt') return EXPENSE_RECEIPT_LIMIT;
+  return purpose === 'form_attachment' ? FORM_ATTACHMENT_LIMIT : null;
 }
 
 /** May a declared upload of `purpose` carry this media type and size? */
