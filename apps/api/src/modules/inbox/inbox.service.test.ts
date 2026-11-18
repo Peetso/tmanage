@@ -15,7 +15,7 @@ import type { InboxSnoozeRepository } from './inbox-snooze.repository.js';
 
 /** 57-13r: the storage allowance as the inbox reads it, fixed for these tests. */
 function fixedQuota(bytes: number) {
-  const limits = { allowanceBytes: bytes, uploadLimitBytes: bytes };
+  const limits = { allowanceBytes: bytes, uploadLimitBytes: bytes, limitedBy: 'plan' as const };
   return { limitsFor: () => Promise.resolve(limits) };
 }
 

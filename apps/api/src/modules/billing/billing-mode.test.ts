@@ -60,7 +60,8 @@ function readOnlyDatabase(): TenantDatabase {
   } as unknown as TenantDatabase;
 }
 
-const PLATFORM_CAP = 1024 ** 4;
+/** 57-13r: no explicit ceiling, the deployment default; the plan allowance alone decides. */
+const PLATFORM_CEILING = null;
 
 /** A Free organization over its Free limits: 5 people, 4 projects, 3 GB stored. */
 function freeOrgUsage(): PlanUsageService {
@@ -83,9 +84,14 @@ function freeOrgUsage(): PlanUsageService {
       Promise.resolve({ usedValue: 3 * 1024 ** 3, reservedValue: 0 } as unknown as UsageCounterRow),
   } as unknown as UsageCountersRepository;
   // 57-13r: the platform cap (1 TB here) is the allowance when the plan has no figure.
-  const allowance = new StorageAllowanceService(readOnlyDatabase(), PLATFORM_CAP, subscriptions, {
-    findOverrideBytes: () => Promise.resolve(null),
-  });
+  const allowance = new StorageAllowanceService(
+    readOnlyDatabase(),
+    PLATFORM_CEILING,
+    subscriptions,
+    {
+      findOverrideBytes: () => Promise.resolve(null),
+    },
+  );
   return new PlanUsageService(readOnlyDatabase(), allowance, subscriptions, usage, counters);
 }
 

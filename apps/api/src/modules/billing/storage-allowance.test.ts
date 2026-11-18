@@ -3,8 +3,15 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { SubscriptionRow } from '../../common/database/schema.js';
 import type { StorageMode } from '../google-drive/storage-mode.repository.js';
 import { PLAN_FEATURE_SET, PLAN_IDS } from './plan-catalog.js';
-import { allowanceOf, storageThreshold } from './storage-allowance.js';
-import { NO_WORKSPACE_LIMIT, StorageAllowanceService } from './storage-allowance.service.js';
+import {
+  NO_WORKSPACE_LIMIT,
+  STORAGE_FULL_MESSAGES,
+  allowanceOf,
+  plansCutByCeiling,
+  storageFullMessage,
+  storageThreshold,
+} from './storage-allowance.js';
+import { StorageAllowanceService } from './storage-allowance.service.js';
 
 // 57-13r / 57-18 (plan 57 §19.1, §19.3): one assertion per key behaviour.
 
@@ -28,33 +35,51 @@ describe('storageThreshold', () => {
 });
 
 describe('allowanceOf', () => {
-  it('lets the platform cap win over a plan figure', () => {
-    expect(allowanceOf(25 * GB, null, 10 * GB)).toEqual({
-      limitBytes: 10 * GB,
+  it('never refuses a plan with no set limit when no ceiling is set (the beta default)', () => {
+    expect(allowanceOf(null, null, null)).toEqual({
+      limitBytes: NO_WORKSPACE_LIMIT,
+      limitedBy: null,
       raisedBySupport: false,
-      hasFigure: true,
-    });
-  });
-
-  it('lets a support raise win over the plan figure but never over the cap', () => {
-    expect(allowanceOf(1 * GB, 3 * GB, 10 * GB)).toEqual({
-      limitBytes: 3 * GB,
-      raisedBySupport: true,
-      hasFigure: true,
-    });
-    expect(allowanceOf(1 * GB, 40 * GB, 10 * GB).limitBytes).toBe(10 * GB);
-  });
-
-  it('falls back to the cap when the plan has no figure (Enterprise, by agreement)', () => {
-    expect(allowanceOf(null, null, 10 * GB)).toMatchObject({
-      limitBytes: 10 * GB,
       hasFigure: false,
     });
+  });
+
+  it('lets a support raise win over the plan figure, and an explicit ceiling over both', () => {
+    expect(allowanceOf(1 * GB, 3 * GB, null)).toMatchObject({
+      limitBytes: 3 * GB,
+      limitedBy: 'support',
+      raisedBySupport: true,
+    });
+    expect(allowanceOf(1 * GB, 40 * GB, 10 * GB)).toMatchObject({
+      limitBytes: 10 * GB,
+      limitedBy: 'platform',
+    });
+  });
+
+  it('still refuses at an explicit ceiling on a no-limit plan, and says it is the platform', () => {
+    const allowance = allowanceOf(null, null, 10 * GB);
+    expect(allowance).toMatchObject({
+      limitBytes: 10 * GB,
+      limitedBy: 'platform',
+      hasFigure: true,
+    });
+    expect(storageFullMessage(allowance.limitedBy)).toBe(STORAGE_FULL_MESSAGES.platform);
+    expect(storageFullMessage('plan')).toBe(STORAGE_FULL_MESSAGES.allowance);
+  });
+
+  it('names at boot only the plans an explicit ceiling cuts short', () => {
+    const plans = { free: { storageBytes: 1 * GB }, enterprise: { storageBytes: null } };
+    expect(plansCutByCeiling(null, plans)).toEqual([]);
+    expect(plansCutByCeiling(5 * GB, plans)).toEqual(['enterprise']);
   });
 });
 
 describe('StorageAllowanceService.limitsFor', () => {
-  function service(mode: StorageMode): StorageAllowanceService {
+  function service(
+    mode: StorageMode,
+    planId: SubscriptionRow['planId'] = 'free',
+    ceiling: number | null = null,
+  ): StorageAllowanceService {
     const runner = {} as never;
     const database = {
       read: <T>(_c: TenantContext, work: (db: never) => Promise<T>): Promise<T> => work(runner),
@@ -62,11 +87,11 @@ describe('StorageAllowanceService.limitsFor', () => {
     const tenant = (ctx: TenantContext) => expect(ctx.organizationId).toBe(ORG);
     return new StorageAllowanceService(
       database,
-      60 * GB,
+      ceiling,
       {
         find: (_r, ctx) => (
           tenant(ctx),
-          Promise.resolve({ planId: 'free', status: 'active' } as SubscriptionRow)
+          Promise.resolve({ planId, status: 'active' } as SubscriptionRow)
         ),
       },
       { findOverrideBytes: (_r, ctx) => (tenant(ctx), Promise.resolve(null)) },
@@ -74,18 +99,23 @@ describe('StorageAllowanceService.limitsFor', () => {
     );
   }
 
-  it('holds a TManage upload to the allowance, so a full allowance refuses the next byte', async () => {
+  it('holds a TManage upload to the plan allowance, so a full allowance refuses the next byte', async () => {
     const limits = await service('tmanage').limitsFor(context);
-    expect(limits).toEqual({ allowanceBytes: 1 * GB, uploadLimitBytes: 1 * GB });
+    expect(limits).toEqual({ allowanceBytes: 1 * GB, uploadLimitBytes: 1 * GB, limitedBy: 'plan' });
     expect(1 * GB + 1 > limits.uploadLimitBytes).toBe(true);
   });
 
-  it('passes a file through to Drive even with the platform cap already reached', async () => {
-    const limits = await service('google_drive').limitsFor(context);
-    expect(limits.uploadLimitBytes).toBe(NO_WORKSPACE_LIMIT);
+  it('lets an Enterprise workspace past the old 1 GiB default when no ceiling is set', async () => {
+    const limits = await service('tmanage', 'enterprise').limitsFor(context);
+    expect(limits.limitedBy).toBeNull();
+    expect(5 * GB <= limits.uploadLimitBytes).toBe(true);
+  });
+
+  it('never counts Drive-stored files, even with an explicit ceiling already reached', async () => {
+    const limits = await service('google_drive', 'free', 60 * GB).limitsFor(context);
+    expect(limits).toMatchObject({ uploadLimitBytes: NO_WORKSPACE_LIMIT, limitedBy: null });
     expect(limits.allowanceBytes).toBe(1 * GB);
-    const heldAtCap = 60 * GB;
-    expect(heldAtCap + 2 * GB <= limits.uploadLimitBytes).toBe(true);
+    expect(60 * GB + 2 * GB <= limits.uploadLimitBytes).toBe(true);
   });
 });
 

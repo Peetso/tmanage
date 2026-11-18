@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { STORAGE_BYTES_METRIC } from './usage-counters.repository.js';
+import { NO_WORKSPACE_LIMIT } from '../billing/storage-allowance.js';
 import type { StorageUploadLimit } from '../billing/storage-allowance.service.js';
 import type { UsageCountersRepository } from './usage-counters.repository.js';
 import type { UsageLedgerRepository } from './usage-ledger.repository.js';
@@ -102,7 +103,7 @@ export class UsageService {
       reserved: Number(counter?.reservedValue ?? 0),
       quota: this.allowance
         ? (await this.allowance.limitsFor(context)).allowanceBytes
-        : this.config.storageOrgBytesLimit,
+        : (this.config.storageOrgBytesLimit ?? NO_WORKSPACE_LIMIT),
       unit: 'bytes',
       reconciledAt: counter?.reconciledAt?.toISOString() ?? null,
     };

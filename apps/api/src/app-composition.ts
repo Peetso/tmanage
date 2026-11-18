@@ -9,6 +9,8 @@ import { ScannerModule } from './common/scan/scanner.module.js';
 import { AppModule } from './app.module.js';
 import { apiConfigFrom } from './common/http/api-config.js';
 import { serializeForLog } from './common/observability/logger.js';
+import { PLAN_LIMITS } from './modules/billing/plan-catalog.js';
+import { plansCutByCeiling } from './modules/billing/storage-allowance.js';
 
 /**
  * The application module as a deployment composes it — from a validated `Env` and nothing
@@ -22,6 +24,15 @@ import { serializeForLog } from './common/observability/logger.js';
  * and cross-checked at `loadEnv()`. See `main.ts` on why this file cannot reach `mysql2`.
  */
 export function composeAppModule(env: Env): DynamicModule {
+  // 57-13r. An explicit storage ceiling below a plan's allowance overrides that plan: said once,
+  // at boot, so the operator sees the env value is what refuses those workspaces' uploads.
+  const ceiling = env.STORAGE_ORG_BYTES_LIMIT_BYTES ?? null;
+  const cut = plansCutByCeiling(ceiling, PLAN_LIMITS);
+  if (cut.length > 0) {
+    console.warn(
+      `[storage] STORAGE_ORG_BYTES_LIMIT_BYTES=${String(ceiling)} is below the storage allowance of plans: ${cut.join(', ')}`,
+    );
+  }
   return AppModule.register({
     config: apiConfigFrom(env),
     database: DatabaseModule.forUrl({

@@ -123,7 +123,11 @@ function harness(
           storage: {
             limits: {
               limitsFor: () =>
-                Promise.resolve({ allowanceBytes: 1_000_000, uploadLimitBytes: 1_000_000 }),
+                Promise.resolve({
+                  allowanceBytes: 1_000_000,
+                  uploadLimitBytes: 1_000_000,
+                  limitedBy: 'plan',
+                }),
             },
             counters: {
               find: () =>

@@ -49,7 +49,7 @@ one credential, so a one-user install sets only the database connection.
 | `STORAGE_FILESYSTEM_ROOT` | no | `.local/storage` | no |  |  |
 | `STORAGE_LOCAL_ROOT` | no |  | no | yes | The production root for `STORAGE_DRIVER=local` (one host, no object store). |
 | `STORAGE_LOCAL_SIGNING_SECRET` | no |  | yes | yes | Signs the part URLs the API serves itself when `STORAGE_DRIVER=filesystem` (ADR-0002's local substitute) or `STORAGE_DRIVER=local` (the single-host production driver). |
-| `STORAGE_ORG_BYTES_LIMIT_BYTES` | no | `1073741824` | no |  | The pooled storage quota one organization may reserve against, in bytes. |
+| `STORAGE_ORG_BYTES_LIMIT_BYTES` | no | unset | no |  | Optional platform-wide safety ceiling on one workspace's TManage storage, in bytes. Unset: the plan allowance alone decides. Set: caps every plan above it (logged once at boot). Drive/OneDrive files never count. |
 | `FILE_RETENTION_REJECTED_DAYS` | no | `30` | no |  | How long a rejected / quarantined object's bytes are kept before the retention-lifecycle job deletes the provider bytes and gives the counted bytes back — `49-PRICING` §5's "recoverable trash until its documented expiry". |
 | `SESSION_COOKIE_NAME` | no | `tmanage_session` | no |  |  |
 | `SESSION_SECRET` | yes |  | yes | yes |  |

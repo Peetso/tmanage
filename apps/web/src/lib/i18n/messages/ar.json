@@ -12504,6 +12504,7 @@
   "ApiError.stock.conflict": "شخص آخر عدّل هذا في نفس الوقت. أعد التحميل وحاول مرة أخرى.",
   "ApiError.stock.internal": "تعذّر إكمال الطلب. حاول مرة أخرى.",
   "ApiError.stock.rateLimited": "طلبات كثيرة جدًا. انتظر قليلًا وحاول مرة أخرى.",
+  "ApiError.stock.storagePlatformFull": "بلغت مساحة العمل هذه أقصى ما يحفظه TManage لمساحة عمل واحدة. ينتظر رفع الملفات الجديدة حتى تربط Google Drive أو OneDrive أو تنقل الملفات إليه. لن يُحذف أي شيء.",
   "FirstOwnerSetup.tokenWrong": "رمز الإعداد هذا غير صحيح.",
   "FirstOwnerSetup.tooManyAttempts": "محاولات كثيرة جدًا. انتظر بضع دقائق ثم حاول مرة أخرى.",
   "MessageBookmark.save": "حفظ",

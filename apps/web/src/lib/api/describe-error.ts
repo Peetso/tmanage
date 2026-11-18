@@ -69,6 +69,15 @@ const STOCK_MESSAGE_KEYS: ReadonlyMap<string, string> = new Map([
   ['The resource was modified concurrently. Reload and try again', 'ApiError.stock.conflict'],
   ['The request could not be completed', 'ApiError.stock.internal'],
   ['Too many requests. Wait a moment and try again', 'ApiError.stock.rateLimited'],
+  // 57-13r: an upload refused because storage is full names which limit was hit.
+  [
+    'Your temporary storage is full. New uploads wait until you connect Google Drive or OneDrive, or move files there. Nothing is deleted.',
+    'planStorage.notice100',
+  ],
+  [
+    'This workspace has reached the most TManage stores for one workspace. New uploads wait until you connect Google Drive or OneDrive, or move files there. Nothing is deleted.',
+    'ApiError.stock.storagePlatformFull',
+  ],
 ]);
 
 /**

@@ -43,6 +43,7 @@ import {
 } from './upload-sessions.repository.js';
 import { STORAGE_BYTES_METRIC, type UsageCountersRepository } from './usage-counters.repository.js';
 import type { StorageLimits, StorageUploadLimit } from '../billing/storage-allowance.service.js';
+import { NO_WORKSPACE_LIMIT, storageFullMessage } from '../billing/storage-allowance.js';
 import { USAGE_LEDGER_REASON, type UsageLedgerRepository } from './usage-ledger.repository.js';
 import type { UsageThresholdEvaluator } from './usage-thresholds.js';
 import {
@@ -923,8 +924,7 @@ export class FilesService {
         await this.recordAbortFailure(context, draft, upload.providerUploadId, error, abortError);
       }
       if (error instanceof TooManyOpenUploads) throw await cap.refuse(error.open);
-      if (error instanceof QuotaExhausted)
-        throw await this.quotaRefusal(context, draft, limits.uploadLimitBytes);
+      if (error instanceof QuotaExhausted) throw await this.quotaRefusal(context, draft, limits);
       if (error instanceof UploadSessionKeyTakenError) {
         // Two requests with one key arrived together; the other won. Answer its session.
         const winner = await this.database.read(context, (runner) =>
@@ -971,16 +971,17 @@ export class FilesService {
   private async quotaRefusal(
     context: TenantContext,
     draft: Draft,
-    limitBytes: number,
+    limits: StorageLimits,
   ): Promise<ApiError> {
     await this.recordRefusal(context, draft, {
       denial_code: 'storage_quota_exhausted',
-      limit_bytes: limitBytes,
+      limit_bytes: limits.uploadLimitBytes,
     });
+    // 57-13r: the sentence names which limit was hit, the plan's allowance or the platform's.
     return new ApiError(
       422,
       'validation_failed',
-      'The request body is invalid',
+      storageFullMessage(limits.limitedBy),
       [{ field: 'sizeBytes', message: 'exceeds the storage available to this organization' }],
       'storage_quota_exhausted',
     );
@@ -1121,8 +1122,7 @@ export class FilesService {
         }),
       );
     } catch (error) {
-      if (error instanceof QuotaExhausted)
-        throw await this.quotaRefusal(context, draft, limits.uploadLimitBytes);
+      if (error instanceof QuotaExhausted) throw await this.quotaRefusal(context, draft, limits);
       throw error;
     }
 
@@ -2108,8 +2108,14 @@ export class FilesService {
    */
   private async storageLimitsFor(context: TenantContext): Promise<StorageLimits> {
     if (this.allowance) return this.allowance.limitsFor(context);
-    const cap = this.config.storageOrgBytesLimit;
-    return { allowanceBytes: cap, uploadLimitBytes: cap };
+    const ceiling = this.config.storageOrgBytesLimit;
+    return ceiling === null
+      ? {
+          allowanceBytes: NO_WORKSPACE_LIMIT,
+          uploadLimitBytes: NO_WORKSPACE_LIMIT,
+          limitedBy: null,
+        }
+      : { allowanceBytes: ceiling, uploadLimitBytes: ceiling, limitedBy: 'platform' };
   }
 
   private requireClient(principal: Principal): string {

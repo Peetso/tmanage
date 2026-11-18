@@ -12504,6 +12504,7 @@
   "ApiError.stock.conflict": "The resource was modified concurrently. Reload and try again",
   "ApiError.stock.internal": "The request could not be completed",
   "ApiError.stock.rateLimited": "Too many requests. Wait a moment and try again",
+  "ApiError.stock.storagePlatformFull": "This workspace has reached the most TManage stores for one workspace. New uploads wait until you connect Google Drive or OneDrive, or move files there. Nothing is deleted.",
   "FirstOwnerSetup.tokenWrong": "That setup token is not correct.",
   "FirstOwnerSetup.tooManyAttempts": "Too many attempts. Wait a few minutes and try again.",
   "MessageBookmark.save": "Save",

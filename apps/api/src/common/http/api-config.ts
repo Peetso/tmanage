@@ -104,14 +104,15 @@ export interface ApiConfig extends SessionServiceOptions {
    */
   readonly realtimeSocketUrl: string | null;
   /**
-   * FILE-001. The three numbers an upload session is measured against: the pooled
-   * organization quota (`STORAGE_ORG_BYTES_LIMIT_BYTES`), the largest single upload
+   * FILE-001. The three numbers an upload session is measured against: the platform-wide
+   * safety ceiling on one workspace's TManage storage (`STORAGE_ORG_BYTES_LIMIT_BYTES`; null when
+   * the operator did not set it, so the plan allowance alone decides, 57-13r), the largest single upload
    * (`UPLOAD_MAX_BYTES`, 50-BOOTSTRAP §5's 100 MB) and how long the presigned targets and
    * the session itself live (`STORAGE_UPLOAD_URL_TTL_SECONDS`). Configuration rather than
    * constants because `49-PRICING` §2 forbids hard-coding a limit, and rather than an
    * entitlement row because that table does not exist yet (ENT-001).
    */
-  readonly storageOrgBytesLimit: number;
+  readonly storageOrgBytesLimit: number | null;
   readonly uploadMaxBytes: number;
   readonly uploadUrlTtlSeconds: number;
   /**
@@ -206,7 +207,7 @@ export interface ApiConfigSource {
   /** `| undefined` explicitly: `loadEnv`'s optional field arrives that way under EOPT. */
   readonly REALTIME_PUBLIC_URL?: string | undefined;
   /** FILE-001. Optional for the same reason as the realtime keys; defaults match the env's. */
-  readonly STORAGE_ORG_BYTES_LIMIT_BYTES?: number;
+  readonly STORAGE_ORG_BYTES_LIMIT_BYTES?: number | undefined;
   readonly UPLOAD_MAX_BYTES?: number;
   readonly STORAGE_UPLOAD_URL_TTL_SECONDS?: number;
   readonly UPLOAD_PART_SIZE_BYTES?: number;
@@ -289,7 +290,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     clientMembershipDefaultExpiryDays: env.CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS,
     realtimeTicketTtlSeconds: env.REALTIME_TICKET_TTL_SECONDS ?? 60,
     realtimeSocketUrl: env.REALTIME_PUBLIC_URL ?? null,
-    storageOrgBytesLimit: env.STORAGE_ORG_BYTES_LIMIT_BYTES ?? 1_073_741_824,
+    storageOrgBytesLimit: env.STORAGE_ORG_BYTES_LIMIT_BYTES ?? null,
     uploadMaxBytes: env.UPLOAD_MAX_BYTES ?? 104_857_600,
     uploadUrlTtlSeconds: env.STORAGE_UPLOAD_URL_TTL_SECONDS ?? 900,
     fileRetentionRejectedDays: env.FILE_RETENTION_REJECTED_DAYS ?? 30,

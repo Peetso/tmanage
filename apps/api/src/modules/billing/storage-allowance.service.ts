@@ -7,16 +7,16 @@ import { effectiveStorageMode } from '../google-drive/storage-mode.repository.js
 import type { StorageMode } from '../google-drive/storage-mode.repository.js';
 import { billingMode, entitlementsFor } from './billing-mode.js';
 import { readPlanId } from './plan-catalog.js';
-import { allowanceOf } from './storage-allowance.js';
-import type { StorageAllowance } from './storage-allowance.js';
+import { NO_WORKSPACE_LIMIT, allowanceOf } from './storage-allowance.js';
+import type { StorageAllowance, StorageLimitSource } from './storage-allowance.js';
 import { StorageAllowanceRepository } from './storage-allowance.repository.js';
 import { SubscriptionRepository } from './subscription.repository.js';
 
 /**
  * A workspace that keeps its files in its own Drive/OneDrive has no workspace byte limit on
- * TManage: a file only passes through on its way there. Large enough that no sum reaches it.
+ * TManage: a file only passes through on its way there.
  */
-export const NO_WORKSPACE_LIMIT = Number.MAX_SAFE_INTEGER;
+export { NO_WORKSPACE_LIMIT };
 
 /** The two readings of the one allowance (both from {@link StorageAllowanceService.limitsFor}). */
 export interface StorageLimits {
@@ -24,6 +24,8 @@ export interface StorageLimits {
   readonly allowanceBytes: number;
   /** What a new upload is refused at: the allowance, or none once Drive/OneDrive is the storage. */
   readonly uploadLimitBytes: number;
+  /** Which figure {@link uploadLimitBytes} stops at, for the refusal's words; null = none. */
+  readonly limitedBy: StorageLimitSource | null;
 }
 
 /** What every door, meter and reader of the storage allowance asks. */
@@ -39,7 +41,8 @@ export interface StorageAllowanceReader {
 /**
  * 57-13r (plan 57 §19.3). The ONE place the temporary storage allowance is decided for a
  * workspace: its plan's figure (the top plan's in `beta_free`), a support raise, and the platform
- * cap (`capBytes`, `STORAGE_ORG_BYTES_LIMIT_BYTES`) over both.
+ * safety ceiling (`ceilingBytes`, `STORAGE_ORG_BYTES_LIMIT_BYTES` only when set explicitly, else
+ * null) over both. No figure and no ceiling: no TManage-storage cap.
  *
  * {@link limitsFor} is the one call every upload door, the inbound-mail attachments, the usage
  * reconciler's bands, the storage usage read and the inbox notice make. While the workspace keeps
@@ -51,7 +54,7 @@ export interface StorageAllowanceReader {
 export class StorageAllowanceService implements StorageUploadLimit, StorageAllowanceReader {
   constructor(
     private readonly database: TenantDatabase,
-    private readonly capBytes: number,
+    private readonly ceilingBytes: number | null,
     private readonly subscriptions: Pick<
       SubscriptionRepository,
       'find'
@@ -73,16 +76,18 @@ export class StorageAllowanceService implements StorageUploadLimit, StorageAllow
     const subscription = await this.subscriptions.find(runner, context);
     const overrideBytes = await this.overrides.findOverrideBytes(runner, context);
     const plan = entitlementsFor(readPlanId(subscription?.planId), billingMode());
-    return allowanceOf(plan.limits.storageBytes, overrideBytes, this.capBytes);
+    return allowanceOf(plan.limits.storageBytes, overrideBytes, this.ceilingBytes);
   }
 
   async limitsFor(context: TenantContext): Promise<StorageLimits> {
     return this.database.read(context, async (runner) => {
       const mode = await this.storageMode(runner, context);
-      const { limitBytes } = await this.allowanceWith(runner, context);
+      const { limitBytes, limitedBy } = await this.allowanceWith(runner, context);
+      const onTManage = mode === 'tmanage';
       return {
         allowanceBytes: limitBytes,
-        uploadLimitBytes: mode === 'tmanage' ? limitBytes : NO_WORKSPACE_LIMIT,
+        uploadLimitBytes: onTManage ? limitBytes : NO_WORKSPACE_LIMIT,
+        limitedBy: onTManage ? limitedBy : null,
       };
     });
   }

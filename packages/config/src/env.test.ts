@@ -311,8 +311,8 @@ describe('loadEnv', () => {
       expect(() => loadEnv({ ...devEnv(), STORAGE_DRIVER: 'filesystem' })).not.toThrow();
     });
 
-    it("defaults the organization storage quota to 50-BOOTSTRAP §5's 500 MB", () => {
-      expect(loadEnv(devEnv()).STORAGE_ORG_BYTES_LIMIT_BYTES).toBe(1_073_741_824);
+    it('leaves the storage ceiling unset unless the operator sets it (57-13r)', () => {
+      expect(loadEnv(devEnv()).STORAGE_ORG_BYTES_LIMIT_BYTES).toBeUndefined();
       expect(
         issuePaths(() => loadEnv({ ...devEnv(), STORAGE_ORG_BYTES_LIMIT_BYTES: '0' })),
       ).toContain('STORAGE_ORG_BYTES_LIMIT_BYTES');
