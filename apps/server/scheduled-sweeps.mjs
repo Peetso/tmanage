@@ -27,6 +27,11 @@
 // (a second pass counts it `skipped`), and the reconciler corrects each counter under that
 // counter's own row lock, so a racing pass finds no drift left to correct.
 //
+// LOGQUIET-a: on top of that, every sweep takes a MariaDB named lock of its own name for the
+// length of one pass (`createSweepLockDatabase` in the worker, `GET_LOCK(name, 0)`), so when two
+// app processes run — a restart overlapping the old one — only one of them runs each sweep and
+// the other skips that pass silently: half the load and no doubled log lines.
+//
 // On by default; `SWEEPS_INPROCESS=0` (or false/off/no) turns all of it off, e.g. while an
 // external cron still runs the same commands. `SWEEPS_INTERVAL_MS` tunes the minute cadence
 // (never below 10 s), `RECONCILE_INTERVAL_MS` the hourly one (never below the minute).
@@ -224,7 +229,14 @@ export function apiReconcileJobs(api, app) {
  * attempt is sent only after its state-conditioned claim. Returns `stop` (abort, then wait for the
  * pass in flight), or `null` when the worker module does not offer the delivery pass.
  */
-export function startWebhookDeliveries(worker, database, env, log, describeError = String) {
+export function startWebhookDeliveries(
+  worker,
+  database,
+  env,
+  log,
+  describeError = String,
+  lock = undefined,
+) {
   if (
     typeof worker.runWebhookDeliveryPass !== 'function' ||
     typeof worker.runWebhookRetrySweepLoop !== 'function' ||
@@ -235,13 +247,16 @@ export function startWebhookDeliveries(worker, database, env, log, describeError
   const deps = worker.createWebhookDeliveryDeps(database, env);
   const controller = new AbortController();
   const loop = worker.runWebhookRetrySweepLoop(
-    () => worker.runWebhookDeliveryPass(deps),
+    lockedPass(lock, 'webhooks', () => worker.runWebhookDeliveryPass(deps), {
+      delivered: 0,
+      failed: 0,
+    }),
     controller.signal,
     (error) => log(`sweep webhooks failed: ${describeError(error)}`),
   );
   log('webhook deliveries on (every 10000ms)');
   // R15-c: Slack / Teams channel posts ride on the same start and stop (server.mjs is unchanged).
-  const stopChannelPosts = startChannelPosts(worker, database, env, log, describeError);
+  const stopChannelPosts = startChannelPosts(worker, database, env, log, describeError, lock);
   return async () => {
     controller.abort();
     await Promise.all([loop, stopChannelPosts?.()]);
@@ -255,7 +270,14 @@ export function startWebhookDeliveries(worker, database, env, log, describeError
  * only after its state-conditioned claim. Returns `stop`, or `null` when the worker module does not
  * offer the channel pass.
  */
-export function startChannelPosts(worker, database, env, log, describeError = String) {
+export function startChannelPosts(
+  worker,
+  database,
+  env,
+  log,
+  describeError = String,
+  lock = undefined,
+) {
   if (
     typeof worker.runChannelPostPass !== 'function' ||
     typeof worker.runChannelPostSweepLoop !== 'function' ||
@@ -266,7 +288,7 @@ export function startChannelPosts(worker, database, env, log, describeError = St
   const deps = worker.createChannelPostDeps(database, env);
   const controller = new AbortController();
   const loop = worker.runChannelPostSweepLoop(
-    () => worker.runChannelPostPass(deps),
+    lockedPass(lock, 'channel-posts', () => worker.runChannelPostPass(deps), undefined),
     controller.signal,
     (error) => log(`sweep channel posts failed: ${describeError(error)}`),
   );
@@ -287,7 +309,14 @@ export const BUDGET_BURN_INTERVAL_MS = 15 * 60_000;
  * is raised only above the stored `last_alert_bp`. Returns `stop`, or `null` when the worker module
  * does not offer the sweep.
  */
-export function startBudgetBurn(worker, database, env, log, describeError = String) {
+export function startBudgetBurn(
+  worker,
+  database,
+  env,
+  log,
+  describeError = String,
+  lock = undefined,
+) {
   if (
     typeof worker.sweepBudgetBurn !== 'function' ||
     typeof worker.createBudgetBurnStore !== 'function'
@@ -310,6 +339,7 @@ export function startBudgetBurn(worker, database, env, log, describeError = Stri
     intervalMs: BUDGET_BURN_INTERVAL_MS,
     log,
     describeError,
+    lock,
   });
   scheduler.start();
   return () => scheduler.stop();
@@ -325,7 +355,14 @@ export const RETAINER_ROLL_INTERVAL_MS = 60 * 60_000;
  * period_start)` key, so a second pass skips. Returns `stop`, or `null` when the worker module does
  * not offer the roll.
  */
-export function startRetainerRoll(worker, database, env, log, describeError = String) {
+export function startRetainerRoll(
+  worker,
+  database,
+  env,
+  log,
+  describeError = String,
+  lock = undefined,
+) {
   if (
     typeof worker.sweepRetainerPeriods !== 'function' ||
     typeof worker.createRetainerStore !== 'function'
@@ -348,6 +385,7 @@ export function startRetainerRoll(worker, database, env, log, describeError = St
     intervalMs: RETAINER_ROLL_INTERVAL_MS,
     log,
     describeError,
+    lock,
   });
   scheduler.start();
   return () => scheduler.stop();
@@ -357,7 +395,8 @@ export function startRetainerRoll(worker, database, env, log, describeError = St
  * A small interval scheduler over a list of jobs. Each tick runs every job in order; one job's
  * failure is logged and does not stop the others. A tick that fires while the previous one is
  * still running is skipped. Quiet ticks log nothing; a tick that moved rows logs one line per job
- * that did, and every failure logs.
+ * that did, and every failure logs. With a `lock` (LOGQUIET-a) each job runs under its own named
+ * lock, and a job whose lock another process holds is skipped silently for that tick.
  */
 export function createSweepScheduler({
   jobs,
@@ -365,6 +404,7 @@ export function createSweepScheduler({
   log,
   describeError = (error) => String(error),
   timers = { setInterval, clearInterval },
+  lock = undefined,
 }) {
   let running;
   let timer;
@@ -372,7 +412,9 @@ export function createSweepScheduler({
   async function tick() {
     for (const job of jobs) {
       try {
-        const result = await job.run();
+        const outcome = lock ? await lock.run(job.name, () => job.run()) : await ran(job.run());
+        if (!outcome.ran) continue;
+        const result = outcome.result;
         if (job.changed(result)) log(`sweep ${job.name}: ${job.describe(result)}`);
       } catch (error) {
         log(`sweep ${job.name} failed: ${describeError(error)}`);
@@ -409,6 +451,22 @@ export function createSweepScheduler({
       timer = undefined;
       await running;
     },
+  };
+}
+
+async function ran(pending) {
+  return { ran: true, result: await pending };
+}
+
+/**
+ * LOGQUIET-a — a loop's pass under the sweep's named lock: without a lock the pass itself; with
+ * one, `idle` (what an empty pass reports) when another process holds the lock.
+ */
+export function lockedPass(lock, name, pass, idle) {
+  if (!lock) return pass;
+  return async () => {
+    const outcome = await lock.run(name, pass);
+    return outcome.ran ? outcome.result : idle;
   };
 }
 

@@ -502,27 +502,31 @@ async function startScheduledSweeps(env, app) {
     statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => log(`sweep connection rejected: ${serializeForLog(error)}`),
   });
+  // LOGQUIET-a: one named lock per sweep, on a connection of its own (scheduled-sweeps.mjs).
+  const lock = worker.createSweepLockDatabase({ url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL });
   const api = { UPLOAD_SESSION_SWEEPER, USAGE_RECONCILER, describeSweep, describeReconciliation };
   const scheduler = createSweepScheduler({
     jobs: [...workerSweepJobs(worker, database), ...apiSweepJobs(api, app)],
     intervalMs: sweepIntervalMs(process.env),
     log,
     describeError: serializeForLog,
+    lock,
   });
   const reconciler = createSweepScheduler({
     jobs: apiReconcileJobs(api, app),
     intervalMs: reconcileIntervalMs(process.env),
     log,
     describeError: serializeForLog,
+    lock,
   });
   scheduler.start();
   reconciler.start();
   // R14-a: outbound webhooks are delivered here; the relay only stages them (R13-s2).
-  const stopWebhooks = startWebhookDeliveries(worker, database, env, log, serializeForLog);
+  const stopWebhooks = startWebhookDeliveries(worker, database, env, log, serializeForLog, lock);
   // R16-b: the 15-minute budget burn sweep (52-05).
-  const stopBudgetBurn = startBudgetBurn(worker, database, env, log, serializeForLog);
+  const stopBudgetBurn = startBudgetBurn(worker, database, env, log, serializeForLog, lock);
   // R17-d: the hourly retainer period roll (52-06).
-  const stopRetainerRoll = startRetainerRoll(worker, database, env, log, serializeForLog);
+  const stopRetainerRoll = startRetainerRoll(worker, database, env, log, serializeForLog, lock);
   return async () => {
     await Promise.all([
       scheduler.stop(),
@@ -531,7 +535,7 @@ async function startScheduledSweeps(env, app) {
       stopBudgetBurn?.(),
       stopRetainerRoll?.(),
     ]);
-    await database.end();
+    await Promise.all([database.end(), lock.end()]);
   };
 }
 

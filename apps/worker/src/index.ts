@@ -7,6 +7,9 @@
  */
 
 export { createWorkerDatabase } from './common/database/worker-database.js';
+// LOGQUIET-a — one MariaDB named lock per scheduled sweep (`apps/server/scheduled-sweeps.mjs`).
+export { createSweepLock, createSweepLockDatabase } from './common/database/sweep-lock.js';
+export type { SweepLock, SweepLockOutcome } from './common/database/sweep-lock.js';
 export type {
   WorkerDatabase,
   WorkerDatabaseOptions,

@@ -10,6 +10,7 @@ import {
   apiReconcileJobs,
   apiSweepJobs,
   createSweepScheduler,
+  lockedPass,
   reconcileIntervalMs,
   startBudgetBurn,
   startRetainerRoll,
@@ -139,6 +140,58 @@ test('start runs a tick at once, schedules the rest, and logs only what moved', 
     /scheduled sweeps on \(invitations, deferred-requests, due-soon, getting-started, storage-root, support-sessions, purge\), every 60000ms/,
   );
   assert.deepEqual(lines.slice(1), ['sweep invitations: expired 2 overdue invitation(s)']);
+});
+
+// LOGQUIET-a: a sweep whose named lock another process holds is skipped silently.
+function fakeLock(heldElsewhere) {
+  const asked = [];
+  return {
+    asked,
+    async run(name, work) {
+      asked.push(name);
+      if (heldElsewhere.has(name)) return { ran: false };
+      return { ran: true, result: await work() };
+    },
+  };
+}
+
+test('with a lock, each sweep runs under its own name and a held one is skipped silently', async () => {
+  const lines = [];
+  const ran = [];
+  const job = (name) => ({
+    name,
+    run: async () => (ran.push(name), { moved: 1 }),
+    describe: () => 'moved 1',
+    changed: () => true,
+  });
+  const lock = fakeLock(new Set(['invitations']));
+  const scheduler = createSweepScheduler({
+    jobs: [job('invitations'), job('due-soon')],
+    intervalMs: 60_000,
+    log: (line) => lines.push(line),
+    timers: fakeTimers(),
+    lock,
+  });
+  assert.equal(await scheduler.runOnce(), true);
+  assert.deepEqual(lock.asked, ['invitations', 'due-soon']);
+  assert.deepEqual(ran, ['due-soon']);
+  assert.deepEqual(lines, ['sweep due-soon: moved 1']);
+});
+
+test('lockedPass reports an idle pass while another process holds the loop lock', async () => {
+  let calls = 0;
+  const pass = async () => (calls++, { delivered: 4, failed: 0 });
+  const idle = { delivered: 0, failed: 0 };
+  assert.equal(lockedPass(undefined, 'webhooks', pass, idle), pass);
+  assert.deepEqual(
+    await lockedPass(fakeLock(new Set(['webhooks'])), 'webhooks', pass, idle)(),
+    idle,
+  );
+  assert.equal(calls, 0);
+  assert.deepEqual(await lockedPass(fakeLock(new Set()), 'webhooks', pass, idle)(), {
+    delivered: 4,
+    failed: 0,
+  });
 });
 
 test('a failing sweep is logged and does not stop the next one', async () => {
