@@ -53,6 +53,29 @@ export function wantsConfirmEmailSetting(search: string): boolean {
 }
 
 /** A workspace's Two-step sign-in settings, at the "Confirm your e-mail" section. */
+/**
+ * REFERRAL (57-08): the website's "Open my invite link" — sign in, pick the workspace, land on
+ * Settings › People › Invite agencies. A fixed path, allowed as a `?next=` like the one above.
+ */
+export const INVITE_AGENCIES_RETURN = '/organizations?then=invite-agencies';
+
+const THEN_INVITE_AGENCIES = 'invite-agencies';
+
+export function wantsInviteAgencies(search: string): boolean {
+  try {
+    return new URLSearchParams(search).get('then') === THEN_INVITE_AGENCIES;
+  } catch {
+    return false;
+  }
+}
+
+export function inviteAgenciesPath(organizationSlug: string): string {
+  return `/${encodeURIComponent(organizationSlug)}/admin/invite-agencies`;
+}
+
+/** The website button's target: sign in first, then the picker opens Invite agencies. */
+export const SIGN_IN_TO_INVITE_AGENCIES = `/sign-in?next=${encodeURIComponent(INVITE_AGENCIES_RETURN)}`;
+
 export function confirmEmailSettingPath(organizationSlug: string): string {
   return `/${encodeURIComponent(organizationSlug)}/settings/two-step#tm-confirm-email`;
 }
@@ -60,6 +83,7 @@ export function confirmEmailSettingPath(organizationSlug: string): string {
 function isAllowedReturn(path: string): boolean {
   return (
     path === CONFIRM_EMAIL_RETURN ||
+    path === INVITE_AGENCIES_RETURN ||
     INVITATION_PATH.test(path) ||
     CONSENT_PATH.test(path) ||
     AI_APPROVE_PATH.test(path) ||

@@ -36,6 +36,8 @@ export type ControlCenterSection =
   | 'roles'
   | 'client-organizations'
   | 'invitations'
+  // 57-08 REFERRAL: the owner's invite link for other agencies (People, under Invitations).
+  | 'invite-agencies'
   | 'offboarding'
   | 'templates'
   | 'fields'
@@ -114,6 +116,8 @@ interface SectionLink {
   readonly capability?: Capability;
   /** English for a label whose key reaches the catalogs through an i18n fragment (`useTOr`). */
   readonly fallback?: string;
+  /** Drawn for the workspace owner only (the page's API refuses every other role). */
+  readonly ownerOnly?: boolean;
 }
 
 interface SectionGroup {
@@ -247,6 +251,15 @@ const GROUPS: readonly SectionGroup[] = [
         labelKey: ccKey('ControlCenter.invitations'),
         href: '/people',
         capability: 'org.manage',
+      },
+      // 57-08 REFERRAL (Figma 724:39837; review B point 7): directly under Invitations, owner only.
+      {
+        id: 'invite-agencies',
+        labelKey: 'InviteAgencies.navLabel' as MessageKey,
+        fallback: 'Invite agencies',
+        href: '/admin/invite-agencies',
+        capability: 'org.manage',
+        ownerOnly: true,
       },
     ],
   },
@@ -383,6 +396,7 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   incidents: 'alert',
   audit: 'listChecks',
   'public-links': 'lock',
+  'invite-agencies': 'mail',
   data: 'database',
   storage: 'cloud',
   privacy: 'lock',
@@ -439,6 +453,9 @@ export function mayOpenSection(
   item: SectionLink,
   capabilities?: readonly string[],
 ): boolean {
+  if (item.ownerOnly === true && role !== null && role !== undefined && role !== 'owner') {
+    return false;
+  }
   if (item.capability === undefined || role === null) return true;
   return roleMayUse(role, capabilities, item.capability);
 }

@@ -30,6 +30,8 @@ import { PlatformSupportThreadsModule } from '../support/support.module.js';
 import { PlatformGovernanceModule } from './governance/governance.module.js';
 // ---- 57-17 · WTP willingness-to-pay answers ----
 import { PlatformPricingSurveyModule } from '../pricing-survey/pricing-survey.module.js';
+// ---- 57-08 · REFERRAL partner codes ----
+import { PlatformReferralsModule } from '../billing/referrals.module.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -71,4 +73,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   PlatformGovernanceModule.register(),
   // ---- 57-17 · WTP: the willingness-to-pay answers list (Growth page) ----
   PlatformPricingSurveyModule.register(),
+  // ---- 57-08 · REFERRAL: partner codes and their sign-up lists (Growth page) ----
+  PlatformReferralsModule.register(),
 ];

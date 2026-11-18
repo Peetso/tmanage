@@ -16,7 +16,12 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { pluralPhrase } from '../../lib/i18n/plural';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { confirmEmailSettingPath, wantsConfirmEmailSetting } from '../../lib/sign-in-return';
+import {
+  confirmEmailSettingPath,
+  inviteAgenciesPath,
+  wantsConfirmEmailSetting,
+  wantsInviteAgencies,
+} from '../../lib/sign-in-return';
 import { importPagePath, importToolFromSearch } from '../../lib/import-link';
 import type { ImportSourceId } from '../../lib/import-sources';
 import '../../styles/screens/identity.css';
@@ -39,9 +44,12 @@ function destinationFor(
   organization: OrganizationSummary,
   confirmEmail = false,
   importTool?: ImportSourceId,
+  inviteAgencies = false,
 ): string {
   if (organization.audience === 'client') return `/${organization.slug}/portal`;
   if (confirmEmail) return confirmEmailSettingPath(organization.slug);
+  // REFERRAL (57-08): from the website's "Open my invite link".
+  if (inviteAgencies) return inviteAgenciesPath(organization.slug);
   // 54-29: arrived from a "switch from X" page — the Import page, with that tool chosen.
   return importTool ? importPagePath(organization.slug, importTool) : `/${organization.slug}/home`;
 }
@@ -108,6 +116,11 @@ export function OrganizationSelectorScreen({
     () => typeof window !== 'undefined' && wantsConfirmEmailSetting(window.location.search),
   );
 
+  /** REFERRAL (57-08): sent here from the website's "Open my invite link". Read once. */
+  const [inviteAgencies] = useState(
+    () => typeof window !== 'undefined' && wantsInviteAgencies(window.location.search),
+  );
+
   /** 54-29: the allow-listed `?import=<tool>` from a "switch from X" page. Read once. */
   const [importTool] = useState<ImportSourceId | undefined>(() =>
     typeof window === 'undefined' ? undefined : importToolFromSearch(window.location.search),
@@ -156,6 +169,22 @@ export function OrganizationSelectorScreen({
   useEffect(() => {
     if (soleConfirmEmailOrganization) navigate(destinationFor(soleConfirmEmailOrganization, true));
   }, [soleConfirmEmailOrganization, navigate]);
+
+  /** REFERRAL (57-08): with one workspace, the invite-link page opens straight away. */
+  const soleInviteAgenciesOrganization =
+    inviteAgencies &&
+    !confirmEmail &&
+    organizations.isSuccess &&
+    organizations.data.length === 1 &&
+    organizations.data[0]!.audience !== 'client'
+      ? organizations.data[0]!
+      : undefined;
+
+  useEffect(() => {
+    if (soleInviteAgenciesOrganization) {
+      navigate(destinationFor(soleInviteAgenciesOrganization, false, undefined, true));
+    }
+  }, [soleInviteAgenciesOrganization, navigate]);
 
   /** 54-29: with one workspace, a "switch from X" visitor goes straight to its Import page. */
   const soleImportOrganization =
@@ -268,7 +297,12 @@ export function OrganizationSelectorScreen({
                     <li key={`${organization.id}-${organization.audience}`}>
                       <Link
                         className={isClient ? 'tm-id-org tm-id-org--client' : 'tm-id-org'}
-                        href={destinationFor(organization, confirmEmail, importTool)}
+                        href={destinationFor(
+                          organization,
+                          confirmEmail,
+                          importTool,
+                          inviteAgencies,
+                        )}
                       >
                         <span className="tm-id-org__orb" aria-hidden="true">
                           {initials(name)}

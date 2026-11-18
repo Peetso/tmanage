@@ -7,6 +7,7 @@ import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSignupAvailability, signUp } from '../../lib/api/sign-up';
 import { afterSignUpPath, planFromQuery } from '../../lib/api/plan-versions';
+import { referralCodeFromQuery } from '../../lib/api/referrals';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
@@ -149,10 +150,13 @@ export function SignUpScreen({
   });
   /** PLANWEB: the pricing page's `?plan=` (a catalog id only), sent with the sign-up. */
   const [pickedPlan, setPickedPlan] = useState<string | null>(null);
+  /** REFERRAL (57-08): an invite link's `?ref=` code, sent with the sign-up (shape-checked). */
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   useEffect(() => {
     setGoogleError(googleErrorKey(window.location.search));
     setMicrosoftError(microsoftErrorOf(window.location.search));
     setPickedPlan(planFromQuery(new URLSearchParams(window.location.search).get('plan')));
+    setReferralCode(referralCodeFromQuery(new URLSearchParams(window.location.search).get('ref')));
   }, []);
 
   // SIGNUP3: the one required load. A weak connection gets two quiet retries, then a calm
@@ -254,6 +258,7 @@ export function SignUpScreen({
         defaultLocale: locale.toLowerCase().startsWith('ar') ? 'ar' : 'en',
         website,
         ...(pickedPlan === null ? {} : { plan: pickedPlan }),
+        ...(referralCode === null ? {} : { referral: referralCode }),
         ...(await formProof.fields()),
       });
       setPassword('');

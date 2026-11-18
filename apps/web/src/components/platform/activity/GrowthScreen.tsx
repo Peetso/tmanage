@@ -21,6 +21,7 @@ import { PlatformPageState } from '../shared/PlatformPageState';
 import { ACTIVITY_KEY } from './ActivityFrame';
 import { GROWTH_COPY } from './growth-copy';
 import { PricingAnswersCard } from './PricingAnswersCard';
+import { ReferralPartnersCard } from './ReferralPartnersCard';
 import type { GrowthCopyKey } from './growth-copy';
 import '../../../styles/screens/r44-security-growth.css';
 
@@ -79,6 +80,8 @@ export function GrowthScreen({ client }: ScreenProps) {
           <GrowthBody api={api} period={period} />
           {/* 57-17 WTP: the willingness-to-pay answers, platform-wide. */}
           <PricingAnswersCard api={api} />
+          {/* 57-08 REFERRAL: invite-link totals and the partner codes with their lists. */}
+          <ReferralPartnersCard api={api} />
         </div>
       )}
     </PlatformGate>

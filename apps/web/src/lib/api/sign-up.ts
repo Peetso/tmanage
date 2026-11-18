@@ -28,6 +28,8 @@ export interface PublicSignupInput {
   readonly proof?: string;
   /** PLANWEB: the plan picked on the pricing page (an id only; the API checks it). */
   readonly plan?: string;
+  /** REFERRAL (57-08): the invite code from `?ref=` (a code only; the API checks it). */
+  readonly referral?: string;
 }
 
 /** The new owner's session, already issued (cookies set by the response). */

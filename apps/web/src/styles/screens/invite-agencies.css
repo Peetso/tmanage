@@ -1,0 +1,154 @@
+/* Settings › People › Invite agencies (57-08 REFERRAL, Figma 724:39791 / 724:40204, design review B
+   points 5–9, 22–24). Composes `tm-card`; only the pieces it lacks. Logical properties only, so
+   Arabic mirrors it from `dir="rtl"`. */
+
+.tm-referral {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-referral__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s6);
+}
+
+.tm-referral__heading {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-referral__link-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* The link is never typed: built from the deployment address, LTR in both languages (point 22). */
+.tm-referral__link {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+  text-align: start;
+  unicode-bidi: isolate;
+}
+
+.tm-referral__copy {
+  flex: 0 0 auto;
+}
+
+.tm-referral__status:empty {
+  display: none;
+}
+
+.tm-referral__status,
+.tm-referral__hint,
+.tm-referral__empty {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-referral__status {
+  color: var(--ink-650);
+}
+
+/* One tile at Heading/Section size, not a 64 px hero (point 8). */
+.tm-referral__stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s5);
+}
+
+.tm-referral__stat-label {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-referral__stat-value {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  color: var(--ink-950);
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-referral__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-referral__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding-block: 14px;
+  border-block-start: 1px solid var(--line-300);
+}
+
+.tm-referral__name {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-referral__date {
+  flex: 0 0 100px;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+  text-align: end;
+}
+
+.tm-referral__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+/* Phones (point 23): one column, name over date; the tile stays above the list; 44 px button. */
+@media (max-width: 640px) {
+  .tm-referral__link-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tm-referral__copy {
+    min-block-size: 44px;
+  }
+
+  .tm-referral__row {
+    flex-wrap: wrap;
+    gap: var(--s1) var(--s3);
+  }
+
+  .tm-referral__name {
+    flex-basis: 100%;
+  }
+
+  .tm-referral__date {
+    flex-basis: auto;
+    text-align: start;
+  }
+}

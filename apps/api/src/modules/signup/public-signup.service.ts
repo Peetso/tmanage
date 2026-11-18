@@ -8,6 +8,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import type { PlanVersion } from '../billing/plan-versions.js';
+import type { ReferralRecorder } from '../billing/referrals.service.js';
 import { SubscriptionRepository } from '../billing/subscription.repository.js';
 import type { WelcomeMailer } from '../../common/email/welcome-email.js';
 import { serializeForLog } from '../../common/observability/logger.js';
@@ -65,6 +66,8 @@ export interface PublicSignupBody {
   readonly proof?: unknown;
   /** PLANWEB: the plan picked on the pricing page (an id only; never a price). */
   readonly plan?: unknown;
+  /** REFERRAL (57-08): the invite code from `?ref=` (a code only; checked server-side). */
+  readonly referral?: unknown;
 }
 
 /** PLANWEB. The part of `PlanVersionsService` sign-up uses to check a picked plan. */
@@ -187,6 +190,8 @@ export class PublicSignupService {
     /** PLANWEB: checks a plan picked on the pricing page. Absent: the pick is ignored. */
     private readonly plans: SignupPlanChooser | null = null,
     private readonly subscriptions = new SubscriptionRepository(),
+    /** REFERRAL (57-08): records the new workspace against an invite code. Absent: ignored. */
+    private readonly referrals: ReferralRecorder | null = null,
   ) {}
 
   async signUp(
@@ -198,7 +203,7 @@ export class PublicSignupService {
     // An unknown, stale or beta-time pick is not an error: the workspace starts on the default.
     const plan = (await this.plans?.signupChoice(body.plan, correlationId)) ?? null;
     const passwordHash = await hashPassword(input.password);
-    return this.createOwnerAccount({
+    const result = await this.createOwnerAccount({
       email: input.email,
       displayName: input.displayName,
       passwordHash,
@@ -210,6 +215,33 @@ export class PublicSignupService {
       ...(signupAttribution === undefined ? {} : { signupAttribution }),
       plan,
     });
+    await this.recordReferral(body.referral, input.email, result, correlationId);
+    return result;
+  }
+
+  /**
+   * REFERRAL (57-08): after the workspace exists, record it against the invite code it came with.
+   * Best effort by design: an unknown code, a refused one or a failed write never fails the
+   * sign-up the person just completed.
+   */
+  private async recordReferral(
+    code: unknown,
+    email: string,
+    result: PublicSignupResult,
+    correlationId: string,
+  ): Promise<void> {
+    if (this.referrals === null || code === undefined || code === null) return;
+    try {
+      await this.referrals.recordSignup({
+        code,
+        organizationId: result.organizationId,
+        organizationName: result.organizationName,
+        email,
+        correlationId,
+      });
+    } catch {
+      // Swallowed on purpose (see above); the sign-up has already committed.
+    }
   }
 
   /**
