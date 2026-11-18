@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { WEB_URL } from '../setup/stack.js';
 
 /**
  * `/ar/sign-in`, `/ar/sign-up` and an Arabic article, through a real browser against the real
@@ -51,6 +52,33 @@ test.describe('Arabic sign-in and sign-up', () => {
     await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
     await expect(page.getByText('البريد الإلكتروني أو كلمة المرور غير صحيحة.')).toBeVisible();
     await expect(page.getByText('The request carries no valid session')).toHaveCount(0);
+  });
+
+  // LIVEFIX (live 3760a1a6): with Arabic saved, `/sign-in` painted English right to left for
+  // 3–5 s. The server now answers with the Arabic twin, so the first HTML is already Arabic.
+  test('a saved-Arabic visitor on /sign-in gets the Arabic page as the first HTML', async ({
+    page,
+  }) => {
+    await page.context().addCookies([{ name: 'tmanage_locale', value: 'ar-EG', url: WEB_URL }]);
+    const response = await page.goto('/sign-in?next=%2Finvitations%2Fx');
+    await expect(page).toHaveURL(/\/ar\/sign-in\?next=%2Finvitations%2Fx$/u);
+    expect(response?.request().redirectedFrom()?.url()).toMatch(/\/sign-in\?next=/u);
+    expect(await response?.text()).toContain('تسجيل الدخول');
+    await expectRtlArabic(page);
+  });
+
+  // LIVEFIX (live 3760a1a6): an empty submit left focus on the page body.
+  test('an empty submit on /ar/sign-in moves focus to the first empty field', async ({ page }) => {
+    await page.goto('/ar/sign-in');
+    const email = page.getByLabel('بريد العمل');
+    await expect(email).toBeEnabled();
+    await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
+    await expect(email).toBeFocused();
+    await expect(email).toHaveAttribute('aria-invalid', 'true');
+    await expect(email).toHaveAccessibleDescription('أدخل بريد العمل.');
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'أدخل بريد العمل وكلمة المرور.' }),
+    ).toBeVisible();
   });
 
   test('/ar/sign-up renders right to left in Arabic, step 1 of the funnel', async ({ page }) => {
