@@ -41,6 +41,8 @@ export interface FigmaConnection {
   readonly tokenHint: string | null;
   /** FIX4 item 6: Figma's own sign-in is set up on this server, so Connect is one click. */
   readonly oneClick: boolean;
+  /** PAUSED-FLAG: present on the status read while the platform has switched the service off. */
+  readonly paused?: true;
 }
 
 export interface FigmaDetectedFrame {

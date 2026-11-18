@@ -1,6 +1,7 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { pausedFlag } from '../platform-admin/settings/integration-switch.js';
 import type {
   TenantContext,
   TenantDatabase,
@@ -54,6 +55,8 @@ export interface AppConnectView {
   readonly connected: boolean;
   /** GitHub login; null when unknown. */
   readonly account: string | null;
+  /** PAUSED-FLAG: on the status read only, while the platform has switched the service off. */
+  readonly paused?: true;
 }
 
 export interface AppConnectDeps {
@@ -187,6 +190,7 @@ export class AppConnectService {
       setUp: this.setUp(provider),
       connected: (await this.readSecret(context, provider)) !== null,
       account: null,
+      ...(await pausedFlag(this.deps.database, provider, context.correlationId)),
     };
   }
 

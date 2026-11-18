@@ -1,4 +1,5 @@
 import { ApiError } from '../../common/http/errors.js';
+import { pausedFlag } from '../platform-admin/settings/integration-switch.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type {
   CalendarConnectionRow,
@@ -75,6 +76,8 @@ export const MICROSOFT = 'microsoft';
 export interface MicrosoftCalendarStatusView {
   /** False when no Microsoft client is set in the environment: the feature is off. */
   readonly configured: boolean;
+  /** PAUSED-FLAG: on the status read only, while the platform has switched the service off. */
+  readonly paused?: true;
   readonly microsoft: {
     readonly status: 'not_connected' | 'connected' | 'error';
     /** The caller's own Microsoft address (this view is only ever the caller's own). */
@@ -188,7 +191,10 @@ export class MicrosoftCalendarService
     const row = await this.deps.database.read(context, (runner) =>
       this.connections.findFor(runner, context, context.userId, MICROSOFT),
     );
-    return this.toStatus(row);
+    return {
+      ...this.toStatus(row),
+      ...(await pausedFlag(this.deps.database, 'microsoft_calendar', context.correlationId)),
+    };
   }
 
   startConnect(

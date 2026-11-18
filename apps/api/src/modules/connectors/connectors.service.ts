@@ -1,6 +1,10 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import {
+  isSwitchableIntegration,
+  pausedFlag,
+} from '../platform-admin/settings/integration-switch.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ConnectorInstallationRow } from '../../common/database/schema.js';
 import type { TokenVaultSlot } from './token-vault.js';
@@ -35,6 +39,8 @@ export interface ConnectorView {
   readonly credentialHint: string | null;
   /** An ISO-8601 instant; null unless installed through the framework. */
   readonly installedAt: string | null;
+  /** PAUSED-FLAG: on the status read only, while the platform has switched the service off. */
+  readonly paused?: true;
 }
 
 /** The additional data binding a stored connector credential to its organization and connector. */
@@ -142,7 +148,14 @@ export class ConnectorsService {
   async list(context: TenantContext, principal: Principal): Promise<readonly ConnectorView[]> {
     this.requireManage(context, principal);
     const snapshot = await this.snapshot(context);
-    return CONNECTORS.map((connector) => toView(connector, snapshot));
+    return Promise.all(
+      CONNECTORS.map(async (connector) => ({
+        ...toView(connector, snapshot),
+        ...(isSwitchableIntegration(connector.key)
+          ? await pausedFlag(this.database, connector.key, context.correlationId)
+          : {}),
+      })),
+    );
   }
 
   async status(context: TenantContext, principal: Principal, key: string): Promise<ConnectorView> {

@@ -16,6 +16,8 @@ export interface AppConnectView {
   readonly connected: boolean;
   /** The GitHub login. */
   readonly account: string | null;
+  /** PAUSED-FLAG: present on the status read while the platform has switched the service off. */
+  readonly paused?: true;
 }
 
 const path = (slug: string, provider: AppConnectProvider) =>

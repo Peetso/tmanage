@@ -5,6 +5,7 @@ import type { ObjectStore } from '@tmanage/storage';
 import type { Readable } from 'node:stream';
 import { createFixedWindowLimiter, type RequestAdmission } from '../../common/http/rate-limiter.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { pausedFlag } from '../platform-admin/settings/integration-switch.js';
 import type {
   TenantContext,
   TenantDatabase,
@@ -191,6 +192,8 @@ export interface FigmaConnectionView {
   readonly tokenHint: string | null;
   /** FIX4 item 6: one-click Connect (Figma's own sign-in) is set up on this server. */
   readonly oneClick: boolean;
+  /** PAUSED-FLAG: on the status read only, while the platform has switched the service off. */
+  readonly paused?: true;
 }
 
 export interface FigmaDetectedFrameView {
@@ -500,12 +503,22 @@ export class FigmaService {
     const row = await this.deps.database.read(context, (runner) =>
       this.repository.findConnection(runner, context, context.membershipId),
     );
-    if (!row) return { status: 'not_connected', handle: null, tokenHint: null, ...this.oneClick() };
+    const paused = await pausedFlag(this.deps.database, 'figma', context.correlationId);
+    if (!row) {
+      return {
+        status: 'not_connected',
+        handle: null,
+        tokenHint: null,
+        ...this.oneClick(),
+        ...paused,
+      };
+    }
     return {
       status: row.status === 'error' ? 'error' : 'connected',
       handle: row.figmaUserHandle,
       tokenHint: row.tokenHint,
       ...this.oneClick(),
+      ...paused,
     };
   }
 

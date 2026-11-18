@@ -20,6 +20,8 @@ export interface ConnectorView {
   readonly state: ConnectorState;
   readonly credentialHint: string | null;
   readonly installedAt: string | null;
+  /** PAUSED-FLAG: present on the status read while the platform has switched the service off. */
+  readonly paused?: true;
 }
 
 function base(organizationSlug: string): string {

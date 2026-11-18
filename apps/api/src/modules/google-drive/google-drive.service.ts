@@ -1,6 +1,7 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { pausedFlag } from '../platform-admin/settings/integration-switch.js';
 import {
   cloudFileGone,
   cloudNoAccess,
@@ -82,6 +83,8 @@ export interface StorageStatusView {
   readonly pickerAvailable: boolean;
   /** 0236. The company's one effective storage, across providers (Google Drive or OneDrive). */
   readonly storageMode: StorageMode;
+  /** PAUSED-FLAG: on the status read only, while the platform has switched the service off. */
+  readonly paused?: true;
   readonly googleDrive: {
     readonly status: 'not_connected' | 'connected' | 'error';
     /** Shown to people who manage the organization only. */
@@ -231,7 +234,10 @@ export class GoogleDriveService implements CloudFolderDrive {
       row: await this.repository.findConnection(runner, context),
       mode: await this.modes.effective(runner, context),
     }));
-    return toStatusView(this.deps.config, row, canManage, mode, context.userId);
+    return {
+      ...toStatusView(this.deps.config, row, canManage, mode, context.userId),
+      ...(await pausedFlag(this.deps.database, 'google_drive', context.correlationId)),
+    };
   }
 
   /** Begin connecting: the Google consent URL and the flow to seal into the cookie. */

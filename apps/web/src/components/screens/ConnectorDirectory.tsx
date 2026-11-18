@@ -108,6 +108,8 @@ export function ConnectorDirectory({
   const connector = list.data?.find((entry) => entry.key === only && entry.managed !== 'built-in');
   const name = connector?.name ?? only;
   const isConnected = connector ? STATE[connector.state].on : false;
+  // PAUSED-FLAG: the list read says so before anyone sends a key; a refusal says so too.
+  const paused = connector?.paused === true || isServicePaused(install.error);
 
   return (
     <section className="tm-connectors" aria-labelledby={headingId} id="tm-int-keys">
@@ -134,14 +136,14 @@ export function ConnectorDirectory({
               onDisconnect={() => uninstall.mutate(connector.key)}
             />
           </ul>
-          {isServicePaused(install.error) ? <ServicePausedNotice service={connector.key} /> : null}
+          {paused ? <ServicePausedNotice service={connector.key} /> : null}
           {!isConnected && !formClosed ? (
             <InstallCard
               labelledBy={headingId}
               connector={connector}
               busy={install.isPending}
               failed={install.isError && !isServicePaused(install.error)}
-              paused={isServicePaused(install.error)}
+              paused={paused}
               onCancel={() => {
                 setFormClosed(true);
                 onDone?.();

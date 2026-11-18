@@ -49,6 +49,8 @@ import {
   type IntegrationCardId,
 } from './integration-directory-cards';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { isServicePaused } from '../../lib/api/service-paused';
+import { ServicePausedNotice, pausedButtonProps } from './ServicePausedNotice';
 
 export interface IntegrationDirectoryScreenProps {
   organizationSlug: string;
@@ -264,7 +266,7 @@ export function IntegrationDirectoryScreen({
     },
     onSuccess: ({ url }) => navigate(url),
     onError: (error, id) => {
-      if (error instanceof ApiRequestError && error.status === 409) {
+      if (error instanceof ApiRequestError && error.status === 409 && !isServicePaused(error)) {
         setRefused((current) => new Set(current).add(id));
       }
     },
@@ -276,12 +278,33 @@ export function IntegrationDirectoryScreen({
   const shown = INTEGRATION_CARDS.filter((card) =>
     filter === 'all' ? true : filter === 'connected' ? isConnected(card) : !isConnected(card),
   );
+  // PAUSED-FLAG: the services the status reads say the platform paused, before anyone presses
+  // Connect, and the one a Connect was just refused for.
+  const keyPaused = (key: string) =>
+    connectors.data?.some((connector) => connector.key === key && connector.paused === true) ===
+    true;
+  const pausedFromStatus: Readonly<Record<IntegrationCardId, boolean>> = {
+    'google-drive': drive.data?.paused === true,
+    onedrive: oneDrive.data?.paused === true,
+    'google-calendar': googleCal.data?.paused === true,
+    outlook: microsoftCal.data?.paused === true,
+    figma: figma.data?.paused === true,
+    github: github.data?.paused === true,
+    jira: keyPaused('jira'),
+    zapier: false,
+  };
+  const isPaused = (id: IntegrationCardId) =>
+    pausedFromStatus[id] || (isServicePaused(connect.error) && connect.variables === id);
+  const pausedCards = INTEGRATION_CARDS.filter(
+    (card) => card.flow !== 'soon' && !isConnected(card) && isPaused(card.id),
+  );
 
   const failedCard = connect.isError
     ? INTEGRATION_CARDS.find((card) => card.id === connect.variables)
     : undefined;
   const failedName = failedCard ? BRAND_NAMES[failedCard.brand] : '';
   const notSetUp = connect.error instanceof ApiRequestError && connect.error.status === 409;
+  const refusedPaused = isServicePaused(connect.error);
 
   const title = connectedTitle(connectedCount, tr, activeIsEnglish(locale), locale, numberWord);
 
@@ -350,7 +373,10 @@ export function IntegrationDirectoryScreen({
           </InlineAlert>
         ) : null}
 
-        {failedCard ? (
+        {pausedCards.map((card) => (
+          <ServicePausedNotice key={card.id} service={card.id} />
+        ))}
+        {failedCard && !refusedPaused ? (
           notSetUp ? (
             <InlineAlert
               tone="warning"
@@ -394,6 +420,7 @@ export function IntegrationDirectoryScreen({
                 organizationSlug={organizationSlug}
                 connecting={connect.isPending && connect.variables === card.id}
                 busy={connect.isPending}
+                paused={isPaused(card.id)}
                 figmaOneClick={figma.data?.oneClick === true}
                 keyInstalled={card.keyConnector ? keyInstalled(card.keyConnector) : false}
                 {...(managesCompany && card.keyConnector
@@ -505,6 +532,7 @@ function IntegrationCardItem({
   organizationSlug,
   connecting,
   busy,
+  paused = false,
   figmaOneClick = false,
   keyInstalled = false,
   onConnect,
@@ -516,6 +544,8 @@ function IntegrationCardItem({
   organizationSlug: string;
   connecting: boolean;
   busy: boolean;
+  /** PAUSED-FLAG: the platform paused this service, so Connect is disabled and points at why. */
+  paused?: boolean;
   /** FIX4 item 6: Figma's own sign-in is set up, so its card connects in one click. */
   figmaOneClick?: boolean;
   onConnect: () => void;
@@ -584,6 +614,7 @@ function IntegrationCardItem({
         tone="lime"
         aria-label={t('ConnectApps.connectLabel').replace('{app}', name)}
         onClick={onFigmaKey}
+        {...pausedButtonProps(card.id, paused)}
       >
         {t('ConnectApps.connect')}
       </Button>
@@ -595,6 +626,7 @@ function IntegrationCardItem({
         tone="lime"
         aria-label={t('ConnectApps.connectLabel').replace('{app}', name)}
         onClick={onKeyConnect}
+        {...pausedButtonProps(card.id, paused)}
       >
         {t('ConnectApps.connect')}
       </Button>
@@ -654,6 +686,7 @@ function IntegrationCardItem({
           loadingLabel={t('ConnectApps.connecting')}
           aria-label={t('ConnectApps.connectLabel').replace('{app}', name)}
           onClick={onConnect}
+          {...pausedButtonProps(card.id, paused)}
         >
           {t('ConnectApps.connect')}
         </Button>

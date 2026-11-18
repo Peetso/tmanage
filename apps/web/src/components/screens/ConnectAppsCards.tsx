@@ -317,6 +317,16 @@ export function ConnectAppsCards({
       : isServicePaused(complete.error) && complete.variables
         ? complete.variables.app
         : null;
+  // PAUSED-FLAG: the apps the status reads already say are paused, before anyone presses Connect.
+  const statusPaused: Record<AppId, boolean> = {
+    google_calendar: googleCal.data?.paused === true,
+    microsoft_calendar: microsoftCal.data?.paused === true,
+    google_drive: drive.data?.paused === true,
+    onedrive: oneDrive.data?.paused === true,
+  };
+  const listedPaused = APPS.map((app) => app.id).filter(
+    (id) => statusPaused[id] && id !== pausedApp && state(id)?.connected !== true,
+  );
 
   // The provider's return: finish once, then drop the code from the address bar.
   const handled = useRef(false);
@@ -399,6 +409,9 @@ export function ConnectAppsCards({
           {t('ConnectApps.actionError')}
         </InlineAlert>
       ) : null}
+      {listedPaused.map((id) => (
+        <ServicePausedNotice key={id} service={id} />
+      ))}
 
       <ul className="tm-connect-apps__grid">
         {APPS.map((app) => {
@@ -481,7 +494,7 @@ export function ConnectAppsCards({
                     loadingLabel={t('ConnectApps.connecting')}
                     aria-label={fillTemplate(t('ConnectApps.connectLabel'), { app: name })}
                     onClick={() => connect.mutate(app.id)}
-                    {...pausedButtonProps(app.id, pausedApp === app.id)}
+                    {...pausedButtonProps(app.id, pausedApp === app.id || statusPaused[app.id])}
                   >
                     {t('ConnectApps.connect')}
                   </Button>

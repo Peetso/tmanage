@@ -94,7 +94,10 @@ export function FigmaConnectCard({
 
   const view = connection.data;
   const connected = view?.status === 'connected';
-  const paused = [connect, oneClick, complete].some((mutation) => isServicePaused(mutation.error));
+  // PAUSED-FLAG: the status read says so before anyone presses Connect; a refusal says so too.
+  const paused =
+    view?.paused === true ||
+    [connect, oneClick, complete].some((mutation) => isServicePaused(mutation.error));
   const refused = connect.error instanceof ApiRequestError && connect.error.status === 422;
 
   return (

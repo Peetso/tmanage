@@ -16,6 +16,8 @@ export interface OneDriveStatusView {
   readonly pickerAvailable: boolean;
   /** The company's one effective storage, across providers. */
   readonly storageMode: StorageMode | 'onedrive';
+  /** PAUSED-FLAG: present on the status read while the platform has switched the service off. */
+  readonly paused?: true;
   readonly oneDrive: {
     readonly status: OneDriveConnectionStatus;
     readonly accountEmail: string | null;

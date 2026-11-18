@@ -1,4 +1,5 @@
 import { ApiError } from '../../common/http/errors.js';
+import { pausedFlag } from '../platform-admin/settings/integration-switch.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type {
   CalendarConnectionRow,
@@ -66,6 +67,8 @@ export const GOOGLE = 'google';
 export interface CalendarConnectionStatusView {
   /** False when no Google client is set in the environment: the feature is off. */
   readonly configured: boolean;
+  /** PAUSED-FLAG: on the status read only, while the platform has switched the service off. */
+  readonly paused?: true;
   readonly google: {
     readonly status: 'not_connected' | 'connected' | 'error';
     /** The caller's own Google address (this view is only ever the caller's own). */
@@ -183,7 +186,10 @@ export class GoogleCalendarService
     const row = await this.deps.database.read(context, (runner) =>
       this.connections.findFor(runner, context, context.userId, GOOGLE),
     );
-    return this.toStatus(row);
+    return {
+      ...this.toStatus(row),
+      ...(await pausedFlag(this.deps.database, 'google_calendar', context.correlationId)),
+    };
   }
 
   /** Every person's calendar connection in this organization (owners only, at the route). */

@@ -22,7 +22,7 @@ const notSetUp = new ApiRequestError(409, 'conflict', 'Google Drive is not set u
 ]);
 
 /** The connector directory for Jira, whose install answers 409 with the given detail. */
-function mountJira(detail: { field: string; message: string }) {
+function mountJira(detail: { field: string; message: string }, listed: { paused?: true } = {}) {
   const jira = {
     key: 'jira',
     name: 'Jira',
@@ -34,6 +34,7 @@ function mountJira(detail: { field: string; message: string }) {
     state: 'not_installed',
     credentialHint: null,
     installedAt: null,
+    ...listed,
   };
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -87,6 +88,15 @@ describe('service paused', () => {
     mountJira({ field: 'integration', message: 'switched_off' });
     const button = await tryConnect();
     await waitFor(() => expect(button.disabled).toBe(true));
+    const describedBy = button.getAttribute('aria-describedby') ?? '';
+    expect(document.getElementById(describedBy)?.textContent).toMatch(/paused this service/u);
+  });
+
+  it('PAUSED-FLAG: Connect is disabled with the notice before the first attempt', async () => {
+    mountJira({ field: 'integration', message: 'switched_off' }, { paused: true });
+    const form = await screen.findByRole('form', { name: 'Connect Jira with a key' });
+    const button = within(form).getByRole<HTMLButtonElement>('button', { name: 'Connect' });
+    expect(button.disabled).toBe(true);
     const describedBy = button.getAttribute('aria-describedby') ?? '';
     expect(document.getElementById(describedBy)?.textContent).toMatch(/paused this service/u);
   });

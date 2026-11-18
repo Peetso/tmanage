@@ -216,10 +216,13 @@ export function AdminStorageScreen({
     disconnect.isError ||
     changeFolder.isError ||
     oneDriveMutations.some((mutation) => mutation.isError);
-  const drivePaused = [complete, connect, settings, changeFolder].some((mutation) =>
-    isServicePaused(mutation.error),
-  );
-  const oneDrivePaused = oneDriveMutations.some((mutation) => isServicePaused(mutation.error));
+  // PAUSED-FLAG: the status read says so before anyone presses Connect; a refusal says so too.
+  const drivePaused =
+    status.data?.paused === true ||
+    [complete, connect, settings, changeFolder].some((mutation) => isServicePaused(mutation.error));
+  const oneDrivePaused =
+    oneDriveStatus.data?.paused === true ||
+    oneDriveMutations.some((mutation) => isServicePaused(mutation.error));
   const busy =
     complete.isPending ||
     connect.isPending ||

@@ -50,6 +50,8 @@ export interface CalendarAccount {
   readonly lastErrorAt?: string | null;
   readonly pushExpiresAt?: string | null;
   readonly mirrorDueDates?: boolean;
+  /** PAUSED-FLAG: the platform has switched this calendar service off (Connect disabled). */
+  readonly paused?: boolean;
 }
 
 /**
@@ -73,9 +75,19 @@ export function useCalendarAccounts(
     retry: false,
   });
   const accounts: CalendarAccount[] = [];
-  if (google.data?.configured) accounts.push({ provider: 'google', ...google.data.google });
+  if (google.data?.configured) {
+    accounts.push({
+      provider: 'google',
+      ...google.data.google,
+      paused: google.data.paused === true,
+    });
+  }
   if (microsoft.data?.configured) {
-    accounts.push({ provider: 'microsoft', ...microsoft.data.microsoft });
+    accounts.push({
+      provider: 'microsoft',
+      ...microsoft.data.microsoft,
+      paused: microsoft.data.paused === true,
+    });
   }
   return { accounts, loaded: !google.isPending && !microsoft.isPending };
 }

@@ -133,6 +133,20 @@ export async function integrationOnForJob(
   return integrationSwitches(database).isOn(key, correlationId);
 }
 
+/**
+ * PAUSED-FLAG — the switch as a status read shows it: `{ paused: true }` while the service is off
+ * for the platform, nothing while it is on. The connect screens read it to disable Connect and show
+ * the paused notice before anyone presses it; the routes still refuse on their own
+ * ({@link RequireIntegrationOn}). Same reader and cache as the jobs' gate.
+ */
+export async function pausedFlag(
+  database: TenantDatabase,
+  key: SwitchableIntegration,
+  correlationId: string,
+): Promise<{ readonly paused?: true }> {
+  return (await integrationOnForJob(database, key, correlationId)) ? {} : { paused: true };
+}
+
 /** A fixed service, or the route parameter that names it (`:provider`, `:connectorKey`). */
 export type IntegrationTarget = SwitchableIntegration | { readonly param: string };
 

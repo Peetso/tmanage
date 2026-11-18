@@ -31,12 +31,16 @@ interface CalendarAccountShape {
 export interface CalendarConnectionStatusView {
   /** False when no Google client is set in the environment: the feature is off. */
   readonly configured: boolean;
+  /** PAUSED-FLAG: present on the status read while the platform has switched the service off. */
+  readonly paused?: true;
   readonly google: CalendarAccountShape;
 }
 
 /** `GET …/integrations/microsoft-calendar` (slice B, same shape keyed `microsoft`). */
 export interface MicrosoftCalendarStatusView {
   readonly configured: boolean;
+  /** PAUSED-FLAG: present on the status read while the platform has switched the service off. */
+  readonly paused?: true;
   readonly microsoft: CalendarAccountShape;
 }
 

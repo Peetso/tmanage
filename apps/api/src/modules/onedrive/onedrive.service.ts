@@ -1,6 +1,7 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { pausedFlag } from '../platform-admin/settings/integration-switch.js';
 import {
   cloudFileGone,
   cloudNoAccess,
@@ -86,6 +87,8 @@ export interface OneDriveStatusView {
   readonly pickerAvailable: boolean;
   /** The company's one effective storage, across providers. */
   readonly storageMode: StorageMode;
+  /** PAUSED-FLAG: on the status read only, while the platform has switched the service off. */
+  readonly paused?: true;
   readonly oneDrive: {
     readonly status: 'not_connected' | 'connected' | 'error';
     /** Shown to people who manage the organization only. */
@@ -271,7 +274,10 @@ export class OneDriveService implements CloudFolderDrive {
       row: await this.repository.findConnection(runner, context),
       mode: await this.modes.effective(runner, context),
     }));
-    return toOneDriveStatusView(this.deps.config, row, canManage, mode, context.userId);
+    return {
+      ...toOneDriveStatusView(this.deps.config, row, canManage, mode, context.userId),
+      ...(await pausedFlag(this.deps.database, 'onedrive', context.correlationId)),
+    };
   }
 
   /** Begin connecting: the Microsoft consent URL and the flow to seal into the cookie. */

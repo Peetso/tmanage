@@ -15,6 +15,8 @@ export interface StorageStatusView {
   readonly pickerAvailable: boolean;
   /** 0236. The company's one storage across providers; OneDrive is the API's second option. */
   readonly storageMode: StorageMode | 'onedrive';
+  /** PAUSED-FLAG: present on the status read while the platform has switched the service off. */
+  readonly paused?: true;
   readonly googleDrive: {
     readonly status: DriveConnectionStatus;
     readonly accountEmail: string | null;

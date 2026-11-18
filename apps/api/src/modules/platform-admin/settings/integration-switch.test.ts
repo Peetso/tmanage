@@ -21,6 +21,7 @@ import {
   forgetIntegrationSwitches,
   IntegrationSwitchGuard,
   integrationOnForJob,
+  pausedFlag,
   requireIntegrationOn,
 } from './integration-switch.js';
 import { PlatformSettingsController } from './settings.controller.js';
@@ -223,6 +224,17 @@ describe('ADMINSVC2 background jobs ask the same switch', () => {
     forgetIntegrationSwitches();
     await job.pass();
     expect(reads()).toBe(1);
+    forgetIntegrationSwitches();
+  });
+
+  it('PAUSED-FLAG: a status read carries paused while off, nothing once on', async () => {
+    forgetIntegrationSwitches();
+    const setting = { value: 'off' };
+    const { database } = databaseWith(setting);
+    expect(await pausedFlag(database, 'google_drive', 'c')).toEqual({ paused: true });
+    setting.value = 'on';
+    forgetIntegrationSwitches();
+    expect(await pausedFlag(database, 'google_drive', 'c')).toEqual({});
     forgetIntegrationSwitches();
   });
 

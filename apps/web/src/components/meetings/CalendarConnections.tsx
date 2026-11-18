@@ -111,8 +111,11 @@ export function CalendarConnectionsScreen({
     onError: (_error, input) => setReturnError(input.provider),
   });
 
-  // ADMINSVC3: which calendars the platform has paused, from the refusal of a connect or its return.
-  const pausedProviders = new Set<CalendarProviderId>();
+  // ADMINSVC3: which calendars the platform has paused: from the status read (PAUSED-FLAG, before
+  // anyone presses Connect), or from the refusal of a connect or its return.
+  const pausedProviders = new Set<CalendarProviderId>(
+    accounts.filter((account) => account.paused === true).map((account) => account.provider),
+  );
   if (isServicePaused(connect.error) && connect.variables) pausedProviders.add(connect.variables);
   if (isServicePaused(complete.error) && complete.variables) {
     pausedProviders.add(complete.variables.provider);
