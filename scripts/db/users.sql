@@ -2581,3 +2581,12 @@ GRANT SELECT ON `tmanage`.`inbox_saved_filters` TO 'tmanage_worker'@'%';
 -- UPDATE. DELETE is the studio removing a step (and the company erasure). SELECT rides the
 -- database-wide read. The worker needs no grant.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`client_journey_steps` TO 'tmanage_app'@'%';
+-- 0374 (MAILREST). A person mail that fails after its claim is retried: the worker's sweep settles
+-- its own `mail_tip_log` claim row ('sent' / 'retry' / 'gave_up', attempts, next attempt) and takes
+-- a due 'retry' back with a guarded UPDATE. UPDATE added to the 0371 SELECT, INSERT; no DELETE.
+GRANT UPDATE ON `tmanage`.`mail_tip_log` TO 'tmanage_worker'@'%';
+-- MAILREST bounces. The worker's SMTP refusal recorder writes a 5xx RCPT refusal of any sending
+-- identity (noreply, hello, support, person mail, security) into `mail_recipient_bounces` with
+-- the intake's rules (INSERT a first refusal, UPDATE counts and `suppressed_at`), always bound to
+-- the message's company. Added to the 0366 SELECT; no DELETE (clearing stays the API's).
+GRANT INSERT, UPDATE ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_worker'@'%';

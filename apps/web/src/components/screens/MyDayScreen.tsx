@@ -104,7 +104,6 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
   const t = useT();
   const tOr = useTOr();
   const locale = useActiveLocale();
-  const describeError = useDescribeApiError(WORK_ERROR_LINES);
   const describeWaitingError = useDescribeApiError(WAITING_ERROR_LINES);
   const describeSavedError = useDescribeApiError(SAVED_ERROR_LINES);
   const describeSummaryError = useDescribeApiError(SUMMARY_ERROR_LINES);
@@ -315,8 +314,8 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
             </div>
 
             {myDay.isError ? (
-              <InlineAlert tone="danger" title={t('MyDayScreen.workError')} live>
-                {describeError(myDay.error)}
+              <InlineAlert tone="danger" live>
+                {t('MyDayScreen.workError')}
               </InlineAlert>
             ) : null}
 
@@ -1040,12 +1039,6 @@ function reasonLabelKey(reason: MyDayReason): MessageKey {
       return 'MyDayScreen.reasonAssigned';
   }
 }
-
-/** The work lists’ failure lines. */
-const WORK_ERROR_LINES: ApiErrorLines = {
-  network: ['MyDayScreen.workNetworkError', 'The network dropped before your work loaded.'],
-  generic: ['MyDayScreen.workGenericError', 'Something went wrong loading your work.'],
-};
 
 /** The message key for the word each waiting reason shows — the status is never colour alone. */
 function waitingReasonLabelKey(reason: WaitingReason): MessageKey {

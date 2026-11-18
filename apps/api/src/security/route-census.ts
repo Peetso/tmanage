@@ -172,6 +172,9 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/public/inbound-email/webhook': 'named',
   // 56-26: the bounce intake - the same signed delivery, its own named throttle.
   'POST /v1/public/inbound-email/bounces': 'named',
+  // 52-19 web half: anyone holding a certificate checks an approval record (ID + record hash in
+  // the body, never the URL); `@Throttle('approval_record_verify')` by IP, closed on store error.
+  'POST /v1/public/approval-records/verify': 'named',
 };
 
 /** Signed-in routes with no capability because they act only on the caller's own account. */

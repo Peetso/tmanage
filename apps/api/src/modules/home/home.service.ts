@@ -181,6 +181,11 @@ export interface ApprovalWaitingEntry {
   readonly projectId: string;
   /** When the review was requested — `approvals.created_at`, the "waiting since". */
   readonly requestedAt: string;
+  /**
+   * `approvals.version`, the optimistic-concurrency token the decision route requires: the phone's
+   * inline Approve / Send back posts it back, so a decision made on a stale row is refused.
+   */
+  readonly version: number;
 }
 
 /**
@@ -254,6 +259,7 @@ function toApprovalWaitingEntry(
     deliverableId: row.deliverableId,
     projectId: row.projectId,
     requestedAt: row.createdAt.toISOString(),
+    version: row.version,
   };
 }
 

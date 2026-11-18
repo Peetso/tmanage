@@ -264,8 +264,6 @@
   "MyDayScreen.savedDocument": "محفوظ دستاویز",
   "MyDayScreen.savedWorkItem": "محفوظ کام آئٹم",
   "MyDayScreen.savedFile": "محفوظ فائل",
-  "MyDayScreen.workNetworkError": "آپ کا کام لوڈ ہونے سے پہلے نیٹ ورک منقطع ہو گیا۔",
-  "MyDayScreen.workGenericError": "آپ کا کام لوڈ کرتے ہوئے کچھ غلط ہو گیا۔",
   "MyDayScreen.waitingNetworkError": "آپ کے جائزے لوڈ ہونے سے پہلے نیٹ ورک منقطع ہو گیا۔",
   "MyDayScreen.waitingGenericError": "آپ کے منتظر آئٹمز لوڈ کرتے ہوئے کچھ غلط ہو گیا۔",
   "MyDayScreen.savedNetworkError": "آپ کے محفوظ آئٹمز لوڈ ہونے سے پہلے نیٹ ورک منقطع ہو گیا۔",

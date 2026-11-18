@@ -189,6 +189,14 @@ describe('HomeService.waitingOf ranking', () => {
     expect(view.items.map((entry) => idOf(entry))).toEqual([tieA.id, tieB.id]);
   });
 
+  it('carries the approval version the inline decision posts back (PHONE)', async () => {
+    const service = serviceWith([approval({ id: 'a-versioned-00000000000000000007', version: 7 })]);
+
+    const [entry] = (await service.waitingOf(context, reviewer())).items;
+
+    expect(entry?.kind === 'approval' ? entry.version : undefined).toBe(7);
+  });
+
   it('returns no items for a reviewer with none, and drops an approval the user does not review', async () => {
     const empty = serviceWith([]);
     expect((await empty.waitingOf(context, reviewer())).items).toEqual([]);

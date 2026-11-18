@@ -14444,7 +14444,12 @@ export const mailPersonAssignments = mysqlTable(
 
 export type MailPersonAssignmentRow = typeof mailPersonAssignments.$inferSelect;
 
-/** 0371. One tip sent to one user, once ever; `sentAt` answers the spacing rules. TENANT. */
+/**
+ * 0371. One tip sent to one user, once ever; `sentAt` answers the spacing rules. TENANT.
+ * 0374 (MAILREST): the claim row is also the send's record — `status` 'sending' | 'sent' | 'retry' |
+ * 'gave_up' (vocabulary checked in the worker), `attempts` started, `nextAttemptAt` for a due
+ * 'retry', `lastError` an address-free token. Written only by the worker.
+ */
 export const mailTipLog = mysqlTable(
   'mail_tip_log',
   {
@@ -14452,10 +14457,15 @@ export const mailTipLog = mysqlTable(
     userId: char('user_id', { length: 36 }).notNull(),
     tipId: varchar('tip_id', { length: 40 }).notNull(),
     sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }).notNull(),
+    status: varchar('status', { length: 8 }).notNull().default('sent'),
+    attempts: tinyint('attempts', { unsigned: true }).notNull().default(1),
+    nextAttemptAt: datetime('next_attempt_at', { mode: 'date', fsp: 3 }),
+    lastError: varchar('last_error', { length: 32 }),
   },
   (table) => [
     primaryKey({ columns: [table.organizationId, table.userId, table.tipId] }),
     index('ix_mail_tip_log_user_sent').on(table.organizationId, table.userId, table.sentAt),
+    index('ix_mail_tip_log_retry').on(table.status, table.nextAttemptAt),
   ],
 );
 

@@ -52,6 +52,7 @@ import type { ChallengeResponseView as ApiChallengeResponseView } from '../../ap
 import type { ClientDecideView as ApiClientDecideView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientProjectionReadView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ApprovalEvidence as ApiApprovalEvidence } from '../../apps/api/src/modules/approvals/approval-records.js';
+import type { PublicRecordVerdictView as ApiPublicRecordVerdictView } from '../../apps/api/src/modules/approvals/approval-record-verify.js';
 import type {
   ApprovalCertificateView as ApiApprovalCertificateView,
   ApprovalRecordView as ApiApprovalRecordView,
@@ -546,6 +547,7 @@ import type {
   ApprovalCertificateView as WebApprovalCertificateView,
   ApprovalRecordEvidence as WebApprovalRecordEvidence,
   ApprovalRecordView as WebApprovalRecordView,
+  PublicRecordVerdictView as WebPublicRecordVerdictView,
 } from '../../apps/web/src/lib/api/approval-records';
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
 import type {
@@ -3123,6 +3125,13 @@ type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;
 type _approvalEvidence = Assert<Exact<ApiApprovalEvidence, WebApprovalRecordEvidence>>;
 type _approvalRecord = Assert<Exact<ApiApprovalRecordView, WebApprovalRecordView>>;
 type _approvalCertificate = Assert<Exact<ApiApprovalCertificateView, WebApprovalCertificateView>>;
+
+/**
+ * 52-19 web half. `POST /v1/public/approval-records/verify` — the public verdict the `/verify` and
+ * `/ar/verify` pages render: the verdict, the decision instant and kind (`genuine` only) and the
+ * workspace name. Nothing else about the record leaves, so the pair is Exact.
+ */
+type _publicRecordVerdict = Assert<Exact<ApiPublicRecordVerdictView, WebPublicRecordVerdictView>>;
 
 /**
  * `GET /v1/public/site/trust` — the public security & trust page (x158, module 1).

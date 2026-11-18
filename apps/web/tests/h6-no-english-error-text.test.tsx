@@ -151,13 +151,14 @@ describe('the screens named in the audit, in Arabic', () => {
 });
 
 /**
- * **My Day** (audit 2026-10-26, gap 2): its four sections — summary, work, waiting, saved — each
- * word their own failure, through `useDescribeApiError` and `MyDayScreen.*Error` catalog keys.
- * The Arabic lines come from the real `ar.json`.
+ * **My Day** (audit 2026-10-26, gap 2): its sections each word their own failure, through
+ * `useDescribeApiError` and `MyDayScreen.*Error` catalog keys — summary, waiting and saved. The work
+ * list (PHONE review point 19) shows one load-error sentence, `MyDayScreen.workError`, with no second
+ * line. The Arabic lines come from the real `ar.json`.
  */
 const AR_MY_DAY_NETWORK = [
   'انقطع الاتصال قبل تحميل ملخّصك.',
-  'انقطع الاتصال قبل تحميل مهامك.',
+  'تعذّر تحميل مهامك. تحقّق من الاتصال وحاول مرة أخرى.',
   'انقطع الاتصال قبل تحميل المراجعات.',
   'انقطع الاتصال قبل تحميل العناصر المحفوظة.',
 ];
@@ -214,7 +215,7 @@ describe('MyDayScreen, in Arabic', () => {
       ) as Record<string, string>;
     const en = catalog('en');
     const ar = catalog('ar');
-    for (const area of ['summary', 'work', 'waiting', 'saved']) {
+    for (const area of ['summary', 'waiting', 'saved']) {
       for (const kind of ['Network', 'Generic']) {
         const key = `MyDayScreen.${area}${kind}Error`;
         expect(en[key], key).toBeTruthy();

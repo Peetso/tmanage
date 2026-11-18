@@ -57,6 +57,8 @@ export interface Waiting {
         readonly deliverableId: string;
         readonly projectId: string;
         readonly requestedAt: string;
+        /** `approvals.version`, posted back by the inline decision (optimistic concurrency). */
+        readonly version: number;
       }
     | {
         readonly kind: 'client_request';

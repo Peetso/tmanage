@@ -55,6 +55,9 @@ describe('MAILREST — Arabic Feature news links to the Arabic page', () => {
     expect(arabicPublicLink('https://www.tmanageapp.com/help/timers', origin)).toBe(
       'https://www.tmanageapp.com/ar/help/timers',
     );
+    expect(arabicPublicLink('https://tmanageapp.com/verify', origin)).toBe(
+      'https://tmanageapp.com/ar/verify',
+    );
     expect(arabicPublicLink('https://tmanageapp.com/ar/pricing', origin)).toBe(
       'https://tmanageapp.com/ar/pricing',
     );

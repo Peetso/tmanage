@@ -212,6 +212,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // `mail_person_assignments` and `mail_tip_log` where it writes them.
     // ---- EMAILBUILD2 0373 ---- +27: the person-mail sweep reads `platform_feature_news` and
     // `platform_person_mail_sweep`, and 25 feature tables it asks "used yet?" (one LIMIT 1 each).
+    // ---- MAILREST 0374 ---- +0: UPDATE on `mail_tip_log` and INSERT, UPDATE on
+    // `mail_recipient_bounces` are writes on tables the worker already reads.
     expect(reads).toHaveLength(
       26 +
         15 +

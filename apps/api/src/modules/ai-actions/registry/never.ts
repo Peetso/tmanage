@@ -1307,6 +1307,9 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/public/links/:token/', reason: 'public_site' },
   { method: 'POST', path: '/v1/public/links/:token/code', reason: 'public_site' },
   { method: 'POST', path: '/v1/public/links/:token/decision', reason: 'public_site' },
+  // 52-19 web half. The public approval-record check: anonymous, read-only, no tenant in the URL;
+  // a certificate holder's tool, nothing an AI acts on.
+  { method: 'POST', path: '/v1/public/approval-records/verify', reason: 'public_site' },
   // 55-14. Client portal magic-link sign-in: anonymous request, code, preview, consume, not-you.
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },

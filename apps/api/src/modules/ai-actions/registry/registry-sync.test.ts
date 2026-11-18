@@ -223,7 +223,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 54-29: GET projects/:projectId/export (+1 NEVER, project_export).
 // EMAILBUILD: the mail people card, list/add/import/change/test (+5 NEVER, platform_admin).
 // 52-19: GET approvals/:approvalId/evidence.zip (+1 NEVER, record_pdf).
-const EXPECTED_ROUTE_COUNT = 1538;
+// 52-19 web half: POST public/approval-records/verify (+1 NEVER, public_site).
+const EXPECTED_ROUTE_COUNT = 1539;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

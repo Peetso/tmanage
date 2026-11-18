@@ -74,6 +74,7 @@ const ARABIC_TWIN_PAGES: ReadonlySet<string> = new Set([
   '/solutions/consultancies',
   '/solutions/in-house',
   '/status',
+  '/verify',
   '/alternatives',
   '/compare',
   '/help',

@@ -187,7 +187,8 @@ describe('the grants and the schema agree', () => {
       mail_person_assignments:
         'EMAILBUILD 0371: written only by the worker tips sweep; the API reads it (people card)',
       mail_tip_log:
-        'EMAILBUILD 0371: written only by the worker tips sweep; the API never writes it',
+        'EMAILBUILD 0371 + MAILREST 0374: written only by the worker (claim, settle, retry); ' +
+        'the API never writes it',
       platform_person_mail_sweep:
         'EMAILBUILD2 0373: the sweep cursor, moved only by the worker; the API never writes it',
       changelog_entries:
