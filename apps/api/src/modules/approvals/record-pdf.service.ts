@@ -46,7 +46,7 @@ export interface RecordPdfFile {
   readonly fileName: string;
 }
 
-type Audience = 'workspace' | 'portal';
+export type RecordAudience = 'workspace' | 'portal';
 
 function recordChanged(): ApiError {
   return new ApiError(409, 'conflict', 'This record no longer verifies.', [
@@ -166,7 +166,7 @@ export class ApprovalCertificatePdfService {
     approvalId: string,
   ): Promise<RecordPdfFile> {
     const view = await this.approvals.certificate(context, principal, approvalId);
-    return this.render(context, view, principal.kind === 'client' ? 'portal' : 'workspace');
+    return this.forView(context, view, principal.kind === 'client' ? 'portal' : 'workspace');
   }
 
   async portal(
@@ -175,13 +175,17 @@ export class ApprovalCertificatePdfService {
     deliverableVersionId: string,
   ): Promise<RecordPdfFile> {
     const view = await this.approvals.clientCertificate(context, principal, deliverableVersionId);
-    return this.render(context, view, principal.kind === 'client' ? 'portal' : 'workspace');
+    return this.forView(context, view, principal.kind === 'client' ? 'portal' : 'workspace');
   }
 
-  private async render(
+  /**
+   * The PDF of a certificate the caller has already been authorized for (the evidence bundle
+   * reuses it so the certificate is read and checked once).
+   */
+  async forView(
     context: TenantContext,
     view: ApprovalCertificateView,
-    audience: Audience,
+    audience: RecordAudience,
   ): Promise<RecordPdfFile> {
     if (!view.intact || view.records.length === 0) throw recordChanged();
     const bytes = await this.files.fetchOrRender(
@@ -247,7 +251,7 @@ export class SignedPdfService {
 
   private async render(
     context: TenantContext,
-    audience: Audience,
+    audience: RecordAudience,
     facts: SignedDocumentFacts | 'not_signed' | 'record_changed',
   ): Promise<RecordPdfFile> {
     if (facts === 'record_changed') throw recordChanged();

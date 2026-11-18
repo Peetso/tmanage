@@ -1,22 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, InlineAlert } from '@tmanage/ui';
+import { Button, InlineAlert, Tooltip } from '@tmanage/ui';
 import { apiBaseUrl } from '../../../lib/api/browser-client';
 import { downloadRecordPdf } from '../../../lib/api/approval-records';
 
 export interface PdfDownloadButtonProps {
-  /** API path (`/v1/…/record.pdf`); the API origin is added here. */
+  /** API path (`/v1/…/record.pdf`, `/v1/…/evidence.zip`); the API origin is added here. */
   path: string;
   fileName: string;
   label: string;
   busyLabel: string;
   failedLabel: string;
   tone?: 'ink' | 'outline';
+  /** A hover/focus sentence saying what the download holds. */
+  help?: string;
   fetchImpl?: typeof globalThis.fetch;
 }
 
-/** 52-19 / 52-26 — "Download PDF" for a sealed record; the server checks who may have it. */
+/** 52-19 / 52-26 — "Download PDF" (or the evidence ZIP) for a sealed record; the server checks who may have it. */
 export function PdfDownloadButton({
   path,
   fileName,
@@ -24,6 +26,7 @@ export function PdfDownloadButton({
   busyLabel,
   failedLabel,
   tone = 'outline',
+  help,
   fetchImpl,
 }: PdfDownloadButtonProps) {
   const [busy, setBusy] = useState(false);
@@ -35,17 +38,20 @@ export function PdfDownloadButton({
     setBusy(false);
     setFailed(!ok);
   };
+  const button = (
+    <Button
+      tone={tone}
+      size="accessible"
+      onClick={() => void download()}
+      loading={busy}
+      loadingLabel={busyLabel}
+    >
+      {label}
+    </Button>
+  );
   return (
     <>
-      <Button
-        tone={tone}
-        size="accessible"
-        onClick={() => void download()}
-        loading={busy}
-        loadingLabel={busyLabel}
-      >
-        {label}
-      </Button>
+      {help === undefined ? button : <Tooltip content={help}>{button}</Tooltip>}
       {failed ? (
         <InlineAlert tone="danger" live>
           {failedLabel}

@@ -888,6 +888,12 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'approval',
     clause: '§12 — a newer version cancelled an approval still waiting on an older one',
   },
+  /** 52-19. An approval's evidence bundle (record PDF, approved file, chain proof) was downloaded. */
+  'approval.evidence_exported': {
+    objectType: 'approval',
+    clause:
+      '§12 export — a copy of the sealed approval record and the approved file left the system',
+  },
   /** Q4. A workspace admin sent a member a password-reset email (ids only, never the address). */
   'member.password_reset_sent': {
     objectType: 'membership',
@@ -1907,6 +1913,7 @@ const AUDIT_ACTION_LABELS = {
   'approval.approved': 'Approved a deliverable',
   'approval.changes_requested': 'Requested changes on a deliverable',
   'approval.invalidated': 'Cancelled an approval after a new version',
+  'approval.evidence_exported': 'Downloaded the evidence of an approval',
   'member.password_reset_sent': 'Sent a member a password reset',
   'member.profile_updated': 'Updated their own profile',
   'document.renamed': 'Renamed a document',

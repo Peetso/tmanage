@@ -6,6 +6,7 @@ import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tma
 import type { ApiClient } from '../../../lib/api/client';
 import { browserApiClient } from '../../../lib/api/browser-client';
 import {
+  approvalEvidenceZipPath,
   approvalRecordPdfPath,
   getApprovalRecord,
   getPortalApprovalRecord,
@@ -40,6 +41,8 @@ interface SheetProps {
   backHref: string;
   /** 52-19: the sealed PDF of this record (API path). */
   pdfPath: string;
+  /** 52-19: the evidence ZIP (API path); staff only, so the portal passes none. */
+  evidencePath?: string;
 }
 
 /**
@@ -57,6 +60,7 @@ export function ApprovalRecordSheet({
   approverCompany,
   backHref,
   pdfPath,
+  evidencePath,
 }: SheetProps) {
   const t = useT();
   const tOr = useTOr();
@@ -93,6 +97,22 @@ export function ApprovalRecordSheet({
             failedLabel={tOr(
               'ApprovalRecord.downloadPdfFailed',
               'The PDF could not be downloaded. Try again.',
+            )}
+          />
+        ) : null}
+        {verified && evidencePath !== undefined ? (
+          <PdfDownloadButton
+            path={evidencePath}
+            fileName={`approval-evidence-${view.approvalId}.zip`}
+            label={tOr('ApprovalRecord.downloadEvidence', 'Download evidence')}
+            busyLabel={tOr('ApprovalRecord.downloadingEvidence', 'Preparing the evidence')}
+            failedLabel={tOr(
+              'ApprovalRecord.downloadEvidenceFailed',
+              'The evidence could not be downloaded. Try again.',
+            )}
+            help={tOr(
+              'ApprovalRecord.downloadEvidenceHelp',
+              'One ZIP with this record, the approved file and the proof that nothing changed, so anyone can check it.',
             )}
           />
         ) : null}
@@ -283,6 +303,7 @@ export function StaffApprovalCertificate({
       approverCompany={approver.company}
       backHref={`/${organizationSlug}/projects/${encodeURIComponent(projectId)}/deliverables/${encodeURIComponent(deliverableId)}`}
       pdfPath={approvalRecordPdfPath(organizationSlug, approvalId)}
+      evidencePath={approvalEvidenceZipPath(organizationSlug, approvalId)}
     />
   );
 }

@@ -53,6 +53,13 @@ import {
   ApprovalCertificatePdfController,
 } from './record-pdf.controller.js';
 import { ApprovalCertificatePdfService, RecordPdfStore } from './record-pdf.service.js';
+import {
+  APPROVAL_EVIDENCE_SERVICE,
+  ApprovalEvidenceController,
+} from './approval-records-evidence.controller.js';
+import { ApprovalEvidenceService } from './approval-records-evidence.service.js';
+import { VersionStore } from '../files/provider-objects.js';
+import { providerObjectSources } from '../files/provider-object-sources.js';
 
 /**
  * 52-18 — at start-up, hook the external approver record onto the 56-07 `deliverable_version`
@@ -214,11 +221,41 @@ export class ApprovalsModule {
         new ApprovalCertificatePdfService(database, approvals, new RecordPdfStore(store)),
     };
 
+    // 52-19 — the evidence bundle: the certificate PDF above, the approved file (read where it is
+    // held, Drive/OneDrive included) and the chain proof, audited on every download.
+    const evidenceService: Provider = {
+      provide: APPROVAL_EVIDENCE_SERVICE,
+      inject: [
+        TENANT_DATABASE,
+        APPROVALS_SERVICE,
+        APPROVAL_CERTIFICATE_PDF_SERVICE,
+        OBJECT_STORE,
+        AUDIT_SERVICE,
+        API_CONFIG,
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        approvals: ApprovalsService,
+        pdfs: ApprovalCertificatePdfService,
+        store: ObjectStore,
+        audit: AuditService,
+        config: ApiConfig,
+      ) =>
+        new ApprovalEvidenceService(
+          database,
+          approvals,
+          pdfs,
+          new VersionStore(store, providerObjectSources(database, audit, config)),
+          audit,
+        ),
+    };
+
     return {
       module: ApprovalsModule,
       providers: [
         service,
         certificatePdfService,
+        evidenceService,
         delegationService,
         stepsService,
         deliverablesService,
@@ -233,6 +270,7 @@ export class ApprovalsModule {
         DeliverablesController,
         ExternalApprovalsController,
         ApprovalCertificatePdfController,
+        ApprovalEvidenceController,
       ],
     };
   }

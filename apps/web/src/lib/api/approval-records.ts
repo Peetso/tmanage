@@ -102,6 +102,11 @@ export function approvalRecordPdfPath(organizationSlug: string, approvalId: stri
   return `${approvalsPath(organizationSlug)}/${encodeURIComponent(approvalId)}/record.pdf`;
 }
 
+/** 52-19 — the evidence bundle (record PDF, approved file, chain proof) as a ZIP (staff). */
+export function approvalEvidenceZipPath(organizationSlug: string, approvalId: string): string {
+  return `${approvalsPath(organizationSlug)}/${encodeURIComponent(approvalId)}/evidence.zip`;
+}
+
 /** 52-19 — the client's own certificate PDF for one published version. */
 export function portalApprovalRecordPdfPath(
   organizationSlug: string,

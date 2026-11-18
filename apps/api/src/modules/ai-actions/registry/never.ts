@@ -1231,6 +1231,12 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/approvals/projections/:deliverableVersionId/record.pdf',
     reason: 'record_pdf',
   },
+  // 52-19. The evidence bundle: record PDF, approved file and chain proof (rate-limited, audited).
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/approvals/:approvalId/evidence.zip',
+    reason: 'record_pdf',
+  },
   {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/signature-requests/:signatureRequestId/signed.pdf',
