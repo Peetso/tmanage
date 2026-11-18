@@ -8,6 +8,7 @@ import {
   type PersonMailKind,
 } from '../notifications/person-mail-catalog.js';
 import { composePersonMail } from '../notifications/person-mail.js';
+import type { SweepLock } from '../common/database/sweep-lock.js';
 
 /**
  * EMAILBUILD2 — the hourly person-mail sweep (amendment 2): the one new timer, beside the relay.
@@ -259,21 +260,31 @@ export async function sweepPersonMail(deps: {
   return { looked: candidates.length, sent, wrapped };
 }
 
-/** Loop mode: one run every {@link PERSON_MAIL_INTERVAL_MS}; stops on `signal`. */
+/**
+ * Loop mode: one run every {@link PERSON_MAIL_INTERVAL_MS}; stops on `signal`. With a `lock`
+ * (LOGQUIET-a) each run takes the `person-mail` named lock, and a run another process holds is
+ * skipped silently.
+ */
 export async function runPersonMailLoop(
   deps: {
     readonly store: PersonMailStore;
     readonly mailer: Mailer | null;
     readonly webOrigin: string;
+    readonly lock?: Pick<SweepLock, 'run'>;
   },
   signal: AbortSignal,
   onError: (error: unknown) => void = (error) =>
     console.error('[worker] person-mail sweep failed', error),
 ): Promise<void> {
+  const { lock, ...sweepDeps } = deps;
+  const pass = () => sweepPersonMail({ ...sweepDeps, now: new Date() });
   while (!signal.aborted) {
     try {
-      const result = await sweepPersonMail({ ...deps, now: new Date() });
-      if (result.sent > 0) {
+      const outcome = lock
+        ? await lock.run('person-mail', pass)
+        : { ran: true, result: await pass() };
+      const result = outcome.ran ? outcome.result : undefined;
+      if (result !== undefined && result.sent > 0) {
         console.warn(
           `[worker] person-mail sweep: ${String(result.looked)} member(s), ${String(result.sent)} sent`,
         );
@@ -281,6 +292,8 @@ export async function runPersonMailLoop(
     } catch (error) {
       onError(error);
     }
+    // A stop during the run already fired its abort event: do not wait the hour for it.
+    if (signal.aborted) break;
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, PERSON_MAIL_INTERVAL_MS);
       signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });

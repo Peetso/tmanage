@@ -98,6 +98,7 @@ import { runWebhookRetrySweepLoop } from './jobs/webhook-retry-sweeper.js';
 import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
 import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
 import { createPersonMailStore } from './common/database/person-mail-store.js';
+import { createSweepLockDatabase } from './common/database/sweep-lock.js';
 import { runPersonMailLoop } from './jobs/person-mail-sweep.js';
 // ---- 52-01 ---- forgotten-timer auto-stop.
 import { createTimerAutostopStore } from './common/database/timer-autostop-store.js';
@@ -726,11 +727,15 @@ async function main(): Promise<void> {
   // ---- EMAILBUILD2 ---- the person-mail sweep, hourly beside the relay: at most 100 members per
   // run, at most one mail each, through the notification transport (List-Unsubscribe, settings
   // link) under template key 'tip', so the sender resolver signs it with the member's person.
+  // LOGQUIET-a: the person-mail and webhook passes take the same named locks as the single app's
+  // sweeps (`apps/server/scheduled-sweeps.mjs`), so this process and the app never run both.
+  const sweepLock = createSweepLockDatabase({ url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL });
   const personMail = runPersonMailLoop(
     {
       store: createPersonMailStore(database),
       mailer: notice('tip'),
       webOrigin: env.WEB_PUBLIC_URL,
+      lock: sweepLock,
     },
     controller.signal,
   );
@@ -794,10 +799,10 @@ async function main(): Promise<void> {
     cipher: createFieldCipher(loadFieldCipherKeyring(env)),
     ownHosts: webhookOwnHosts,
   };
-  const webhookDeliveries = runWebhookRetrySweepLoop(
-    () => runWebhookDeliveryPass(webhookDeps),
-    controller.signal,
-  );
+  const webhookDeliveries = runWebhookRetrySweepLoop(async () => {
+    const outcome = await sweepLock.run('webhooks', () => runWebhookDeliveryPass(webhookDeps));
+    return outcome.ran ? outcome.result : { delivered: 0, failed: 0 };
+  }, controller.signal);
   // ---- R13 slice 5 · 57-14 ---- growth rollups nightly (02:00 UTC) and on boot when the last
   // run is over 26 h old; on the 1st the previous month's report goes to ALERT_EMAILS through
   // the same transport (mail_queue when MAIL_QUEUE=on). Empty ALERT_EMAILS → no mail.
@@ -955,7 +960,7 @@ async function main(): Promise<void> {
     await securityDetector;
     // ---- 56-31 ----
     await mailDrain;
-    await database.end();
+    await Promise.all([database.end(), sweepLock.end()]);
   }
 }
 
