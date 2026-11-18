@@ -251,10 +251,11 @@ export const envSchema = z
      */
     WORKER_DATABASE_URL: mysqlUrl.optional(),
     /**
-     * The company erasure's own credential — `tmanage_erasure` in `scripts/db/users.sql`, which
-     * holds SELECT and DELETE on exactly the tables the erasure empties after an executed company
-     * deletion (H3), so the runtime user keeps its narrower DELETE set. Optional outside
-     * production, where the erasure runs on `DATABASE_URL`; required in production with split users.
+     * The erasures' own credential — `tmanage_erasure` in `scripts/db/users.sql`, which holds
+     * SELECT and DELETE on exactly the tables the erasure empties after an executed company
+     * deletion (H3), and what the account erasure needs after an executed account deletion
+     * (56-18), so the runtime user keeps its narrower set. Optional outside production, where the
+     * erasures run on `DATABASE_URL`; required in production with split users.
      */
     ERASURE_DATABASE_URL: mysqlUrl.optional(),
     /**
@@ -866,7 +867,7 @@ export const envSchema = z
       }
       const ownUsers = [
         ['WORKER_DATABASE_URL', env.WORKER_DATABASE_URL, 'the relay', '25 §10'],
-        ['ERASURE_DATABASE_URL', env.ERASURE_DATABASE_URL, 'the company erasure', 'H3'],
+        ['ERASURE_DATABASE_URL', env.ERASURE_DATABASE_URL, 'the erasures', 'H3, 56-18'],
       ] as const;
       for (const [key, url, who, ref] of ownUsers) {
         if (url === undefined) {

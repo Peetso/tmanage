@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { splitStatements } from './migrator.js';
-import { erasureDeleteTables } from '../../modules/privacy/privacy-erasure.repository.js';
+import { erasureGrants } from '../../modules/privacy/privacy-erasure.repository.js';
 
 /**
  * `scripts/db/users.sql` against the schema it grants on — ADR-0001 layer 2, statically.
@@ -442,29 +442,24 @@ describe('the runtime user is actually least-privilege', () => {
   });
 });
 
-describe('the erasure user can empty every table the company erasure empties — and only those', () => {
+describe('the erasure user holds exactly what the company and account erasures do', () => {
   // PURGEFIX. The company erasure ran on `tmanage_app`, which withholds DELETE from about half the
-  // tenant tables on purpose, so on a least-privilege server it stopped part-way (errno 1142). The
-  // erasure now has its own principal, and its grant list is derived here from the same function
-  // the erasure iterates: a tenant table registered in TENANT_TABLES without its line in users.sql
-  // fails this case, as does a line for a table the erasure does not empty.
-  it('holds SELECT and DELETE on exactly erasureDeleteTables(), and nothing else', () => {
-    const expected = [...erasureDeleteTables()].sort();
-    const granted = grantsFor('tmanage_erasure');
-    const missing = expected.filter(
-      (table) => [...privilegesOn('tmanage_erasure', table)].sort().join() !== 'DELETE,SELECT',
-    );
-    expect(
-      missing,
-      'tables the erasure empties without SELECT, DELETE for tmanage_erasure',
-    ).toEqual([]);
-    expect(
-      [...new Set(granted.map((grant) => grant.table))].sort(),
-      'tables tmanage_erasure may touch that the erasure never empties',
-    ).toEqual(expected);
-    for (const grant of granted) {
-      expect([...grant.privileges].sort(), grant.table).toEqual(['DELETE', 'SELECT']);
+  // tenant tables on purpose, so on a least-privilege server it stopped part-way (errno 1142).
+  // ACCOUNTFIX: the account erasure had the same gap on the credential tables and both sign-in
+  // logs. Both now run as `tmanage_erasure`, and its grant list is derived here from the same
+  // tables the erasures iterate: a tenant table registered without its line in users.sql fails
+  // this case, as does a line for a table no erasure touches or a privilege no erasure uses.
+  it('holds, table by table, exactly erasureGrants()', () => {
+    const granted: Record<string, string[]> = {};
+    for (const grant of grantsFor('tmanage_erasure')) {
+      granted[grant.table] = [...(granted[grant.table] ?? []), ...grant.privileges].sort();
     }
+    const sorted = Object.fromEntries(
+      Object.keys(granted)
+        .sort()
+        .map((table) => [table, granted[table]]),
+    );
+    expect(sorted).toEqual(erasureGrants());
   });
 });
 

@@ -30,7 +30,7 @@ one credential, so a one-user install sets only the database connection.
 | `DATABASE_URL` | yes |  | yes |  | Database — two distinct users (ADR-0001 layer 2, 25-AUTH-AND-TENANT-ISOLATION §5). |
 | `DATABASE_MIGRATION_URL` | yes |  | yes |  |  |
 | `WORKER_DATABASE_URL` | no |  | yes | yes | The relay's own credential — `tmanage_worker` in `scripts/db/users.sql`, which can mark outbox rows and append audit rows and delete nothing (`25-AUTH-AND-TENANT- ISOLATION` §2, §10: background work under minimal privileges). |
-| `ERASURE_DATABASE_URL` | no |  | yes | yes | The company erasure's own credential — `tmanage_erasure` in `scripts/db/users.sql`, which holds SELECT and DELETE on exactly the tables the erasure empties after an executed company deletion (H3), so the runtime user keeps its narrower DELETE set. |
+| `ERASURE_DATABASE_URL` | no |  | yes | yes | The erasures' own credential — `tmanage_erasure` in `scripts/db/users.sql`, which holds SELECT and DELETE on exactly the tables the erasure empties after an executed company deletion (H3), and what the account erasure needs after an executed account deletion (56-18), so the runtime user keeps its narrower set. |
 | `DATABASE_SINGLE_USER` | no | `false` | no |  | Single-database-user hosting. |
 | `DATABASE_POOL_MAX` | no | `5` | no |  | Hostinger's smallest Cloud plan has a tight connection allowance (50-BOOTSTRAP §4: "a small bounded pool ... |
 | `DATABASE_STATEMENT_TIMEOUT_MS` | no | `15000` | no |  |  |

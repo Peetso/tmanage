@@ -7,7 +7,7 @@ import type { TenantGuardEvent, TenantGuardMode } from './tenant-guard.js';
 import { ERASURE_DATABASE, TENANT_DATABASE } from '../http/tokens.js';
 
 /**
- * Where the process's `TenantDatabase` is registered (and the company erasure's, on its own
+ * Where the process's `TenantDatabase` is registered (and the erasures', on their own
  * credential where one is configured) — and the only module that may hold a pool.
  *
  * This file lives under `src/common/database/`, which is the allowlisted directory in
@@ -31,8 +31,8 @@ export interface DatabaseModuleOptions {
 export interface DatabaseUrlOptions extends DatabaseModuleOptions {
   readonly url: string;
   /**
-   * The company erasure's own credential (`tmanage_erasure`, H3). Absent: the erasure runs on the
-   * runtime pool, which is what a single-user host (Hostinger) has.
+   * The company and account erasures' own credential (`tmanage_erasure`, H3, 56-18). Absent: they
+   * run on the runtime pool, which is what a single-user host (Hostinger) has.
    */
   readonly erasureUrl?: string;
   readonly connectionLimit: number;

@@ -23,7 +23,7 @@ import {
 import { providerObjectSources } from '../files/provider-object-sources.js';
 import { ArchiveFileContents } from './privacy-archive-files.repository.js';
 import { PrivacyArchiveBuilder } from './privacy-archive.repository.js';
-import { CompanyErasure } from './privacy-erasure.repository.js';
+import { AccountErasure, CompanyErasure } from './privacy-erasure.repository.js';
 import { PRIVACY_JOB, PrivacyJob, PrivacyPass, privacyJobEnabled } from './privacy-job.js';
 import { PrivacyRepository } from './privacy.repository.js';
 import { PrivacyService } from './privacy.service.js';
@@ -81,8 +81,9 @@ export class PrivacyModule {
           ),
           undefined,
           undefined,
-          // H3: the company erasure deletes on its own credential (`tmanage_erasure`).
+          // H3 / 56-18: both erasures write on their own credential (`tmanage_erasure`).
           new CompanyErasure(erasureDatabase, store),
+          new AccountErasure(erasureDatabase),
         ),
     };
     const job: Provider = {

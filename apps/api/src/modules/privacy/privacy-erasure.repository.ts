@@ -161,7 +161,8 @@ export const GLOBAL_DEPENDENTS: Readonly<
 /**
  * Every table the company erasure deletes from: the erasable tenant tables and the global rows
  * {@link GLOBAL_DEPENDENTS} lists for them. The erasure's own credential (`tmanage_erasure` in
- * `scripts/db/users.sql`) holds SELECT and DELETE on exactly these and nothing else.
+ * `scripts/db/users.sql`) holds SELECT and DELETE on each of these, and beyond them only what the
+ * account erasure needs ({@link erasureGrants}).
  */
 export function erasureDeleteTables(tables: readonly string[] = erasableTables()): string[] {
   return [
@@ -435,32 +436,75 @@ export class CompanyErasure {
 
 // ── The erasure after an account deletion (56-18) ──────────────────────────────────────────────
 
+/** A table privilege an erasure needs (`scripts/db/users.sql`, `tmanage_erasure`). */
+export type ErasurePrivilege = 'SELECT' | 'UPDATE' | 'DELETE';
+
 /**
- * The global tables an account erasure reaches (all in `NON_TENANT_TABLES`): the credentials and
- * sessions that go, the account row and sign-in log that stay without the person, the marketing
- * enquiry and platform notices that named them, and the platform staff list it checks first.
+ * The global tables an account erasure reaches (all in `NON_TENANT_TABLES`) and what it does to
+ * each: the credentials and sessions that go, the account row and sign-in log that stay without
+ * the person, the marketing enquiry and platform notices that named them, and the platform staff
+ * list it checks first. SELECT beside every write, because each one filters on a column it reads.
  */
-export const ACCOUNT_ERASURE_TABLES: readonly string[] = [
-  'users',
-  'sessions',
-  'session_refresh_tokens',
-  'user_passwords',
-  'user_mfa_factors',
-  'user_recovery_codes',
-  'user_mfa_email_codes',
-  'user_passkeys',
-  'user_identities',
-  'password_reset_tokens',
-  'credential_change_notices',
-  'authentication_events',
-  'marketing_leads',
-  'platform_owner_notices',
-  'platform_admins',
-];
+const ACCOUNT_GLOBAL_PRIVILEGES = {
+  users: ['SELECT', 'UPDATE'],
+  sessions: ['SELECT', 'DELETE'],
+  session_refresh_tokens: ['SELECT', 'DELETE'],
+  user_passwords: ['SELECT', 'DELETE'],
+  user_mfa_factors: ['SELECT', 'DELETE'],
+  user_recovery_codes: ['SELECT', 'DELETE'],
+  user_mfa_email_codes: ['SELECT', 'DELETE'],
+  user_passkeys: ['SELECT', 'DELETE'],
+  user_identities: ['SELECT', 'DELETE'],
+  password_reset_tokens: ['SELECT', 'DELETE'],
+  credential_change_notices: ['SELECT', 'DELETE'],
+  authentication_events: ['SELECT', 'UPDATE'],
+  marketing_leads: ['SELECT', 'DELETE'],
+  platform_owner_notices: ['SELECT', 'DELETE'],
+  platform_admins: ['SELECT'],
+} as const satisfies Record<string, readonly ErasurePrivilege[]>;
+
+/**
+ * The tenant tables the account erasure reaches in the requesting company and beyond: the
+ * membership checks, and the invoice event log whose IP and user agent it nulls.
+ */
+const ACCOUNT_COMPANY_PRIVILEGES = {
+  memberships: ['SELECT'],
+  client_memberships: ['SELECT'],
+  client_invoice_events: ['SELECT', 'UPDATE'],
+} as const satisfies Record<string, readonly ErasurePrivilege[]>;
+
+/** The global tables the account erasure's identity transaction declares. */
+export const ACCOUNT_ERASURE_TABLES: readonly string[] = Object.keys(ACCOUNT_GLOBAL_PRIVILEGES);
+
+/**
+ * Everything the erasure credential (`tmanage_erasure`) holds, table by table, sorted: SELECT and
+ * DELETE on every table the company erasure empties ({@link erasureDeleteTables}), and what the
+ * account erasure needs on top. `users-sql.test.ts` holds `users.sql` to exactly this.
+ */
+export function erasureGrants(): Readonly<Record<string, readonly ErasurePrivilege[]>> {
+  const held = new Map<string, Set<ErasurePrivilege>>();
+  const add = (table: string, privileges: readonly ErasurePrivilege[]) => {
+    const set = held.get(table) ?? new Set<ErasurePrivilege>();
+    for (const privilege of privileges) set.add(privilege);
+    held.set(table, set);
+  };
+  for (const table of erasureDeleteTables()) add(table, ['SELECT', 'DELETE']);
+  for (const map of [ACCOUNT_GLOBAL_PRIVILEGES, ACCOUNT_COMPANY_PRIVILEGES]) {
+    for (const [table, privileges] of Object.entries(map)) add(table, privileges);
+  }
+  return Object.fromEntries(
+    [...held.keys()].sort().map((table) => [table, [...(held.get(table) ?? [])].sort()]),
+  );
+}
 
 /** The pseudonymised account: no name, an address that cannot receive mail, disabled. */
 export const ERASED_DISPLAY_NAME = 'Former member';
 
+/**
+ * The erased account's address. Migration 0378 reads the same shape (with `disabled_at` set) as
+ * "this account is erased": only then may its sign-in log lose IP and agent, and its superseded
+ * refresh tokens be deleted. Changing it here means a new migration there.
+ */
 export function erasedEmail(userId: string): string {
   return `erased-${userId}@erased.invalid`;
 }
@@ -583,6 +627,21 @@ export class AccountErasure {
       .limit(1);
     if (staff.length > 0) return 'kept_platform_staff';
 
+    // The account is pseudonymised first: the append-only triggers on `session_refresh_tokens`
+    // and `authentication_events` (0378) allow the deletes and the redaction below only for an
+    // erased account. One transaction, so a refusal further down leaves the account as it was.
+    const at = this.now();
+    await db
+      .update(users)
+      .set({
+        email: erasedEmail(userId),
+        displayName: ERASED_DISPLAY_NAME,
+        emailVerifiedAt: null,
+        disabledAt: at,
+        disabledReason: null,
+        updatedAt: at,
+      })
+      .where(eq(users.id, userId));
     const ownSessions = db
       .select({ id: sessions.id })
       .from(sessions)
@@ -606,18 +665,6 @@ export class AccountErasure {
       .update(authenticationEvents)
       .set({ ip: null, userAgent: null, clientHints: null })
       .where(eq(authenticationEvents.userId, userId));
-    const at = this.now();
-    await db
-      .update(users)
-      .set({
-        email: erasedEmail(userId),
-        displayName: ERASED_DISPLAY_NAME,
-        emailVerifiedAt: null,
-        disabledAt: at,
-        disabledReason: null,
-        updatedAt: at,
-      })
-      .where(eq(users.id, userId));
     return 'erased';
   }
 }

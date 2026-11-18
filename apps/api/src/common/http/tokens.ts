@@ -16,8 +16,8 @@
 
 export const TENANT_DATABASE = Symbol.for('tmanage.TenantDatabase');
 /**
- * The database the company erasure runs on (H3): `tmanage_erasure`'s own pool where
- * `ERASURE_DATABASE_URL` is set, else the same instance as {@link TENANT_DATABASE}.
+ * The database the company and account erasures run on (H3, 56-18): `tmanage_erasure`'s own
+ * pool where `ERASURE_DATABASE_URL` is set, else the same instance as {@link TENANT_DATABASE}.
  */
 export const ERASURE_DATABASE = Symbol.for('tmanage.ErasureDatabase');
 export const API_CONFIG = Symbol.for('tmanage.ApiConfig');

@@ -170,10 +170,15 @@
 --     `user_passwords`, `user_mfa_factors`, `user_recovery_codes` or
 --     `authentication_events`.
 --
--- **`tmanage_erasure`** — the company erasure after an executed company deletion (H3).
---   · `SELECT, DELETE` on exactly the tables `erasureDeleteTables()` names (every tenant table
---     outside the erasure's RETAINED_TABLES, and the OAuth codes and tokens under a company's
---     grants), and on **no** others: no INSERT, no UPDATE, no database-wide grant, nothing on
+-- **`tmanage_erasure`** — the erasures after an executed company deletion (H3) and an executed
+-- account deletion (56-18); exactly `erasureGrants()`.
+--   · `SELECT, DELETE` on the tables `erasureDeleteTables()` names (every tenant table outside
+--     the erasure's RETAINED_TABLES, and the OAuth codes and tokens under a company's grants)
+--   · `SELECT, DELETE` on the person's credentials, sessions, superseded refresh tokens, reset
+--     tokens, pending notices, marketing enquiry and platform owner notices
+--   · `SELECT, UPDATE` on `users` (pseudonymise the account), `authentication_events` and
+--     `client_invoice_events` (null IP and agent; the sign-in log's triggers allow nothing else)
+--   · `SELECT` on `platform_admins`; no INSERT, no database-wide grant, nothing on
 --     `audit_events`, `audit_heads`, `audit_anchors`, `audit_retention_policy`,
 --     `privacy_exports`, `privacy_deletion_requests` or `organizations`.
 --
@@ -211,8 +216,9 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_app'@'%';
 -- client_projections, invitations, messages, ...: "a runtime credential must not erase the
 -- record"), so widening it would undo those decisions for every request the API serves. The
 -- erasure runs as its own principal instead, `tmanage_erasure` (SELECT + DELETE on exactly the
--- tables it empties, nothing else; last section of this file), on the API's ERASURE_DATABASE
--- pool. Hostinger runs one database user for everything and is unaffected either way.
+-- tables it empties, and what the account erasure needs; last section of this file), on the
+-- API's ERASURE_DATABASE pool. Hostinger runs one database user for everything and is
+-- unaffected either way.
 GRANT SELECT ON `tmanage`.* TO 'tmanage_app'@'%';
 
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`organizations`        TO 'tmanage_app'@'%';
@@ -2613,7 +2619,7 @@ GRANT INSERT ON `tmanage`.`referral_partners` TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`referral_partner_signups` TO 'tmanage_app'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Erasure user — the company erasure, and nothing else
+-- Erasure user — the company and account erasures, and nothing else
 -- ─────────────────────────────────────────────────────────────────────────────
 -- H3 / PURGEFIX. `CompanyErasure` (`apps/api/src/modules/privacy/privacy-erasure.repository.ts`)
 -- deletes every row of a closed company from each tenant table outside its RETAINED_TABLES, and
@@ -2623,10 +2629,18 @@ GRANT INSERT ON `tmanage`.`referral_partner_signups` TO 'tmanage_app'@'%';
 -- narrower set. SELECT beside each DELETE because a `DELETE … WHERE organization_id = ?` reads the
 -- column it filters by, and the erasure pages ids and object keys out of the same tables.
 --
--- The list is exactly `erasureDeleteTables()`, sorted: `users-sql.test.ts` fails when a tenant
--- table is registered without its line here, and when a line names a table the erasure does not
--- empty. No INSERT, no UPDATE, no database-wide grant, nothing on the retained tables (the audit
--- trail, its retention policy, the two privacy tables, the organization row).
+-- 56-18 / ACCOUNTFIX. `AccountErasure` runs on the same credential: `tmanage_app` holds no DELETE
+-- on the credential tables, the refresh-token ledger, the reset tokens or the marketing leads, and
+-- no UPDATE on the sign-in log or the invoice event log. It deletes the person's credentials and
+-- sessions, pseudonymises `users`, and nulls IP and agent on `authentication_events` and
+-- `client_invoice_events`; UPDATE on the sign-in log is narrowed further by its trigger (0378) to
+-- that redaction, for an erased account only.
+--
+-- The list is exactly `erasureGrants()`, sorted: `users-sql.test.ts` fails when a tenant table is
+-- registered without its line here, when a line names a table no erasure touches, and when a
+-- line holds a privilege the erasures do not use. No INSERT, no database-wide grant, nothing on
+-- the retained tables (the audit trail, its retention policy, the two privacy tables, the
+-- organization row).
 CREATE USER IF NOT EXISTS 'tmanage_erasure'@'%' IDENTIFIED BY 'local_dev_only_erasure';
 
 -- R10, as for the other three: what this account ends up with is what follows, and nothing an
@@ -2644,6 +2658,7 @@ GRANT SELECT, DELETE ON `tmanage`.`approval_steps` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approvals` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`attachment_versions` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`audit_event_changes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`authentication_events` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`automation_schedules` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`automation_template_tags` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`automation_variables` TO 'tmanage_erasure'@'%';
@@ -2664,7 +2679,7 @@ GRANT SELECT, DELETE ON `tmanage`.`calendar_feed_tokens` TO 'tmanage_erasure'@'%
 GRANT SELECT, DELETE ON `tmanage`.`client_a11y_preferences` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`client_credit_note_lines` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`client_credit_notes` TO 'tmanage_erasure'@'%';
-GRANT SELECT, DELETE ON `tmanage`.`client_invoice_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, UPDATE, DELETE ON `tmanage`.`client_invoice_events` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`client_invoice_lines` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`client_invoice_payments` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`client_invoices` TO 'tmanage_erasure'@'%';
@@ -2683,6 +2698,7 @@ GRANT SELECT, DELETE ON `tmanage`.`conversation_pinned_messages` TO 'tmanage_era
 GRANT SELECT, DELETE ON `tmanage`.`conversation_read_state` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`conversation_thread_replies` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`conversations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`credential_change_notices` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`custom_roles` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`decision_comments` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`decision_locks` TO 'tmanage_erasure'@'%';
@@ -2765,6 +2781,7 @@ GRANT SELECT, DELETE ON `tmanage`.`link_previews` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`mail_person_assignments` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`mail_tip_log` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`marketing_leads` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`meeting_action_items` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`meeting_agenda_templates` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`meeting_attachments` TO 'tmanage_erasure'@'%';
@@ -2828,6 +2845,7 @@ GRANT SELECT, DELETE ON `tmanage`.`org_working_calendars` TO 'tmanage_erasure'@'
 GRANT SELECT, DELETE ON `tmanage`.`organization_limits` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`organization_logos` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`outbox_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`password_reset_tokens` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`pending_ai_actions` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`person_allocations` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`person_capacity` TO 'tmanage_erasure'@'%';
@@ -2835,6 +2853,8 @@ GRANT SELECT, DELETE ON `tmanage`.`person_certifications` TO 'tmanage_erasure'@'
 GRANT SELECT, DELETE ON `tmanage`.`person_skills` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`person_time_off` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`personal_access_tokens` TO 'tmanage_erasure'@'%';
+GRANT SELECT ON `tmanage`.`platform_admins` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`platform_owner_notices` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`portal_access_log` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`portal_announcements` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`portal_branding` TO 'tmanage_erasure'@'%';
@@ -2896,6 +2916,8 @@ GRANT SELECT, DELETE ON `tmanage`.`search_pins` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`search_scopes` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`security_settings` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`security_signals` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`session_refresh_tokens` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`sessions` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`signature_request_signers` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`signature_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`sso_connections` TO 'tmanage_erasure'@'%';
@@ -2914,10 +2936,17 @@ GRANT SELECT, DELETE ON `tmanage`.`upload_sessions` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`usage_counters` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`usage_ledger_entries` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`user_display_preferences` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_identities` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_mfa_email_codes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_mfa_factors` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_passkeys` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_passwords` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`user_preferences` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`user_presence` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_recovery_codes` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`user_shortcut_prefs` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`user_startup_prefs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`users` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`webhook_deliveries` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`webhook_endpoints` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_blockers` TO 'tmanage_erasure'@'%';
