@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { WebsiteChrome } from '../../components/website/WebsiteChrome';
+import { CatalogScope } from '../../lib/i18n/catalog-scope';
 
 /**
  * The public website (`/`, `/product`, `/features/*`, `/solutions/*`, `/pricing`, `/security`,
@@ -15,5 +16,10 @@ export const metadata: Metadata = {
 };
 
 export default function WebsiteLayout({ children }: { children: ReactNode }) {
-  return <WebsiteChrome>{children}</WebsiteChrome>;
+  // CATSPLIT: a website page downloads only its language's `site` catalog part.
+  return (
+    <CatalogScope scope="site">
+      <WebsiteChrome>{children}</WebsiteChrome>
+    </CatalogScope>
+  );
 }

@@ -1,6 +1,7 @@
 import { importCatalog, PRELOADED_CATALOGS } from '#i18n-catalogs';
-import en from './messages/en.json';
+import { ALL_PARTS, SITE_PARTS, type CatalogPart } from './catalog-part';
 import { catalogNameOf, type CatalogName } from './catalog-status';
+import type en from './messages/en.json';
 
 /**
  * i18n (NFR-02, I18N-03/05/06; R12 R2) — the message catalogs and their lookup, dependency-free.
@@ -20,23 +21,42 @@ import { catalogNameOf, type CatalogName } from './catalog-status';
 /** Every message key, taken from the English catalog so call sites are checked against it. */
 export type MessageKey = keyof typeof en;
 
+/** A catalog language: English (the source of truth and the fallback) or one of the others. */
+type Language = CatalogName | 'en';
+
 /**
  * The catalogs this process holds. On the server (and in the tests) `#i18n-catalogs` preloads all
- * of them; in the browser only English is bundled and a language arrives through
- * {@link loadCatalog} before anything is shown in it (`use-catalog.ts`, `locale-store.ts`).
+ * of them whole; in the browser none is bundled (CATSPLIT): each language arrives in parts
+ * (`catalog-part.ts`) through {@link loadCatalog} before anything is shown in it
+ * (`use-catalog.ts`, `locale-store.ts`). A part already carries the English line for any key its
+ * language lacks, so a page never needs the English catalog beside its own.
  */
-const CATALOGS: Partial<Record<CatalogName | 'en', Record<string, string>>> = {
-  en,
-  ...PRELOADED_CATALOGS,
-};
+const CATALOGS: Partial<Record<Language, Record<string, string>>> = { ...PRELOADED_CATALOGS };
 
-/** One download per language for the tab's lifetime; a failed one settles too (English then). */
-const LOADING = new Map<CatalogName, Promise<void>>();
+const LANGUAGES: readonly Language[] = ['en', 'ar', 'es', 'fr', 'pt-BR', 'de', 'zh-CN', 'ur'];
 
-const EN: Record<string, string> = en;
+/** The parts each language has here; a preloaded catalog is whole. */
+const HELD = new Map<Language, Set<CatalogPart>>(
+  LANGUAGES.filter((language) => PRELOADED_CATALOGS[language] !== undefined).map((language) => [
+    language,
+    new Set(ALL_PARTS),
+  ]),
+);
+
+/** One download per language and part for the tab's lifetime; a failed one settles too (the key then). */
+const LOADING = new Map<string, Promise<void>>();
+
+/** One stable promise per language and set of parts, so React's `use()` can wait on it. */
+const WAITING = new Map<string, Promise<void>>();
+
+/**
+ * The parts the tab has rendered from so far. A language switch publishes only once all of them
+ * have arrived in the new language, so a signed-in screen never shows a key.
+ */
+const DEMANDED = new Set<CatalogPart>(SITE_PARTS);
 
 /** The catalog for a BCP-47 locale: ar, es, fr, pt → pt-BR, de, zh → zh-CN, ur, else English. */
-export function languageOf(locale: string): CatalogName | 'en' {
+export function languageOf(locale: string): Language {
   return catalogNameOf(locale);
 }
 
@@ -46,33 +66,63 @@ export function languageOf(locale: string): CatalogName | 'en' {
  */
 export function translate(locale: string, key: MessageKey): string {
   const catalog = CATALOGS[languageOf(locale)];
-  return catalog?.[key] ?? EN[key] ?? key;
+  return catalog?.[key] ?? CATALOGS.en?.[key] ?? key;
 }
 
-/** Whether `locale`'s catalog is here, so {@link translate} answers in that language right now. */
-export function catalogReady(locale: string): boolean {
-  return CATALOGS[languageOf(locale)] !== undefined;
+/** Record that the tab renders from `parts`, so a later language switch waits for them too. */
+export function demandParts(parts: readonly CatalogPart[]): void {
+  for (const part of parts) DEMANDED.add(part);
 }
 
 /**
- * Make `locale`'s catalog available. Resolves at once when it already is; never rejects, because a
- * download that fails leaves the English fallback, which is what a missing key shows anyway. The
- * promise is stable per language, so React's `use()` can wait on it.
+ * Whether `locale`'s catalog parts are here, so {@link translate} answers in that language right
+ * now. Without `parts`: every part the tab has rendered from.
  */
-export function loadCatalog(locale: string): Promise<void> {
-  const name = languageOf(locale);
-  if (name === 'en' || CATALOGS[name] !== undefined) return Promise.resolve();
-  let pending = LOADING.get(name);
+export function catalogReady(
+  locale: string,
+  parts: readonly CatalogPart[] = [...DEMANDED],
+): boolean {
+  const held = HELD.get(languageOf(locale));
+  return parts.every((part) => held?.has(part) === true);
+}
+
+function loadPart(language: Language, part: CatalogPart): Promise<void> {
+  const id = `${language}.${part}`;
+  let pending = LOADING.get(id);
   if (pending === undefined) {
-    pending = importCatalog(name).then(
+    pending = importCatalog(language, part).then(
       (messages) => {
-        if (messages !== undefined) CATALOGS[name] = messages;
+        if (messages === undefined) return;
+        CATALOGS[language] = { ...CATALOGS[language], ...messages };
+        const held = HELD.get(language) ?? new Set<CatalogPart>();
+        held.add(part);
+        HELD.set(language, held);
       },
       (error: unknown) => {
-        console.error(`[i18n] the ${name} catalog did not load`, error);
+        console.error(`[i18n] the ${id} catalog did not load`, error);
       },
     );
-    LOADING.set(name, pending);
+    LOADING.set(id, pending);
   }
   return pending;
+}
+
+/**
+ * Make `locale`'s catalog parts available (without `parts`: every part the tab has rendered from).
+ * Resolves at once when they already are; never rejects, because a download that fails leaves the
+ * English line or the key. The promise is stable per language and parts.
+ */
+export function loadCatalog(
+  locale: string,
+  parts: readonly CatalogPart[] = [...DEMANDED],
+): Promise<void> {
+  const language = languageOf(locale);
+  if (catalogReady(locale, parts)) return Promise.resolve();
+  const id = `${language}:${parts.join('+')}`;
+  let waiting = WAITING.get(id);
+  if (waiting === undefined) {
+    waiting = Promise.all(parts.map((part) => loadPart(language, part))).then(() => undefined);
+    WAITING.set(id, waiting);
+  }
+  return waiting;
 }

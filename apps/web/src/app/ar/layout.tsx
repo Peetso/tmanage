@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { ARABIC_ROUTE_LOCALE } from '../../lib/i18n/public-locale-routes';
+import { preloadCatalogPart } from '../../lib/i18n/catalog-preload';
 import { RouteLocaleProvider } from '../../lib/i18n/route-locale';
 
 /**
@@ -18,5 +19,7 @@ export const metadata: Metadata = {
 };
 
 export default function ArabicLayout({ children }: { children: ReactNode }) {
+  // CATSPLIT: the Arabic `site` part downloads beside the scripts (`catalog-preload.ts`).
+  preloadCatalogPart('ar', 'site');
   return <RouteLocaleProvider locale={ARABIC_ROUTE_LOCALE}>{children}</RouteLocaleProvider>;
 }

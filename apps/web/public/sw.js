@@ -136,7 +136,11 @@ self.addEventListener('fetch', (event) => {
 
   // Static assets (styles, scripts, images, fonts): serve from cache first, then fill the
   // cache from the network so the next cold launch has them.
-  if (['style', 'script', 'image', 'font'].includes(request.destination)) {
+  // The catalog parts (`/i18n/<lang>.<part>.json?v=<build>`) are versioned like the scripts.
+  if (
+    ['style', 'script', 'image', 'font'].includes(request.destination) ||
+    url.pathname.startsWith('/i18n/')
+  ) {
     event.respondWith(
       caches.open(CACHE).then(async (cache) => {
         const cached = await cache.match(request);

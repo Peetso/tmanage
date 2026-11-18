@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
+import { join } from 'node:path';
 import { validatePublicConfigForBuild } from './src/lib/public-config';
 import { hstsHeaderRules } from './src/lib/csp';
+import { catalogVersion } from './src/lib/i18n/catalog-version';
 import { staticAssetHeaderRules } from './src/lib/static-headers';
 
 /**
@@ -57,7 +59,11 @@ const config: NextConfig = {
   // `PUBLIC_SIGNUP` (the API's switch, default on) inlined for the website's links at build time:
   // `off` turns every "Start free" back into Sign in and hides "Create an account". The API's
   // routes follow the same variable at runtime, so a changed value needs a rebuild for the links.
-  env: { NEXT_PUBLIC_SIGNUP: process.env['PUBLIC_SIGNUP'] ?? 'on' },
+  // CATSPLIT: the catalog version the browser fetches its catalog parts under (`catalog-part-path.ts`).
+  env: {
+    NEXT_PUBLIC_SIGNUP: process.env['PUBLIC_SIGNUP'] ?? 'on',
+    NEXT_PUBLIC_CATALOG_VERSION: catalogVersion(join(process.cwd(), 'src', 'lib', 'i18n')),
+  },
   // DOMAINIMPORT2: JSZip's package entry is its Node build (readable-stream), and Turbopack did
   // not apply its `browser` field, so the Office viewers and the import reader shipped the Node
   // stream/util stand-ins, whose generator probe Trusted Types refuses. The browser gets JSZip's

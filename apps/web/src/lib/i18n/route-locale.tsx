@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import type { DisplayLocale } from '../api/display-preferences';
+import { SITE_PARTS } from './catalog-part';
 import { activeLocale, type LocaleStore } from './locale-store';
 import { useCatalog } from './use-catalog';
 
@@ -37,7 +38,8 @@ export function RouteLocaleProvider({
   children: ReactNode;
   store?: LocaleStore;
 }) {
-  useCatalog(locale);
+  // The route's own screens ask for what else they need (an Arabic sign-in page: the app part).
+  useCatalog(locale, SITE_PARTS);
   useEffect(() => {
     if (languageOf(store.get()) !== languageOf(locale)) store.set(locale);
   }, [locale, store]);

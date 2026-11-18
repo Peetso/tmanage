@@ -13,6 +13,8 @@ import { UpdateToast } from '../components/pwa/UpdateToast';
 import { LocaleHintToast } from '../components/shell/LocaleHintToast';
 import { UndoToastHost } from '../components/undo/UndoToastHost';
 import { bootScripts } from '../lib/boot-scripts';
+import { preloadCatalogPart } from '../lib/i18n/catalog-preload';
+import { CatalogScope } from '../lib/i18n/catalog-scope';
 import { SITE_DESCRIPTION_EN } from '../lib/i18n/locale-html';
 import { DEFAULT_LOCALE } from '../lib/i18n/locale-store';
 import { RenderedDisplayProvider } from '../lib/i18n/rendered-display';
@@ -146,6 +148,8 @@ const BOOT_SCRIPTS = bootScripts(process.env.NODE_ENV !== 'production');
 export default function RootLayout({ children }: { children: ReactNode }) {
   const html = serverHtmlAttributes();
   const rendered = { locale: html.locale ?? DEFAULT_LOCALE, format: html.format };
+  // CATSPLIT: every page hydrates with the English `site` part (the prerendered default).
+  preloadCatalogPart('en', 'site');
   return (
     <html
       lang={html.lang}
@@ -170,7 +174,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <RenderedDisplayProvider value={rendered}>
             <QueryProvider>
               <LocaleDirectionProvider>
-                <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
+                <AuthBoundaryProvider>
+                  {/* CATSPLIT: the routes render from the whole catalog; the website's layouts
+                    narrow this to its `site` part. The providers and toasts here need `site` only. */}
+                  <CatalogScope scope="app">{children}</CatalogScope>
+                </AuthBoundaryProvider>
               </LocaleDirectionProvider>
             </QueryProvider>
             {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}

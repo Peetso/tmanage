@@ -81,8 +81,15 @@ export class LocaleStore {
     this.open = boot === undefined;
     const start = boot ?? DEFAULT_LOCALE;
     this.requested = start;
-    this.current = catalogs.ready(start) ? start : DEFAULT_LOCALE;
-    if (this.current !== start) this.publishWhenReady(start);
+    // CATSPLIT: the boot locale is current from the start, never published later. A publish on its
+    // catalog's arrival updated the already-hydrated shell while the route below it was still
+    // dehydrated (React #467 on /ar). Hydration itself waits for the boot locale's words
+    // (`rendered-display.tsx`, `use-catalog.ts`), so nothing renders in it before they are here.
+    this.current = start;
+    // Even English is downloaded now: start both rather than when the page hydrates.
+    for (const locale of new Set([start, DEFAULT_LOCALE])) {
+      if (!catalogs.ready(locale)) void catalogs.load(locale);
+    }
   }
 
   /** Whether the first-visit guess may still apply (nothing saved, nothing chosen). */
@@ -106,6 +113,11 @@ export class LocaleStore {
     }
     this.publishWhenReady(locale);
     return true;
+  }
+
+  /** The locale last asked for (the boot locale until a switch); it may still be downloading. */
+  get requestedLocale(): DisplayLocale {
+    return this.onServer?.() ?? this.requested;
   }
 
   /** The active locale right now. */
