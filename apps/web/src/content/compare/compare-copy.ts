@@ -26,10 +26,10 @@ export const COMPARE_COPY = {
     eyebrow: 'Compare',
     indexTitle: 'TManage compared',
     indexLede:
-      'Honest side-by-sides for agencies choosing a tool to run client work. Each page says where the other tool is strong, too.',
+      'Honest side-by-sides for companies choosing a tool to run client work. Each page says where the other tool is strong, too.',
     cardHint: (date: string) => `Last checked ${date}`,
     title: (name: string) => `TManage vs ${name}`,
-    lede: 'An honest side-by-side for agencies choosing a tool to run client work. We say where each one fits.',
+    lede: 'An honest side-by-side for companies choosing a tool to run client work. We say where each one fits.',
     lastChecked: (date: string) => `Last checked ${date}`,
     spotMistake: 'Spot a mistake? Tell us',
     stale: 'These facts were checked more than 90 days ago and may be out of date.',
@@ -60,7 +60,7 @@ export const COMPARE_COPY = {
     strongTitle: (name: string) => `Where ${name} is strong`,
     differentTitle: 'Where TManage is different',
     different:
-      'Built for agencies and their clients: approvals sealed in a record with a certificate, a client portal in Arabic and English, and time and invoices beside the work.',
+      'Built for companies and their clients: approvals sealed in a record with a certificate, a client portal in Arabic and English, and time and invoices beside the work.',
     movingTitle: 'Moving over',
     moving:
       'Start free during the beta and invite clients at no cost. Your files can stay in your own Google Drive or OneDrive.',
@@ -75,10 +75,10 @@ export const COMPARE_COPY = {
     eyebrow: 'مقارنة',
     indexTitle: `${RLM}TManage مقارنةً بغيره`,
     indexLede:
-      'مقارنات صادقة للوكالات التي تختار أداة لإدارة عمل العملاء. وكل صفحة تذكر أيضًا نقاط قوة الأداة الأخرى.',
+      'مقارنات صادقة للشركات التي تختار أداة لإدارة عمل العملاء. وكل صفحة تذكر أيضًا نقاط قوة الأداة الأخرى.',
     cardHint: (date: string) => `آخر مراجعة ${date}`,
     title: (name: string) => `${RLM}TManage مقابل ${name}`,
-    lede: 'مقارنة صادقة للوكالات التي تختار أداة لإدارة عمل العملاء. نوضّح أين تناسب كل أداة.',
+    lede: 'مقارنة صادقة للشركات التي تختار أداة لإدارة عمل العملاء. نوضّح أين تناسب كل أداة.',
     lastChecked: (date: string) => `آخر مراجعة ${date}`,
     spotMistake: 'وجدت خطأ؟ أخبرنا',
     stale: 'رُوجعت هذه المعلومات قبل أكثر من 90 يومًا وقد لا تكون محدّثة.',
@@ -108,7 +108,7 @@ export const COMPARE_COPY = {
     strongTitle: (name: string) => `نقاط قوة ${name}${RLM}`,
     differentTitle: `بماذا يختلف TManage${RLM}`,
     different:
-      'صُمّم للوكالات وعملائها: اعتمادات محفوظة في سجل مختوم مع شهادة، وبوابة عملاء بالعربية والإنجليزية، والوقت والفواتير بجانب العمل.',
+      'صُمّم للشركات وعملائها: اعتمادات محفوظة في سجل مختوم مع شهادة، وبوابة عملاء بالعربية والإنجليزية، والوقت والفواتير بجانب العمل.',
     movingTitle: 'الانتقال',
     moving:
       'ابدأ مجانًا خلال الفترة التجريبية وادعُ عملاءك دون تكلفة. ويمكن أن تبقى ملفاتك في Google Drive أو OneDrive الخاص بك.',

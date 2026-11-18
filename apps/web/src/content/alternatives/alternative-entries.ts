@@ -133,8 +133,8 @@ export const ALTERNATIVE_ENTRIES: readonly AlternativeEntry[] = [
     slug: 'productive',
     category: CLIENT_WORK,
     whyLede: {
-      en: 'Productive is built for agencies, and many teams stay with it. These are the cases where it stops fitting.',
-      ar: `${RLM}Productive مصمَّم للوكالات، وفرق كثيرة تبقى عليه. وهذه الحالات التي لا يعود مناسبًا فيها.`,
+      en: 'Productive is built for client-service businesses, and many teams stay with it. These are the cases where it stops fitting.',
+      ar: `${RLM}Productive مصمَّم لشركات خدمة العملاء، وفرق كثيرة تبقى عليه. وهذه الحالات التي لا يعود مناسبًا فيها.`,
     },
     workWord: 'tasks',
   },

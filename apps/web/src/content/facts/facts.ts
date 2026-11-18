@@ -11,7 +11,7 @@ import { HELLO_EMAIL } from '../../lib/public-contact';
  */
 
 /** The day the facts page's words last changed (its "Last updated" line). */
-export const FACTS_UPDATED_ON = '2026-11-17';
+export const FACTS_UPDATED_ON = '2026-11-19';
 
 /** One row of the facts table; `link` rows show their value as a link. */
 export interface FactRow {
@@ -25,8 +25,8 @@ export interface FactRow {
  * `llms.txt` and wherever the site describes itself to machines (`TMANAGE_DESCRIPTION`).
  */
 export const FACTS_DESCRIPTION = {
-  en: 'TManage is a project and client-approvals workspace for agencies and freelancers: chat, projects, files with client viewers, approvals, time tracking, client invoices and a client portal in one place, in English and Arabic.',
-  ar: `${RLM}TManage مساحة عمل لإدارة المشاريع واعتماد العملاء، للوكالات والمستقلين: المحادثة والمشاريع والملفات مع عارض للعملاء والاعتمادات وتسجيل الوقت وفواتير العملاء وبوابة العملاء في مكان واحد، بالعربية والإنجليزية.`,
+  en: 'TManage is a project and client-approvals workspace for companies and freelancers: chat, projects, files with client viewers, approvals, time tracking, client invoices and a client portal in one place, in English and Arabic.',
+  ar: `${RLM}TManage مساحة عمل لإدارة المشاريع واعتماد العملاء، للشركات والمستقلين: المحادثة والمشاريع والملفات مع عارض للعملاء والاعتمادات وتسجيل الوقت وفواتير العملاء وبوابة العملاء في مكان واحد، بالعربية والإنجليزية.`,
 } as const;
 const DESCRIPTION = FACTS_DESCRIPTION;
 
@@ -41,12 +41,12 @@ export const FACTS_COPY = {
     rows: (website: string): FactRow[] => [
       {
         label: 'What it is',
-        value: 'A project and client-approvals workspace for agencies and freelancers',
+        value: 'A project and client-approvals workspace for companies and freelancers',
       },
       { label: 'Category', value: 'Project management and client portal software' },
       {
         label: 'Who it is for',
-        value: 'Agencies, studios, consultancies and freelancers who deliver work to clients',
+        value: 'Companies of every kind, and freelancers, who deliver work to clients',
       },
       {
         label: 'Price today',
@@ -90,11 +90,11 @@ export const FACTS_COPY = {
     tableEyebrow: 'نظرة سريعة',
     tableTitle: 'الحقائق في جدول واحد',
     rows: (website: string): FactRow[] => [
-      { label: 'ما هو', value: 'مساحة عمل لإدارة المشاريع واعتماد العملاء، للوكالات والمستقلين' },
+      { label: 'ما هو', value: 'مساحة عمل لإدارة المشاريع واعتماد العملاء، للشركات والمستقلين' },
       { label: 'الفئة', value: 'برنامج لإدارة المشاريع وبوابة للعملاء' },
       {
         label: 'لمن',
-        value: 'الوكالات والاستوديوهات وشركات الاستشارات والمستقلون الذين يسلّمون أعمالًا لعملائهم',
+        value: 'الشركات على اختلاف أنواعها، والمستقلون، ممن يسلّمون أعمالًا لعملائهم',
       },
       {
         label: 'السعر اليوم',

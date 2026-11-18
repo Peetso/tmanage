@@ -51,12 +51,12 @@ export const ALTERNATIVE_COPY = {
   en: {
     alternatives: 'Alternatives',
     eyebrow: (name: string) => `${name} alternative`,
-    title: (name: string) => `A ${name} alternative for agencies`,
-    tabTitle: (name: string) => `${name} alternative for agencies`,
+    title: (name: string) => `A ${name} alternative for your company`,
+    tabTitle: (name: string) => `${name} alternative for companies`,
     description: (name: string) =>
-      `TManage is a ${name} alternative for agencies that need client approvals, a client portal and one flat team price.`,
+      `TManage is a ${name} alternative for companies that need client approvals, a client portal and one flat team price.`,
     lede: (name: string) =>
-      `TManage is a ${name} alternative for agencies that need client approvals, a client portal and one flat team price. It is free during the beta and works fully in Arabic and English.`,
+      `TManage is a ${name} alternative for companies that need client approvals, a client portal and one flat team price. It is free during the beta and works fully in Arabic and English.`,
     compareButton: 'Compare side by side',
     whyEyebrow: 'Why teams look',
     whyTitle: (name: string) => `Why teams look for a ${name} alternative`,
@@ -115,7 +115,7 @@ export const ALTERNATIVE_COPY = {
     switchEyebrow: 'Switching',
     switchTitle: 'What you keep, what changes',
     switchLede: (name: string) =>
-      `Moving from ${name} keeps the way your team already works and adds what agencies ask for.`,
+      `Moving from ${name} keeps the way your team already works and adds what client work needs.`,
     keepTitle: 'What you keep',
     keep: (work: string) => [
       `Projects and ${work}`,
@@ -133,7 +133,7 @@ export const ALTERNATIVE_COPY = {
     faqTitle: (name: string) => `Questions about moving from ${name}`,
     faq: (name: string, work: string, fit: AlternativeFit) => [
       {
-        question: `Is TManage a good ${name} alternative for a 10-person agency?`,
+        question: `Is TManage a good ${name} alternative for a 10-person company?`,
         answer:
           'Yes, if your clients approve work and you want one flat team price. TManage is free during the beta, and client users are always free.',
       },
@@ -163,11 +163,11 @@ export const ALTERNATIVE_COPY = {
     portalCardHint: 'What your clients see and approve',
     allCard: 'All alternatives',
     allCardHint: (names: readonly string[]) => `${names.join(', ')} and more`,
-    indexTitle: 'Alternatives to the tools agencies use',
+    indexTitle: 'Alternatives to the tools companies use',
     indexDescription:
-      'TManage is an alternative to Basecamp, monday.com, ClickUp, Asana, Wrike, Notion and more, for agencies that need client approvals, a client portal and Arabic.',
+      'TManage is an alternative to Basecamp, monday.com, ClickUp, Asana, Wrike, Notion and more, for companies that need client approvals, a client portal and Arabic.',
     indexLede:
-      'TManage is an alternative to Basecamp, monday.com, ClickUp, Asana, Wrike, Notion and more, for agencies that need client approvals, a client portal and Arabic. Each page compares fairly, with dated facts and sources.',
+      'TManage is an alternative to Basecamp, monday.com, ClickUp, Asana, Wrike, Notion and more, for companies that need client approvals, a client portal and Arabic. Each page compares fairly, with dated facts and sources.',
     listEyebrow: 'Compare',
     listTitle: 'Pick the tool you use today',
     listLede: 'Each page shows where TManage fits, where the other tool is ahead, and how to move.',
@@ -178,12 +178,12 @@ export const ALTERNATIVE_COPY = {
   ar: {
     alternatives: 'البدائل',
     eyebrow: (name: string) => `بديل ${RLM}${name}`,
-    title: (name: string) => `بديل ${RLM}${name} للوكالات`,
-    tabTitle: (name: string) => `بديل ${RLM}${name} للوكالات`,
+    title: (name: string) => `بديل ${RLM}${name} لشركتك`,
+    tabTitle: (name: string) => `بديل ${RLM}${name} للشركات`,
     description: (name: string) =>
-      `${RLM}TManage بديل عن ${RLM}${name} للوكالات التي تحتاج إلى اعتماد العملاء، وبوابة خاصة بهم، وسعر ثابت للفريق كله.`,
+      `${RLM}TManage بديل عن ${RLM}${name} للشركات التي تحتاج إلى اعتماد العملاء، وبوابة خاصة بهم، وسعر ثابت للفريق كله.`,
     lede: (name: string) =>
-      `${RLM}TManage بديل عن ${RLM}${name} للوكالات التي تحتاج إلى اعتماد العملاء، وبوابة خاصة بهم، وسعر ثابت للفريق كله. مجاني طوال فترة البيتا، ويعمل بالكامل بالعربية والإنجليزية.`,
+      `${RLM}TManage بديل عن ${RLM}${name} للشركات التي تحتاج إلى اعتماد العملاء، وبوابة خاصة بهم، وسعر ثابت للفريق كله. مجاني طوال فترة البيتا، ويعمل بالكامل بالعربية والإنجليزية.`,
     compareButton: 'شاهد المقارنة كاملة',
     whyEyebrow: 'لماذا يبحثون عن بديل',
     whyTitle: (name: string) => `لماذا تنتقل بعض الفرق من ${RLM}${name}؟`,
@@ -242,7 +242,7 @@ export const ALTERNATIVE_COPY = {
     switchEyebrow: 'الانتقال',
     switchTitle: 'ما يبقى وما يتغيّر',
     switchLede: (name: string) =>
-      `الانتقال من ${RLM}${name} يحافظ على طريقة عمل فريقك، ويضيف ما تحتاجه الوكالات.`,
+      `الانتقال من ${RLM}${name} يحافظ على طريقة عمل فريقك، ويضيف ما يحتاجه العمل مع العملاء.`,
     keepTitle: 'ما يبقى',
     keep: (_work: string) => ['المشاريع والمهام', 'الملفات والمحادثات', 'العملاء على اطلاع دائم'],
     changeTitle: 'ما يتغيّر',
@@ -256,7 +256,7 @@ export const ALTERNATIVE_COPY = {
     faqTitle: (name: string) => `أسئلة عن الانتقال من ${RLM}${name}`,
     faq: (name: string, _work: string, fit: AlternativeFit) => [
       {
-        question: `هل ${RLM}TManage بديل مناسب عن ${RLM}${name} لوكالة من 10 أشخاص؟`,
+        question: `هل ${RLM}TManage بديل مناسب عن ${RLM}${name} لشركة من 10 أشخاص؟`,
         answer: `نعم، إذا كان عملاؤك يعتمدون الأعمال وتريد سعرًا ثابتًا للفريق. ${RLM}TManage مجاني طوال البيتا، وحسابات العملاء مجانية دائمًا.`,
       },
       {
@@ -285,9 +285,9 @@ export const ALTERNATIVE_COPY = {
     allCard: 'كل البدائل',
     allCardHint: (names: readonly string[]) =>
       `${names.map((name) => `${RLM}${name}`).join(' و ')} وغيرها`,
-    indexTitle: 'بدائل للأدوات التي تستخدمها الوكالات',
-    indexDescription: `${RLM}TManage بديل عن ${RLM}Basecamp و ${RLM}monday.com و ${RLM}ClickUp و ${RLM}Asana و ${RLM}Wrike و ${RLM}Notion وغيرها، للوكالات التي تحتاج إلى اعتماد العملاء وبوابة خاصة بهم وواجهة عربية.`,
-    indexLede: `${RLM}TManage بديل عن ${RLM}Basecamp و ${RLM}monday.com و ${RLM}ClickUp و ${RLM}Asana و ${RLM}Wrike و ${RLM}Notion وغيرها، للوكالات التي تحتاج إلى اعتماد العملاء وبوابة خاصة بهم وواجهة عربية. كل صفحة تقارن بإنصاف، بحقائق مؤرخة ومصادر واضحة.`,
+    indexTitle: 'بدائل للأدوات التي تستخدمها الشركات',
+    indexDescription: `${RLM}TManage بديل عن ${RLM}Basecamp و ${RLM}monday.com و ${RLM}ClickUp و ${RLM}Asana و ${RLM}Wrike و ${RLM}Notion وغيرها، للشركات التي تحتاج إلى اعتماد العملاء وبوابة خاصة بهم وواجهة عربية.`,
+    indexLede: `${RLM}TManage بديل عن ${RLM}Basecamp و ${RLM}monday.com و ${RLM}ClickUp و ${RLM}Asana و ${RLM}Wrike و ${RLM}Notion وغيرها، للشركات التي تحتاج إلى اعتماد العملاء وبوابة خاصة بهم وواجهة عربية. كل صفحة تقارن بإنصاف، بحقائق مؤرخة ومصادر واضحة.`,
     listEyebrow: 'قارن',
     listTitle: 'اختر الأداة التي تستخدمها اليوم',
     listLede: `كل صفحة توضّح أين يناسبك ${RLM}TManage، وأين تتفوّق الأداة الأخرى، وكيف تنتقل.`,

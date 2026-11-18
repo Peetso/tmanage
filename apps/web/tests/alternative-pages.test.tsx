@@ -170,6 +170,24 @@ describe('SEOF alternative pages and facts page', () => {
     },
   );
 
+  it.each(['en', 'ar'] as const)(
+    'names the company, never an agency, in the main text of the alternative and facts pages in %s (SITEWORD)',
+    async (language) => {
+      const prefix = language === 'ar' ? '/ar' : '';
+      const basecamp = await render(`${prefix}/alternatives/basecamp`);
+      expect(text(basecamp.root.querySelector('h1'))).toBe(
+        language === 'en' ? 'A Basecamp alternative for your company' : 'بديل ‏Basecamp لشركتك',
+      );
+      for (const path of ['/alternatives', '/alternatives/basecamp', '/facts']) {
+        const { root } = await render(`${prefix}${path}`);
+        // The page's own text: its <main> when the shell is rendered, else the page itself.
+        const words = text(root.querySelector('main') ?? root);
+        expect(words.length, path).toBeGreaterThan(200);
+        expect(words, path).not.toMatch(/\bagenc(?:y|ies)\b|وكال/iu);
+      }
+    },
+  );
+
   it('keeps the slug list, the twin table and the page list complete', () => {
     expect([...ALTERNATIVE_SLUGS]).toEqual(ALTERNATIVE_ENTRIES.map((entry) => entry.slug));
     for (const slug of ALTERNATIVE_SLUGS)

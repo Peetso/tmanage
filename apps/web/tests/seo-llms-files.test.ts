@@ -38,6 +38,12 @@ describe('llms files and Markdown twins', () => {
     expect(llmsFullTxt(ORIGIN)).not.toMatch(/pay invoices online/iu);
   });
 
+  it('describes TManage as a workspace for companies, in both languages (SITEWORD)', () => {
+    expect(TMANAGE_DESCRIPTION).toContain('workspace for companies and freelancers');
+    expect(FACTS_DESCRIPTION.ar).toContain('للشركات والمستقلين');
+    expect(llmsTxt(ORIGIN)).toContain(`> ${TMANAGE_DESCRIPTION} `);
+  });
+
   it('llms-full.txt carries at most the page limit, pricing first, each with its own address', () => {
     const pages = llmsFullPages();
     const text = llmsFullTxt(ORIGIN);

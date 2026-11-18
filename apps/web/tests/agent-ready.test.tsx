@@ -69,6 +69,15 @@ describe('agent-ready public site', () => {
     ]);
   });
 
+  it('the home page JSON-LD describes the product without the agency word (SITEWORD)', () => {
+    for (const path of ['/', '/ar']) {
+      const graph = jsonLdOf(chromeHtml(path))['@graph'] as readonly JsonLd[];
+      const description = graph[2]?.['description'];
+      expect([typeof description, description], path).toEqual(['string', expect.any(String)]);
+      expect(description, path).not.toMatch(/\bagenc(?:y|ies)\b|وكال/iu);
+    }
+  });
+
   it('7. the Organization names the three social profiles', () => {
     const graph = homeGraph({ language: 'en', description: 'x', origin: ORIGIN })[
       '@graph'

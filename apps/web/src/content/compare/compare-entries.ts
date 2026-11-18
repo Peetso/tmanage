@@ -281,8 +281,8 @@ export const COMPARE_ENTRIES: readonly CompareEntry[] = [
       ],
     },
     strong: {
-      en: 'Teamwork.com is built for agencies and consultancies: billable time, time budgets and retainers, client invoicing from logged time, and the margin on every project.',
-      ar: `صُمّم Teamwork.com${RLM} للوكالات والاستشارات: وقت قابل للفوترة، وميزانيات وقت وعقود شهرية، وفواتير للعملاء من الوقت المسجَّل، وهامش الربح في كل مشروع.`,
+      en: 'Teamwork.com is built for client work: billable time, time budgets and retainers, client invoicing from logged time, and the margin on every project.',
+      ar: `صُمّم Teamwork.com${RLM} للعمل مع العملاء: وقت قابل للفوترة، وميزانيات وقت وعقود شهرية، وفواتير للعملاء من الوقت المسجَّل، وهامش الربح في كل مشروع.`,
     },
     rows: {
       tasks: yes('Yes, organised by client', 'نعم، منظّمة حسب العميل', TEAMWORK),
@@ -559,19 +559,19 @@ export const COMPARE_ENTRIES: readonly CompareEntry[] = [
     checkedOn: CHECKED_2026_11_17,
     suits: {
       en: [
-        'You run an agency on budgets, rate cards and margins',
+        'You run your company on budgets, rate cards and margins',
         'You plan people’s time with resource planning',
         'You want revenue forecasting and scenario planning',
       ],
       ar: [
-        'تدير وكالتك بالميزانيات وجداول الأسعار وهوامش الربح',
+        'تدير شركتك بالميزانيات وجداول الأسعار وهوامش الربح',
         'تخطّط وقت فريقك بتخطيط الموارد',
         'تريد توقّع الإيرادات وتخطيط السيناريوهات',
       ],
     },
     strong: {
-      en: 'Productive is built for agencies: time tracking, budgets and rate cards, resource planning, and client invoices sent from the same tool. Clients can be added free of charge to follow progress.',
-      ar: `صُمّم Productive${RLM} للوكالات: تتبّع الوقت، والميزانيات وجداول الأسعار، وتخطيط الموارد، وفواتير العملاء تُرسل من الأداة نفسها. ويمكن إضافة العملاء مجانًا ليتابعوا التقدّم.`,
+      en: 'Productive is built for client-service businesses: time tracking, budgets and rate cards, resource planning, and client invoices sent from the same tool. Clients can be added free of charge to follow progress.',
+      ar: `صُمّم Productive${RLM} لشركات خدمة العملاء: تتبّع الوقت، والميزانيات وجداول الأسعار، وتخطيط الموارد، وفواتير العملاء تُرسل من الأداة نفسها. ويمكن إضافة العملاء مجانًا ليتابعوا التقدّم.`,
     },
     rows: {
       tasks: yes('Yes, task management', 'نعم، إدارة المهام', PRODUCTIVE),
@@ -704,12 +704,12 @@ export const COMPARE_ENTRIES: readonly CompareEntry[] = [
     checkedOn: CHECKED_2026_11_17,
     suits: {
       en: [
-        'You are a freelancer or small agency that wants one app',
+        'You are a freelancer or a small team that wants one app',
         'You send proposals and contracts for clients to sign',
         'You take payments through Stripe, PayPal or Square',
       ],
       ar: [
-        'تعمل مستقلًا أو في وكالة صغيرة وتريد تطبيقًا واحدًا',
+        'تعمل مستقلًا أو ضمن فريق صغير وتريد تطبيقًا واحدًا',
         'ترسل العروض والعقود ليوقّعها العملاء',
         `تستقبل المدفوعات عبر Stripe${RLM} أو PayPal${RLM} أو Square${RLM}`,
       ],

@@ -19,12 +19,12 @@ export const COMPARE_LINKS_COPY = {
   en: {
     label: 'Compare TManage',
     compare: (name: string) => `TManage vs ${name}`,
-    alternative: (name: string) => `${name} alternative for agencies`,
+    alternative: (name: string) => `${name} alternative for companies`,
   },
   ar: {
     label: `قارن ${RLM}TManage`,
     compare: (name: string) => `${RLM}TManage مقابل ${name}`,
-    alternative: (name: string) => `بديل ${RLM}${name} للوكالات`,
+    alternative: (name: string) => `بديل ${RLM}${name} للشركات`,
   },
 } satisfies Record<LinkLanguage, unknown>;
 
