@@ -43,6 +43,7 @@ import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { usePendingWrites } from '../../lib/offline/use-offline';
 import { ApproveSheet, LogTimeSheet, type ApprovalVerdict } from './MyDayPhoneSheets';
+import { PricingSurveyCard } from './PricingSurveyCard';
 
 export interface MyDayScreenProps {
   organizationSlug: string;
@@ -376,6 +377,9 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
               </ul>
             ) : null}
           </section>
+
+          {/* 57-17 WTP: below "Due & at risk" (design review point 11); the API decides who sees it. */}
+          <PricingSurveyCard api={api} organizationSlug={organizationSlug} />
 
           <section
             className="tm-home-section tm-home-section--quiet"

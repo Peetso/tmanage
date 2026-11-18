@@ -20,6 +20,7 @@ import { PlatformGate } from '../shared/platform-kit';
 import { PlatformPageState } from '../shared/PlatformPageState';
 import { ACTIVITY_KEY } from './ActivityFrame';
 import { GROWTH_COPY } from './growth-copy';
+import { PricingAnswersCard } from './PricingAnswersCard';
 import type { GrowthCopyKey } from './growth-copy';
 import '../../../styles/screens/r44-security-growth.css';
 
@@ -73,7 +74,13 @@ export function GrowthScreen({ client }: ScreenProps) {
         </>
       )}
     >
-      {() => <GrowthBody api={api} period={period} />}
+      {() => (
+        <div className="tm-stack">
+          <GrowthBody api={api} period={period} />
+          {/* 57-17 WTP: the willingness-to-pay answers, platform-wide. */}
+          <PricingAnswersCard api={api} />
+        </div>
+      )}
     </PlatformGate>
   );
 }

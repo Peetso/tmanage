@@ -28,6 +28,8 @@ import { PlatformConnectSetupModule } from './connect-setup/connect-setup.contro
 import { PlatformSupportThreadsModule } from '../support/support.module.js';
 // ---- R46 L2 · 56-21 · two-person approvals + owner notices ----
 import { PlatformGovernanceModule } from './governance/governance.module.js';
+// ---- 57-17 · WTP willingness-to-pay answers ----
+import { PlatformPricingSurveyModule } from '../pricing-survey/pricing-survey.module.js';
 
 /**
  * Every Platform admin area, one Nest module each (platform-admin v2, PA-02 split). Each area
@@ -67,4 +69,6 @@ export const PLATFORM_AREA_MODULES: DynamicModule[] = [
   PlatformSupportThreadsModule.register(),
   // ---- R46 L2 · 56-21 · two-person approvals + owner notices ----
   PlatformGovernanceModule.register(),
+  // ---- 57-17 · WTP: the willingness-to-pay answers list (Growth page) ----
+  PlatformPricingSurveyModule.register(),
 ];

@@ -1,0 +1,65 @@
+/* Willingness-to-pay card on Home (57-17 WTP, Figma 717:39648 / 717:39966). Composes the card
+   and chip vocabulary; only the pieces it lacks. Logical properties only, so Arabic mirrors it. */
+
+.tm-wtp {
+  gap: var(--s4);
+}
+
+.tm-wtp__eyebrow {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-wtp__question {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-wtp__body {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-wtp__bands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* The chosen band: lime tint plus a tick, so the choice is never colour alone. */
+.tm-wtp__band[aria-checked='true'] {
+  border-color: var(--lime-600);
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-wtp__tick {
+  margin-inline-end: var(--s1);
+}
+
+.tm-wtp__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-wtp__once {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-wtp__sent {
+  align-self: flex-start;
+}
