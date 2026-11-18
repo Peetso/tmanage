@@ -566,6 +566,10 @@ const WEB_EXEMPT = new Map([
     'SupportTargets',
     '57-10 — the API returns publishedTargets() from support-sla.ts as an unnamed object (no …View to import) on the public support-targets route.',
   ],
+  [
+    'MatrixNotificationKind',
+    'EMAILBUILD2 — web-only subset (NotificationKind minus tips) naming the matrix columns, never a response body; the response NotificationKindPrefView is paired Exact.',
+  ],
 ]);
 
 // ── 1. Enumerate the API's response projections ─────────────────────────────

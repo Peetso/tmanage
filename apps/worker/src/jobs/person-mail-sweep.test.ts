@@ -292,7 +292,7 @@ describe('sweepPersonMail', () => {
     const mailer: Mailer = {
       send: (message) => {
         sent.push(message);
-        return Promise.resolve();
+        return Promise.resolve('sent' as const);
       },
     };
     return { mailer, sent };
