@@ -24,6 +24,12 @@ import {
 } from './mail-people.controller.js';
 import { MailPeopleRepository } from './mail-people.repository.js';
 import { MailPeopleService } from './mail-people.service.js';
+import {
+  PLATFORM_PERSON_MAIL_SERVICE,
+  PlatformPersonMailController,
+} from './person-mail.controller.js';
+import { PersonMailRepository } from './person-mail.repository.js';
+import { PersonMailService } from './person-mail.service.js';
 import { PlatformFlagsRepository } from './flags.repository.js';
 import { PlatformFlagsService } from './flags.service.js';
 import { PLATFORM_KEYS_SERVICE, PlatformKeysController } from './keys.controller.js';
@@ -81,6 +87,13 @@ export class PlatformSettingsModule {
                 (process.env['SMTP_SUPPORT_PASS'] ?? '') !== '',
             }),
         },
+        // ---- EMAILBUILD2 ---- the "Tips and reminders" switch and the "Feature news" card.
+        {
+          provide: PLATFORM_PERSON_MAIL_SERVICE,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new PersonMailService(new PersonMailRepository(database)),
+        },
         // ---- 56-02 Keys ---- status only; key ids from env, never a value.
         {
           provide: PLATFORM_KEYS_SERVICE,
@@ -102,6 +115,7 @@ export class PlatformSettingsModule {
         PlatformAnnouncementsController,
         PlatformKeysController,
         PlatformMailPeopleController,
+        PlatformPersonMailController,
       ],
     };
   }

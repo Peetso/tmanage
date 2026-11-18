@@ -1162,6 +1162,11 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/platform/mail-people/import', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/mail-people/:personId', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/mail-people/:personId/test', reason: 'platform_admin' },
+  // EMAILBUILD2: the Tips and reminders switch and the Feature news card (platform settings).
+  { method: 'GET', path: '/v1/platform/person-mail/', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/person-mail/switch', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/person-mail/news', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/person-mail/news/:newsId/send', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/billing-mode', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/beta-banner', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/retention', reason: 'platform_admin' },
