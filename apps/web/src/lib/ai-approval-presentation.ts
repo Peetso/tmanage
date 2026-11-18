@@ -66,6 +66,14 @@ export function localizedFieldLabel(lookup: CatalogLookup, name: string): string
   return lookup(fieldLabelKey(name)) ?? fieldLabel(name);
 }
 
+/**
+ * The argument rows a person can read (TESTUX P2 30). An identifier (`workItemId`, `memberIds`)
+ * holds a raw id that tells the reader nothing; the subject line names the target instead.
+ */
+export function readableFields<T extends { readonly name: string }>(fields: readonly T[]): T[] {
+  return fields.filter((field) => !/[a-z]Ids?$/u.test(field.name));
+}
+
 /** English fallbacks for the bold subject line until the `i18n-FIX-APPROVE` keys are merged. */
 const SUBJECT_TEMPLATES = {
   'aiApprove.subjectDelete': 'Delete “{name}”',

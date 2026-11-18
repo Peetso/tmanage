@@ -129,7 +129,7 @@ const COPILOT_ANSWER = {
     'Three projects are carrying blocked work this week; the Rebrand has the most, and two approvals are waiting on changes. This is a guided answer from the offline preview, not a live model.',
   evidence: [
     { source: 'Global search', link: '/search?q=blocked' },
-    { source: 'Insights portfolio', link: '/insights/portfolio' },
+    { source: 'Projects portfolio', link: '/projects/portfolio' },
   ],
   permissionBoundary: {
     scope: 'assigned-projects',

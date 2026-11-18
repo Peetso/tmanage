@@ -81,6 +81,27 @@ function toDriverText(value: unknown): unknown {
 }
 
 /**
+ * The instant a temporal value read from the database names, or `null` for none or garbage.
+ *
+ * A `DATETIME(3)` arrives as a `Date` from the pool, but as the zone-less UTC text
+ * {@link toDriverText} writes (`'2026-11-18 10:00:00.000'`) when it is selected through Drizzle
+ * as a raw `sql` expression (an aggregate such as `max(created_at)`). `new Date(text)` reads such
+ * text in the *process's* time zone, which on a machine east of UTC moved every instant back
+ * (TESTUX P1 14: "Last active 2 hours ago" for an owner active that minute). The text is UTC.
+ */
+export function dateFromDriver(value: unknown): Date | null {
+  if (value === null || value === undefined) return null;
+  const text = String(value);
+  const at =
+    value instanceof Date
+      ? value
+      : new Date(
+          /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/u.test(text) ? `${text.replace(' ', 'T')}Z` : text,
+        );
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+/**
  * Build a Drizzle handle over one guarded runner.
  *
  * Called per unit of work, inside `TenantDatabase.transaction()`, `.read()` or

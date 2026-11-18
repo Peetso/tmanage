@@ -5,7 +5,9 @@ import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui'
 import { SettingsShell } from '../admin/SettingsShell';
 import type { ApiClient } from '../../lib/api/client';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
+import { localizedOpTitle, subjectLine } from '../../lib/ai-approval-presentation';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { useCatalogLookup } from '../../lib/i18n/use-catalog-lookup';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { usePendingAiApprovals } from '../ai-actions/pending-ai-actions';
 import '../../styles/screens/preferences.css';
@@ -32,6 +34,7 @@ export function AiActionsScreen({
   client,
 }: AiActionsScreenProps) {
   const tOr = useTOr();
+  const lookup = useCatalogLookup();
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const pending = usePendingAiApprovals(organizationSlug, client);
   const items = pending.data ?? [];
@@ -71,30 +74,34 @@ export function AiActionsScreen({
             className="tm-ai-actions"
             aria-label={tOr('AiAssistantScreen.navAiActions', 'AI actions')}
           >
-            {items.map((item) => (
-              <li key={item.id} className="tm-prefs-card tm-ai-card">
-                <StateCapsule state="waiting">
-                  {tOr('AiAssistantScreen.actionWaiting', 'Waiting for you')}
-                </StateCapsule>
-                <h2 className="tm-ai-card__title">{item.summary.title}</h2>
-                {item.summary.subject ? (
-                  <p className="tm-prefs-card__body">{item.summary.subject}</p>
-                ) : null}
-                <p className="tm-prefs-card__note">
-                  {tOr('AiAssistantScreen.actionFrom', 'From {client} · open until {when}')
-                    .replace('{client}', item.clientName)
-                    .replace('{when}', formatWhen(item.expiresAt))}
-                </p>
-                <div>
-                  <Link
-                    className="tm-button tm-button--ink tm-button--accessible"
-                    href={`/${organizationSlug}/ai/approve/${encodeURIComponent(item.id)}`}
-                  >
-                    {tOr('AiAssistantScreen.review', 'Review')}
-                  </Link>
-                </div>
-              </li>
-            ))}
+            {items.map((item) => {
+              // TESTUX P1 9: the row names the item ("Delete “Prepare concepts”"), in the reader's
+              // language, with the action's kind under it; the op title alone when it is unnamed.
+              const kind = localizedOpTitle(lookup, item.summary.opId, item.summary.title);
+              const subject = subjectLine(lookup, item.summary.subject, item.summary.destructive);
+              return (
+                <li key={item.id} className="tm-prefs-card tm-ai-card">
+                  <StateCapsule state="waiting">
+                    {tOr('AiAssistantScreen.actionWaiting', 'Waiting for you')}
+                  </StateCapsule>
+                  <h2 className="tm-ai-card__title">{subject ?? kind}</h2>
+                  {subject === null ? null : <p className="tm-prefs-card__body">{kind}</p>}
+                  <p className="tm-prefs-card__note">
+                    {tOr('AiAssistantScreen.actionFrom', 'From {client} · open until {when}')
+                      .replace('{client}', item.clientName)
+                      .replace('{when}', formatWhen(item.expiresAt))}
+                  </p>
+                  <div>
+                    <Link
+                      className="tm-button tm-button--ink tm-button--accessible"
+                      href={`/${organizationSlug}/ai/approve/${encodeURIComponent(item.id)}`}
+                    >
+                      {tOr('AiAssistantScreen.review', 'Review')}
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

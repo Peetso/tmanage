@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { uuidv7, type SignupAttribution } from '@tmanage/domain';
+import { latinForSlug, uuidv7, type SignupAttribution } from '@tmanage/domain';
 import { ApiError, type ApiErrorDetail } from '../../common/http/errors.js';
 import type {
   IdentityQueryRunner,
@@ -156,11 +156,13 @@ export function normaliseSignupEmail(raw: unknown): string | undefined {
 }
 
 /**
- * A web link from a workspace name: ASCII letters and digits, hyphen-separated. A name with no
- * Latin characters (an Arabic name, say) becomes `workspace`; a reserved word gets a suffix.
+ * A web link from a workspace name: ASCII letters and digits, hyphen-separated. Arabic-script
+ * letters are spelled in Latin first (`latinForSlug`, TESTUX P1 11), so "استوديو النيل" becomes
+ * `astudiu-alnil`; a name with nothing left (emoji alone, say) becomes `workspace`, and a reserved
+ * word gets a suffix.
  */
 export function slugBaseFrom(name: string): string {
-  const base = name
+  const base = latinForSlug(name)
     .normalize('NFKD')
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/gu, '-')

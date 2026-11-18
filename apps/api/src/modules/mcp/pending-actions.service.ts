@@ -155,7 +155,16 @@ export class PendingAiActionsService {
    */
   async view(context: TenantContext, id: string, orgSlug?: string): Promise<PendingAiActionView> {
     const found = await this.loadOwn(context, id);
-    const view = this.toView(found);
+    return this.named(context, orgSlug, found, this.toView(found));
+  }
+
+  /** `view` with its target named by {@link readSubject} when the arguments did not name it. */
+  private async named(
+    context: TenantContext,
+    orgSlug: string | undefined,
+    found: PendingAiActionWithMember,
+    view: PendingAiActionView,
+  ): Promise<PendingAiActionView> {
     if (orgSlug === undefined || view.status !== 'pending' || view.summary.subject !== null) {
       return view;
     }
@@ -165,11 +174,15 @@ export class PendingAiActionsService {
 
   /**
    * The signed-in member's own actions still waiting for approval, newest first (55-15p): the
-   * "AI actions" list and its waiting badge. Same view as one approval, without the subject read,
-   * so listing never runs anything as the member. A row whose stored arguments no longer verify is
-   * left out rather than failing the list.
+   * "AI actions" list and its waiting badge. Each row is named the way the approve page names it
+   * (TESTUX P1 9: "Delete work item" alone does not say which), by the same registry read; the
+   * frozen action itself never runs here. A row whose stored arguments no longer verify is left
+   * out rather than failing the list.
    */
-  async listPending(context: TenantContext): Promise<{ items: PendingAiActionView[] }> {
+  async listPending(
+    context: TenantContext,
+    orgSlug?: string,
+  ): Promise<{ items: PendingAiActionView[] }> {
     const rows = await this.database.read(context, (runner) =>
       this.repository.listOwnPending(
         runner,
@@ -179,15 +192,15 @@ export class PendingAiActionsService {
         PENDING_LIST_LIMIT,
       ),
     );
-    const items: PendingAiActionView[] = [];
+    const views: Promise<PendingAiActionView>[] = [];
     for (const found of rows) {
       try {
-        items.push(this.toView(found));
+        views.push(this.named(context, orgSlug, found, this.toView(found)));
       } catch {
         // Tampered or unknown op: never shown as approvable.
       }
     }
-    return { items };
+    return { items: await Promise.all(views) };
   }
 
   /**

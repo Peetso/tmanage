@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
-import { CopilotAnswerView } from '../src/components/screens/CopilotAnswerView';
+import { CopilotAnswerView, evidencePlace } from '../src/components/screens/CopilotAnswerView';
 import { SearchScreen } from '../src/components/screens/SearchScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
@@ -51,7 +51,7 @@ const ANSWER = {
   answer: 'The copilot is running in offline preview, so this is a guided answer.',
   evidence: [
     { source: 'Global search', link: '/search?q=launch' },
-    { source: 'Command palette', link: '/search/commands' },
+    { source: 'Portfolio', link: '/projects/portfolio' },
   ],
   permissionBoundary: {
     scope: 'assigned-projects',
@@ -96,6 +96,12 @@ describe('CopilotAnswerView', () => {
       'href',
       '/acme/search?q=launch',
     );
+
+    // VR2 fix 1: each source names the page it opens, never its raw address.
+    expect(within(evidence).getByText('Search · “launch”')).toBeInTheDocument();
+    expect(within(evidence).queryByText('/search?q=launch')).not.toBeInTheDocument();
+    expect(within(evidence).queryByText('/projects/portfolio')).not.toBeInTheDocument();
+    expect(evidencePlace('/acme/no/such/page', 'en-US')).toBeUndefined();
 
     // The permission boundary, rendered from the server's scope (not re-derived on the client).
     expect(screen.getByText(/your assigned projects/i)).toBeInTheDocument();

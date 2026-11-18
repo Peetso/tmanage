@@ -229,6 +229,7 @@ export class SessionAuthGuard implements CanActivate {
           state.personalAccessToken = {
             organizationId: authed.organizationId,
             membershipId: authed.membershipId,
+            name: authed.name,
           };
           this.enforceTokenLimits(request, state, authed);
           return true;

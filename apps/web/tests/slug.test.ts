@@ -13,6 +13,8 @@ describe('slugify', () => {
     ['  Atlas   Hospitality  ', 'atlas-hospitality'],
     ['Café Rouge', 'cafe-rouge'],
     ['Smith & Co.', 'smith-co'],
+    // TESTUX P1 11: an Arabic name previews a Latin address, as the server gives it.
+    ['استوديو النيل', 'astudiu-alnil'],
     ['ACME', 'acme'],
     ['a---b', 'a-b'],
     ['---', ''],

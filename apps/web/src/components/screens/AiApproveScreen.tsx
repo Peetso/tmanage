@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, LiveAnnouncer, LoadingRegion, Skeleton, SkipLink } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -13,11 +13,10 @@ import {
   formatCountdown,
   localizedFieldLabel,
   localizedOpTitle,
+  readableFields,
   subjectLine,
 } from '../../lib/ai-approval-presentation';
-import type { CatalogLookup } from '../../lib/ai-approval-presentation';
-import { translate, type MessageKey } from '../../lib/i18n/t';
-import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { useCatalogLookup } from '../../lib/i18n/use-catalog-lookup';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/ai-approve.css';
@@ -114,21 +113,6 @@ interface ApprovalBodyProps {
   onDecide: (decision: 'approve' | 'decline') => void;
 }
 
-/**
- * A lookup for keys built at run time (registry op ids, argument ids): the catalog string, or
- * `undefined` when neither catalog holds the key, so the caller keeps the server's English.
- */
-function useCatalogLookup(): CatalogLookup {
-  const locale = useActiveLocale();
-  return useCallback(
-    (key: string) => {
-      const text = translate(locale, key as MessageKey);
-      return text === key ? undefined : text;
-    },
-    [locale],
-  );
-}
-
 function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) {
   const t = useT();
   const lookup = useCatalogLookup();
@@ -199,7 +183,7 @@ function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) 
         {subject === null ? null : <p className="tm-approve__subject">{subject}</p>}
         <hr className="tm-approve__rule" />
         <dl className="tm-approve__fields">
-          {view.summary.fields.map((field) => (
+          {readableFields(view.summary.fields).map((field) => (
             <div key={field.name} className="tm-approve__field">
               <dt>{localizedFieldLabel(lookup, field.name)}</dt>
               <dd>{field.value}</dd>

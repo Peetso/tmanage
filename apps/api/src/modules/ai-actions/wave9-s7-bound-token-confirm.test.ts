@@ -74,6 +74,14 @@ class FakeAuthGuard implements CanActivate {
     state.authScheme = scheme;
     state.session = { sessionId: 'pat:token-1', userId: 'user-1' } as never;
     state.tenant = TENANT;
+    const tokenName = request.headers['x-test-token-name'];
+    if (scheme === 'personal_access_token' && tokenName !== undefined) {
+      state.personalAccessToken = {
+        organizationId: 'org-1',
+        membershipId: 'mem-1',
+        name: tokenName,
+      };
+    }
     if (scheme === 'ai_grant') {
       state.aiGrant = {
         grantId: request.headers['x-test-grant'] ?? 'oauth:g1',
@@ -160,6 +168,20 @@ describe('NV01 — confirm-class ops do not run on the personal-access-token cha
       },
       'invitations.create',
       { email: 'dummy@example.test', role: 'member' },
+      expect.any(String),
+    );
+  });
+
+  it('the held action waits under the name the member gave the token (TESTUX P1 9)', async () => {
+    const res = await inject('POST', '/v1/organizations/acme/invitations', {
+      'x-test-scheme': 'personal_access_token',
+      'x-test-token-name': 'Claude on my laptop',
+    });
+    expect(res.statusCode).toBe(202);
+    expect(approvals.request).toHaveBeenCalledWith(
+      expect.objectContaining({ clientName: 'Claude on my laptop' }),
+      'invitations.create',
+      expect.any(Object),
       expect.any(String),
     );
   });

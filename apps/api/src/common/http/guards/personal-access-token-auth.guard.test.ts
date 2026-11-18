@@ -39,6 +39,7 @@ describe('SessionAuthGuard — Bearer personal access token', () => {
     const pat = {
       authenticate: vi.fn(async () => ({
         tokenId: 't1',
+        name: 'Claude on my laptop',
         organizationId: 'o',
         membershipId: 'm',
         userId: USER,
@@ -53,7 +54,11 @@ describe('SessionAuthGuard — Bearer personal access token', () => {
     expect(state.authScheme).toBe('personal_access_token');
     // The token's org/membership binding is carried forward so TenantContextGuard can refuse the
     // token against any other org (0202). It is the token row's own org, not the requested one.
-    expect(state.personalAccessToken).toEqual({ organizationId: 'o', membershipId: 'm' });
+    expect(state.personalAccessToken).toEqual({
+      organizationId: 'o',
+      membershipId: 'm',
+      name: 'Claude on my laptop',
+    });
     expect(
       (sessions as { authenticate: ReturnType<typeof vi.fn> }).authenticate,
     ).not.toHaveBeenCalled();

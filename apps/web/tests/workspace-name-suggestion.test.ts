@@ -20,6 +20,19 @@ describe('suggestWorkspaceName', () => {
     },
   );
 
+  // TESTUX P2 28: "nadia@cedarlogistics1731.example" suggested "Cedarlogistics1731 Example".
+  it.each([
+    ['nadia@cedarlogistics1731.example', 'Cedarlogistics'],
+    ['nadia@cedar-logistics-20261118.test', 'Cedar Logistics'],
+    ['nadia@studio42.agency', 'Studio42 Agency'],
+  ])('drops reserved test endings and a long number run: %s', (email, expected) => {
+    expect(suggestWorkspaceName(email, 'Nadia Karim')).toBe(expected);
+  });
+
+  it('falls back to the name when only a number is left', () => {
+    expect(suggestWorkspaceName('nadia@20261118.example', 'Nadia Karim')).toBe('Nadia Karim');
+  });
+
   it('falls back to the name when the address has no usable domain', () => {
     expect(suggestWorkspaceName('not-an-email', 'Mona Adel')).toBe('Mona Adel');
     expect(suggestWorkspaceName('mona@localhost', 'Mona Adel')).toBe('Mona Adel');

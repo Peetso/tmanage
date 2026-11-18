@@ -145,3 +145,92 @@ export function isAddressableWorkspaceSlug(slug: string): boolean {
     !RESERVED_WORKSPACE_SLUGS.has(slug)
   );
 }
+
+/** Arabic-script letters by their plain Latin spelling (Arabic, with the Urdu/Persian extras). */
+const ARABIC_SCRIPT_LATIN: Readonly<Record<string, string>> = {
+  ا: 'a',
+  أ: 'a',
+  إ: 'i',
+  آ: 'a',
+  ٱ: 'a',
+  ب: 'b',
+  پ: 'p',
+  ت: 't',
+  ٹ: 't',
+  ث: 'th',
+  ج: 'j',
+  چ: 'ch',
+  ح: 'h',
+  خ: 'kh',
+  د: 'd',
+  ڈ: 'd',
+  ذ: 'dh',
+  ر: 'r',
+  ڑ: 'r',
+  ز: 'z',
+  ژ: 'zh',
+  س: 's',
+  ش: 'sh',
+  ص: 's',
+  ض: 'd',
+  ط: 't',
+  ظ: 'z',
+  ع: 'a',
+  غ: 'gh',
+  ف: 'f',
+  ق: 'q',
+  ك: 'k',
+  ک: 'k',
+  گ: 'g',
+  ل: 'l',
+  م: 'm',
+  ن: 'n',
+  ں: 'n',
+  ه: 'h',
+  ہ: 'h',
+  ھ: 'h',
+  ة: 'a',
+  ۃ: 'a',
+  ؤ: 'u',
+  ى: 'a',
+  ئ: 'i',
+  ے: 'e',
+  ء: '',
+};
+
+/** و and ي (and Urdu ی) are consonants at the start of a word and vowels inside it. */
+const ARABIC_SCRIPT_GLIDES: Readonly<Record<string, readonly [start: string, inside: string]>> = {
+  و: ['w', 'u'],
+  ي: ['y', 'i'],
+  ی: ['y', 'i'],
+};
+
+/** Harakat, the superscript alef and the tatweel: marks with no letter of their own. */
+const ARABIC_SCRIPT_MARKS = /[\u064B-\u0652\u0670\u0640]/u;
+
+function isArabicScriptLetter(char: string | undefined): boolean {
+  return char !== undefined && (char in ARABIC_SCRIPT_LATIN || char in ARABIC_SCRIPT_GLIDES);
+}
+
+/**
+ * TESTUX P1 11 — `text` with its Arabic-script letters and digits spelled in Latin, so a workspace
+ * named "شركة النيل" gets the address `shrka-alnil` instead of the bare `workspace` a Latin-only
+ * slug rule leaves it. Everything else is returned as it is; the caller still applies the slug
+ * rule. A spelling, not a translation: short vowels are not written in Arabic, so they are not
+ * guessed here either.
+ */
+export function latinForSlug(text: string): string {
+  let out = '';
+  let previous: string | undefined;
+  for (const char of text) {
+    if (ARABIC_SCRIPT_MARKS.test(char)) continue;
+    const digit = '٠١٢٣٤٥٦٧٨٩'.indexOf(char);
+    const persianDigit = '۰۱۲۳۴۵۶۷۸۹'.indexOf(char);
+    const glide = ARABIC_SCRIPT_GLIDES[char];
+    if (digit >= 0 || persianDigit >= 0) out += String(Math.max(digit, persianDigit));
+    else if (glide !== undefined) out += isArabicScriptLetter(previous) ? glide[1] : glide[0];
+    else out += ARABIC_SCRIPT_LATIN[char] ?? char;
+    previous = char;
+  }
+  return out;
+}

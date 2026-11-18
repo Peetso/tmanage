@@ -4,17 +4,22 @@
  * page repeats it. A page sets only its own tone and size on `.tm-web-lang`.
  *
  * The languages are a wrapping flex row and every dot is its own flex item, so the gaps on both
- * sides of a dot are equal and, in Arabic, a dot never attaches to the word before it.
+ * sides of a dot are equal and, in Arabic, a dot never attaches to the word before it. The row is
+ * in the quiet ink; the chosen language alone is in full ink.
  */
 .tm-web-lang {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s1);
+  display: inline-block;
   max-inline-size: 100%;
   font-size: var(--t-body-md);
   line-height: var(--t-body-md-line);
-  color: var(--ink-950);
+  color: var(--ink-650);
+}
+
+.tm-web-lang__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
 }
 
 /* WCAG 2.5.8: each language button is at least 24 px high to tap. */
@@ -34,4 +39,29 @@
 
 .tm-web-lang__option:hover {
   text-decoration: underline;
+}
+
+/* VR2 fix 7c: the current language reads as chosen, not only to a screen reader. */
+.tm-web-lang__option[aria-pressed='true'] {
+  color: var(--ink-950);
+}
+
+.tm-web-lang__menu {
+  display: none;
+  inline-size: auto;
+  max-inline-size: 100%;
+}
+
+/*
+ * VR2 fixes 5 and 7a: below tablet width eight names would wrap and leave a dot hanging at a line
+ * end, so the row gives way to the native language menu (same list, same choice).
+ */
+@media (max-width: 767px) {
+  .tm-web-lang__row {
+    display: none;
+  }
+
+  .tm-web-lang__menu {
+    display: block;
+  }
 }

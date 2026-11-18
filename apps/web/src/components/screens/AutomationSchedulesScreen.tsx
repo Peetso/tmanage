@@ -404,7 +404,7 @@ export function AutomationSchedulesScreen({
               </h2>
               <form
                 ref={firstStep}
-                className="tm-stack"
+                className="tm-stack tm-cc-fields"
                 noValidate
                 onSubmit={(event: FormEvent<HTMLFormElement>) => {
                   event.preventDefault();

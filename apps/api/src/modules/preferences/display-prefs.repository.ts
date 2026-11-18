@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { userDisplayPreferences } from '../../common/database/schema.js';
+import { userDisplayPreferences, users } from '../../common/database/schema.js';
 import type { DisplayPreferences, UserDisplayPreferenceRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -22,7 +22,31 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * insert path fills `id`; the update path leaves it alone and moves only the settings, and
  * `updated_at` follows the column's `ON UPDATE`.
  */
+/** The language and zone the person's account was created with (`users.locale` / `.timezone`). */
+export interface AccountDisplayDefaults {
+  readonly locale: string;
+  readonly timezone: string;
+}
+
 export class DisplayPreferencesRepository {
+  /**
+   * TESTUX P0 2: the caller's own account language and zone — what a member who has never saved
+   * display settings is shown in. Every door that creates an account (sign-up on `/ar`, Google,
+   * an invitation) records them on `users`, so reading them here carries the chosen language into
+   * every workspace the person joins without each door writing a preferences row of its own.
+   */
+  async findAccountDefaults(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<AccountDisplayDefaults | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ locale: users.locale, timezone: users.timezone })
+      .from(users)
+      .where(eq(users.id, context.userId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
   async findForMembership(
     runner: TenantQueryRunner,
     context: TenantContext,

@@ -1,6 +1,7 @@
 import type { Capability } from '@tmanage/domain';
 import type { SearchResult } from '../../lib/api/search';
-import { INTERNAL_NAVIGATION } from './navigation';
+import type { MessageKey } from '../../lib/i18n/t';
+import { INTERNAL_NAVIGATION, type NavigationItem } from './navigation';
 
 /**
  * Rows 55-06 / 55-05 — the command palette v2 and the global "+ New" menu, as data.
@@ -44,6 +45,8 @@ export interface PaletteItemSpec {
   readonly fallback: string;
   /** Extra words the ranking matches ("task" finds "New task" and "Log time" finds "hours"). */
   readonly keywords?: readonly string[];
+  /** A catalog line of more such words, in the reader's language ({@link keywordList}). */
+  readonly keywordsKey?: MessageKey;
   /** The capability the person's role must hold; the row is hidden otherwise. */
   readonly capability?: Capability;
   /** The shortcut hint drawn at the row's end, e.g. `G P`. */
@@ -169,6 +172,7 @@ export const NAVIGATE_ITEMS: readonly PaletteItemSpec[] = [
     messageKey: item.messageKey,
     fallback: item.label,
     keywords: [item.label],
+    ...(item.keywordsKey ? { keywordsKey: item.keywordsKey } : {}),
     ...(NAVIGATION_HINTS[item.id] ? { hint: NAVIGATION_HINTS[item.id] } : {}),
     run: { type: 'href', href: item.href },
   })),
@@ -237,6 +241,42 @@ export function scoreMatch(query: string, label: string, keywords: readonly stri
   if (words.some((word) => word.includes(q))) return 20;
   if (q.length >= 2 && isSubsequence(q, l.replace(/\s+/gu, ''))) return 10;
   return 0;
+}
+
+/** The words of a comma-separated catalog keyword line ("Reports, analytics" → two words). */
+export function keywordList(line: string): string[] {
+  return line
+    .split(/[,،]/u)
+    .map((word) => word.trim())
+    .filter((word) => word !== '');
+}
+
+/** The keyword-substring score of {@link scoreMatch}: anything weaker is a letters-in-order guess. */
+const MIN_DESTINATION_SCORE = 20;
+
+/**
+ * TESTUX P1 13: the rail destinations a typed query names — by the label in the reader's language,
+ * the English label, or a synonym from {@link NavigationItem.keywordsKey} ("reports" → Insights).
+ * Best match first. The typo-tolerant last resort of {@link scoreMatch} is left out: a search page
+ * offers a page only when the words really name it.
+ */
+export function matchDestinations(
+  query: string,
+  translate: (key: MessageKey) => string,
+  items: readonly NavigationItem[] = INTERNAL_NAVIGATION,
+): NavigationItem[] {
+  if (normalize(query) === '') return [];
+  return items
+    .map((item, index) => {
+      const keywords = [
+        item.label,
+        ...(item.keywordsKey ? keywordList(translate(item.keywordsKey)) : []),
+      ];
+      return { item, index, score: scoreMatch(query, translate(item.messageKey), keywords) };
+    })
+    .filter((row) => row.score >= MIN_DESTINATION_SCORE)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((row) => row.item);
 }
 
 /**

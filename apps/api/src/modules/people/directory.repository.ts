@@ -2,7 +2,7 @@ import { and, asc, eq, gt, gte, inArray, isNull, like, lte, ne, or, sql } from '
 import { alias } from 'drizzle-orm/mysql-core';
 import { PLATFORM_SUPPORT_ROLE, WORK_ITEM_STATES } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
-import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { dateFromDriver, tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   memberAvailability,
   memberships,
@@ -107,9 +107,7 @@ export interface PersonDirectoryDetails {
 
 /** A `max(datetime)` comes back as a Date or a string depending on the driver; ISO either way. */
 function toIsoOrNull(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  const at = value instanceof Date ? value : new Date(String(value));
-  return Number.isNaN(at.getTime()) ? null : at.toISOString();
+  return dateFromDriver(value)?.toISOString() ?? null;
 }
 
 export class PeopleDirectoryRepository {

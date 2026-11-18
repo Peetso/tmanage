@@ -10,8 +10,10 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { askCopilot } from '../../lib/api/copilot';
 import type { CopilotAnswerView as CopilotAnswer } from '../../lib/api/copilot';
 import type { ApiClient } from '../../lib/api/client';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { localizedPageName } from '../../lib/route-titles';
 import { useDictation } from '../voice/useDictation';
 import {
   MicButton,
@@ -82,6 +84,7 @@ export function CopilotAnswerView({
 
   const answer = result.data;
   const org = encodeURIComponent(organizationSlug);
+  const locale = useActiveLocale();
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -169,22 +172,31 @@ export function CopilotAnswerView({
         <aside className="tm-sa-panel" aria-labelledby="tm-copilot-evidence">
           <h2 id="tm-copilot-evidence" className="tm-sa-panel__head">
             {answer
-              ? `${t('CopilotAnswerView.whatItRead')} · ${answer.evidence.length} ${answer.evidence.length === 1 ? 'source' : 'sources'}`
+              ? `${t('CopilotAnswerView.whatItRead')} · ${(answer.evidence.length === 1
+                  ? t('CopilotAnswerView.sourceCountOne')
+                  : t('CopilotAnswerView.sourceCountMany')
+                ).replace('{count}', String(answer.evidence.length))}`
               : t('CopilotAnswerView.whatItRead')}
           </h2>
           {answer && answer.evidence.length > 0 ? (
             <ol className="tm-sa-panel__list" aria-label={t('CopilotAnswerView.evidenceAria')}>
-              {answer.evidence.map((item, index) => (
-                <li key={`${item.source}:${item.link}`} className="tm-sa-panel__item">
-                  <span className="tm-sa-panel__cite" aria-hidden="true">
-                    [{index + 1}]
-                  </span>
-                  <span className="tm-sa-panel__source">
-                    <Link href={`/${org}${item.link}`}>{item.source}</Link>
-                    <span className="tm-sa-panel__meta">{item.link}</span>
-                  </span>
-                </li>
-              ))}
+              {answer.evidence.map((item, index) => {
+                // VR2 fix 1: the page a source points at, by name; the address stays the link.
+                const place = evidencePlace(`/${org}${item.link}`, locale);
+                return (
+                  <li key={`${item.source}:${item.link}`} className="tm-sa-panel__item">
+                    <span className="tm-sa-panel__cite" aria-hidden="true">
+                      [{index + 1}]
+                    </span>
+                    <span className="tm-sa-panel__source">
+                      <Link href={`/${org}${item.link}`}>{item.source}</Link>
+                      {place === undefined ? null : (
+                        <span className="tm-sa-panel__meta">{place}</span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
           ) : (
             <p className="tm-sa-panel__empty">
@@ -280,4 +292,16 @@ function providerLine(t: ReturnType<typeof useT>, provider: string): string {
     default:
       return t('CopilotAnswerView.providerOther');
   }
+}
+
+/**
+ * Where an evidence link leads, in words: the page's name in `locale`, with the search words when
+ * it is a search ("Search · “blocked”"). `undefined` for an address no page names, so a raw path
+ * is never printed as text.
+ */
+export function evidencePlace(href: string, locale: string): string | undefined {
+  const name = localizedPageName(href, locale);
+  if (name === undefined) return undefined;
+  const query = new URLSearchParams(href.split('?')[1]?.split('#')[0] ?? '').get('q')?.trim();
+  return query ? `${name} · “${query}”` : name;
 }

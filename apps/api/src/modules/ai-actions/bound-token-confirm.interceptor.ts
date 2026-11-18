@@ -63,8 +63,17 @@ const PATH_METADATA = 'path';
 const METHOD_METADATA = 'method';
 const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS', 'HEAD', 'SEARCH'];
 
-/** What a personal-access-token request is attributed to on the approve page. */
+/**
+ * What a personal-access-token request is attributed to on the approve page when the token has no
+ * name to show (a token always has one; this is the floor, never the usual answer).
+ */
 export const PAT_CLIENT_NAME = 'Personal access token';
+
+/** The name a frozen PAT action waits under: the token's own name, as its member gave it. */
+export function patClientName(state: Pick<RequestState, 'personalAccessToken'>): string {
+  const name = state.personalAccessToken?.name?.trim();
+  return name === undefined || name === '' ? PAT_CLIENT_NAME : name;
+}
 
 function pathOf(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -228,7 +237,7 @@ export class BoundTokenConfirmInterceptor implements NestInterceptor {
           membershipId: tenant.membershipId,
           userId: tenant.userId,
           clientId: session.sessionId,
-          clientName: PAT_CLIENT_NAME,
+          clientName: patClientName(state),
         },
         op.id,
         argsOf(op, request),

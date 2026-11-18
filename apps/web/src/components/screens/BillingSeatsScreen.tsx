@@ -20,7 +20,7 @@ import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState'
 import { useShellCapability } from '../shell/use-shell-capability';
 import { MembershipSelect, usePeopleDirectory } from '../people/MembershipSelect';
 import '../../styles/screens/billing.css';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 
 export interface BillingSeatsScreenProps {
   organizationSlug: string;
@@ -49,6 +49,7 @@ export function BillingSeatsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const formatters = useDisplayFormatters();
   const tOr = useTOr();
   const canUse = useShellCapability(organizationSlug, client);
   const firstStep = useRef<HTMLFormElement>(null);
@@ -118,7 +119,7 @@ export function BillingSeatsScreen({
           </h2>
           <form
             ref={firstStep}
-            className="tm-stack"
+            className="tm-stack tm-cc-fields"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
@@ -227,7 +228,7 @@ export function BillingSeatsScreen({
                 <tr>
                   <th scope="col">{t('BillingSeatsScreen.colMember')}</th>
                   <th scope="col">{t('BillingSeatsScreen.colAssigned')}</th>
-                  <th scope="col">
+                  <th scope="col" className="tm-table__action">
                     <span className="tm-visually-hidden">
                       {t('BillingSeatsScreen.actionsColumn')}
                     </span>
@@ -238,8 +239,11 @@ export function BillingSeatsScreen({
                 {rows.map((seat) => (
                   <tr key={seat.id}>
                     <td>{holderName(seat.membershipId)}</td>
-                    <td>{new Date(seat.assignedAt).toLocaleDateString(appLocale())}</td>
                     <td>
+                      {/* VR2 fix 3: the app's medium date ("1 Sep 2026"), never "9/1/2026". */}
+                      <bdi>{formatters.day(seat.assignedAt)}</bdi>
+                    </td>
+                    <td className="tm-table__action">
                       <Button
                         type="button"
                         tone="outline"

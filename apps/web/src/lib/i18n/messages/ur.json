@@ -24,7 +24,7 @@
   "SignUpFunnel.emailPlaceholder": "you@example.com",
   "SignUpFunnel.email": "ای میل",
   "SignUpFunnel.or": "یا",
-  "SignUpFunnel.lede": "ایجنسیوں، اسٹوڈیوز اور فری لانسرز کے لیے۔",
+  "SignUpFunnel.lede": "ہر سائز کی کمپنیوں اور ٹیموں کے لیے۔",
   "SignUpFunnel.title": "اپنی مفت ورک اسپیس شروع کریں",
   "SignUpFunnel.badge": "بیٹا کے دوران مفت · کارڈ کی ضرورت نہیں",
   "HomePage.betaMicroShort": "کارڈ کی ضرورت نہیں",
@@ -844,6 +844,7 @@
   "WorkListScreen.reorderHandle": "{title} منتقل کریں: اوپر اور نیچے والی ایرو کیز",
   "WorkListScreen.reorderHint": "ترتیب بدلنے کے لیے گھسیٹیں، یا اوپر اور نیچے والی ایرو کیز استعمال کریں",
   "nav.money": "ادائیگیاں",
+  "nav.insightsKeywords": "رپورٹس، رپورٹ، تجزیات، ڈیش بورڈ، منصوبوں کی صحت، ترسیل، کام کا بوجھ",
   "RouteTitle.portalMoney": "ادائیگیاں",
   "RouteTitle.portalInvoice": "انوائس",
   "PortalMoney.title": "ادائیگیاں",
@@ -1103,5 +1104,14 @@
   "UiLabels.liveAnnouncements": "براہِ راست اعلانات",
   "UiLabels.notifications": "اطلاعات",
   "UiLabels.dismissNotification": "اطلاع بند کریں",
-  "UiLabels.noMatches": "کوئی نتیجہ نہیں"
+  "UiLabels.noMatches": "کوئی نتیجہ نہیں",
+  "SearchScreen.pagesHeading": "صفحات",
+  "SearchScreen.kindPage": "صفحہ",
+  "StateScreens.backToWorkspace": "اپنی ورک اسپیس پر واپس جائیں",
+  "AutomationSectionTabs.library": "لائبریری",
+  "AutomationSectionTabs.runs": "عمل درآمد",
+  "AutomationSectionTabs.schedules": "شیڈول",
+  "AutomationSectionTabs.navLabel": "آٹومیشن",
+  "CopilotAnswerView.sourceCountOne": "1 ذریعہ",
+  "CopilotAnswerView.sourceCountMany": "{count} ذرائع"
 }

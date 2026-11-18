@@ -92,9 +92,9 @@ export class LocalStubProvider implements CopilotProvider {
       `generated one. For "${summary}", the copilot can only point you at ${scopePhrase}; it ` +
       `never reaches beyond what your permissions already allow, and it makes no changes on its own.`;
 
+    // Every link is a web page (VR2 fix 1); the palette's `/search/commands` is an API route.
     const evidence: CopilotEvidence[] = [
       { source: 'Global search', link: `/search?q=${encodeURIComponent(summary)}` },
-      { source: 'Command palette', link: '/search/commands' },
     ];
 
     const nextSafeAction = `Open global search for "${summary}" to review the underlying records yourself.`;

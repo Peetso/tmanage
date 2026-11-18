@@ -647,13 +647,22 @@
   color: var(--ink-650);
 }
 
-.tm-cc-card .tm-field__label {
+/*
+ * Field labels in a Control Center form card: the mono capitals the policy cards were designed
+ * with. `tm-cc-fields` gives a form drawn on another card (Schedules' black card, Seats' panel)
+ * the same labels (VR2 fix 4), so the shell has one label style; the card keeps its own colour.
+ */
+.tm-cc-card .tm-field__label,
+.tm-cc-fields .tm-field__label {
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 15px;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.tm-cc-card .tm-field__label {
   color: var(--ink-650);
 }
 

@@ -40,6 +40,7 @@ function serviceWith(authRow: PersonalAccessTokenAuthRow | undefined): PersonalA
 function row(overrides: Partial<PersonalAccessTokenAuthRow> = {}): PersonalAccessTokenAuthRow {
   return {
     id: 'tok1',
+    name: 'Claude on my laptop',
     organizationId: ORG,
     membershipId: MEMBERSHIP,
     userId: USER,
@@ -78,6 +79,7 @@ describe('PersonalAccessTokensService.authenticate', () => {
     const result = await serviceWith(row()).authenticate(token, CORRELATION);
     expect(result).toEqual({
       tokenId: 'tok1',
+      name: 'Claude on my laptop',
       organizationId: ORG,
       membershipId: MEMBERSHIP,
       userId: USER,

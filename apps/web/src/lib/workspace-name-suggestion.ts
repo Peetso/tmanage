@@ -54,6 +54,12 @@ const GENERIC_SUFFIXES: ReadonlySet<string> = new Set([
   'ac',
   'mail',
   'email',
+  // TESTUX P2 28: the reserved test and local names (RFC 2606, RFC 6761) name no company either.
+  'example',
+  'test',
+  'invalid',
+  'localhost',
+  'local',
 ]);
 
 const MAX_NAME = 190;
@@ -80,8 +86,13 @@ export function isFreeMailDomain(domain: string): boolean {
   return brand !== undefined && FREE_MAIL_BRANDS.has(brand);
 }
 
+/**
+ * A label's words, title-cased. A run of four or more digits at its end (`cedarlogistics1731`, an
+ * address made unique by a date or a counter) is not part of the name; a short one (`studio42`) is.
+ */
 function titleCase(word: string): string {
   return word
+    .replace(/[-_]?\d{4,}$/, '')
     .split(/[-_]+/)
     .filter((part) => part !== '')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -106,5 +117,5 @@ export function suggestWorkspaceName(email: string, displayName: string): string
   const words = companyWords(domain)
     .map(titleCase)
     .filter((word) => word !== '');
-  return words.join(' ').slice(0, MAX_NAME);
+  return (words.length > 0 ? words.join(' ') : name).slice(0, MAX_NAME);
 }

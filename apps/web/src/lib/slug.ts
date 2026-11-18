@@ -1,3 +1,5 @@
+import { latinForSlug } from '@tmanage/domain';
+
 /**
  * The workspace web link (slug) a new organization gets.
  *
@@ -31,7 +33,8 @@ export const MAX_SLUG_LENGTH = 63;
 export const MAX_ORGANIZATION_NAME_LENGTH = 190;
 
 export function slugify(name: string): string {
-  const lowered = name
+  // TESTUX P1 11: the server's rule, so an Arabic name previews the address it will get.
+  const lowered = latinForSlug(name)
     .normalize('NFKD')
     // Strip combining marks so "Café" becomes "cafe" rather than "caf".
     .replace(/[\u0300-\u036f]/g, '')

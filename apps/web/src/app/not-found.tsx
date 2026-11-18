@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { NotFoundState, StateScreen } from '../components/state/StateScreens';
+import { PageNotFoundState, StateScreen } from '../components/state/StateScreens';
 
 /**
  * The 404 route.
@@ -17,7 +17,7 @@ export default function NotFound() {
   return (
     // CONFIRMPOLISH 5: "Not found" is the small label above the heading, not repeated in the bar.
     <StateScreen>
-      <NotFoundState signInHref="/sign-in" />
+      <PageNotFoundState />
     </StateScreen>
   );
 }

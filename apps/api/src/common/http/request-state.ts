@@ -67,7 +67,16 @@ export interface RequestState {
    * attempt. A token names one membership of one org; it is not a key to every org its member
    * belongs to.
    */
-  personalAccessToken?: { readonly organizationId: string; readonly membershipId: string };
+  personalAccessToken?: {
+    readonly organizationId: string;
+    readonly membershipId: string;
+    /**
+     * The name the member gave the token, on the Bearer path only (an internal grant is named by
+     * {@link aiGrant}). An action the token asks for waits under this name, so the person sees
+     * "Claude on my laptop" rather than "Personal access token" (TESTUX P1 9).
+     */
+    readonly name?: string;
+  };
   /** Set by `TenantContextGuard` (steps 2–3). */
   tenant?: TenantContext;
   /** Set by `TenantContextGuard` alongside the context; carries role and client organization. */

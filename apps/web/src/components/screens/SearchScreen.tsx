@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { matchDestinations } from '../shell/command-palette-model';
+import { destinationHelp } from '../shell/navigation';
 import { useT } from '../../lib/i18n/use-t';
 import { appLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -205,6 +207,8 @@ export function SearchScreen({
   const projectNameOf = (hit: SearchResult): string | undefined =>
     hit.projectId === null ? undefined : projectNames.get(hit.projectId);
 
+  // TESTUX P1 13: the pages the query names ("reports" → Insights), above the records it found.
+  const pages = matchDestinations(query, t);
   const hits = results.data ?? [];
   const total = hits.length;
   const askQuery = (query !== '' ? query : draft).trim();
@@ -390,6 +394,27 @@ export function SearchScreen({
                 ? `${t('SearchScreen.resultsHeadingPrefix')} (${localCount(total)}) ${t('SearchScreen.resultsHeadingSuffix')}`
                 : t('SearchScreen.resultsHeading')}
             </h2>
+
+            {pages.length > 0 ? (
+              <nav className="tm-sa-pages" aria-labelledby="tm-search-pages">
+                <p id="tm-search-pages" className="tm-sa-eyebrow">
+                  {t('SearchScreen.pagesHeading')}
+                </p>
+                <ul className="tm-sa-results__list">
+                  {pages.map((page) => (
+                    <li key={page.id} className="tm-sa-hit">
+                      <div className="tm-sa-hit__head">
+                        <span className="tm-sa-badge">{t('SearchScreen.kindPage')}</span>
+                        <Link href={`/${org}${page.href}`} className="tm-sa-hit__title">
+                          {t(page.messageKey)}
+                        </Link>
+                      </div>
+                      <p className="tm-sa-hit__body">{destinationHelp(t, page)}</p>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ) : null}
 
             {query === '' ? (
               <div className="tm-sa-empty">

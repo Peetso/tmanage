@@ -6,6 +6,7 @@ import {
   formatCountdown,
   localizedFieldLabel,
   localizedOpTitle,
+  readableFields,
   subjectLine,
 } from '../src/lib/ai-approval-presentation';
 import { safeReturnPath } from '../src/lib/sign-in-return';
@@ -61,5 +62,15 @@ describe('AI approve page presentation (S10)', () => {
     expect(subjectLine(none, 'sam@x.test', false)).toBe('“sam@x.test”');
     expect(subjectLine(() => 'حذف «{name}»', 'مراجعة', true)).toBe('حذف «مراجعة»');
     expect(subjectLine(none, null, true)).toBeNull();
+  });
+
+  it('shows only the argument rows a person can read, never a raw id (TESTUX P2 30)', () => {
+    const fields = [
+      { name: 'workItemId', value: '0198f4a2-1c00-7000-8000-00000000000d' },
+      { name: 'memberIds', value: '["0198…"]' },
+      { name: 'title', value: 'Homepage' },
+      { name: 'paid', value: 'true' },
+    ];
+    expect(readableFields(fields).map((field) => field.name)).toEqual(['title', 'paid']);
   });
 });

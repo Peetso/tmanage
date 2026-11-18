@@ -255,7 +255,8 @@ export function SignUpScreen({
         password,
         organizationName: organizationName.trim(),
         timezone: guessTimezone(),
-        defaultLocale: locale.toLowerCase().startsWith('ar') ? 'ar' : 'en',
+        // The page's own language (ar-EG on /ar): the new account and workspace open in it.
+        defaultLocale: locale,
         website,
         ...(pickedPlan === null ? {} : { plan: pickedPlan }),
         ...(referralCode === null ? {} : { referral: referralCode }),

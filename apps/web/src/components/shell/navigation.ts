@@ -40,6 +40,12 @@ export interface NavigationItem {
    * the dock, the More sheet and the portal, so every surface shows the same picture for a page.
    */
   readonly icon: PhoneIconName;
+  /**
+   * TESTUX P1 13: the catalog line of the other words people look for this page by, comma
+   * separated ("Reports, analytics, …" for Insights). The command palette and search match them,
+   * so a person who types the word they know finds the page without the rail being renamed.
+   */
+  readonly keywordsKey?: MessageKey;
 }
 
 /**
@@ -100,9 +106,23 @@ export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
     messageKey: 'nav.insights',
     href: '/insights',
     icon: 'barChart',
+    keywordsKey: 'nav.insightsKeywords',
   },
   { id: 'finance', label: 'Finance', messageKey: 'nav.finance', href: '/finance', icon: 'receipt' },
 ];
+
+/**
+ * A destination's one-line description (`NavHelp.<id>`): the rail's hover help and the line under a
+ * page search finds. Its English name until a new entry's line reaches the catalogs.
+ */
+export function destinationHelp(
+  translate: (key: MessageKey) => string,
+  item: Pick<NavigationItem, 'id' | 'label'>,
+): string {
+  const key = `NavHelp.${item.id}` as MessageKey;
+  const line = translate(key);
+  return line === key ? item.label : line;
+}
 
 /**
  * The Control Center orb at the foot of the rail. `sitemap-and-role-navigation.md`: "Owner /

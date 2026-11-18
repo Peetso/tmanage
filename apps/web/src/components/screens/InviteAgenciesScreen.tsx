@@ -7,9 +7,10 @@ import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
-import { createReferralCode, getReferral, inviteLinkFor } from '../../lib/api/referrals';
+import { createReferralCode, getReferral } from '../../lib/api/referrals';
 import type { ReferralView } from '../../lib/api/referrals';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { localizedInviteLink } from '../../lib/referral-invite-link';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { INVITE_AGENCIES_COPY } from './invite-agencies-copy';
 import type { InviteAgenciesCopyKey } from './invite-agencies-copy';
@@ -84,7 +85,7 @@ export function InviteAgenciesScreen({
 
   const here = origin ?? (typeof window === 'undefined' ? '' : window.location.origin);
   const code = referral.data?.code ?? null;
-  const link = code === null ? null : inviteLinkFor(here, code);
+  const link = code === null ? null : localizedInviteLink(here, code, locale);
 
   async function copyLink(): Promise<void> {
     if (link === null) return;

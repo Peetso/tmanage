@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import type { InsightsPortfolio, InsightsPortfolioProject } from '../../lib/api/insights-portfolio';
 import { useT } from '../../lib/i18n/use-t';
+// VR2 fix 5 (round-1 P7): the summary brings its own styles, so wherever it is drawn the row keeps
+// its gap and the count its capsule ("Rebrand 3 blocked" read "Rebrand3 blocked" without them).
+import '../../styles/screens/insights.css';
 
 /** How many projects the mobile "needs attention" list shows before it stops. */
 const TOP_PROJECTS = 3;

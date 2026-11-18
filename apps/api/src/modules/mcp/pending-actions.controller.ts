@@ -88,10 +88,11 @@ export class PendingAiActionsController {
   @RequireCapability('ai.use')
   async list(
     @Ctx() context: TenantContext,
+    @Param('orgSlug') orgSlug: string,
     @AuthScheme() authScheme: string | undefined,
   ): Promise<{ items: PendingAiActionView[] }> {
     requireCookieSession(authScheme);
-    return this.approvals.listPending(context);
+    return this.approvals.listPending(context, orgSlug);
   }
 
   @Get(':id')

@@ -9,6 +9,7 @@ import {
 } from '../src/components/admin/ControlCenterShell';
 import { ApiClient } from '../src/lib/api/client';
 import { inviteLinkFor, referralCodeFromQuery } from '../src/lib/api/referrals';
+import { localizedInviteLink } from '../src/lib/referral-invite-link';
 import type { ReferralView } from '../src/lib/api/referrals';
 import { INVITE_AGENCIES_RETURN, safeReturnPath } from '../src/lib/sign-in-return';
 
@@ -146,6 +147,13 @@ describe('sign-up carry', () => {
       expect(referralCodeFromQuery(bad)).toBeNull();
     }
     expect(inviteLinkFor('https://tmanageapp.com/', 'northstar-7q4k2m')).toBe(
+      'https://tmanageapp.com/sign-up?ref=northstar-7q4k2m',
+    );
+    // TESTUX P1 12: an Arabic owner's link opens the Arabic sign-up, with the same code.
+    expect(localizedInviteLink('https://tmanageapp.com', 'northstar-7q4k2m', 'ar-EG')).toBe(
+      'https://tmanageapp.com/ar/sign-up?ref=northstar-7q4k2m',
+    );
+    expect(localizedInviteLink('https://tmanageapp.com', 'northstar-7q4k2m', 'fr-FR')).toBe(
       'https://tmanageapp.com/sign-up?ref=northstar-7q4k2m',
     );
   });

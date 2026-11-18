@@ -20,7 +20,10 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import type { DisplayPreferencesRepository } from './display-prefs.repository.js';
+import type {
+  AccountDisplayDefaults,
+  DisplayPreferencesRepository,
+} from './display-prefs.repository.js';
 import { isIanaTimeZone } from '../../common/time-zone.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { UI_MODES, defaultFor, parseLockedRoles } from '../tenancy/org-settings.allowlist.js';
@@ -154,7 +157,9 @@ export class DisplayPreferencesService {
     return this.database.read(context, async (runner) => {
       const row = await this.preferences.findForMembership(runner, context, membershipId);
       const org = await this.orgUiMode(runner, context, role);
-      return viewOf(row ? row.displayJson : null, org);
+      if (row) return viewOf(row.displayJson, org);
+      const account = await this.preferences.findAccountDefaults(runner, context);
+      return viewOf(accountDefaultsOf(account), org);
     });
   }
 
@@ -202,9 +207,39 @@ export class DisplayPreferencesService {
   }
 }
 
-function viewOf(saved: DisplayPreferences | null, org: OrgUiMode): DisplayPreferencesView {
-  const settings = saved ?? DEFAULT_DISPLAY_PREFERENCES;
-  const own = saved?.uiMode;
+/**
+ * TESTUX P0 2 — the display locale an account language tag maps to: the exact allowlisted locale,
+ * else the first allowlisted locale of the same language (`ar` → `ar-EG`, `fr` → `fr-FR`), else the
+ * shipped default. Sign-up stores the page's language on the account, which may be a bare language.
+ */
+export function displayLocaleFor(tag: string | null | undefined): DisplayLocale {
+  const wanted = (tag ?? '').trim().toLowerCase();
+  const exact = DISPLAY_LOCALES.find((locale) => locale.toLowerCase() === wanted);
+  if (exact !== undefined) return exact;
+  const language = wanted.split('-')[0] ?? '';
+  return (
+    DISPLAY_LOCALES.find((locale) => locale.toLowerCase().split('-')[0] === language) ??
+    DEFAULT_DISPLAY_PREFERENCES.locale
+  );
+}
+
+/**
+ * What a member who has never saved is shown: the shipped defaults in the language and zone their
+ * account was created with, so an owner who signed up on `/ar` opens an Arabic workspace.
+ */
+function accountDefaultsOf(account: AccountDisplayDefaults | null): StoredDisplayPreferencesView {
+  if (account === null) return DEFAULT_DISPLAY_PREFERENCES;
+  return {
+    ...DEFAULT_DISPLAY_PREFERENCES,
+    locale: displayLocaleFor(account.locale),
+    timezone: isIanaTimeZone(account.timezone)
+      ? account.timezone
+      : DEFAULT_DISPLAY_PREFERENCES.timezone,
+  };
+}
+
+function viewOf(settings: DisplayPreferences, org: OrgUiMode): DisplayPreferencesView {
+  const own = settings.uiMode;
   const useOwn = own !== undefined && !org.locked;
   return {
     theme: settings.theme,

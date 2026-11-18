@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { LanguageSwitch } from '../website/WebFooter';
 import { WebsiteDocumentTitle } from '../website/WebsiteDocumentTitle';
 import { STATE_COPY, type StateKey } from './state-copy';
+import { browserApiClient } from '../../lib/api/browser-client';
+import type { ApiClient } from '../../lib/api/client';
+import { signedInDestination } from '../../lib/signed-in-destination';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -259,6 +262,31 @@ export function NotFoundState({
         </>
       }
     />
+  );
+}
+
+/**
+ * TESTUX P0 1 — the page-level 404 every unknown address answers with. The prerendered page offers
+ * "Back to home" and "Sign in"; once the page knows the visitor is signed in (one session read,
+ * which answers "no" on any failure) the primary action leads back into their workspace and the
+ * sign-in link, which made no sense to a signed-in owner, goes.
+ */
+export function PageNotFoundState({ client }: { client?: ApiClient }) {
+  const t = useT();
+  const [workspaceHref, setWorkspaceHref] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    void signedInDestination(client ?? browserApiClient(), null).then((destination) => {
+      if (live) setWorkspaceHref(destination);
+    });
+    return () => {
+      live = false;
+    };
+  }, [client]);
+  return workspaceHref === undefined ? (
+    <NotFoundState signInHref="/sign-in" />
+  ) : (
+    <NotFoundState homeHref={workspaceHref} actionLabel={t('StateScreens.backToWorkspace')} />
   );
 }
 

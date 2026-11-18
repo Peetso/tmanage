@@ -279,7 +279,8 @@ describe('PublicSignupService', () => {
   });
 
   it('derives a safe web link from any name', () => {
-    expect(slugBaseFrom('استوديو النيل')).toBe('workspace');
+    expect(slugBaseFrom('استوديو النيل')).toBe('astudiu-alnil');
+    expect(slugBaseFrom('🌿')).toBe('workspace');
     expect(slugBaseFrom('  Café & Co. ')).toBe('cafe-co');
   });
 });

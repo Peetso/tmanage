@@ -78,7 +78,7 @@ export async function getSetupHealth(
 /** Where each checklist step is done, relative to `/{orgSlug}`. */
 export const STEP_HREF: Readonly<Record<ChecklistStep, string>> = {
   invite_teammate: '/people',
-  create_project: '/projects',
+  create_project: '/projects/new',
   add_client: '/clients',
   connect_storage: '/admin/storage',
   set_working_hours: '/admin/working-calendar',

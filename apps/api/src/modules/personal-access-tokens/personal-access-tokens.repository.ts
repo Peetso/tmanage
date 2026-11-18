@@ -59,6 +59,8 @@ export interface OrganizationTokenRow {
 /** The fields the authentication path needs from a token row, resolved tenant-free by hash. */
 export interface PersonalAccessTokenAuthRow {
   readonly id: string;
+  /** The name the member gave the token ("Claude on my laptop"), shown where its actions wait. */
+  readonly name: string;
   readonly organizationId: string;
   readonly membershipId: string;
   readonly userId: string;
@@ -186,7 +188,7 @@ export class PersonalAccessTokensRepository {
     tokenHash: string,
   ): Promise<PersonalAccessTokenAuthRow | undefined> {
     const rows = (await runner.query(
-      `SELECT id, organization_id, membership_id, user_id, revoked_at, expires_at,
+      `SELECT id, name, organization_id, membership_id, user_id, revoked_at, expires_at,
               scopes, ip_allowlist_json
          FROM personal_access_tokens
         WHERE token_hash = ?
@@ -197,6 +199,7 @@ export class PersonalAccessTokensRepository {
     if (!row) return undefined;
     return {
       id: String(row['id']),
+      name: String(row['name']),
       organizationId: String(row['organization_id']),
       membershipId: String(row['membership_id']),
       userId: String(row['user_id']),

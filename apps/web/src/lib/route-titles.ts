@@ -690,11 +690,17 @@ function nameIn(row: RouteTitleRow, locale: string): string {
   return value === row.key ? row.en : value;
 }
 
-/** The route's full tab title in `locale`, or `undefined` when the page sets its own. */
-export function localizedRouteTitle(pathname: string, locale: string): string | undefined {
+/** The route's page name in `locale` ("Portfolio"), or `undefined` when the page sets its own. */
+export function localizedPageName(pathname: string, locale: string): string | undefined {
   const pattern = matchRoutePattern(pathname);
   const row = pattern === undefined ? undefined : rowFor(pattern);
-  return row === undefined ? undefined : `${nameIn(row, locale)}${TITLE_SUFFIX}`;
+  return row === undefined ? undefined : nameIn(row, locale);
+}
+
+/** The route's full tab title in `locale`, or `undefined` when the page sets its own. */
+export function localizedRouteTitle(pathname: string, locale: string): string | undefined {
+  const name = localizedPageName(pathname, locale);
+  return name === undefined ? undefined : `${name}${TITLE_SUFFIX}`;
 }
 
 /** The route's English tab title, the one the server sends, or `undefined`. */

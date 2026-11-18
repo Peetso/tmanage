@@ -45,9 +45,12 @@ export function referralCodeFromQuery(raw: string | null | undefined): string | 
   return value.length <= 40 && CODE_SHAPE.test(value) ? value : null;
 }
 
-/** The invite link, built from the address this app is served from (never typed). */
-export function inviteLinkFor(origin: string, code: string): string {
-  return `${origin.replace(/\/+$/u, '')}/sign-up?ref=${encodeURIComponent(code)}`;
+/**
+ * The invite link, built from the address this app is served from (never typed). `signUpPath` is
+ * the sign-up page in the sharer's language (`referral-invite-link.ts` picks it); English by default.
+ */
+export function inviteLinkFor(origin: string, code: string, signUpPath = '/sign-up'): string {
+  return `${origin.replace(/\/+$/u, '')}${signUpPath}?ref=${encodeURIComponent(code)}`;
 }
 
 function base(organizationSlug: string): string {

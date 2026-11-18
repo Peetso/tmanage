@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '../src/components/Button.js';
 import { Field } from '../src/components/Field.js';
 import { StateCapsule } from '../src/components/StateCapsule.js';
@@ -21,17 +22,34 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const PAPER = colorLight.paper['0'];
+/**
+ * VR2 fix 6: a swatch prints the value its theme really paints — the live custom properties read
+ * from the rendered element once it is mounted — so the dark story shows the dark token, never
+ * the light export. The story remounts the palette when the theme or contrast changes.
+ */
+function useLiveTokens(token: string, on: string) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [values, setValues] = useState<{ value: string; ink: string } | null>(null);
+  useLayoutEffect(() => {
+    if (ref.current === null) return;
+    const style = getComputedStyle(ref.current);
+    setValues({
+      value: style.getPropertyValue(token).trim(),
+      ink: style.getPropertyValue(on).trim(),
+    });
+  }, [token, on]);
+  return { ref, values };
+}
 
-function Swatch({ name, value, on }: { name: string; value: string; on?: string }) {
-  const ratio = contrastRatio(on ?? colorLight.ink['950'], value);
+function Swatch({ token, on = '--ink-950' }: { token: string; on?: string }) {
+  const { ref, values } = useLiveTokens(token, on);
 
   return (
-    <div style={{ display: 'grid', gap: 'var(--s1)' }}>
+    <div ref={ref} style={{ display: 'grid', gap: 'var(--s1)' }}>
       <div
         style={{
-          background: value,
-          color: on ?? colorLight.ink['950'],
+          background: `var(${token})`,
+          color: `var(${on})`,
           border: '1px solid var(--line-300)',
           borderRadius: 'var(--r-micro)',
           padding: 'var(--s4)',
@@ -40,9 +58,13 @@ function Swatch({ name, value, on }: { name: string; value: string; on?: string 
       >
         Aa
       </div>
-      <div style={{ font: '500 12px/17px var(--font-latin)', color: 'var(--ink-800)' }}>{name}</div>
+      <div style={{ font: '500 12px/17px var(--font-latin)', color: 'var(--ink-800)' }}>
+        {token.replace(/^--/, '').replace('-', '.')}
+      </div>
       <div style={{ font: '400 12px/17px var(--font-mono)', color: 'var(--ink-650)' }}>
-        {value} · {ratio.toFixed(2)}:1
+        {values !== null && values.value !== '' && values.ink !== ''
+          ? `${values.value.toUpperCase()} · ${contrastRatio(values.ink, values.value).toFixed(2)}:1`
+          : null}
       </div>
     </div>
   );
@@ -55,16 +77,19 @@ const grid = {
 } as const;
 
 export const Palette: Story = {
-  render: () => (
-    <div style={{ display: 'grid', gap: 'var(--s8)' }}>
+  render: (_args, { globals }) => (
+    <div
+      key={`${String(globals['theme'])} ${String(globals['contrast'])}`}
+      style={{ display: 'grid', gap: 'var(--s8)' }}
+    >
       <section>
         <h2>Ink and paper</h2>
         <div style={grid}>
-          {Object.entries(colorLight.ink).map(([step, value]) => (
-            <Swatch key={step} name={`ink.${step}`} value={value} on={PAPER} />
+          {Object.keys(colorLight.ink).map((step) => (
+            <Swatch key={step} token={`--ink-${step}`} on="--paper-0" />
           ))}
-          {Object.entries(colorLight.paper).map(([step, value]) => (
-            <Swatch key={step} name={`paper.${step}`} value={value} />
+          {Object.keys(colorLight.paper).map((step) => (
+            <Swatch key={step} token={`--paper-${step}`} />
           ))}
         </div>
       </section>
@@ -72,8 +97,8 @@ export const Palette: Story = {
       <section>
         <h2>Lime — current, next, live. Never success.</h2>
         <div style={grid}>
-          {Object.entries(colorLight.lime).map(([step, value]) => (
-            <Swatch key={step} name={`lime.${step}`} value={value} />
+          {Object.keys(colorLight.lime).map((step) => (
+            <Swatch key={step} token={`--lime-${step}`} />
           ))}
         </div>
       </section>
@@ -81,15 +106,15 @@ export const Palette: Story = {
       <section>
         <h2>Semantic</h2>
         <p style={{ maxWidth: 'var(--reading)', font: '400 15px/22px var(--font-latin)' }}>
-          The ratio under each swatch is measured against absolute ink. Success, warning and danger
-          are used as borders and glyphs rather than as text on paper, because as text they are
-          4.31:1, 3.64:1 and 4.23:1 — all below AA.
+          Each swatch shows the value the current theme paints and its ratio against the text colour
+          drawn on it. Success, warning and danger are used as borders and glyphs rather than as
+          text on light paper, because there they read 4.31:1, 3.64:1 and 4.23:1 — all below AA.
         </p>
         <div style={grid}>
-          <Swatch name="client.500" value={colorLight.client['500']} on={PAPER} />
-          <Swatch name="success.600" value={colorLight.success['600']} on={PAPER} />
-          <Swatch name="warning.600" value={colorLight.warning['600']} on={PAPER} />
-          <Swatch name="danger.600" value={colorLight.danger['600']} />
+          <Swatch token="--client-500" on="--paper-0" />
+          <Swatch token="--success-600" on="--paper-0" />
+          <Swatch token="--warning-600" on="--paper-0" />
+          <Swatch token="--danger-600" />
         </div>
       </section>
     </div>

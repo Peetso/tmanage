@@ -66,6 +66,36 @@ describe('LanguageSwitch', () => {
     expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('offers the same languages as a phone menu that shows and changes the current one', async () => {
+    const user = userEvent.setup();
+    act(() => activeLocale.set('fr-FR'));
+    render(
+      <LocaleDirectionProvider>
+        <LanguageSwitch />
+      </LocaleDirectionProvider>,
+    );
+    const menu = screen.getByRole('combobox');
+    const row = screen.getByRole('group');
+    expect(
+      within(menu)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(
+      within(row)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    );
+    expect(menu).toHaveValue('fr-FR');
+    expect(within(row).getByRole('button', { name: 'Français' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await user.selectOptions(menu, 'ar-EG');
+    expect(document.documentElement.dir).toBe('rtl');
+    expect(menu).toHaveValue('ar-EG');
+  });
+
   it('uses the same language rule as translate()', () => {
     expect(isArabicLocale('ar-EG')).toBe(true);
     expect(isArabicLocale('AR-eg')).toBe(true);

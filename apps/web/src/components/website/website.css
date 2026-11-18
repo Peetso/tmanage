@@ -1792,6 +1792,11 @@ a.tm-web-orb--outline:hover {
     margin-block-start: var(--s8);
   }
 
+  /* VR2 fix 7b: the bottom row's top rule closes the list; the last fold draws no second one. */
+  .tm-web-footer__accordions .tm-web-accordion:last-child {
+    border-block-end: 0;
+  }
+
   .tm-web-footer__bottom {
     flex-direction: column;
     align-items: flex-start;

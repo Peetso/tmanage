@@ -1,5 +1,6 @@
 import { mergeFinanceFacts, uuidv7 } from '@tmanage/domain';
 import type { ExpenseFactInput, FinanceFact, TimeFactInput } from '@tmanage/domain';
+import { dateFromDriver } from '../../common/database/drizzle.js';
 import type {
   QueryRows,
   TenantContext,
@@ -288,12 +289,6 @@ async function rows<T>(
   return (await runner.execute<QueryRows>(sql, params)) as unknown as readonly T[];
 }
 
-function toDate(value: unknown): Date | null {
-  if (value === null || value === undefined) return null;
-  const at = value instanceof Date ? value : new Date(String(value).replace(' ', 'T') + 'Z');
-  return Number.isNaN(at.getTime()) ? null : at;
-}
-
 export class FinanceReportsRepository {
   /**
    * DELETE the window, then INSERT it again from the sources. Run inside one transaction (the
@@ -336,7 +331,7 @@ export class FinanceReportsRepository {
     const found = await rows<{ last_computed: unknown }>(runner, LAST_COMPUTED_SQL, [
       context.organizationId,
     ]);
-    return toDate(found[0]?.last_computed);
+    return dateFromDriver(found[0]?.last_computed);
   }
 
   async baseCurrency(runner: TenantQueryRunner, context: TenantContext): Promise<string | null> {

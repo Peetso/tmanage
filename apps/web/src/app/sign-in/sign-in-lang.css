@@ -1,7 +1,7 @@
 /*
  * A5: the language switch on the sign-in page (and its `/ar/sign-in` twin, which renders the same
  * page). It is the website's own Web/Language switch, drawn as the card's last row under the legal
- * links, in their quiet `--ink-650` paper-surface tone (6.74:1 on `--paper-150`, see the D14 note on
+ * links, in the switch's own quiet `--ink-650` paper-surface tone (6.74:1 on `--paper-150`, see the D14 note on
  * `.tm-identity__footer`).
  *
  * It used to be pinned absolutely to the corner of the page, outside the card: ink on the dark
@@ -9,13 +9,11 @@
  * The switch brings its own look (`language-switch.css`); only this card's tone and size are here.
  */
 .tm-identity__lang .tm-web-lang {
-  display: flex;
-  gap: var(--s1) var(--s2);
-  color: var(--ink-650);
+  display: block;
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
 }
 
-.tm-identity__lang .tm-web-lang__option[aria-pressed='true'] {
-  color: var(--ink-950);
+.tm-identity__lang .tm-web-lang__row {
+  gap: var(--s1) var(--s2);
 }

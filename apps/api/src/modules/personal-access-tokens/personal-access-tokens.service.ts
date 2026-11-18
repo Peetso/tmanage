@@ -61,6 +61,8 @@ export interface CreatedPersonalAccessTokenView extends PersonalAccessTokenView 
 /** The identity a successfully authenticated token resolves to. */
 export interface AuthenticatedToken {
   readonly tokenId: string;
+  /** The token's own name, which its frozen actions are attributed to (TESTUX P1 9). */
+  readonly name: string;
   readonly organizationId: string;
   readonly membershipId: string;
   readonly userId: string;
@@ -418,6 +420,7 @@ export class PersonalAccessTokensService {
 
     return {
       tokenId: row.id,
+      name: row.name,
       organizationId: row.organizationId,
       membershipId: row.membershipId,
       userId: row.userId,

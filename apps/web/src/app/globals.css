@@ -1435,6 +1435,16 @@ html[lang^='zh'] body {
   color: var(--ink-950);
 }
 
+/*
+ * A row's action column (Remove, Reclaim): as narrow as its button and at the inline end, so the
+ * action lines up at the row's end in both directions (VR2 fix 3) instead of floating mid-row.
+ */
+.tm-table .tm-table__action {
+  inline-size: 1%;
+  white-space: nowrap;
+  text-align: end;
+}
+
 /* FILE · VERSION · PREVIEW — the mono column heads on paper-50 (SYS-04, WK-02). */
 .tm-table thead th {
   padding-block: var(--s3);

@@ -71,6 +71,24 @@ describe('listing waiting AI actions (55-15p)', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('names each row by reading its target, never by running the action (TESTUX P1 9)', async () => {
+    const { service, execute } = serviceWith([row('pa-1')]);
+    execute.mockResolvedValueOnce({
+      status: 200,
+      body: JSON.stringify({ title: 'Prepare mobile booking flow concepts' }),
+    });
+    const { items } = await service.listPending(context, 'northstar');
+
+    expect(items[0]?.summary.subject).toBe('Prepare mobile booking flow concepts');
+    expect(execute).toHaveBeenCalledTimes(1);
+    const [request, grant] = execute.mock.calls[0] as unknown as [
+      { method: string },
+      { opId: string },
+    ];
+    expect(request.method).toBe('GET');
+    expect(grant.opId).toBe('work_items.get');
+  });
+
   it('leaves out a row whose stored arguments no longer verify', async () => {
     const { service } = serviceWith([row('pa-1'), row('pa-x', { argsSha256: 'tampered' })]);
     const { items } = await service.listPending(context);

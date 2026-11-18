@@ -61,9 +61,15 @@ function mount(items: AiApprovalView[]) {
 describe('AI actions (55-15p)', () => {
   it('lists each waiting action with a link to its approve page, and is axe-clean', async () => {
     const { container } = mount([approval('pa-1'), approval('pa-2')]);
+    // TESTUX P1 9: each row is titled by the item it acts on, the action's kind under it.
     expect(
-      await screen.findAllByText('Homepage direction review', {}, { timeout: 3000 }),
+      await screen.findAllByRole(
+        'heading',
+        { name: 'Delete “Homepage direction review”' },
+        { timeout: 3000 },
+      ),
     ).toHaveLength(2);
+    expect(screen.getAllByText('Delete work item')).toHaveLength(2);
     const reviews = screen.getAllByRole('link', { name: 'Review' });
     expect(reviews.map((link) => link.getAttribute('href'))).toEqual([
       '/northstar/ai/approve/pa-1',

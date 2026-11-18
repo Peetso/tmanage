@@ -4,9 +4,14 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
   CLIENT_NAVIGATION,
+  CONTROL_CENTER_NAVIGATION,
   INTERNAL_NAVIGATION,
+  MORE_TOOLS_NAVIGATION,
+  MORE_WORKSPACE_NAVIGATION,
   type NavigationItem,
 } from '../src/components/shell/navigation';
+import { PALETTE_SPECS } from '../src/components/shell/command-palette-model';
+import { HEALTH_FIX_HREF, STEP_HREF } from '../src/lib/api/getting-started';
 import { PlannedInternalScreen } from '../src/components/screens/PlannedInternalScreen';
 import { PlannedPortalScreen } from '../src/components/screens/PlannedPortalScreen';
 import { expectNoAxeViolations } from './axe';
@@ -37,9 +42,15 @@ import { expectNoAxeViolations } from './axe';
  */
 
 /** `/portal/deliverables` -> `[orgSlug]/portal/deliverables/page.tsx`. */
+function pageFileForHref(href: string): string {
+  const segments = href.split('/').filter((segment) => segment.length > 0);
+  // The palette opens `/organizations` (switch workspace) outside the tenant, as CommandPalette does.
+  const tenant = href === '/organizations' ? [] : ['[orgSlug]'];
+  return join(process.cwd(), 'src', 'app', ...tenant, ...segments, 'page.tsx');
+}
+
 function pageFileFor(item: NavigationItem): string {
-  const segments = item.href.split('/').filter((segment) => segment.length > 0);
-  return join(process.cwd(), 'src', 'app', '[orgSlug]', ...segments, 'page.tsx');
+  return pageFileForHref(item.href);
 }
 
 const ALL_DESTINATIONS: readonly NavigationItem[] = [...INTERNAL_NAVIGATION, ...CLIENT_NAVIGATION];
@@ -64,6 +75,32 @@ describe('every navigation destination resolves to a page', () => {
       expect(readFileSync(file, 'utf8')).toMatch(/export default function/);
     },
   );
+});
+
+/**
+ * TESTUX P0 1: the Getting started step "Create a project" pointed at `/projects`, which has no
+ * page, so a new owner's first step was a 404. Every other table of in-app links is walked the
+ * same way, so a link that names a route nobody built fails here, not in front of a customer.
+ */
+const OTHER_LINK_TABLES: readonly (readonly [string, string])[] = [
+  ...Object.entries(STEP_HREF).map(([step, href]) => [`Getting started ${step}`, href] as const),
+  ...Object.entries(HEALTH_FIX_HREF).map(
+    ([check, href]) => [`Setup health ${check}`, href] as const,
+  ),
+  ...PALETTE_SPECS.flatMap((spec) =>
+    spec.run.type === 'href' ? [[`Palette ${spec.id}`, spec.run.href] as const] : [],
+  ),
+  ...[...MORE_WORKSPACE_NAVIGATION, ...MORE_TOOLS_NAVIGATION]
+    .filter((item) => item.absolute !== true)
+    .map((item) => [`More sheet ${item.id}`, item.href] as const),
+  ['Control Center', CONTROL_CENTER_NAVIGATION.href],
+];
+
+describe('every other in-app link table resolves to a page', () => {
+  it.each(OTHER_LINK_TABLES)('%s (%s) resolves to a page module', (_name, href) => {
+    const file = pageFileForHref(href);
+    expect(existsSync(file), `${href} has no page at ${file}`).toBe(true);
+  });
 });
 
 describe('a planned destination is named and accessible', () => {

@@ -128,6 +128,7 @@ export type {
 export { isUuid, isUuidV7, timestampFromUuidV7, uuidv7 } from './value-objects/uuid-v7.js';
 export {
   isAddressableWorkspaceSlug,
+  latinForSlug,
   MAX_WORKSPACE_SLUG_LENGTH,
   RESERVED_WORKSPACE_SLUGS,
   WORKSPACE_SLUG_PATTERN,

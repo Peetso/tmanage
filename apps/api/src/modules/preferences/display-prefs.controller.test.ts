@@ -2,8 +2,15 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { DisplayPreferencesController } from './display-prefs.controller.js';
-import { DEFAULT_DISPLAY_PREFERENCES, DisplayPreferencesService } from './display-prefs.service.js';
-import type { DisplayPreferencesRepository } from './display-prefs.repository.js';
+import {
+  DEFAULT_DISPLAY_PREFERENCES,
+  DisplayPreferencesService,
+  displayLocaleFor,
+} from './display-prefs.service.js';
+import type {
+  AccountDisplayDefaults,
+  DisplayPreferencesRepository,
+} from './display-prefs.repository.js';
 import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { ApiError } from '../../common/http/errors.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
@@ -53,6 +60,12 @@ const VALID: DisplayPreferences = {
 class FakeDisplayPreferencesRepository {
   readonly rows = new Map<string, DisplayPreferences>();
   upsertCalls: { membershipId: string; settings: DisplayPreferences }[] = [];
+  /** The caller's `users.locale` / `.timezone`; the column defaults unless a test sets them. */
+  account: AccountDisplayDefaults | null = { locale: 'en', timezone: 'UTC' };
+
+  findAccountDefaults(): Promise<AccountDisplayDefaults | null> {
+    return Promise.resolve(this.account);
+  }
 
   findForMembership(
     _r: unknown,
@@ -115,6 +128,33 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
     const repo = new FakeDisplayPreferencesRepository();
     const result = await controllerWith(repo).get(context, member());
     expect(result).toEqual({ ...DEFAULT_DISPLAY_PREFERENCES, ...INHERITED });
+  });
+
+  it('reads an unsaved member in the language and zone their account was created with (TESTUX P0 2)', async () => {
+    // An owner who signed up on /ar: the account says `ar` and Cairo, nothing saved yet.
+    const repo = new FakeDisplayPreferencesRepository();
+    repo.account = { locale: 'ar', timezone: 'Africa/Cairo' };
+    const result = await controllerWith(repo).get(context, member());
+    expect(result).toEqual({
+      ...DEFAULT_DISPLAY_PREFERENCES,
+      locale: 'ar-EG',
+      timezone: 'Africa/Cairo',
+      ...INHERITED,
+    });
+
+    // A saved row still wins over the account's language.
+    repo.rows.set(MY_MEMBERSHIP, { ...VALID });
+    expect((await controllerWith(repo).get(context, member())).locale).toBe('fr-FR');
+  });
+
+  it('maps an account language tag onto the display allowlist', () => {
+    expect(displayLocaleFor('ar')).toBe('ar-EG');
+    expect(displayLocaleFor('ar-SA')).toBe('ar-EG');
+    expect(displayLocaleFor('en-GB')).toBe('en-GB');
+    expect(displayLocaleFor('FR')).toBe('fr-FR');
+    expect(displayLocaleFor('ur')).toBe('ur-PK');
+    expect(displayLocaleFor('xx')).toBe('en-US');
+    expect(displayLocaleFor(undefined)).toBe('en-US');
   });
 
   it('persists a valid update and reads it back — always the caller’s own membership', async () => {
