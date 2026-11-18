@@ -59,7 +59,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
       },
       'operator-access': OPERATOR_ACCESS_AR,
       'google-drive': {
-        heading: 'Google Drive والتكاملات الأخرى',
+        heading: '‏Google Drive والتكاملات الأخرى',
         body: `يجوز للمؤسسة ربط خدمات تابعة لجهات خارجية مثل Google Drive. ولا يتم الربط إلا عندما يختاره المستخدم ويوافق على الوصول في شاشة الموافقة الخاصة بمزوّد الخدمة نفسه، وتسري شروط المزوّد أيضًا على ذلك الحساب. بالنسبة إلى Google Drive، لا يطلب TManage إلا نطاق drive.file (الملفات التي ينشئها TManage أو التي يختارها المستخدم) والبريد الإلكتروني للملف الشخصي الأساسي للحساب المرتبط، ولا يستخدم هذا الوصول إلا لتخزين مرفقات مساحة العمل واسترجاعها في Drive الخاص بالعميل. ويمكن إلغاء الوصول في أي وقت عبر «قطع الاتصال» في TManage أو من صفحة أذونات حساب Google ‏(https://myaccount.google.com/permissions ). ${LIMITED_USE_AR} ‏(https://developers.google.com/terms/api-services-user-data-policy )`,
       },
       availability: {
@@ -87,7 +87,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
     sections: {
       'who-we-are': {
         heading: 'مَن نحن',
-        body: `TManage خدمة لإدارة العمل على tmanageapp.com، تشغّلها Peter Designs ‏(peetrix.com)، ويُشار إليها بـ«TManage» أو «نحن». نحن المتحكم في بيانات الحساب والموقع وتشغيل الخدمة. أما المحتوى الذي تضعه المؤسسة في مساحة عملها، فالمؤسسة هي المتحكم فيه ونحن نعالجه نيابة عنها. للتواصل: ${LEGAL_CONTACT_EMAIL} .`,
+        body: `‏TManage خدمة لإدارة العمل على tmanageapp.com، تشغّلها Peter Designs ‏(peetrix.com)، ويُشار إليها بـ«TManage» أو «نحن». نحن المتحكم في بيانات الحساب والموقع وتشغيل الخدمة. أما المحتوى الذي تضعه المؤسسة في مساحة عملها، فالمؤسسة هي المتحكم فيه ونحن نعالجه نيابة عنها. للتواصل: ${LEGAL_CONTACT_EMAIL} .`,
       },
       'what-we-collect': {
         heading: 'البيانات التي نجمعها',
@@ -132,7 +132,7 @@ export const LEGAL_COPY_AR: Readonly<Record<LegalDocumentKey, ArabicLegalCopy>> 
       },
       children: {
         heading: 'الأطفال',
-        body: 'TManage أداة أعمال وليست موجّهة إلى الأطفال. وهي غير مخصصة لمن هم دون 16 عامًا، ولا نجمع بياناتهم الشخصية عن علم. إذا كنت تعتقد أن طفلًا قدّم إلينا بيانات شخصية، فتواصل معنا وسنحذفها.',
+        body: '‏TManage أداة أعمال وليست موجّهة إلى الأطفال. وهي غير مخصصة لمن هم دون 16 عامًا، ولا نجمع بياناتهم الشخصية عن علم. إذا كنت تعتقد أن طفلًا قدّم إلينا بيانات شخصية، فتواصل معنا وسنحذفها.',
       },
       international: {
         heading: 'النقل الدولي',

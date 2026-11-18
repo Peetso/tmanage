@@ -1152,7 +1152,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
           kind: 'p',
           text: 'لا يفعل المساعد إلا ما يسمح به دورك، والإجراءات الحساسة تنتظر موافقة شخص. انسخ أولًا عنوان مساحة عملك: افتح «الإعدادات» ثم «المساعد الذكي» ثم «خطوات الإعداد لكل تطبيقات الذكاء الاصطناعي».',
         },
-        { kind: 'p', text: 'Claude (الويب وسطح المكتب والهاتف):' },
+        { kind: 'p', text: '‏Claude (الويب وسطح المكتب والهاتف):' },
         {
           kind: 'steps',
           items: [
@@ -1170,11 +1170,11 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
             'اختر OAuth وسجّل الدخول إلى مساحة عملك.',
           ],
         },
-        { kind: 'p', text: 'Claude Code وCursor وVS Code:' },
+        { kind: 'p', text: '‏Claude Code وCursor وVS Code:' },
         {
           kind: 'steps',
           items: [
-            'Claude Code: شغّل الأمر الظاهر في صفحة الإعداد، ثم اكتب ‎/mcp لتسجيل الدخول.',
+            '‏Claude Code: شغّل الأمر الظاهر في صفحة الإعداد، ثم اكتب ‎/mcp لتسجيل الدخول.',
             'Cursor أو VS Code: أضف TManage إلى ملف mcp.json، ثم سجّل الدخول عبر OAuth.',
             'أي تطبيق MCP آخر: أضف خادم MCP من نوع HTTP على العنوان، ثم سجّل الدخول عبر OAuth.',
           ],

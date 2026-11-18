@@ -166,8 +166,25 @@ async function unmarkedLatinLedLines(page: Page): Promise<string[]> {
   }, BRANDS);
 }
 
+/**
+ * The installer checksum `/download` reads is written at deploy time and served by the one-process
+ * server, never by Next.js (`installer-checksum.ts`). The stack runs `next dev` alone, where that
+ * request falls through to a dev 404 whose rebuild keeps the network from going idle; answer it
+ * the way the deployed server does, so the page renders its checksum block as it does live.
+ */
+async function serveInstallerChecksum(page: Page): Promise<void> {
+  await page.route('**/downloads/TManage-Setup.exe.sha256', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/plain',
+      body: `${'0123456789abcdef'.repeat(4)}  TManage-Setup.exe\n`,
+    }),
+  );
+}
+
 /** The page has rendered (client components hydrated) once its heading is visible and idle. */
 async function open(page: Page, path: string): Promise<void> {
+  await serveInstallerChecksum(page);
   const response = await page.goto(path, { waitUntil: 'networkidle' });
   expect(response?.status(), path).toBe(200);
   await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 60_000 });

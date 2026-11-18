@@ -136,7 +136,7 @@
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
   font-weight: 500;
-  color: var(--ink-500);
+  color: var(--ink-650);
 }
 
 .tm-dloc-table tbody th {
