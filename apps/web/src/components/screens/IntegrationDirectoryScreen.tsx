@@ -655,7 +655,12 @@ function IntegrationCardItem({
       <StateCapsule state="waiting">{tr('AppConnect.notSetUp', 'Not set up yet')}</StateCapsule>
     );
     action = onKeyConnect ? (
-      <button type="button" className="tm-aut-btn" onClick={onKeyConnect}>
+      <button
+        type="button"
+        className="tm-aut-btn"
+        onClick={onKeyConnect}
+        {...pausedButtonProps(card.id, paused)}
+      >
         {tr('AppConnect.otherWay', 'Connect another way')}
       </button>
     ) : card.advancedPath ? (

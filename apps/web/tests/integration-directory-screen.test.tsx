@@ -22,6 +22,8 @@ interface World {
   figmaOneClick?: boolean;
   /** FIX5 item 6c: the caller is the company owner (seeds the shell's organization list). */
   owner?: boolean;
+  /** TESTE2E: the platform switched GitHub off, so its sign-in is not set up and reads paused. */
+  githubPaused?: boolean;
 }
 
 function mount(world: World = {}) {
@@ -118,7 +120,16 @@ function mount(world: World = {}) {
     if (path.includes('/app-connect/')) {
       return [
         200,
-        { provider: 'github', setUp: true, connected: false, account: null, channel: null },
+        world.githubPaused
+          ? {
+              provider: 'github',
+              setUp: false,
+              connected: false,
+              account: null,
+              channel: null,
+              paused: true,
+            }
+          : { provider: 'github', setUp: true, connected: false, account: null, channel: null },
       ];
     }
     if (path.endsWith('/figma/connection/start')) {
@@ -340,6 +351,15 @@ describe('Integrations cards (feedback 2026-11-09 item 6)', () => {
     expect(screen.getByText(/Jira asks once for a key/)).toBeTruthy();
     // The Figma card says what its panel says: the connection is the member's own.
     expect(within(card('Figma')).getByText('Just for you: your own Figma account')).toBeTruthy();
+  });
+
+  it('TESTE2E: while GitHub is switched off, "Connect another way" is disabled by the notice', async () => {
+    mount({ owner: true, githubPaused: true });
+    const other = await within(card('GitHub')).findByRole('button', {
+      name: 'Connect another way',
+    });
+    await waitFor(() => expect(other).toBeDisabled());
+    expect(other.getAttribute('aria-describedby')).toBe('tm-service-paused-github');
   });
 
   it('FIX4 item 6: Figma connects in one click when the server has its sign-in', async () => {

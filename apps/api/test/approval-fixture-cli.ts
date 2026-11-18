@@ -6,6 +6,7 @@ import type { ClientProjectionPayload } from '../src/common/database/schema.js';
 import { DeliverableVersionsRepository } from '../src/modules/approvals/deliverable-versions.repository.js';
 import { ApprovalsRepository } from '../src/modules/approvals/approvals.repository.js';
 import { ClientProjectionsRepository } from '../src/modules/approvals/client-projections.repository.js';
+import { DeliverablesRepository } from '../src/modules/approvals/deliverables.repository.js';
 
 /**
  * E2E-05's approval fixture (T001). The running stack has no HTTP route that mints a
@@ -79,6 +80,7 @@ const config: FixtureConfig = {
   approvedContactUserId,
 };
 
+const deliverables = new DeliverablesRepository();
 const versions = new DeliverableVersionsRepository();
 const approvals = new ApprovalsRepository();
 const projections = new ClientProjectionsRepository();
@@ -108,7 +110,14 @@ async function seedOne(
   title: string,
   contentHash: string,
 ): Promise<string> {
-  const deliverableId = uuidv7();
+  // A real `deliverables` row, as the product's own create writes it: the staff record page
+  // (52-19) reads the deliverable before it shows the certificate, and an id with no row 404s.
+  const { id: deliverableId } = await deliverables.create(tx, context, {
+    projectId: config.projectId,
+    title,
+    description: null,
+    createdByUserId: config.publisherUserId,
+  });
   const version = await versions.create(tx, context, {
     projectId: config.projectId,
     deliverableId,

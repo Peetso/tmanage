@@ -118,6 +118,7 @@ describe('an unknown page of the public website', () => {
         '/ar/pricing',
         '/ar/features/work',
         '/ar/sign-in',
+        '/ar/verify',
         '/ar/help',
         `/ar/help/${help}`,
         `/ar/compare/${compare}`,
@@ -125,7 +126,7 @@ describe('an unknown page of the public website', () => {
         '/pricing',
         '/website-kit',
       ].map((path) => publicNotFoundPage(path, false)),
-    ).toEqual(Array.from({ length: 16 }, () => undefined));
+    ).toEqual(Array.from({ length: 17 }, () => undefined));
   });
 
   it('answers the website kit as missing in production, where the page calls notFound()', () => {

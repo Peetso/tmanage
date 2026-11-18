@@ -29,6 +29,12 @@ const ENGLISH_SLUG_SECTIONS = [
 ] as const;
 
 /**
+ * Arabic pages with their own route but no listed twin: `/ar/verify` (`app/ar/(site)/verify`),
+ * where every Arabic approval certificate points, stays out of the sitemap and hreflang pairs.
+ */
+const ARABIC_UNLISTED_PAGES: ReadonlySet<string> = new Set(['/verify']);
+
+/**
  * The prerendered not-found page `pathname` is answered with, or `undefined` when the path is a
  * page that exists (or is not a public website path this knows about).
  *
@@ -43,7 +49,10 @@ export function publicNotFoundPage(
   production: boolean = process.env.NODE_ENV === 'production',
 ): string | undefined {
   if (isArabicPublicPath(pathname)) {
-    return hasArabicTwin(englishPublicPath(pathname)) ? undefined : ARABIC_NOT_FOUND_PAGE;
+    const english = englishPublicPath(pathname);
+    return hasArabicTwin(english) || ARABIC_UNLISTED_PAGES.has(english)
+      ? undefined
+      : ARABIC_NOT_FOUND_PAGE;
   }
   for (const section of ENGLISH_SLUG_SECTIONS) {
     if (!pathname.startsWith(section)) continue;

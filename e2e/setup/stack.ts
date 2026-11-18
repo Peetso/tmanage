@@ -334,6 +334,62 @@ export async function ageUploadSession(
   if (aged !== 1) throw new Error(`ageUploadSession: ${aged} rows aged for ${uploadSessionId}`);
 }
 
+/**
+ * Move one organization's `created_at` `days` into the past, so a rule that counts a workspace's
+ * age (the WTP card's 14 days) can be reached. Through the API package's own CLI
+ * (`test/age-organization-cli.ts`), the way {@link ageUploadSession} is.
+ */
+export async function ageOrganization(
+  databaseUrl: string,
+  organizationId: string,
+  days: number,
+): Promise<void> {
+  const { stdout } = await run(
+    'pnpm',
+    [
+      '--filter',
+      '@tmanage/api',
+      'exec',
+      'tsx',
+      'test/age-organization-cli.ts',
+      organizationId,
+      String(days),
+    ],
+    { cwd: REPO_ROOT, env: { ...process.env, TMANAGE_SEED_DATABASE_URL: databaseUrl } },
+  );
+  const line = stdout.trim().split('\n').pop() as string;
+  const { aged } = JSON.parse(line) as { aged: number };
+  if (aged !== 1) throw new Error(`ageOrganization: ${aged} rows aged for ${organizationId}`);
+}
+
+/**
+ * Plant one tampered approval record — the first of `organizationId`'s chain — and return what a
+ * certificate would print for it, so the public /verify page can be shown an *altered* record.
+ * Through the API package's own CLI (`test/forge-approval-record-cli.ts`). Pass an organization
+ * whose chain no journey reads: the forged row breaks it, and the journeys share one database.
+ */
+export async function forgeApprovalRecord(
+  databaseUrl: string,
+  organizationId: string,
+  approverUserId: string,
+): Promise<{ recordId: string; fingerprint: string }> {
+  const { stdout } = await run(
+    'pnpm',
+    [
+      '--filter',
+      '@tmanage/api',
+      'exec',
+      'tsx',
+      'test/forge-approval-record-cli.ts',
+      organizationId,
+      approverUserId,
+    ],
+    { cwd: REPO_ROOT, env: { ...process.env, TMANAGE_SEED_DATABASE_URL: databaseUrl } },
+  );
+  const line = stdout.trim().split('\n').pop() as string;
+  return JSON.parse(line) as { recordId: string; fingerprint: string };
+}
+
 /** The two governed version ids E2E-05's deep-link decide journey opens against. */
 export interface ApprovalFixture {
   readonly deliverableVersionId: string;
