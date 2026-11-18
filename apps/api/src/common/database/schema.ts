@@ -14515,3 +14515,37 @@ Object.assign(TABLES, {
   platform_feature_news: platformFeatureNews,
   platform_person_mail_sweep: platformPersonMailSweep,
 });
+
+// ---- 57-17 WTP · the beta pricing question (0375) ----
+
+/**
+ * 0375 (57-17). One owner's or admin's answer to "What would you pay per person each month?" (or
+ * their skip) in one workspace. `outcome` is 'answered' or 'skipped'; `band` is set only when
+ * answered; `note` is optional free text (at most 500 characters). The unique key
+ * `(organization_id, membership_id)` is the once-per-person rule. TENANT; api SELECT, INSERT only.
+ * `0375_pricing_survey_answers.sql` is the source of truth.
+ */
+export const pricingSurveyAnswers = mysqlTable(
+  'pricing_survey_answers',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    outcome: varchar('outcome', { length: 8 }).notNull(),
+    band: varchar('band', { length: 8 }),
+    note: varchar('note', { length: 500 }),
+    answeredAt: datetime('answered_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_pricing_survey_answers_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_pricing_survey_answers_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+    ),
+    index('ix_pricing_survey_answers_answered').on(table.answeredAt),
+  ],
+);
+
+export type PricingSurveyAnswerRow = typeof pricingSurveyAnswers.$inferSelect;
+
+Object.assign(TABLES, { pricing_survey_answers: pricingSurveyAnswers });

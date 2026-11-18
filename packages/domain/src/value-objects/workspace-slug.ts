@@ -66,6 +66,8 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   'verify',
   // The link in the address-confirmation mail (/confirm-email/{token}, VERIFYMAIL).
   'confirm-email',
+  // The message catalogs, served per language and page part at /i18n/{catalog} (CATSPLIT).
+  'i18n',
   'sessions',
   'admin',
   'api',

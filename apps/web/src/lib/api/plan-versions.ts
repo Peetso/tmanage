@@ -19,7 +19,8 @@ export interface PlanVersionLimitsView {
   readonly people: number | null;
   readonly activeProjects: number | null;
   readonly storageBytes: number | null;
-  readonly maxFileBytes: number;
+  /** Absent on a merged entitlement (the API type marks it optional). */
+  readonly maxFileBytes?: number;
 }
 
 export interface PublishedPlanView {

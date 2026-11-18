@@ -1377,6 +1377,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0363 (52-27). Tenant-owned: a client's journey steps on one project. Registered after
   // `project_clients` and `form_submissions` so the company erasure empties it first.
   client_journey_steps: 'organization_id',
+  // 0375 (57-17 WTP). Tenant-owned: an owner's or admin's pricing answer or skip, once per person.
+  // Registered after `memberships` (its tenant-bound FK) so the company erasure empties it first.
+  pricing_survey_answers: 'organization_id',
 });
 
 /**

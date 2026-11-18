@@ -175,6 +175,8 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   // 52-19 web half: anyone holding a certificate checks an approval record (ID + record hash in
   // the body, never the URL); `@Throttle('approval_record_verify')` by IP, closed on store error.
   'POST /v1/public/approval-records/verify': 'named',
+  // 57-02 PLANWEB: the published plan ladder for the pricing page (empty while the beta is free).
+  'GET /v1/public/plan-versions': 'read: marketing site (plan ladder; nothing in beta)',
 };
 
 /** Signed-in routes with no capability because they act only on the caller's own account. */

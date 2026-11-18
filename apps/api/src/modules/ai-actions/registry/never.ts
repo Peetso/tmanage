@@ -60,6 +60,8 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/organizations/:orgSlug/oauth/consent', reason: 'oauth' },
   // S10: the approve page's API for confirm-class AI actions — view, approve, decline. A cookie
   // session of the same member only; an AI principal must never approve its own request.
+  // MCPEASE (55-15p): the member's own waiting list behind the AI actions page. Cookie session only.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/ai/approvals/', reason: 'mcp_endpoint' },
   { method: 'GET', path: '/v1/organizations/:orgSlug/ai/approvals/:id', reason: 'mcp_endpoint' },
   {
     method: 'POST',
@@ -1310,6 +1312,23 @@ export const NEVER: readonly NeverEntry[] = [
   // 52-19 web half. The public approval-record check: anonymous, read-only, no tenant in the URL;
   // a certificate holder's tool, nothing an AI acts on.
   { method: 'POST', path: '/v1/public/approval-records/verify', reason: 'public_site' },
+  // 57-02 PLANWEB. The published plan ladder for the pricing page: anonymous, read-only, empty in
+  // the beta; nothing an AI acts on.
+  { method: 'GET', path: '/v1/public/plan-versions', reason: 'public_site' },
+  // 57-17 WTP. The beta pricing question (read, answer, skip): a person's own opinion, asked once,
+  // never answered or skipped by an AI. The platform team's answers list is platform-only.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/pricing-survey/', reason: 'pricing_survey' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/pricing-survey/answer',
+    reason: 'pricing_survey',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/pricing-survey/skip',
+    reason: 'pricing_survey',
+  },
+  { method: 'GET', path: '/v1/platform/pricing-survey/', reason: 'platform_admin' },
   // 55-14. Client portal magic-link sign-in: anonymous request, code, preview, consume, not-you.
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },

@@ -2590,3 +2590,9 @@ GRANT UPDATE ON `tmanage`.`mail_tip_log` TO 'tmanage_worker'@'%';
 -- the intake's rules (INSERT a first refusal, UPDATE counts and `suppressed_at`), always bound to
 -- the message's company. Added to the 0366 SELECT; no DELETE (clearing stays the API's).
 GRANT INSERT, UPDATE ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_worker'@'%';
+-- 0375 (57-17 WTP). `pricing_survey_answers` (tenant): an owner's or admin's answer to the beta
+-- pricing question, or their skip, once per person per workspace (INSERT; the unique key refuses a
+-- second). No UPDATE (an answer is never edited) and no DELETE. SELECT rides the database-wide
+-- read (the card's "already answered" check and the platform list's bootstrap read). The worker
+-- needs no grant.
+GRANT INSERT ON `tmanage`.`pricing_survey_answers` TO 'tmanage_app'@'%';

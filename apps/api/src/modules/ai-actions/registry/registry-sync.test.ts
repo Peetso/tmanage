@@ -224,7 +224,10 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // EMAILBUILD: the mail people card, list/add/import/change/test (+5 NEVER, platform_admin).
 // 52-19: GET approvals/:approvalId/evidence.zip (+1 NEVER, record_pdf).
 // 52-19 web half: POST public/approval-records/verify (+1 NEVER, public_site).
-const EXPECTED_ROUTE_COUNT = 1539;
+// MCPEASE: GET ai/approvals/ (+1 NEVER, mcp_endpoint). PLANWEB: GET public/plan-versions (+1 NEVER,
+// public_site). WTP: pricing-survey read/answer/skip (+3 NEVER, pricing_survey) and the platform
+// answers list (+1 NEVER, platform_admin).
+const EXPECTED_ROUTE_COUNT = 1545;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

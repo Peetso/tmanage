@@ -4921,3 +4921,48 @@ import type {
 } from '../../apps/web/src/lib/api/platform-person-mail.js';
 type _featureNews = Assert<Exact<ApiFeatureNewsView, WebFeatureNewsView>>;
 type _personMailState = Assert<Exact<ApiPersonMailStateView, WebPersonMailStateView>>;
+
+// ---- 57-02 PLANWEB · the live plan ladder (`GET /v1/public/plan-versions`, `…/billing/plan`) ----
+// The API types name the catalog vocabularies (plan ids, currencies, features); the web declares
+// the plan id union and plain strings, so each pair is one-way: every API answer is a valid web
+// value, and a field the pricing page or the plan panel reads cannot move without failing here.
+import type { PlanLimits as ApiPlanLimits } from '../../apps/api/src/modules/billing/plan-catalog.js';
+import type {
+  PublishedPlanView as ApiPublishedPlanView,
+  PublishedPlansView as ApiPublishedPlansView,
+  WorkspacePlanView as ApiWorkspacePlanView,
+} from '../../apps/api/src/modules/billing/plan-versions.service.js';
+import type {
+  PlanVersionLimitsView as WebPlanVersionLimitsView,
+  PublishedPlanView as WebPublishedPlanView,
+  PublishedPlansView as WebPublishedPlansView,
+  WorkspacePlanView as WebWorkspacePlanView,
+} from '../../apps/web/src/lib/api/plan-versions.js';
+type _planVersionLimits = Assert<Narrows<ApiPlanLimits, WebPlanVersionLimitsView>>;
+type _publishedPlan = Assert<Narrows<ApiPublishedPlanView, WebPublishedPlanView>>;
+type _publishedPlans = Assert<Narrows<ApiPublishedPlansView, WebPublishedPlansView>>;
+type _workspacePlan = Assert<Narrows<ApiWorkspacePlanView, WebWorkspacePlanView>>;
+
+// ---- 57-17 WTP · the pricing question on Home and its Platform list ----
+import type {
+  PricingSurveyResultView as ApiPricingSurveyResultView,
+  PricingSurveyView as ApiPricingSurveyView,
+} from '../../apps/api/src/modules/pricing-survey/pricing-survey.controller.js';
+import type {
+  PlatformPricingAnswerView as ApiPlatformPricingAnswerView,
+  PlatformPricingSurveyView as ApiPlatformPricingSurveyView,
+} from '../../apps/api/src/modules/pricing-survey/pricing-survey-platform.controller.js';
+import type {
+  PlatformPricingAnswerView as WebPlatformPricingAnswerView,
+  PlatformPricingSurveyView as WebPlatformPricingSurveyView,
+  PricingSurveyResultView as WebPricingSurveyResultView,
+  PricingSurveyView as WebPricingSurveyView,
+} from '../../apps/web/src/lib/api/pricing-survey.js';
+type _pricingSurvey = Assert<Exact<ApiPricingSurveyView, WebPricingSurveyView>>;
+type _pricingSurveyResult = Assert<Exact<ApiPricingSurveyResultView, WebPricingSurveyResultView>>;
+type _platformPricingAnswer = Assert<
+  Exact<ApiPlatformPricingAnswerView, WebPlatformPricingAnswerView>
+>;
+type _platformPricingSurvey = Assert<
+  Exact<ApiPlatformPricingSurveyView, WebPlatformPricingSurveyView>
+>;

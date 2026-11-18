@@ -118,6 +118,9 @@ export const NEVER_REASONS = [
   // 54-29. The per-project CSV/JSON export: a rate-limited bulk download for a person to keep or
   // re-import elsewhere. The AI reads the same work items through the work-item list ops.
   'project_export',
+  // 57-17. The beta pricing question: a person's own answer (or skip) about what they would pay.
+  // Their opinion, asked once; an AI principal must never answer or skip it for them.
+  'pricing_survey',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

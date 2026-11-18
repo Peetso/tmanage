@@ -89,10 +89,6 @@ const EXEMPT = new Map([
     'No web consumer yet: 57-02 plan ladder is backend only (GET|POST /v1/platform/plan-versions); no platform screen or apps/web client is built.',
   ],
   [
-    'WorkspacePlanView',
-    'No web consumer yet: 57-02 GET …/billing/plan has no apps/web client; the ladder is off in the beta (PLAN_LADDER).',
-  ],
-  [
     'OrgCredentialView',
     'No web consumer yet: the owner credential overview (GET …/security/tokens) has no apps/web/src/lib/api client; the admin screen for it is not built.',
   ],
