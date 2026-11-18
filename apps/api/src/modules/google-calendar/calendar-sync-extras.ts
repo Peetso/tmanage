@@ -12,6 +12,7 @@ import {
 } from './calendar-sync.repository.js';
 import { CalendarMemberReader } from './calendar-member.js';
 import { PUSH_RENEW_BEFORE_MS, hashSecret, newSecret, pushAddress } from './calendar-push.js';
+import { PushBackoff } from './push-backoff.js';
 
 /**
  * 53-14 — what the calendar sync does beyond the pull, for any provider that can:
@@ -114,6 +115,8 @@ export function mirrorFingerprint(event: AllDayEvent): string {
 export class CalendarSyncExtras {
   private readonly now: () => Date;
   private readonly log: (line: string) => void;
+  /** LOGQUIET-c: a provider refusing the channel is asked again later, not every minute. */
+  private readonly pushBackoff = new PushBackoff();
 
   constructor(
     private readonly database: TenantDatabase,
@@ -231,6 +234,7 @@ export class CalendarSyncExtras {
     const now = this.now().getTime();
     const expires = connection.watchExpiresAt?.getTime() ?? 0;
     if (connection.watchChannelId && expires - now > PUSH_RENEW_BEFORE_MS) return;
+    if (!this.pushBackoff.mayTry(connection.id, now)) return;
     try {
       if (connection.watchChannelId && expires > now) {
         const renewed = await remote.renewPush(session);
@@ -238,6 +242,7 @@ export class CalendarSyncExtras {
           await this.database.transaction(context, (tx) =>
             this.connections.update(tx, context, connection.id, { watchExpiresAt: renewed }),
           );
+          this.pushBackoff.succeeded(connection.id);
           return;
         }
       }
@@ -253,9 +258,16 @@ export class CalendarSyncExtras {
           watchExpiresAt: opened.expiresAt,
         }),
       );
+      this.pushBackoff.succeeded(connection.id);
       if (connection.watchChannelId) await remote.closePush(session).catch(() => undefined);
     } catch (error) {
-      this.log(`[calendar-sync] push channel for ${connection.id} failed: ${errorName(error)}`);
+      const waitMs = this.pushBackoff.failed(connection.id, now);
+      if (waitMs !== null) {
+        this.log(
+          `[calendar-sync] push channel for ${connection.id} failed: ${errorName(error)}; ` +
+            `next try in ${String(Math.round(waitMs / 60_000))} min`,
+        );
+      }
     }
   }
 
