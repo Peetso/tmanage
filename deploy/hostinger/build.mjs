@@ -38,6 +38,7 @@ import {
   parsePnpmLock,
   pnpmProductionSet,
 } from './bundle-overrides.mjs';
+import { webChildPublicConfig } from '../../apps/server/web-transport.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../..');
@@ -347,6 +348,43 @@ export function convertNextConfig({ ts, webDir, outDir }) {
 }
 
 /**
+ * Load the staged `next.config.mjs` as the bundle's `next start` will, and return the resolved
+ * configuration (route rules resolved too), or throw a sentence naming what broke.
+ *
+ * The config runs again at every start, from a directory that holds the build and none of the
+ * sources. On 2026-11-18 it read the i18n catalog sources at load, so the web child crash-looped
+ * on Hostinger (ENOENT `web/src/lib/i18n/messages`) while every local check passed. This runs the
+ * staged file in a fresh Node process with the staged directory as its working directory, the
+ * web child's production environment and Next's production-server phase. The stage has no
+ * node_modules, so a package it imports resolves from the web workspace, whose versions the
+ * bundle pins (workspace-resolve.hooks.mjs); a staged file that is missing still fails.
+ *
+ * @param {object} options
+ * @param {string} options.webDir  the staged web directory holding next.config.mjs
+ * @param {string} [options.workspaceDir]  the web workspace packages resolve from (apps/web)
+ * @returns {Record<string, unknown>} the resolved configuration, as the loader printed it
+ */
+export function loadStagedNextConfig({ webDir, workspaceDir = join(REPO, 'apps/web') }) {
+  const result = spawnSync(
+    process.execPath,
+    [join(HERE, 'load-next-config.child.mjs'), workspaceDir],
+    {
+      cwd: webDir,
+      encoding: 'utf8',
+      env: { PATH: process.env['PATH'], NODE_ENV: 'production', ...webChildPublicConfig({}) },
+    },
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(
+      `${join(webDir, 'next.config.mjs')} does not load the way the bundle's \`next start\` ` +
+        `loads it, so the deployed web server would crash on every start:\n${result.stderr.trim()}`,
+    );
+  }
+  return JSON.parse(result.stdout);
+}
+
+/**
  * The exact version of `name` as it is actually installed for the workspace package in `fromDir`.
  *
  * Dependencies are pinned to these exact versions in the bundle, not to the source packages'
@@ -470,7 +508,7 @@ function vendorManifest(dir) {
  * privileged, so no process of a shared-hosting account can listen there and receive the visitor's
  * cookies if a request ever slipped through (the old value, port 3000, could be bound by anyone).
  */
-export const WEB_BUILD_API_PROXY_TARGET = 'http://127.0.0.1:1';
+export const WEB_BUILD_API_PROXY_TARGET = webChildPublicConfig({}).API_PROXY_TARGET;
 
 /**
  * What the bundle's `.npmrc` says (security audit NV08). `install-links`/`bin-links` as before
@@ -690,11 +728,11 @@ function buildArtifacts() {
   // single process answers /v1, and refuses its case variants, before Next's rewrite would). The project's own build script
   // (Turbopack, the Next 16 default) is used as-is; the bundle serves that build with
   // `next start`, which is the server it is made for.
+  // The values are the web child's defaults (apps/server/web-transport.mjs), so the config that
+  // `next start` re-validates on Hostinger sees exactly what this build inlined.
   run('pnpm', ['--filter', '@tmanage/web', 'build'], {
     NODE_ENV: 'production',
-    NEXT_PUBLIC_API_BASE_URL: 'same-origin',
-    NEXT_PUBLIC_SESSION_COOKIE_NAME: 'tmanage_session',
-    API_PROXY_TARGET: WEB_BUILD_API_PROXY_TARGET,
+    ...webChildPublicConfig({}),
   });
 }
 
@@ -871,6 +909,8 @@ function assemble() {
   const ts = createRequire(join(REPO, 'apps/web/package.json'))('typescript');
   const converted = convertNextConfig({ ts, webDir: join(REPO, 'apps/web'), outDir: web });
   process.stdout.write(`\nnext.config converted for the bundle: ${converted.join(', ')}\n`);
+  loadStagedNextConfig({ webDir: web });
+  process.stdout.write('staged next.config.mjs loads as `next start` loads it\n');
 
   // The migrations the one process applies on start. The three-user grant script
   // (scripts/db/users.sql) is NOT shipped: Hostinger gives one database user, so it is inert

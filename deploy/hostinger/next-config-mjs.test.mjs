@@ -2,7 +2,8 @@
 //
 // The bundle must ship next.config.mjs (loaded by plain Node), never next.config.ts (which needs
 // Next's native SWC — too new for Hostinger's glibc). These tests convert the REAL repository
-// config with the real TypeScript compiler and load the result with plain `import()`.
+// config with the real TypeScript compiler and load the result as the bundle's `next start` does
+// (the deploy build's staged-config guard, `loadStagedNextConfig`).
 import assert from 'node:assert/strict';
 import {
   existsSync,
@@ -17,9 +18,9 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
-import { convertNextConfig } from './build.mjs';
+import { convertNextConfig, loadStagedNextConfig, WEB_BUILD_API_PROXY_TARGET } from './build.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const WEB = join(REPO, 'apps/web');
@@ -62,50 +63,69 @@ test('converts the repo config and every module it imports to .mjs, and writes n
   assert.doesNotMatch(config, /:\s*NextConfig\b/);
 });
 
-test('the converted config loads with plain Node and keeps the security headers', async () => {
+test('the converted config loads as the bundle starts it, without the sources, and keeps the headers', () => {
+  // The converted files alone, as in the bundle: no src/lib/i18n/messages beside them. The config
+  // that read the catalog sources at every load (2026-11-18 crash loop) fails here.
   const out = tempDir();
   convertNextConfig({ ts, webDir: WEB, outDir: out });
 
-  const saved = { ...process.env };
-  Object.assign(process.env, {
-    NODE_ENV: 'production',
-    NEXT_PUBLIC_API_BASE_URL: 'same-origin',
-    NEXT_PUBLIC_SESSION_COOKIE_NAME: 'tmanage_session',
-    API_PROXY_TARGET: 'http://127.0.0.1:3000',
-  });
-  try {
-    const { default: config } = await import(pathToFileURL(join(out, 'next.config.mjs')).href);
-    assert.equal(config.poweredByHeader, false);
-    assert.equal(config.reactStrictMode, true);
-    assert.deepEqual(config.transpilePackages, ['@tmanage/ui']);
+  const config = loadStagedNextConfig({ webDir: out });
+  assert.equal(config.poweredByHeader, false);
+  assert.equal(config.reactStrictMode, true);
+  assert.deepEqual(config.transpilePackages, ['@tmanage/ui']);
+  // Inlined by the build; `next start` serves it from the bundle, so it is not computed here.
+  assert.equal(config.env.NEXT_PUBLIC_CATALOG_VERSION, undefined);
 
-    const rewrites = await config.rewrites();
-    assert.ok(
-      rewrites.some(
-        (rule) => rule.source.startsWith('/v1') && rule.destination.includes('127.0.0.1:3000'),
-      ),
-      JSON.stringify(rewrites),
-    );
+  assert.ok(
+    config.rewrites.some(
+      (rule) =>
+        rule.source.startsWith('/v1') && rule.destination.startsWith(WEB_BUILD_API_PROXY_TARGET),
+    ),
+    JSON.stringify(config.rewrites),
+  );
 
-    const headers = await config.headers();
-    const catchAll = headers.find((rule) => rule.source === '/:path*');
-    const keys = catchAll.headers.map((header) => header.key);
-    for (const key of ['X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy']) {
-      assert.ok(keys.includes(key), `missing ${key}`);
-    }
-    // X-Frame-Options left the catch-all in 52-20 (the embeddable public form at /f/<id> is
-    // framed); every other page still gets DENY from its own rule.
-    const frameRule = headers.find((rule) =>
-      rule.headers.some((h) => h.key === 'X-Frame-Options' && h.value === 'DENY'),
-    );
-    assert.ok(frameRule, 'missing X-Frame-Options DENY');
-    assert.ok(new RegExp(`^${frameRule.source}$`).test('/projects'), frameRule.source);
-    assert.ok(!new RegExp(`^${frameRule.source}$`).test('/f/abc'), frameRule.source);
-    assert.ok(headers.length > 1, 'static asset Cache-Control rules missing');
-  } finally {
-    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
-    Object.assign(process.env, saved);
+  const headers = config.headers;
+  const catchAll = headers.find((rule) => rule.source === '/:path*');
+  const keys = catchAll.headers.map((header) => header.key);
+  for (const key of ['X-Content-Type-Options', 'Referrer-Policy', 'Permissions-Policy']) {
+    assert.ok(keys.includes(key), `missing ${key}`);
   }
+  // X-Frame-Options left the catch-all in 52-20 (the embeddable public form at /f/<id> is
+  // framed); every other page still gets DENY from its own rule.
+  const frameRule = headers.find((rule) =>
+    rule.headers.some((h) => h.key === 'X-Frame-Options' && h.value === 'DENY'),
+  );
+  assert.ok(frameRule, 'missing X-Frame-Options DENY');
+  assert.ok(new RegExp(`^${frameRule.source}$`).test('/projects'), frameRule.source);
+  assert.ok(!new RegExp(`^${frameRule.source}$`).test('/f/abc'), frameRule.source);
+  assert.ok(headers.length > 1, 'static asset Cache-Control rules missing');
+});
+
+test('the staged-config guard fails, naming the file, when the config reads a file the bundle lacks', () => {
+  const web = tempDir();
+  writeFileSync(
+    join(web, 'next.config.mjs'),
+    "import { readdirSync } from 'node:fs';\nimport { join } from 'node:path';\n" +
+      "readdirSync(join(process.cwd(), 'src', 'lib', 'i18n', 'messages'));\nexport default {};\n",
+  );
+
+  assert.throws(
+    () => loadStagedNextConfig({ webDir: web }),
+    (error) =>
+      error.message.includes(join(web, 'next.config.mjs')) &&
+      /would crash on every start/.test(error.message) &&
+      /ENOENT/.test(error.message),
+  );
+});
+
+test('the staged-config guard calls the config with the production-server phase', () => {
+  const web = tempDir();
+  writeFileSync(
+    join(web, 'next.config.mjs'),
+    'export default (phase) => {\n  throw new Error(`refused in ${phase}`);\n};\n',
+  );
+
+  assert.throws(() => loadStagedNextConfig({ webDir: web }), /refused in phase-production-server/);
 });
 
 test('follows a module the config imports transitively, and rewrites its specifiers', () => {
