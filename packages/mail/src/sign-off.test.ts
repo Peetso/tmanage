@@ -5,6 +5,7 @@ import { SenderResolvingMailer } from './sender-resolver.js';
 import {
   LINK_TOKENS,
   SIGNATURE_TOKENS,
+  fillLinkTokens,
   greeting,
   signOff,
   signOffText,
@@ -96,5 +97,15 @@ describe('EMAILBUILD (c) sign-offs', () => {
     expect(workspaceReplyLine('ar', 'none', { workspaceName: 'Acme' })).toBe(
       'الردود على هذه الرسالة لا تُقرأ.',
     );
+  });
+
+  it('HTML links line shows linked words, never the raw URLs; text keeps the URLs', () => {
+    const links = { settings: 'https://x.test/s', unsubscribe: 'https://x.test/u?t=1' };
+    const line = signOff('notice', 'ar').at(-1) ?? '';
+    const html = fillLinkTokens('<p>' + line + '</p>', links, true);
+    expect(html).toBe(
+      '<p><a href="https://x.test/s" style="color:inherit;text-decoration:underline;">إعدادات الإشعارات</a> · <a href="https://x.test/u?t=1" style="color:inherit;text-decoration:underline;">إلغاء الاشتراك</a></p>',
+    );
+    expect(fillLinkTokens(line, links, false)).toContain('https://x.test/u?t=1');
   });
 });

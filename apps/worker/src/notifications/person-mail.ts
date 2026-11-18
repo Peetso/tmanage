@@ -1,12 +1,13 @@
-import { anchored, plainMailText, signOff } from '@tmanage/mail';
+import { anchored, greeting, plainMailText, signOff } from '@tmanage/mail';
 import type { MailLanguage, MailMessage } from '@tmanage/mail';
 import type { PersonMailKind } from './person-mail-catalog.js';
+import { renderPersonMailHtml } from './person-mail-html.js';
 
 /**
  * EMAILBUILD2 — the one frame every person mail uses: greeting, the kind's lines, the one button
  * (as "{label}: {link}"), the reply line, then the person's signature ([PERSON] tokens the sender
  * resolver fills, with the settings and unsubscribe links the notification transport fills).
- * Plain text only: the person-mail HTML layout is listed under NEEDS FIGMA.
+ * HTML in the mail card (Figma 708:38748 / 708:38787), with the plain text kept as the fallback.
  *
  * Template key `tip` is the only key the resolver signs with a registry person; `personRef` names
  * the member and the topic, so the same person always writes to the same member about it.
@@ -49,18 +50,27 @@ export function composePersonMail(kind: PersonMailKind, context: PersonMailConte
   const copy = kind.copy[language];
   const values = { workspaceName: oneLine(context.workspaceName), count: context.count };
   const url = personMailLink(kind.link, context.webOrigin, context.slug);
+  const subject = anchored(language, oneLine(fill(copy.subject, values)));
+  const lines = copy.lines.map((line) => fill(line, values));
+  const button = fill(copy.button, values);
+  const signature = signOff('person', language);
   return {
     to: context.to,
     language,
-    subject: anchored(language, oneLine(fill(copy.subject, values))),
+    subject,
     text: plainMailText(language, {
       name: context.displayName,
-      lines: [
-        ...copy.lines.map((line) => fill(line, values)),
-        `${fill(copy.button, values)}: ${url}`,
-        copy.close,
-      ],
-      signature: signOff('person', language),
+      lines: [...lines, `${button}: ${url}`, copy.close],
+      signature,
+    }),
+    html: renderPersonMailHtml({
+      subject,
+      heading: greeting(language, context.displayName),
+      lines,
+      button: { label: button, url },
+      close: copy.close,
+      signature,
+      arabic: language === 'ar',
     }),
     templateKey: 'tip',
     organizationId: context.organizationId,

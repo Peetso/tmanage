@@ -3,6 +3,7 @@ import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { renderActionEmail } from './action-email.js';
 import { emailIsRtl, emailT, mailLink } from '../i18n/email-messages.js';
+import { arabicMinutes } from './arabic-minutes.js';
 
 /**
  * The password-reset email (ACC-02) and its sender.
@@ -35,16 +36,17 @@ export function composePasswordResetEmail(facts: PasswordResetEmailFacts): MailM
   const language = arabic ? 'ar' : 'en';
   const name = oneLine(facts.displayName);
   const minutes = String(facts.ttlMinutes);
+  const duration = arabicMinutes(facts.ttlMinutes);
   const signature = signOff('security', language);
   const copy = {
     subject: emailT(locale, 'passwordReset.subject'),
-    preheader: emailT(locale, 'passwordReset.preheader', { minutes }),
+    preheader: emailT(locale, 'passwordReset.preheader', { minutes, duration }),
     eyebrow: emailT(locale, 'passwordReset.eyebrow'),
     heading: greeting(language, name),
     intro: emailT(locale, 'passwordReset.intro'),
     button: emailT(locale, 'passwordReset.button'),
     fallback: emailT(locale, 'common.fallback'),
-    note: emailT(locale, 'passwordReset.note', { minutes }),
+    note: emailT(locale, 'passwordReset.note', { minutes, duration }),
     footer: emailT(locale, 'passwordReset.footer'),
   };
 
@@ -75,6 +77,7 @@ export function composeEmailConfirmationEmail(facts: PasswordResetEmailFacts): M
   const language = arabic ? 'ar' : 'en';
   const name = oneLine(facts.displayName);
   const minutes = String(facts.ttlMinutes);
+  const duration = arabicMinutes(facts.ttlMinutes);
   const signature = signOff('security', language);
   const copy = {
     subject: emailT(locale, 'emailConfirm.subject'),
@@ -84,7 +87,7 @@ export function composeEmailConfirmationEmail(facts: PasswordResetEmailFacts): M
     intro: emailT(locale, 'emailConfirm.intro'),
     button: emailT(locale, 'emailConfirm.button'),
     fallback: emailT(locale, 'common.fallback'),
-    note: emailT(locale, 'emailConfirm.note', { minutes }),
+    note: emailT(locale, 'emailConfirm.note', { minutes, duration }),
     footer: emailT(locale, 'emailConfirm.footer'),
   };
   return {

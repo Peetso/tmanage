@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, Switch, Tooltip } from '@tmanage/ui';
 import type { ApiClient } from '../../../lib/api/client';
+import { ApiRequestError } from '../../../lib/api/errors';
 import {
   PLATFORM_PERSON_MAIL_QUERY_KEY,
   addFeatureNews,
@@ -27,6 +28,13 @@ import { PlatformDialog, PlatformDialogActions, platformErrorText } from '../sha
  * audit) is the server's.
  */
 
+/** A second send is the server's 409; the reader sees it in their own language. */
+function sendError(error: Error, t: ReturnType<typeof useT>): string {
+  return error instanceof ApiRequestError && error.status === 409
+    ? t('PlatformPersonMail.alreadySent')
+    : platformErrorText(error, t);
+}
+
 export function FeatureNewsCard({ api, canEdit }: { api: ApiClient; canEdit: boolean }) {
   const t = useT();
   const locale = useActiveLocale();
@@ -44,7 +52,12 @@ export function FeatureNewsCard({ api, canEdit }: { api: ApiClient; canEdit: boo
     mutationFn: (note: FeatureNewsView) => sendFeatureNews(api, note.id),
     onSuccess: (view) => queryClient.setQueryData(PLATFORM_PERSON_MAIL_QUERY_KEY, view),
   });
-  const actionError = toggle.error ?? send.error;
+  const actionError =
+    toggle.error !== null
+      ? platformErrorText(toggle.error, t)
+      : send.error !== null
+        ? sendError(send.error, t)
+        : null;
   const arabic = locale.startsWith('ar');
 
   return (
@@ -75,9 +88,9 @@ export function FeatureNewsCard({ api, canEdit }: { api: ApiClient; canEdit: boo
           onChange={() => toggle.mutate(!state.data.tipsEnabled)}
         />
       ) : null}
-      {actionError ? (
+      {actionError !== null ? (
         <InlineAlert tone="danger" title={t('PlatformShared.notDone')} live>
-          {platformErrorText(actionError, t)}
+          {actionError}
         </InlineAlert>
       ) : null}
       {state.isPending ? (

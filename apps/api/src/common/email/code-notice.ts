@@ -1,5 +1,6 @@
 import { anchored, plainMailText, signOff } from '@tmanage/mail';
 import type { MailLanguage, MailMessage } from '@tmanage/mail';
+import { arabicMinutes } from './arabic-minutes.js';
 
 /**
  * EMAIL-COPY S9: the one-time code a public link or a sign-up challenge asks for, signed [SEC].
@@ -17,7 +18,7 @@ export function composeCodeNotice(facts: {
     language === 'ar'
       ? [
           `رمزك هو ${facts.code}.`,
-          `أدخله في الصفحة التي طلبته. يعمل مرة واحدة وينتهي خلال ${facts.minutes} دقيقة.`,
+          `أدخله في الصفحة التي طلبته. يعمل مرة واحدة وينتهي خلال ${arabicMinutes(facts.minutes)}.`,
           'لم تطلب هذا الرمز؟ تجاهل الرسالة؛ لا شيء يُفتح بدون الرمز.',
         ]
       : [

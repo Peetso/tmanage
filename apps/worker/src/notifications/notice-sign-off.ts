@@ -24,7 +24,20 @@ export function mailLanguage(locale: string | undefined): MailLanguage {
   return locale !== undefined && /^ar(?:-|$)/iu.test(locale) ? 'ar' : 'en';
 }
 
-function escapeHtml(value: string): string {
+/** The mail card's `packages/ui` token values (the worker cannot import the api's layout). */
+export const MAIL_TOKENS = {
+  ink950: '#090a09',
+  ink650: '#4d5049',
+  ink500: '#74786f',
+  paper0: '#ffffff',
+  paper50: '#f7f7f3',
+  paper150: '#e9e9e5',
+  lime500: '#b7ff57',
+  fontLatin: "Manrope, 'Segoe UI', Helvetica, Arial, sans-serif",
+  fontArabic: "Alexandria, Tahoma, 'Segoe UI', Arial, sans-serif",
+} as const;
+
+export function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -51,5 +64,7 @@ export function signatureRowHtml(
         : `<p style="margin:0 0 4px 0;font-family:${font};font-size:12px;line-height:17px;color:#4d5049;">${escapeHtml(line)}</p>`,
     )
     .join('\n');
-  return `<tr><td style="padding:20px 8px 0 8px;text-align:${align};">\n${body}\n</td></tr>`;
+  // dir on the cell itself: a client that drops the outer dir still keeps the footer's order.
+  const dir = align === 'right' ? 'rtl' : 'ltr';
+  return `<tr><td dir="${dir}" style="padding:20px 8px 0 8px;text-align:${align};">\n${body}\n</td></tr>`;
 }

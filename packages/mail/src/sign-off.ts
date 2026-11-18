@@ -184,17 +184,38 @@ function escapeAttribute(value: string): string {
     .replaceAll('"', '&quot;');
 }
 
-/** Fills the link tokens: the bare URL in text, a link in HTML. */
+/** The words of the links line in HTML: each word is the link, no raw URL on show. */
+const LINK_WORDS: Record<
+  MailLanguage,
+  { readonly settings: string; readonly unsubscribe: string }
+> = {
+  en: { settings: 'Notification settings', unsubscribe: 'Unsubscribe' },
+  ar: { settings: 'إعدادات الإشعارات', unsubscribe: 'إلغاء الاشتراك' },
+};
+
+/**
+ * Fills the link tokens: the bare URL in text. In HTML the links line becomes two linked words
+ * ("Notification settings · Unsubscribe"); a token outside that line is a link showing its URL.
+ */
 export function fillLinkTokens(
   value: string,
   links: { readonly settings: string; readonly unsubscribe: string },
   html: boolean,
 ): string {
-  const put = (url: string): string =>
-    html
-      ? `<a href="${escapeAttribute(url)}" style="color:inherit;text-decoration:underline;">${escapeAttribute(url)}</a>`
-      : url;
-  return value
+  const anchor = (url: string, label: string): string =>
+    `<a href="${escapeAttribute(url)}" style="color:inherit;text-decoration:underline;">${escapeAttribute(label)}</a>`;
+  const put = (url: string): string => (html ? anchor(url, url) : url);
+  let filled = value;
+  if (html) {
+    for (const language of ['en', 'ar'] as const) {
+      const words = LINK_WORDS[language];
+      filled = filled.replaceAll(
+        LINKS[language],
+        `${anchor(links.settings, words.settings)} · ${anchor(links.unsubscribe, words.unsubscribe)}`,
+      );
+    }
+  }
+  return filled
     .replaceAll(LINK_TOKENS.settings, put(links.settings))
     .replaceAll(LINK_TOKENS.unsubscribe, put(links.unsubscribe));
 }

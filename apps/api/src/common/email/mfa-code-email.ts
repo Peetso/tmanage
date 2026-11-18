@@ -3,6 +3,7 @@ import type { Mailer, MailMessage } from '@tmanage/mail';
 import { serializeForLog } from '../observability/logger.js';
 import { EMAIL_TOKENS, escapeHtml, signatureRow } from './action-email.js';
 import { emailIsRtl, emailT } from '../i18n/email-messages.js';
+import { arabicMinutes } from './arabic-minutes.js';
 
 /**
  * MFAOPTIONS. The e-mail that carries a two-step verification code, and its sender.
@@ -36,18 +37,19 @@ export function composeMfaCodeEmail(facts: MfaCodeEmailFacts): MailMessage {
   const arabic = emailIsRtl(locale);
   const name = oneLine(facts.displayName);
   const minutes = String(facts.ttlMinutes);
+  const duration = arabicMinutes(facts.ttlMinutes);
   const language = arabic ? 'ar' : 'en';
   const signature = signOff('security', language);
   const copy = {
     subject: emailT(locale, 'mfaCode.subject'),
-    preheader: emailT(locale, 'mfaCode.preheader', { minutes }),
+    preheader: emailT(locale, 'mfaCode.preheader', { minutes, duration }),
     eyebrow: emailT(locale, 'mfaCode.eyebrow'),
     heading: greeting(language, name),
     intro: emailT(
       locale,
       facts.purpose === 'sign_in' ? 'mfaCode.introSignIn' : 'mfaCode.introEnrol',
     ),
-    note: emailT(locale, 'mfaCode.note', { minutes }),
+    note: emailT(locale, 'mfaCode.note', { minutes, duration }),
     footer: emailT(locale, 'mfaCode.footer'),
   };
 
