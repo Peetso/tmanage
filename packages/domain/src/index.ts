@@ -557,3 +557,6 @@ export * from './time/auto-tracking.js';
 
 // Manual timer rounding: the step the owner chooses, shared by the API and the Stop dialog — 52-01
 export * from './time/rounding.js';
+
+// Activity history per project and client: the action catalogue shared by worker and API — 62-A2 (B02)
+export * from './activity/activity-catalog.js';
