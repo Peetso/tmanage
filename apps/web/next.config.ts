@@ -1,4 +1,7 @@
 import type { NextConfig } from 'next';
+// `.js`: the Hostinger bundle ships this file as plain ESM (`next.config.mjs`), and Next's package
+// has no `exports` map, so Node only finds the module by its file name (as Next's docs write it).
+import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from 'next/constants.js';
 import { join } from 'node:path';
 import { validatePublicConfigForBuild } from './src/lib/public-config';
 import { hstsHeaderRules } from './src/lib/csp';
@@ -38,6 +41,16 @@ import { staticAssetHeaderRules } from './src/lib/static-headers';
  * host, its readable CSRF cookie is readable by this page, and its path-scoped refresh cookie
  * is sent to the path it was scoped to. `50-BOOTSTRAP` §3's two applications remain two
  * applications; only the browser's view of them changes. See `public-config.ts`.
+ *
+ * ## Exported per phase: build-time inputs are read only when code is compiled
+ *
+ * `next start` loads this file too, from a directory that holds the build and none of the
+ * sources (the Hostinger bundle ships `.next` and this config, not `src/lib/i18n/messages`). The
+ * 2026-11-18 deploy crash-looped because the catalog hash below was computed on every load. So
+ * the default export is Next's phase function, and an `env` value that is inlined at compile time
+ * is computed only in the phases that compile (`next build`, `next dev`); at `next start` it is
+ * already in the bundle. The public-config validation stays at load, in every phase: the web
+ * child re-runs it at start (`apps/server/server.mjs`).
  */
 const publicConfig = validatePublicConfigForBuild({
   nodeEnv: process.env.NODE_ENV,
@@ -59,10 +72,9 @@ const config: NextConfig = {
   // `PUBLIC_SIGNUP` (the API's switch, default on) inlined for the website's links at build time:
   // `off` turns every "Start free" back into Sign in and hides "Create an account". The API's
   // routes follow the same variable at runtime, so a changed value needs a rebuild for the links.
-  // CATSPLIT: the catalog version the browser fetches its catalog parts under (`catalog-part-path.ts`).
+  // The catalog version joins it in the compiling phases (`nextConfig` below).
   env: {
     NEXT_PUBLIC_SIGNUP: process.env['PUBLIC_SIGNUP'] ?? 'on',
-    NEXT_PUBLIC_CATALOG_VERSION: catalogVersion(join(process.cwd(), 'src', 'lib', 'i18n')),
   },
   // DOMAINIMPORT2: JSZip's package entry is its Node build (readable-stream), and Turbopack did
   // not apply its `browser` field, so the Office viewers and the import reader shipped the Node
@@ -148,4 +160,21 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+/** The phases that compile code, and so inline `env`; `next start` only serves what they built. */
+const COMPILING_PHASES: ReadonlySet<string> = new Set([
+  PHASE_PRODUCTION_BUILD,
+  PHASE_DEVELOPMENT_SERVER,
+]);
+
+export default function nextConfig(phase: string): NextConfig {
+  if (!COMPILING_PHASES.has(phase)) return config;
+  return {
+    ...config,
+    env: {
+      ...config.env,
+      // CATSPLIT: the catalog version the browser fetches its catalog parts under
+      // (`catalog-part-path.ts`), hashed from the catalog sources, which only the build has.
+      NEXT_PUBLIC_CATALOG_VERSION: catalogVersion(join(process.cwd(), 'src', 'lib', 'i18n')),
+    },
+  };
+}

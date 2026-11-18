@@ -186,6 +186,23 @@ export function webChildEnv(parentEnv, transport, nominalPort) {
   return out;
 }
 
+/**
+ * The public configuration the web child's `next start` needs: next.config re-runs its
+ * public-config validation when it loads, so the same values the bundle build inlined must be
+ * present. The /v1 rewrite they imply is never used (server.mjs answers /v1, and refuses its case
+ * variants, before the web child sees it), so the proxy target is a placeholder on a privileged
+ * port nothing of this account can listen on (NV05; the value the bundle build bakes in). The
+ * deploy build loads the staged config with these same values (deploy/hostinger/build.mjs).
+ */
+export function webChildPublicConfig(parentEnv) {
+  return {
+    NEXT_PUBLIC_API_BASE_URL: parentEnv['NEXT_PUBLIC_API_BASE_URL'] ?? 'same-origin',
+    NEXT_PUBLIC_SESSION_COOKIE_NAME:
+      parentEnv['NEXT_PUBLIC_SESSION_COOKIE_NAME'] ?? 'tmanage_session',
+    API_PROXY_TARGET: parentEnv['API_PROXY_TARGET'] ?? 'http://127.0.0.1:1',
+  };
+}
+
 /** Answer one request while the application is starting. */
 export function answerStarting(res) {
   res.writeHead(503, {

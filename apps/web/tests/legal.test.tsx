@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import { PHASE_PRODUCTION_SERVER } from 'next/constants.js';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { MarketingLegalScreen } from '../src/components/screens/MarketingLegalScreen';
@@ -90,8 +91,8 @@ describe('MarketingLegalScreen', () => {
 
 describe('legal short addresses', () => {
   it('permanently redirects /privacy and /terms to the legal pages', async () => {
-    const { default: config } = await import('../next.config');
-    const redirects = await config.redirects?.();
+    const { default: nextConfig } = await import('../next.config');
+    const redirects = await nextConfig(PHASE_PRODUCTION_SERVER).redirects?.();
     expect(redirects).toEqual(
       expect.arrayContaining([
         { source: '/privacy', destination: '/legal/privacy', permanent: true },
@@ -101,8 +102,8 @@ describe('legal short addresses', () => {
   });
 
   it('A22: sends the Arabic short addresses and /communication to their public pages', async () => {
-    const { default: config } = await import('../next.config');
-    const redirects = await config.redirects?.();
+    const { default: nextConfig } = await import('../next.config');
+    const redirects = await nextConfig(PHASE_PRODUCTION_SERVER).redirects?.();
     expect(redirects).toEqual(
       expect.arrayContaining([
         { source: '/ar/privacy', destination: '/ar/legal/privacy', permanent: true },

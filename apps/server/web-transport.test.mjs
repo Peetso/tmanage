@@ -21,6 +21,7 @@ import {
   resolveWebTransport,
   STARTING_BODY,
   webChildEnv,
+  webChildPublicConfig,
   webConnectTarget,
   webTarget,
 } from './web-transport.mjs';
@@ -200,6 +201,20 @@ test('prepare makes the directory 0700 and removes a stale socket; cleanup remov
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('the web child gets the public configuration the bundle build inlined, unless the panel sets it', () => {
+  assert.deepEqual(webChildPublicConfig({ PATH: '/bin' }), {
+    NEXT_PUBLIC_API_BASE_URL: 'same-origin',
+    NEXT_PUBLIC_SESSION_COOKIE_NAME: 'tmanage_session',
+    API_PROXY_TARGET: 'http://127.0.0.1:1',
+  });
+  const set = {
+    NEXT_PUBLIC_API_BASE_URL: 'https://api.example.test',
+    NEXT_PUBLIC_SESSION_COOKIE_NAME: 'sid',
+    API_PROXY_TARGET: 'http://127.0.0.1:2',
+  };
+  assert.deepEqual(webChildPublicConfig(set), set);
 });
 
 test('the child environment drops LiteSpeed variables and names the socket', () => {

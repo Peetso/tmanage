@@ -110,6 +110,7 @@ import {
   resolveWebTransport,
   webChildEnv,
   webChildHost,
+  webChildPublicConfig,
   webConnectTarget,
   webTarget,
 } from './web-transport.mjs';
@@ -233,15 +234,8 @@ function spawnWebChild(transport, nominalPort) {
         // HOSTNAME keeps it off the public interface, and LiteSpeed's LSNODE_* variables are
         // dropped (web-transport.mjs).
         ...webChildEnv(process.env, transport, nominalPort),
-        // next.config.ts re-runs its public-config validation when `next start` loads it, so the
-        // same values the build inlined must be present. The /v1 rewrite they imply is never used
-        // (this process answers /v1, and refuses its case variants, before the web child sees
-        // it), so the proxy target is a placeholder on a privileged port nothing of this account
-        // can listen on (NV05; the same value the bundle build bakes in).
-        NEXT_PUBLIC_API_BASE_URL: process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'same-origin',
-        NEXT_PUBLIC_SESSION_COOKIE_NAME:
-          process.env['NEXT_PUBLIC_SESSION_COOKIE_NAME'] ?? 'tmanage_session',
-        API_PROXY_TARGET: process.env['API_PROXY_TARGET'] ?? 'http://127.0.0.1:1',
+        // next.config re-runs its public-config validation when `next start` loads it.
+        ...webChildPublicConfig(process.env),
       },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
