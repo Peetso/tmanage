@@ -83,6 +83,7 @@ export const ACTIVITY_PROJECTOR_SQL = {
          c.last_event_id AS last_event_id
     FROM organizations o
     LEFT JOIN activity_projection_cursors c ON c.organization_id = o.id
+   WHERE o.deleted_at IS NULL
    ORDER BY c.updated_at IS NOT NULL, c.updated_at, o.id
    LIMIT ?`,
   eventsFromStart: `SELECT ${EVENT_COLUMNS}

@@ -20,6 +20,7 @@ import type { SweepLock } from '../common/database/sweep-lock.js';
  * {@link ACTIVITY_EVENTS_PER_RUN} events in all: the pace that back-fills an old workspace from its
  * first event without one long statement. Only events older than {@link ACTIVITY_SETTLE_MS} are
  * read, so a row whose transaction is still open when its neighbours are read is not skipped.
+ * A deleted (closing or erased) company is not projected: its audit trail is kept, its rows not.
  *
  * ## Idempotent and restart-safe
  *
