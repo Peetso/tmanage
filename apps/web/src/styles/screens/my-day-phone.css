@@ -1,0 +1,222 @@
+/*
+ * Phone · My Day quick actions (Figma 713:38761 / 713:39587 My Day, 713:38899 / 713:39725 Approve
+ * sheet, 713:39060 / 713:39886 Log time sheet, 713:39454 / 713:40280 Offline; corrected by
+ * DESIGN-REVIEW-FIGMA-A points 1, 2, 3, 5 and 6).
+ *
+ * The card actions are phone only (hidden from 768px, so the desktop My Day is unchanged). The
+ * sheet itself is drawn at every width but only opened from those phone actions. Every rule uses
+ * logical properties, so Arabic mirrors without a second stylesheet; every target is 44px or more.
+ */
+
+.tm-phone-card-actions,
+.tm-phone-card-status {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* ── Card actions: Approve + Send back (713:38876), Log time (713:38894) ─────────── */
+
+  .tm-phone-card-actions {
+    display: flex;
+    grid-area: actions;
+    gap: var(--s2);
+    margin-block-start: var(--s3);
+  }
+
+  .tm-phone-card-actions > .tm-button {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    min-block-size: 48px;
+  }
+
+  .tm-home-cards .tm-home-card:has(.tm-phone-card-actions),
+  .tm-home-cards .tm-home-card.tm-card--lime:has(.tm-phone-card-actions) {
+    grid-template-areas:
+      'orb title'
+      'orb meta'
+      'foot foot'
+      'status status'
+      'actions actions';
+  }
+
+  /* Offline: the capsule and one line, no button (review point 3). */
+  .tm-phone-card-status {
+    display: flex;
+    flex-direction: column;
+    grid-area: status;
+    align-items: flex-start;
+    gap: var(--s1);
+    margin-block-start: var(--s3);
+    color: var(--ink-650);
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+  }
+
+  .tm-phone-card-status p {
+    margin: 0;
+  }
+
+  /* "Waiting on you" on a phone: one card per row, actions on their own line, no sideways scroll. */
+  .tm-home-rows > li:has(.tm-phone-card-actions) {
+    flex-wrap: wrap;
+  }
+
+  .tm-home-rows > li > .tm-phone-card-actions {
+    flex-basis: 100%;
+  }
+
+  .tm-home-rows > li:has(.tm-phone-card-actions) > .tm-button--outline {
+    display: none;
+  }
+
+  .tm-home-rows > li .tm-home-rows__title {
+    flex: 1 1 12ch;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ── Bottom sheet (composed: scrim + handle, review "Composed" list) ──────────────── */
+
+.tm-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.tm-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--tm-scrim);
+}
+
+.tm-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  max-inline-size: 560px;
+  max-block-size: calc(100dvh - var(--s8, 48px));
+  margin-inline: auto;
+  border-start-start-radius: var(--r-sheet);
+  border-start-end-radius: var(--r-sheet);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+.tm-sheet__handle {
+  flex: none;
+  align-self: center;
+  inline-size: 40px;
+  block-size: 4px;
+  margin-block: var(--s3) var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--line-300);
+}
+
+.tm-sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-block-size: 0;
+  padding: var(--s2) var(--s5) var(--s5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The primary action stays in view while the body scrolls under the keyboard. */
+.tm-sheet__footer {
+  position: sticky;
+  inset-block-end: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3) var(--s5) calc(var(--s3) + env(safe-area-inset-bottom, 0px));
+  border-block-start: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+}
+
+.tm-sheet__title {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  font-weight: 600;
+  line-height: var(--t-heading-section-line);
+  overflow-wrap: anywhere;
+}
+
+.tm-sheet__lead {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  overflow-wrap: anywhere;
+}
+
+.tm-sheet__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-sheet__wide {
+  inline-size: 100%;
+}
+
+/* Cancel is a text button: the 44px hit area is its own block size (review point 2). */
+.tm-sheet .tm-button--text.tm-sheet__wide {
+  min-block-size: 44px;
+}
+
+.tm-sheet__divider {
+  inline-size: 100%;
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-sheet__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-block-start: calc(var(--s2) * -1);
+}
+
+.tm-sheet__chip {
+  flex: 1 1 0;
+  justify-content: center;
+  min-inline-size: 56px;
+  min-block-size: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Day field: the calendar sign at the field end (review point 5), inline-end in both directions. */
+.tm-sheet__date {
+  position: relative;
+}
+
+.tm-sheet__date .tm-field__control {
+  padding-inline-end: calc(var(--s4) + 20px + var(--s2));
+}
+
+.tm-sheet__date-icon {
+  position: absolute;
+  inset-block-start: calc(var(--t-ui-sm-line, 20px) + var(--s2) + 12px);
+  inset-inline-end: var(--s4);
+  display: grid;
+  place-items: center;
+  color: var(--ink-650);
+  pointer-events: none;
+}
+
+/* The browser's own picker sign would double the drawn one; the field stays a native date input. */
+.tm-sheet__date .tm-field__control::-webkit-calendar-picker-indicator {
+  opacity: 0;
+}
+
+.tm-sheet .tm-field__control {
+  min-block-size: 48px;
+}

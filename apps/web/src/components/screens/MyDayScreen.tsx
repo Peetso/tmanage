@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell, DayPulseBar } from '../shell/AppShell';
 import type { DayPulseItem } from '../shell/AppShell';
 import { HomeHeroSection } from './HomeHeroSection';
@@ -41,6 +41,8 @@ import '../../styles/screens/home.css';
 import { CoachMarkTour } from '../help/CoachMarkTour';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { usePendingWrites } from '../../lib/offline/use-offline';
+import { ApproveSheet, LogTimeSheet, type ApprovalVerdict } from './MyDayPhoneSheets';
 
 export interface MyDayScreenProps {
   organizationSlug: string;
@@ -51,6 +53,33 @@ export interface MyDayScreenProps {
 type MyDayEntry = MyDay['items'][number];
 type WaitingEntry = Waiting['items'][number];
 type CardFilter = 'all' | 'overdue' | 'due_soon';
+
+/** The phone sheet open over My Day, if any (Figma 713:38899 Approve, 713:39060 Log time). */
+type PhoneSheet =
+  | {
+      readonly kind: 'approve';
+      readonly approvalId: string;
+      readonly version: number;
+      readonly subject: string;
+      readonly intent: ApprovalVerdict;
+    }
+  | {
+      readonly kind: 'time';
+      readonly workItemId: string;
+      readonly workTitle: string;
+      readonly projectName: string;
+    };
+
+/**
+ * The approval version the reviewer read, when `/home/waiting` carries it. The decision route
+ * needs it (optimistic concurrency); until the row has it, the phone keeps the Review link.
+ */
+function waitingVersion(entry: WaitingEntry): number | undefined {
+  const version = (entry as { readonly version?: unknown }).version;
+  return typeof version === 'number' && Number.isSafeInteger(version) && version > 0
+    ? version
+    : undefined;
+}
 
 /**
  * **HOME-01 My Day** — the first destination on the internal rail, drawn to the design handoff's
@@ -80,6 +109,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
   const describeSavedError = useDescribeApiError(SAVED_ERROR_LINES);
   const describeSummaryError = useDescribeApiError(SUMMARY_ERROR_LINES);
   const [filter, setFilter] = useState<CardFilter>('all');
+  const [sheet, setSheet] = useState<PhoneSheet | null>(null);
 
   // 53-01: My Day refetches when the person's own work changes elsewhere (created, moved,
   // edited, commented, assigned), over the personal `me` topic.
@@ -180,7 +210,14 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
       <PhoneHomeHero
         api={api}
         organizationSlug={organizationSlug}
-        headline={dayLead(summary.data, summary.isPending || summary.isError, t, locale)}
+        headline={
+          // Review point 4: an empty day is one sentence on the phone; the cards say the rest.
+          summary.data &&
+          !summary.isError &&
+          summary.data.personalWork.total + summary.data.waiting.total === 0
+            ? tOr('PhoneHome.dayClear', 'Nothing needs you right now.')
+            : dayLead(summary.data, summary.isPending || summary.isError, t, locale)
+        }
         approvalsWaiting={summary.data?.waiting.approvals}
         upNext={upNext}
       />
@@ -326,6 +363,14 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                       lime={index === 0 && filter === 'all'}
                       organizationSlug={organizationSlug}
                       projectName={projectName(entry.workItem.projectId)}
+                      onLogTime={() =>
+                        setSheet({
+                          kind: 'time',
+                          workItemId: entry.workItem.id,
+                          workTitle: entry.workItem.title,
+                          projectName: projectName(entry.workItem.projectId),
+                        })
+                      }
                     />
                   </li>
                 ))}
@@ -372,6 +417,9 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                     entry={entry}
                     organizationSlug={organizationSlug}
                     projectName={projectName(entry.projectId)}
+                    onDecide={(intent, subject, approvalId, version) =>
+                      setSheet({ kind: 'approve', approvalId, version, subject, intent })
+                    }
                   />
                 ))}
               </ul>
@@ -501,6 +549,29 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           <HomeRecentItemsView organizationSlug={organizationSlug} client={client} />
         </div>
       </div>
+      {sheet?.kind === 'approve' ? (
+        <ApproveSheet
+          api={api}
+          organizationSlug={organizationSlug}
+          approvalId={sheet.approvalId}
+          version={sheet.version}
+          subject={sheet.subject}
+          intent={sheet.intent}
+          onClose={() => setSheet(null)}
+          onDecided={() => setSheet(null)}
+        />
+      ) : null}
+      {sheet?.kind === 'time' ? (
+        <LogTimeSheet
+          api={api}
+          organizationSlug={organizationSlug}
+          workItemId={sheet.workItemId}
+          workTitle={sheet.workTitle}
+          projectName={sheet.projectName}
+          onClose={() => setSheet(null)}
+          onLogged={() => setSheet(null)}
+        />
+      ) : null}
       <CoachMarkTour
         organizationSlug={organizationSlug}
         tour="my_day"
@@ -516,15 +587,20 @@ function WorkCard({
   lime,
   organizationSlug,
   projectName,
+  onLogTime,
 }: {
   entry: MyDayEntry;
   lime: boolean;
   organizationSlug: string;
   projectName: string;
+  onLogTime: () => void;
 }) {
   const t = useT();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const href = `/${organizationSlug}/work/${entry.workItem.id}`;
+  // Offline, a logged time waits in the queue: the card says so, with no button (review point 3).
+  const pendingTime = usePendingWrites(organizationSlug, entry.workItem.id, 'time-log');
   return (
     <article className={`tm-card tm-home-card${lime ? ' tm-card--lime' : ''}`}>
       <div className="tm-home-card__top">
@@ -563,6 +639,23 @@ function WorkCard({
           {stateLabel(entry.workItem.state)}
         </StateCapsule>
       </div>
+      {pendingTime.length > 0 ? (
+        <div className="tm-phone-card-status" role="status">
+          <StateCapsule state="waiting">{tOr('PhoneHome.notSaved', 'Not saved')}</StateCapsule>
+          <p>
+            {tOr(
+              'PhoneHome.keptOnPhone',
+              'Kept on this phone. It is sent when you are back online.',
+            )}
+          </p>
+        </div>
+      ) : null}
+      <div className="tm-phone-card-actions">
+        <Button type="button" tone="outline" size="accessible" onClick={onLogTime}>
+          {tOr('PhoneHome.logTime', 'Log time')}
+          <span className="tm-visually-hidden">: {entry.workItem.title}</span>
+        </Button>
+      </div>
     </article>
   );
 }
@@ -572,14 +665,18 @@ function WaitingRow({
   entry,
   organizationSlug,
   projectName,
+  onDecide,
 }: {
   entry: WaitingEntry;
   organizationSlug: string;
   projectName: string;
+  onDecide: (intent: ApprovalVerdict, subject: string, approvalId: string, version: number) => void;
 }) {
   const t = useT();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const isApproval = entry.kind === 'approval';
+  const version = waitingVersion(entry);
   const title = isApproval ? t('MyDayScreen.deliverableReview') : entry.title;
   const since = isApproval ? entry.requestedAt : entry.waitingSince;
   // REQ-11: Triage opens the request itself, not the general inbox the person then has to search.
@@ -605,6 +702,28 @@ function WaitingRow({
         {isApproval ? t('MyDayScreen.review') : t('MyDayScreen.triage')}
         <span className="tm-visually-hidden">: {title}</span>
       </Link>
+      {entry.kind === 'approval' && version !== undefined ? (
+        <div className="tm-phone-card-actions">
+          <Button
+            type="button"
+            tone="ink"
+            size="accessible"
+            onClick={() => onDecide('approve', title, entry.approvalId, version)}
+          >
+            {tOr('PhoneHome.approve', 'Approve')}
+            <span className="tm-visually-hidden">: {title}</span>
+          </Button>
+          <Button
+            type="button"
+            tone="outline"
+            size="accessible"
+            onClick={() => onDecide('request_changes', title, entry.approvalId, version)}
+          >
+            {tOr('PhoneHome.sendBack', 'Send back')}
+            <span className="tm-visually-hidden">: {title}</span>
+          </Button>
+        </div>
+      ) : null}
     </li>
   );
 }
