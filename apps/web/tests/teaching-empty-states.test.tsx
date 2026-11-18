@@ -42,6 +42,37 @@ import { PortalRisksScreen } from '../src/components/screens/PortalRisksScreen';
 import { PortalUpdatesScreen } from '../src/components/screens/PortalUpdatesScreen';
 import { InboxSavedFiltersScreen } from '../src/components/screens/InboxSavedFiltersScreen';
 import { InboxScreen } from '../src/components/screens/InboxScreen';
+import { ApprovalDelegationView } from '../src/components/screens/ApprovalDelegationView';
+import { AutomationConditionsScreen } from '../src/components/screens/AutomationConditionsScreen';
+import { AutomationTemplateTagsView } from '../src/components/screens/AutomationTemplateTagsView';
+import { AutomationVariablesView } from '../src/components/screens/AutomationVariablesView';
+import { DocRevisionsScreen } from '../src/components/screens/DocRevisionsScreen';
+import { DocTagsScreen } from '../src/components/screens/DocTagsScreen';
+import { DocumentTemplateVariablesScreen } from '../src/components/screens/DocumentTemplateVariablesScreen';
+import { FileFoldersView } from '../src/components/screens/FileFoldersView';
+import { FileTagsScreen } from '../src/components/screens/FileTagsScreen';
+import { HomeQuickLinksScreen } from '../src/components/screens/HomeQuickLinksScreen';
+import { InboxRulesScreen } from '../src/components/screens/InboxRulesScreen';
+import { InboxSnoozeView } from '../src/components/screens/InboxSnoozeView';
+import { InboxSourceMutesView } from '../src/components/screens/InboxSourceMutesView';
+import { InsightAnnotationsScreen } from '../src/components/screens/InsightAnnotationsScreen';
+import { InsightTargetsScreen } from '../src/components/screens/InsightTargetsScreen';
+import { MeetingAgendaScreen } from '../src/components/screens/MeetingAgendaScreen';
+import { MeetingAgendaTemplatesView } from '../src/components/screens/MeetingAgendaTemplatesView';
+import { MeetingAttendeesScreen } from '../src/components/screens/MeetingAttendeesScreen';
+import { MeetingNotesScreen } from '../src/components/screens/MeetingNotesScreen';
+import { PersonCertificationsView } from '../src/components/screens/PersonCertificationsView';
+import { PinnedMessagesView } from '../src/components/screens/PinnedMessagesView';
+import { PortalAccessLogScreen } from '../src/components/screens/PortalAccessLogScreen';
+import { ProjectTagsScreen } from '../src/components/screens/ProjectTagsScreen';
+import { ProjectTemplatesScreen } from '../src/components/screens/ProjectTemplatesScreen';
+import { RequestTagsView } from '../src/components/screens/RequestTagsView';
+import { SearchPinsView } from '../src/components/screens/SearchPinsView';
+import { SearchSavedScopesView } from '../src/components/screens/SearchSavedScopesView';
+import { WebhookDeliveryScreen } from '../src/components/screens/WebhookDeliveryScreen';
+import { WorkBoardColumnsView } from '../src/components/screens/WorkBoardColumnsView';
+import { WorkItemTimeLogScreen } from '../src/components/screens/WorkItemTimeLogScreen';
+import { WorkSavedViewsScreen } from '../src/components/screens/WorkSavedViewsScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { translate } from '../src/lib/i18n/t';
 
@@ -487,6 +518,280 @@ describe('teaching empty states (55-10p)', () => {
       mount((client) => <AutomationRunHistoryScreen {...props} client={client} />, routes);
       const section = (await teaching(/no runs yet/i)).closest('section') as HTMLElement;
       expect(within(section).queryByRole('button')).toBeNull();
+    });
+  });
+
+  describe('remaining screens (55-10p rest): teach, the action needs the permission', () => {
+    const routes = {
+      '/insights/snapshots/s1/annotations': { annotations: [] },
+      '/insights/targets/status': [],
+      '/inbox/rules': { rules: [] },
+      '/doc-tags': { tags: [] },
+      '/file-tags': { tags: [] },
+      '/projects/p1/folders': { folders: [] },
+      '/projects/p1/files': { files: [] },
+      '/work-views/saved': { savedViews: [] },
+      '/projects': { projects: [] },
+      '/work/board-columns': { columns: [] },
+      '/automations/templates/t1/conditions': { conditions: [] },
+      '/automations/variables': { variables: [] },
+      '/automations/templates/t1/tags': { tags: [] },
+      '/home/quick-links': { links: [] },
+      '/work-items/w1/time-logs': { entries: [], totalMinutes: 0 },
+      '/projects/tags': { tags: [] },
+      '/projects/templates': { templates: [] },
+      '/client-requests/r1/tags': { clientRequestId: 'r1', tags: [] },
+      '/search/pins': { pins: [] },
+      '/search/scopes': { scopes: [] },
+      '/document-templates/t1/variables': { variables: [] },
+      '/approvals/delegations': { delegations: [] },
+      '/people/u1/certifications': { certifications: [] },
+      '/meetings/m1/attendees': { attendees: [] },
+      '/meetings/agenda-templates': { templates: [] },
+      '/documents/d1/revisions': { revisions: [] },
+      '/meetings/agenda': { range: { from: '2026-11-18', to: '2026-11-25' }, days: [] },
+      '/meetings/m1/notes': { notes: [] },
+      '/inbox/snoozed': { snoozes: [] },
+      '/inbox/source-mutes': { mutes: [] },
+      '/conversations/c1/pins': { pins: [] },
+      '/automations/webhooks/e1/deliveries': { deliveries: [], nextCursor: null },
+      '/projects/p1/portal-access-log': { events: [] },
+    };
+    const props = { organizationSlug: 'acme', organizationName: 'Acme' };
+    const cases: readonly [string, (client: ApiClient) => ReactElement, RegExp, string][] = [
+      [
+        'Snapshot annotations',
+        (client) => (
+          <InsightAnnotationsScreen
+            {...props}
+            snapshotId="s1"
+            currentMembershipId="mb1"
+            client={client}
+          />
+        ),
+        /^no annotations$/i,
+        'Add a note',
+      ],
+      [
+        'Insight targets',
+        (client) => <InsightTargetsScreen {...props} client={client} />,
+        /no targets yet/i,
+        'Set a target',
+      ],
+      [
+        'Inbox rules',
+        (client) => <InboxRulesScreen {...props} client={client} />,
+        /no inbox rules yet/i,
+        'Add a rule',
+      ],
+      [
+        'Document tags',
+        (client) => <DocTagsScreen {...props} client={client} />,
+        /no document tags yet/i,
+        'Create a tag',
+      ],
+      [
+        'File tags',
+        (client) => <FileTagsScreen {...props} client={client} />,
+        /no file tags yet/i,
+        'Create a tag',
+      ],
+      [
+        'File folders',
+        (client) => (
+          <FileFoldersView {...props} projectId="p1" projectName="Website" client={client} />
+        ),
+        /no folders yet/i,
+        'Create a folder',
+      ],
+      [
+        'Work saved views',
+        (client) => <WorkSavedViewsScreen {...props} client={client} />,
+        /no saved views yet/i,
+        'Save a view',
+      ],
+      [
+        'Board columns',
+        (client) => <WorkBoardColumnsView organizationSlug="acme" api={client} />,
+        /no custom columns yet/i,
+        'Add a column',
+      ],
+      [
+        'Automation conditions',
+        (client) => (
+          <AutomationConditionsScreen organizationSlug="acme" templateId="t1" client={client} />
+        ),
+        /no conditions yet/i,
+        'Add a condition',
+      ],
+      [
+        'Automation variables',
+        (client) => <AutomationVariablesView organizationSlug="acme" client={client} />,
+        /no variables yet/i,
+        'Add a variable',
+      ],
+      [
+        'Automation tags',
+        (client) => (
+          <AutomationTemplateTagsView organizationSlug="acme" templateId="t1" client={client} />
+        ),
+        /no tags yet/i,
+        'Add a tag',
+      ],
+      [
+        'Quick links',
+        (client) => <HomeQuickLinksScreen {...props} client={client} />,
+        /no quick links yet/i,
+        'Add a link',
+      ],
+      [
+        'Time log',
+        (client) => <WorkItemTimeLogScreen {...props} workItemId="w1" client={client} />,
+        /no time logged yet/i,
+        'Log time',
+      ],
+      [
+        'Project tags',
+        (client) => <ProjectTagsScreen {...props} client={client} />,
+        /no project tags yet/i,
+        'Create a tag',
+      ],
+      [
+        'Project templates',
+        (client) => <ProjectTemplatesScreen {...props} client={client} />,
+        /no templates yet/i,
+        'Create a template',
+      ],
+      [
+        'Request tags',
+        (client) => (
+          <RequestTagsView organizationSlug="acme" clientRequestId="r1" client={client} />
+        ),
+        /no tags yet/i,
+        'Add a tag',
+      ],
+      [
+        'Search pins',
+        (client) => <SearchPinsView {...props} client={client} />,
+        /no pins yet/i,
+        'Pin something',
+      ],
+      [
+        'Search scopes',
+        (client) => <SearchSavedScopesView organizationSlug="acme" client={client} />,
+        /no saved scopes yet/i,
+        'Save these filters',
+      ],
+      [
+        'Template variables',
+        (client) => <DocumentTemplateVariablesScreen {...props} templateId="t1" client={client} />,
+        /no variables yet/i,
+        'Add a variable',
+      ],
+      [
+        'Approval delegation',
+        (client) => <ApprovalDelegationView {...props} client={client} />,
+        /no delegations yet/i,
+        'Delegate approvals',
+      ],
+      [
+        'Certifications',
+        (client) => <PersonCertificationsView organizationSlug="acme" userId="u1" api={client} />,
+        /no certifications yet/i,
+        'Add a certification',
+      ],
+      [
+        'Meeting attendees',
+        (client) => <MeetingAttendeesScreen {...props} meetingId="m1" client={client} />,
+        /no attendees yet/i,
+        'Invite someone',
+      ],
+      [
+        'Agenda templates',
+        (client) => <MeetingAgendaTemplatesView {...props} client={client} />,
+        /no templates yet/i,
+        'Create a template',
+      ],
+      [
+        'Doc revisions',
+        (client) => <DocRevisionsScreen {...props} documentId="d1" client={client} />,
+        /no revisions yet/i,
+        'Save a revision',
+      ],
+    ];
+    it.each(cases)('%s', async (_name, view, title, action) => {
+      mount(view, routes);
+      const section = (await teaching(title)).closest('section') as HTMLElement;
+      const button = await within(section).findByRole('button', { name: action });
+      fireEvent.click(button);
+      expect(document.activeElement?.closest('form')).not.toBeNull();
+      cleanup();
+      mount(view, routes, 'custom-viewer');
+      const bare = (await teaching(title)).closest('section') as HTMLElement;
+      expect(within(bare).queryByRole('button')).toBeNull();
+    });
+
+    it.each([
+      [
+        'Meeting agenda',
+        (client: ApiClient) => <MeetingAgendaScreen {...props} client={client} />,
+        /nothing on the agenda yet/i,
+      ],
+      [
+        'Meeting notes',
+        (client: ApiClient) => <MeetingNotesScreen {...props} meetingId="m1" client={client} />,
+        /no notes yet/i,
+      ],
+      [
+        'Snoozed',
+        (client: ApiClient) => <InboxSnoozeView organizationSlug="acme" client={client} />,
+        /nothing snoozed/i,
+      ],
+      [
+        'Muted sources',
+        (client: ApiClient) => <InboxSourceMutesView organizationSlug="acme" client={client} />,
+        /nothing muted/i,
+      ],
+      [
+        'Pinned messages',
+        (client: ApiClient) => (
+          <PinnedMessagesView organizationSlug="acme" conversationId="c1" client={client} />
+        ),
+        /no pinned messages/i,
+      ],
+      [
+        'Webhook deliveries',
+        (client: ApiClient) => <WebhookDeliveryScreen {...props} endpointId="e1" client={client} />,
+        /no deliveries yet/i,
+      ],
+      [
+        'Portal access log',
+        (client: ApiClient) => <PortalAccessLogScreen {...props} projectId="p1" client={client} />,
+        /no client visits yet/i,
+      ],
+    ] as const)('%s: teaches, with nothing to start', async (_name, view, title) => {
+      mount(view, routes);
+      const section = (await teaching(title)).closest('section') as HTMLElement;
+      expect(within(section).queryByRole('button')).toBeNull();
+    });
+
+    it.each([
+      [
+        'Time log',
+        (client: ApiClient) => <WorkItemTimeLogScreen {...props} workItemId="w1" client={client} />,
+        /no time logged yet/i,
+        'log-time-timesheets',
+      ],
+      [
+        'Portal access log',
+        (client: ApiClient) => <PortalAccessLogScreen {...props} projectId="p1" client={client} />,
+        /no client visits yet/i,
+        'what-clients-see',
+      ],
+    ] as const)('%s: links the help article', async (_name, view, title, slug) => {
+      mount(view, routes);
+      const section = (await teaching(title)).closest('section') as HTMLElement;
+      expect(section.querySelector(`a[data-help-slug="${slug}"]`)).not.toBeNull();
     });
   });
 });

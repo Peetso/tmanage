@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -12,6 +12,8 @@ import {
 } from '../../lib/api/approval-delegations';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ApprovalDelegationViewProps {
@@ -46,6 +48,8 @@ export function ApprovalDelegationView({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queryKey = ['approval-delegations', organizationSlug] as const;
 
   const [delegateMembershipId, setDelegate] = useState('');
@@ -105,6 +109,7 @@ export function ApprovalDelegationView({
           {t('ApprovalDelegationView.newDelegationHeading')}
         </h2>
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -187,7 +192,21 @@ export function ApprovalDelegationView({
 
         {delegations.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">{t('ApprovalDelegationView.empty')}</p>
+            <TeachingEmptyState
+              title={t('teachEmpty.approvalDelegationTitle')}
+              explanation={t('teachEmpty.approvalDelegationBody')}
+              action={
+                canUse('approval.decide') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.approvalDelegationAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <ul className="tm-stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {rows.map((delegation) => (

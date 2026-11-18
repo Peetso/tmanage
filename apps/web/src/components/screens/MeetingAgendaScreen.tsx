@@ -12,6 +12,7 @@ import { formatDay, formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { CalendarHeaderActions, CalendarSubnav, MeetingTrack, clockLabel } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -122,9 +123,10 @@ export function MeetingAgendaScreen({
             ) : null}
 
             {rangeValid && !agenda.isPending && !agenda.isError && days.length === 0 ? (
-              <InlineAlert tone="neutral" title={t('MeetingAgendaScreen.emptyTitle')}>
-                {t('MeetingAgendaScreen.emptyBody')}
-              </InlineAlert>
+              <TeachingEmptyState
+                title={t('MeetingAgendaScreen.emptyTitle')}
+                explanation={t('teachEmpty.meetingAgendaBody')}
+              />
             ) : null}
 
             {days.length > 0 ? (

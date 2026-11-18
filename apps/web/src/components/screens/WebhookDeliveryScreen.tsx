@@ -11,6 +11,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listWebhookDeliveries, type WebhookDeliveryView } from '../../lib/api/webhook-deliveries';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WebhookDeliveryScreenProps {
@@ -109,10 +110,10 @@ export function WebhookDeliveryScreen({
               ) : null}
 
               {!page.isPending && !page.isError && rows.length === 0 ? (
-                <div className="tm-aut-empty">
-                  <p className="tm-aut-empty__title">{t('WebhookDeliveryScreen.emptyTitle')}</p>
-                  <p className="tm-aut-empty__body">{t('WebhookDeliveryScreen.emptyBody')}</p>
-                </div>
+                <TeachingEmptyState
+                  title={t('WebhookDeliveryScreen.emptyTitle')}
+                  explanation={t('teachEmpty.webhookDeliveryBody')}
+                />
               ) : null}
 
               {rows.length > 0 ? (

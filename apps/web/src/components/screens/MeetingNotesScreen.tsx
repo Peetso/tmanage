@@ -14,6 +14,7 @@ import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
 import { MeetingNoteDraftsPanel } from './MeetingNoteDraftsPanel';
 import '../../styles/screens/calendar.css';
@@ -129,9 +130,10 @@ export function MeetingNotesScreen({
           ) : null}
 
           {meetingId !== '' && !notes.isPending && !notes.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('MeetingNotesScreen.emptyTitle')}>
-              {t('MeetingNotesScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('MeetingNotesScreen.emptyTitle')}
+              explanation={t('teachEmpty.meetingNotesBody')}
+            />
           ) : null}
 
           {rows.length > 0 ? (

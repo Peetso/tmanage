@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
@@ -14,6 +14,8 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { MeetingBackLink, MeetingHeaderActions, initials } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -68,6 +70,8 @@ export function MeetingAttendeesScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const [inviteUserId, setInviteUserId] = useState('');
 
@@ -167,9 +171,21 @@ export function MeetingAttendeesScreen({
               ) : null}
 
               {!attendees.isPending && !attendees.isError && rows.length === 0 ? (
-                <InlineAlert tone="neutral" title={t('MeetingAttendeesScreen.emptyTitle')}>
-                  {t('MeetingAttendeesScreen.emptyBody')}
-                </InlineAlert>
+                <TeachingEmptyState
+                  title={t('MeetingAttendeesScreen.emptyTitle')}
+                  explanation={t('teachEmpty.meetingAttendeesBody')}
+                  action={
+                    canUse('meeting.write') ? (
+                      <Button
+                        tone="lime"
+                        size="accessible"
+                        onClick={() => focusFirstField(firstStep.current)}
+                      >
+                        {t('teachEmpty.meetingAttendeesAction')}
+                      </Button>
+                    ) : undefined
+                  }
+                />
               ) : null}
 
               {rows.length > 0 ? (
@@ -218,7 +234,7 @@ export function MeetingAttendeesScreen({
                 <h2 id="tm-attendees-invite" className="tm-cal-eyebrow">
                   {t('MeetingAttendeesScreen.inviteHeading')}
                 </h2>
-                <form className="tm-cal-form" onSubmit={submitInvite}>
+                <form ref={firstStep} className="tm-cal-form" onSubmit={submitInvite}>
                   <fieldset className="tm-fieldset tm-stack" disabled={members.isPending}>
                     <div className="tm-field">
                       <label className="tm-field__label" htmlFor="tm-attendees-member">

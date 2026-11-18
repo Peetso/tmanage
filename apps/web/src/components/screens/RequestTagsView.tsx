@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton, TextButton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { addRequestTag, fetchRequestTags, removeRequestTag } from '../../lib/api/request-tags';
 import type { RequestTagItem } from '../../lib/api/request-tags';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -40,6 +42,8 @@ export function RequestTagsView({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queryKey = ['request-tags', organizationSlug, clientRequestId];
 
   const tags = useQuery({
@@ -86,7 +90,21 @@ export function RequestTagsView({
       ) : null}
 
       {!tags.isPending && !tags.isError && rows.length === 0 ? (
-        <p className="tm-muted">{t('RequestTagsView.empty')}</p>
+        <TeachingEmptyState
+          title={t('teachEmpty.requestTagsTitle')}
+          explanation={t('teachEmpty.requestTagsBody')}
+          action={
+            canUse('client_request.triage') ? (
+              <Button
+                tone="lime"
+                size="accessible"
+                onClick={() => focusFirstField(firstStep.current)}
+              >
+                {t('teachEmpty.requestTagsAction')}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : null}
 
       {rows.length > 0 ? (
@@ -110,6 +128,7 @@ export function RequestTagsView({
       ) : null}
 
       <form
+        ref={firstStep}
         className="tm-row"
         noValidate
         aria-label={t('RequestTagsView.addFormLabel')}

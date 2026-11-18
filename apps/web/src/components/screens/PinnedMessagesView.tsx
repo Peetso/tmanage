@@ -8,6 +8,7 @@ import type { PinnedMessage } from '../../lib/api/message-pins';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 
 export interface PinnedMessagesViewProps {
   organizationSlug: string;
@@ -75,9 +76,10 @@ export function PinnedMessagesView({
               : t('PinnedMessagesView.genericError')}
         </InlineAlert>
       ) : items.length === 0 ? (
-        <InlineAlert tone="neutral" title={t('PinnedMessagesView.emptyTitle')}>
-          {t('PinnedMessagesView.emptyBody')}
-        </InlineAlert>
+        <TeachingEmptyState
+          title={t('PinnedMessagesView.emptyTitle')}
+          explanation={t('teachEmpty.pinnedMessagesBody')}
+        />
       ) : (
         <ul className="tm-stack" aria-label={t('PinnedMessagesView.heading')}>
           {items.map((pin: PinnedMessage) => (

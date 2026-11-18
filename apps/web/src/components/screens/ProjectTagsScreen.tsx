@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { defineProjectTag, listProjectTags } from '../../lib/api/project-tags';
 import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -36,6 +38,8 @@ export function ProjectTagsScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queryKey = ['project-tags', organizationSlug] as const;
 
   const [name, setName] = useState('');
@@ -76,6 +80,7 @@ export function ProjectTagsScreen({
                 {t('ProjectTagsScreen.newTag')}
               </h2>
               <form
+                ref={firstStep}
                 className="tm-stack"
                 noValidate
                 onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -133,7 +138,23 @@ export function ProjectTagsScreen({
 
               {tags.data ? (
                 rows.length === 0 ? (
-                  <p className="tm-prose">{t('ProjectTagsScreen.empty')}</p>
+                  <TeachingEmptyState
+                    title={t('teachEmpty.projectTagsTitle')}
+                    explanation={t('teachEmpty.projectTagsBody')}
+                    action={
+                      canUse('project.manage') ? (
+                        <Button
+                          tone="lime"
+                          size="accessible"
+                          onClick={() => focusFirstField(firstStep.current)}
+                        >
+                          {t('teachEmpty.projectTagsAction')}
+                        </Button>
+                      ) : undefined
+                    }
+                    helpSlug="start-a-project"
+                    helpLabel={t('EmptyStates.howProjectsWork')}
+                  />
                 ) : (
                   <ul
                     className="tm-row tm-row--wrap"

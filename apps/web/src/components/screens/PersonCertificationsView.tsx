@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, DateField, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import {
@@ -11,6 +11,8 @@ import {
 } from '../../lib/api/people-certifications';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface PersonCertificationsViewProps {
@@ -37,6 +39,8 @@ export function PersonCertificationsView({
   const describe = useDescribeApiError();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, api);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queryKey = ['person-certifications', organizationSlug, userId] as const;
   const [name, setName] = useState('');
   const [issuer, setIssuer] = useState('');
@@ -124,7 +128,21 @@ export function PersonCertificationsView({
 
       {certifications.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">{t('PersonCertificationsView.empty')}</p>
+          <TeachingEmptyState
+            title={t('teachEmpty.personCertificationsTitle')}
+            explanation={t('teachEmpty.personCertificationsBody')}
+            action={
+              canUse('org.manage') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => focusFirstField(firstStep.current)}
+                >
+                  {t('teachEmpty.personCertificationsAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <ul className="tm-list" aria-label={t('PersonCertificationsView.listLabel')}>
             {items.map((certification) => (
@@ -162,7 +180,7 @@ export function PersonCertificationsView({
         )
       ) : null}
 
-      <form className="tm-stack" noValidate onSubmit={submit}>
+      <form ref={firstStep} className="tm-stack" noValidate onSubmit={submit}>
         <Field
           label={t('PersonCertificationsView.certNameLabel')}
           name="certificationName"

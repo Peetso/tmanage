@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useRef, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { createProjectTemplate, listProjectTemplates } from '../../lib/api/project-templates';
 import {
   NewProjectFromTemplateDialog,
@@ -48,6 +50,8 @@ export function ProjectTemplatesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tOr = useTOr();
   const [picking, setPicking] = useState<string | null>(null);
 
@@ -110,7 +114,7 @@ export function ProjectTemplatesScreen({
               <h2 id="tm-project-templates-author" className="tm-prj-eyebrow">
                 {t('ProjectTemplatesScreen.defineATemplate')}
               </h2>
-              <form className="tm-stack" onSubmit={onSubmit} noValidate>
+              <form ref={firstStep} className="tm-stack" onSubmit={onSubmit} noValidate>
                 <fieldset
                   className="tm-fieldset tm-stack tm-stack--loose"
                   disabled={create.isPending}
@@ -197,9 +201,23 @@ export function ProjectTemplatesScreen({
             ) : null}
 
             {!templates.isPending && !templates.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title={t('ProjectTemplatesScreen.emptyTitle')}>
-                {t('ProjectTemplatesScreen.emptyBody')}
-              </InlineAlert>
+              <TeachingEmptyState
+                title={t('ProjectTemplatesScreen.emptyTitle')}
+                explanation={t('teachEmpty.projectTemplatesBody')}
+                action={
+                  canUse('project.manage') ? (
+                    <Button
+                      tone="lime"
+                      size="accessible"
+                      onClick={() => focusFirstField(firstStep.current)}
+                    >
+                      {t('teachEmpty.projectTemplatesAction')}
+                    </Button>
+                  ) : undefined
+                }
+                helpSlug="start-a-project"
+                helpLabel={t('EmptyStates.howProjectsWork')}
+              />
             ) : null}
 
             {rows.length > 0 ? (

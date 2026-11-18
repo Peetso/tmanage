@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { shortRef } from './SearchScreen';
 import '../../styles/screens/search-ai.css';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -47,6 +49,8 @@ export function SearchPinsView({
 }: SearchPinsViewProps) {
   const describeError = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -118,10 +122,21 @@ export function SearchPinsView({
           </LoadingRegion>
         ) : null}
         {!pins.isPending && !pins.isError && pinList.length === 0 ? (
-          <div className="tm-sa-empty">
-            <p className="tm-sa-empty__title">{t('SearchPinsView.emptyTitle')}</p>
-            <p className="tm-sa-empty__body">{t('SearchPinsView.emptyBody')}</p>
-          </div>
+          <TeachingEmptyState
+            title={t('SearchPinsView.emptyTitle')}
+            explanation={t('teachEmpty.searchPinsBody')}
+            action={
+              canUse('search.use') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => focusFirstField(firstStep.current)}
+                >
+                  {t('teachEmpty.searchPinsAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : null}
         {pinList.length > 0 ? (
           <ul className="tm-sa-pins" aria-label={t('SearchPinsView.listAria')}>
@@ -160,7 +175,7 @@ export function SearchPinsView({
         <h2 id="tm-pin-form" className="tm-sa-eyebrow">
           {t('SearchPinsView.pinFormHeading')}
         </h2>
-        <form className="tm-stack" onSubmit={onSubmit}>
+        <form ref={firstStep} className="tm-stack" onSubmit={onSubmit}>
           <div className="tm-sa-form__fields">
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-pin-type">

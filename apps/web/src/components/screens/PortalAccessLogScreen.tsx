@@ -14,6 +14,7 @@ import type {
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface PortalAccessLogScreenProps {
@@ -102,7 +103,12 @@ export function PortalAccessLogScreen({
         ) : null}
 
         {!events.isPending && !events.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral">{t('PortalAccessLogScreen.empty')}</InlineAlert>
+          <TeachingEmptyState
+            title={t('teachEmpty.portalAccessLogTitle')}
+            explanation={t('teachEmpty.portalAccessLogBody')}
+            helpSlug="what-clients-see"
+            helpLabel={t('teachEmpty.whatClientsSee')}
+          />
         ) : null}
 
         {rows.length > 0 ? (

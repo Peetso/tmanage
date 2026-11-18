@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createSearchScope,
@@ -51,6 +53,8 @@ export function SearchSavedScopesView({
 }: SearchSavedScopesViewProps) {
   const describeError = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const scopesKey = ['search-scopes', organizationSlug];
@@ -100,9 +104,21 @@ export function SearchSavedScopesView({
         </LoadingRegion>
       ) : null}
       {!scopes.isPending && !scopes.isError && list.length === 0 ? (
-        <InlineAlert tone="neutral" title={t('SearchSavedScopesView.emptyTitle')}>
-          {t('SearchSavedScopesView.emptyBody')}
-        </InlineAlert>
+        <TeachingEmptyState
+          title={t('SearchSavedScopesView.emptyTitle')}
+          explanation={t('teachEmpty.searchSavedScopesBody')}
+          action={
+            canUse('search.use') ? (
+              <Button
+                tone="lime"
+                size="accessible"
+                onClick={() => focusFirstField(firstStep.current)}
+              >
+                {t('teachEmpty.searchSavedScopesAction')}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : null}
 
       {list.length > 0 ? (
@@ -133,6 +149,7 @@ export function SearchSavedScopesView({
       ) : null}
 
       <form
+        ref={firstStep}
         className="tm-row"
         onSubmit={(event) => {
           event.preventDefault();

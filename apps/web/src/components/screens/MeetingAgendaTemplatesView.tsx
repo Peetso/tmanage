@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -17,6 +17,8 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -56,6 +58,8 @@ export function MeetingAgendaTemplatesView({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const [name, setName] = useState('');
   const [itemsText, setItemsText] = useState('');
@@ -148,9 +152,21 @@ export function MeetingAgendaTemplatesView({
             ) : null}
 
             {!templates.isPending && !templates.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title={t('MeetingAgendaTemplatesView.emptyTitle')}>
-                {t('MeetingAgendaTemplatesView.emptyBody')}
-              </InlineAlert>
+              <TeachingEmptyState
+                title={t('MeetingAgendaTemplatesView.emptyTitle')}
+                explanation={t('teachEmpty.meetingAgendaTemplatesBody')}
+                action={
+                  canUse('meeting.write') ? (
+                    <Button
+                      tone="lime"
+                      size="accessible"
+                      onClick={() => focusFirstField(firstStep.current)}
+                    >
+                      {t('teachEmpty.meetingAgendaTemplatesAction')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : null}
 
             {rows.length > 0 ? (
@@ -200,7 +216,7 @@ export function MeetingAgendaTemplatesView({
               <h2 id="tm-agenda-template-create" className="tm-cal-eyebrow">
                 {t('MeetingAgendaTemplatesView.createHeading')}
               </h2>
-              <form className="tm-cal-form" onSubmit={submitCreate}>
+              <form ref={firstStep} className="tm-cal-form" onSubmit={submitCreate}>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-agenda-template-name">
                     {t('MeetingAgendaTemplatesView.nameLabel')}
