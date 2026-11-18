@@ -2436,6 +2436,8 @@
   "SignInScreen.devSummary": "Connexion de développement — pas une authentification",
   "SignInScreen.enterEmailPassword": "Saisissez votre e-mail professionnel et votre mot de passe.",
   "SignInScreen.enterUserId": "Saisissez l’ID utilisateur sous lequel vous connecter.",
+  "SignInScreen.missingEmail": "Saisissez votre e-mail professionnel.",
+  "SignInScreen.missingPassword": "Saisissez votre mot de passe.",
   "SignInScreen.eyebrow": "Se connecter",
   "SignInScreen.forgotAccess": "Accès oublié",
   "SignInScreen.heading": "Se connecter",

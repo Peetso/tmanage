@@ -2431,6 +2431,8 @@
   "SignInScreen.devSummary": "Development sign-in — not authentication",
   "SignInScreen.enterEmailPassword": "Enter your work email and password.",
   "SignInScreen.enterUserId": "Enter the user id to sign in as.",
+  "SignInScreen.missingEmail": "Enter your work email.",
+  "SignInScreen.missingPassword": "Enter your password.",
   "SignInScreen.eyebrow": "Sign in",
   "SignInScreen.forgotAccess": "Forgot access",
   "SignInScreen.heading": "Sign in",

@@ -178,6 +178,29 @@ describe('signing in with a password', () => {
     expect(calls).toHaveLength(0);
     expect(screen.getByText(/Enter your work email and password/)).toBeInTheDocument();
   });
+
+  // LIVEFIX (live 3760a1a6): an empty submit left focus on the page body and no field invalid.
+  it('marks each empty field invalid with its reason and moves focus to the first one', async () => {
+    const user = userEvent.setup();
+    const { client } = clientOver(() => json(AUTHENTICATED));
+
+    render(<SignInScreen client={client} developmentSignInEnabled={false} />);
+    const email = screen.getByLabelText(/Work email/);
+    const password = screen.getByLabelText(/^Password/);
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(email).toHaveFocus();
+    expect(email).toHaveAttribute('aria-invalid', 'true');
+    expect(email).toHaveAccessibleDescription('Enter your work email.');
+    expect(password).toHaveAttribute('aria-invalid', 'true');
+    expect(password).toHaveAccessibleDescription('Enter your password.');
+
+    await user.type(email, 'omar@northstar.studio');
+    expect(email).not.toHaveAttribute('aria-invalid');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(password).toHaveFocus();
+    expect(password).toHaveAttribute('aria-invalid', 'true');
+  });
 });
 
 describe('the second factor', () => {

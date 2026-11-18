@@ -2436,6 +2436,8 @@
   "SignInScreen.devSummary": "Inicio de sesión de desarrollo: no es autenticación",
   "SignInScreen.enterEmailPassword": "Introduzca su correo electrónico de trabajo y su contraseña.",
   "SignInScreen.enterUserId": "Introduzca el ID de usuario con el que iniciar sesión.",
+  "SignInScreen.missingEmail": "Introduzca su correo electrónico de trabajo.",
+  "SignInScreen.missingPassword": "Introduzca su contraseña.",
   "SignInScreen.eyebrow": "Iniciar sesión",
   "SignInScreen.forgotAccess": "He perdido el acceso",
   "SignInScreen.heading": "Iniciar sesión",

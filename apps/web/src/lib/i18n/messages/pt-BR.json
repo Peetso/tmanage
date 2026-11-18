@@ -2436,6 +2436,8 @@
   "SignInScreen.devSummary": "Login de desenvolvimento — não é autenticação",
   "SignInScreen.enterEmailPassword": "Digite seu e-mail profissional e sua senha.",
   "SignInScreen.enterUserId": "Digite o ID do usuário com que deseja entrar.",
+  "SignInScreen.missingEmail": "Digite seu e-mail profissional.",
+  "SignInScreen.missingPassword": "Digite sua senha.",
   "SignInScreen.eyebrow": "Entrar",
   "SignInScreen.forgotAccess": "Esqueci o acesso",
   "SignInScreen.heading": "Entrar",

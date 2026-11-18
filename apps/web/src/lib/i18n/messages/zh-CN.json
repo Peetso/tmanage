@@ -2436,6 +2436,8 @@
   "SignInScreen.devSummary": "开发登录——并非身份验证",
   "SignInScreen.enterEmailPassword": "请输入你的工作电子邮件和密码。",
   "SignInScreen.enterUserId": "请输入要登录的用户 ID。",
+  "SignInScreen.missingEmail": "请输入你的工作电子邮件。",
+  "SignInScreen.missingPassword": "请输入你的密码。",
   "SignInScreen.eyebrow": "登录",
   "SignInScreen.forgotAccess": "忘记访问方式",
   "SignInScreen.heading": "登录",

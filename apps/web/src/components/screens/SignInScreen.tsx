@@ -86,6 +86,11 @@ export interface SignInScreenProps {
   mayHaveSession?: () => boolean;
 }
 
+/** The password form's fields, in the order they are checked and focused (their `name`s). */
+const SIGN_IN_FIELDS = ['email', 'password'] as const;
+
+type SignInField = (typeof SIGN_IN_FIELDS)[number];
+
 function browserMayHaveSession(): boolean {
   return (
     typeof document !== 'undefined' && readCookie(document.cookie, csrfCookieName()) !== undefined
@@ -183,6 +188,7 @@ export function SignInScreen({
   const [password, setPassword] = useState('');
   const [signingIn, setSigningIn] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<SignInField, string>>>({});
   const [challenge, setChallenge] = useState<MfaRequiredResponse | undefined>(undefined);
 
   const [userId, setUserId] = useState('');
@@ -288,10 +294,20 @@ export function SignInScreen({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (email.trim() === '' || password === '') {
+    const missing: Partial<Record<SignInField, string>> = {};
+    if (email.trim() === '') missing.email = t('SignInScreen.missingEmail');
+    if (password === '') missing.password = t('SignInScreen.missingPassword');
+    const firstMissing = SIGN_IN_FIELDS.find((name) => missing[name] !== undefined);
+    if (firstMissing !== undefined) {
+      // LIVEFIX (live 3760a1a6): the empty fields say why they are invalid, the summary is
+      // announced, and focus goes to the first field to fill, not back to the page body.
+      setFieldErrors(missing);
       setFailure(t('SignInScreen.enterEmailPassword'));
+      const field = event.currentTarget.elements.namedItem(firstMissing);
+      if (field instanceof HTMLInputElement) field.focus();
       return;
     }
+    setFieldErrors({});
 
     attempted.current = true;
     setSigningIn(true);
@@ -452,8 +468,10 @@ export function SignInScreen({
             onChange={(event) => {
               setEmail(event.target.value);
               setFailure(undefined);
+              setFieldErrors(({ email: _cleared, ...rest }) => rest);
             }}
             required
+            {...(fieldErrors.email ? { error: fieldErrors.email } : {})}
           />
           {/* 56-22 (Figma R42 L1 573:32517): passkey sign-in, no email needed. */}
           <PasskeySignInButton
@@ -475,8 +493,10 @@ export function SignInScreen({
             onChange={(event) => {
               setPassword(event.target.value);
               setFailure(undefined);
+              setFieldErrors(({ password: _cleared, ...rest }) => rest);
             }}
             required
+            {...(fieldErrors.password ? { error: fieldErrors.password } : {})}
           />
 
           {failure ? (

@@ -2431,6 +2431,8 @@
   "SignInScreen.devSummary": "دخول للتطوير — بدون تحقق من الهوية",
   "SignInScreen.enterEmailPassword": "أدخل بريد العمل وكلمة المرور.",
   "SignInScreen.enterUserId": "أدخل معرّف المستخدم الذي ستدخل باسمه.",
+  "SignInScreen.missingEmail": "أدخل بريد العمل.",
+  "SignInScreen.missingPassword": "أدخل كلمة المرور.",
   "SignInScreen.eyebrow": "تسجيل الدخول",
   "SignInScreen.forgotAccess": "نسيت بيانات الدخول؟",
   "SignInScreen.heading": "تسجيل الدخول",

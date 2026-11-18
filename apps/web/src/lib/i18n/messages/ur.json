@@ -138,6 +138,8 @@
   "SignInScreen.devSummary": "ڈیولپمنٹ سائن ان — تصدیق نہیں",
   "SignInScreen.enterEmailPassword": "اپنی دفتری ای میل اور پاس ورڈ درج کریں۔",
   "SignInScreen.enterUserId": "وہ یوزر آئی ڈی درج کریں جس کے طور پر سائن ان کرنا ہے۔",
+  "SignInScreen.missingEmail": "اپنی دفتری ای میل درج کریں۔",
+  "SignInScreen.missingPassword": "اپنا پاس ورڈ درج کریں۔",
   "SignInScreen.eyebrow": "سائن ان",
   "SignInScreen.forgotAccess": "رسائی بھول گئے",
   "SignInScreen.heading": "سائن ان",

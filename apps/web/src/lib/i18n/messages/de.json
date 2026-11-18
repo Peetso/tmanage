@@ -2436,6 +2436,8 @@
   "SignInScreen.devSummary": "Entwicklungsanmeldung – keine Authentifizierung",
   "SignInScreen.enterEmailPassword": "Geben Sie Ihre geschäftliche E-Mail-Adresse und Ihr Passwort ein.",
   "SignInScreen.enterUserId": "Geben Sie die Benutzer-ID ein, mit der Sie sich anmelden.",
+  "SignInScreen.missingEmail": "Geben Sie Ihre geschäftliche E-Mail-Adresse ein.",
+  "SignInScreen.missingPassword": "Geben Sie Ihr Passwort ein.",
   "SignInScreen.eyebrow": "Anmelden",
   "SignInScreen.forgotAccess": "Zugang vergessen",
   "SignInScreen.heading": "Anmelden",
