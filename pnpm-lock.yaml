@@ -12,6 +12,7 @@ overrides:
   fast-uri@<3.1.9: ^3.1.9
   fast-uri@>=4 <4.2.3: ^4.2.3
   fastify: 5.12.7
+  '@fastify/middie@<9.3.7': ^9.3.7
   hono@<4.13.16: ^4.13.16
   '@hono/node-server@>=2 <2.1.6': ^2.1.6
   js-yaml@>=4 <4.3.2: ^4.3.2
@@ -986,8 +987,8 @@ packages:
   '@fastify/merge-json-schemas@0.2.1':
     resolution: {integrity: sha512-OA3KGBCy6KtIvLf8DINC5880o5iBlDX4SxzLQS8HorJAbqluzLRn80UXU0bxZn7UOFhFgpRJDasfwn9nG4FG4A==}
 
-  '@fastify/middie@9.3.4':
-    resolution: {integrity: sha512-dd8phTnVWzx3iKPBKSvtRUT8+Igvy/MP+P5HcY2tjejEyeVbyjkD4HgzKessUObue5RRM5J6PZdxtAqgbn84yw==}
+  '@fastify/middie@9.3.7':
+    resolution: {integrity: sha512-Th/Htlg81STi0RYdK5zA9LggfpOCsqd5t4RiLKSE25IS7Zv6zNd9nouPdlsYHE3wdt3EkBAbp58Ltsn0HOroCA==}
 
   '@fastify/proxy-addr@5.1.0':
     resolution: {integrity: sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw==}
@@ -4254,6 +4255,9 @@ packages:
   path-to-regexp@8.4.2:
     resolution: {integrity: sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA==}
 
+  path-to-regexp@9.0.0:
+    resolution: {integrity: sha512-kfo5HIFCfEH24bcHSWEFIfrwiCsm/DXR+j1fc0696VIdWkICdAcKH2LxRClvz5HQcG4iCQpb4qBZ7pttGPG/dA==}
+
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
@@ -5786,12 +5790,12 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
-  '@fastify/middie@9.3.4':
+  '@fastify/middie@9.3.7':
     dependencies:
       '@fastify/error': 4.2.0
       fastify-plugin: 6.0.0
       find-my-way: 9.7.0
-      path-to-regexp: 8.4.2
+      path-to-regexp: 9.0.0
       reusify: 1.1.0
 
   '@fastify/proxy-addr@5.1.0':
@@ -6101,7 +6105,7 @@ snapshots:
     dependencies:
       '@fastify/cors': 11.3.0
       '@fastify/formbody': 8.0.2
-      '@fastify/middie': 9.3.4
+      '@fastify/middie': 9.3.7
       '@nestjs/common': 11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/core': 11.2.7(@nestjs/common@11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
       fast-querystring: 1.1.2
@@ -9134,6 +9138,8 @@ snapshots:
       minipass: 7.1.3
 
   path-to-regexp@8.4.2: {}
+
+  path-to-regexp@9.0.0: {}
 
   pathe@2.0.3: {}
 
