@@ -51,11 +51,15 @@ async function observe(sql: string, params: readonly unknown[] = []): Promise<Ro
   return rows;
 }
 
+let versionCount = 0;
+
 /** A fresh published version in the Northstar tenant for feedback to hang off. */
 async function createVersion(): Promise<string> {
   const row = await tenant.transaction(northstar, (tx) =>
     versions.create(tx, northstar, {
       projectId: world.northstar.projectId,
+      // Every version has its number (0211); one counter keeps them unique per deliverable.
+      versionNo: (versionCount += 1),
       deliverableId: uuidv7(),
       contentHash: 'c'.repeat(64),
       createdByUserId: world.northstar.manager.id,

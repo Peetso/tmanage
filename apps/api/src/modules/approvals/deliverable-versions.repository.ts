@@ -30,8 +30,11 @@ export interface CreateDeliverableVersionInput {
   /** A validated lowercase hex SHA-256 digest (`content-hash.ts`). */
   readonly contentHash: string;
   readonly createdByUserId: string;
-  /** 0211. The per-deliverable number, the attached file version and the team's note. */
-  readonly versionNo?: number;
+  /**
+   * 0211. The per-deliverable number (required: a version without one printed "version –" on the
+   * client's certificate, TESTUX P1 6), then the attached file version and the team's note.
+   */
+  readonly versionNo: number;
   readonly fileAssetId?: string | null;
   readonly fileVersionId?: string | null;
   readonly note?: string | null;
@@ -53,7 +56,7 @@ export class DeliverableVersionsRepository {
         projectId: input.projectId,
         deliverableId: input.deliverableId,
         contentHash: input.contentHash,
-        versionNo: input.versionNo ?? null,
+        versionNo: input.versionNo,
         fileAssetId: input.fileAssetId ?? null,
         fileVersionId: input.fileVersionId ?? null,
         note: input.note ?? null,

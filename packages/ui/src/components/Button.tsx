@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from 'react';
 import { Announce } from './LiveAnnouncer.js';
+import { useUiLabels } from './ui-labels.js';
 
 /**
  * The inventory names five buttons — InkButton, LimeButton, OutlineButton, TextButton,
@@ -47,13 +48,15 @@ export function Button({
   tone = 'ink',
   size = 'default',
   loading = false,
-  loadingLabel = 'Working',
+  loadingLabel: passedLoadingLabel,
   className,
   type = 'button',
   disabled,
   onClick,
   ...rest
 }: ButtonProps) {
+  const labels = useUiLabels();
+  const loadingLabel = passedLoadingLabel ?? labels.working;
   const classes = ['tm-button', `tm-button--${tone}`, `tm-button--${size}`, className]
     .filter(Boolean)
     .join(' ');

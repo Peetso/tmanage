@@ -10,6 +10,8 @@ import {
   toPublicDefinition,
 } from '../public-forms/public-forms.validate.js';
 import type { PublicFormDefinition } from '../public-forms/public-forms.validate.js';
+import { clientReviewOf } from '../approvals/client-review.js';
+import type { ClientReview } from '../approvals/client-review.js';
 import { deriveJourney } from './portal-journey.js';
 import type { PortalJourney } from './portal-journey.js';
 import { PortalJourneyRepository } from './portal-journey.repository.js';
@@ -74,24 +76,32 @@ export class PortalJourneyService {
       throw notFound('portal_journey_not_visible');
     }
 
-    const { client, milestones, versions } = await this.database.read(context, async (runner) => {
-      const steps = await this.steps.listForClient(
-        runner,
-        context,
-        projectId,
-        clientOrganizationId,
-      );
-      const evidence = await this.steps.evidence(
-        runner,
-        context,
-        projectId,
-        clientOrganizationId,
-        steps,
-      );
-      const sources = await this.sources.sources(runner, context, projectId);
-      return { client: { steps, evidence }, ...sources };
-    });
-    return deriveJourney(projectId, client, milestones, versions);
+    const { client, milestones, versions, approvals } = await this.database.read(
+      context,
+      async (runner) => {
+        const steps = await this.steps.listForClient(
+          runner,
+          context,
+          projectId,
+          clientOrganizationId,
+        );
+        const evidence = await this.steps.evidence(
+          runner,
+          context,
+          projectId,
+          clientOrganizationId,
+          steps,
+        );
+        const sources = await this.sources.sources(runner, context, projectId);
+        return { client: { steps, evidence }, ...sources };
+      },
+    );
+    const reviews = new Map<string, ClientReview>();
+    for (const [versionId, approval] of approvals) {
+      const review = clientReviewOf(approval, principal);
+      if (review) reviews.set(versionId, review);
+    }
+    return deriveJourney(projectId, client, milestones, versions, reviews);
   }
 
   /**

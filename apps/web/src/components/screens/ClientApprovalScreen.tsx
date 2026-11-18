@@ -22,6 +22,8 @@ import './download-scan-policy.css';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { PortalApprovalRecordCard } from './approvals/PortalApprovalRecordCard';
+import { reviewLabelKey } from '../../lib/portal-review';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 export interface ClientApprovalScreenProps {
   organizationSlug: string;
@@ -86,7 +88,11 @@ export function ClientApprovalScreen({
         ...(decision === 'request_changes' ? { feedback: note } : {}),
       }),
     onSuccess: () => {
+      // The decision moves the review everywhere the portal shows it: this page, the deliverables
+      // list, the overview's count and the journey's "Your turn" (TESTUX P1 5).
       void queryClient.invalidateQueries({ queryKey: projectionKey });
+      void queryClient.invalidateQueries({ queryKey: ['portal-deliverables', organizationSlug] });
+      void queryClient.invalidateQueries({ queryKey: ['portal-journey', organizationSlug] });
     },
   });
 
@@ -101,7 +107,9 @@ export function ClientApprovalScreen({
 
   const result: ClientDecideResult | undefined = decide.data;
   const view = projection.data;
-  const decided = view?.projection.decision ?? null;
+  // The live review, never the frozen projection's `decision` (the product publishes it null).
+  const review = view?.review ?? null;
+  const decided = review !== null && review.state !== 'awaiting_decision' ? review : null;
   // Shared without "Send for approval": plain viewing, no decision asked (the API's own fact).
   const asked = view?.awaitingDecision === true;
 
@@ -187,7 +195,7 @@ export function ClientApprovalScreen({
                       <span className="tm-pt-orb tm-pt-orb--done" aria-hidden="true">
                         ✓
                       </span>
-                      <span className="tm-pt-item__title">{words(decided)}</span>
+                      <span className="tm-pt-item__title">{t(reviewLabelKey(decided))}</span>
                     </p>
                   ) : (
                     <>
@@ -326,11 +334,13 @@ function shortHash(hash: string): string {
   return clean.length === 8 ? `${clean.slice(0, 4)}·${clean.slice(4)}` : clean;
 }
 
+/** "18 Nov 14:05" in the client's language: it was fixed to en-GB ("18 NOV" in Arabic, TESTUX P0 3). */
 function stamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  const day = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(parsed);
-  const time = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(
+  const locale = appDateLocale();
+  const day = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(parsed);
+  const time = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(
     parsed,
   );
   return `${day} ${time}`;
@@ -351,9 +361,11 @@ function ProjectionBody({ view }: { view: ClientApprovalView }) {
       <div className="tm-pt-date">
         <span className="tm-pt-eyebrow">{t('ClientApprovalScreen.whereItIs')}</span>
         <p className="tm-pt-date__value">
-          {projection.milestoneState
-            ? words(projection.milestoneState)
-            : t('ClientApprovalScreen.sharedWithYou')}
+          {view.review
+            ? t(reviewLabelKey(view.review))
+            : projection.milestoneState
+              ? words(projection.milestoneState)
+              : t('ClientApprovalScreen.sharedWithYou')}
         </p>
       </div>
       <div className="tm-pt-date">
@@ -370,10 +382,10 @@ function ProjectionBody({ view }: { view: ClientApprovalView }) {
           <p className="tm-pt-date__value">{words(projection.publishedRisk)}</p>
         </div>
       ) : null}
-      {projection.decision ? (
+      {view.review && view.review.state !== 'awaiting_decision' ? (
         <div className="tm-pt-date">
           <span className="tm-pt-eyebrow">{t('ClientApprovalScreen.decision')}</span>
-          <p className="tm-pt-date__value">{words(projection.decision)}</p>
+          <p className="tm-pt-date__value">{t(reviewLabelKey(view.review))}</p>
         </div>
       ) : null}
     </div>

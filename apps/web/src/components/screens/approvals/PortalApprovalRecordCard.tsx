@@ -7,6 +7,7 @@ import type { ApiClient } from '../../../lib/api/client';
 import { getPortalApprovalRecord } from '../../../lib/api/approval-records';
 import {
   portalRecordHref,
+  recordSentenceKey,
   shortFingerprint,
   summarizeRecord,
 } from '../../../lib/approval-record-presentation';
@@ -42,12 +43,8 @@ export function PortalApprovalRecordCard({
   const evidence = summary?.decisive?.evidence;
   if (!summary || !evidence) return null;
 
-  const sentence = (
-    evidence.decision === 'approved'
-      ? t('ApprovalRecord.youApproved')
-      : t('ApprovalRecord.youAskedChanges')
-  )
-    .replace('{version}', String(evidence.versionNo ?? '–'))
+  const sentence = t(recordSentenceKey(evidence, 'you'))
+    .replace('{version}', String(evidence.versionNo))
     .replace('{date}', fmt.dateTime(evidence.decidedAt));
 
   return (

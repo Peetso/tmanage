@@ -7,6 +7,7 @@ import '../styles/phone-tables.css';
 import { AuthBoundaryProvider } from '../components/providers/AuthBoundaryProvider';
 import { LocaleDirectionProvider } from '../components/providers/LocaleDirectionProvider';
 import { QueryProvider } from '../components/providers/QueryProvider';
+import { UiLabelsFromCatalog } from '../components/providers/UiLabelsFromCatalog';
 import { RouteDocumentTitle } from '../components/providers/RouteDocumentTitle';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 import { UpdateToast } from '../components/pwa/UpdateToast';
@@ -172,25 +173,27 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           load" on /ar, INTEG17). The server renders it in full, so the HTML is unchanged. */}
         <Suspense fallback={null}>
           <RenderedDisplayProvider value={rendered}>
-            <QueryProvider>
-              <LocaleDirectionProvider>
-                <AuthBoundaryProvider>
-                  {/* CATSPLIT: the routes render from the whole catalog; the website's layouts
-                    narrow this to its `site` part. The providers and toasts here need `site` only. */}
-                  <CatalogScope scope="app">{children}</CatalogScope>
-                </AuthBoundaryProvider>
-              </LocaleDirectionProvider>
-            </QueryProvider>
-            {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}
-            <RouteDocumentTitle />
-            <ServiceWorkerRegister />
-            {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
-            region that offers a reload when a new build is waiting to take over. */}
-            <UpdateToast />
-            {/* R12 R2: the first-visit language guess, applied once and announced (Change · Keep). */}
-            <LocaleHintToast />
-            {/* 55-23: the Undo toasts for held delete / archive / move / complete actions. */}
-            <UndoToastHost />
+            <UiLabelsFromCatalog>
+              <QueryProvider>
+                <LocaleDirectionProvider>
+                  <AuthBoundaryProvider>
+                    {/* CATSPLIT: the routes render from the whole catalog; the website's layouts
+                      narrow this to its `site` part. The providers and toasts here need `site` only. */}
+                    <CatalogScope scope="app">{children}</CatalogScope>
+                  </AuthBoundaryProvider>
+                </LocaleDirectionProvider>
+              </QueryProvider>
+              {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}
+              <RouteDocumentTitle />
+              <ServiceWorkerRegister />
+              {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
+              region that offers a reload when a new build is waiting to take over. */}
+              <UpdateToast />
+              {/* R12 R2: the first-visit language guess, applied once and announced (Change · Keep). */}
+              <LocaleHintToast />
+              {/* 55-23: the Undo toasts for held delete / archive / move / complete actions. */}
+              <UndoToastHost />
+            </UiLabelsFromCatalog>
           </RenderedDisplayProvider>
         </Suspense>
       </body>

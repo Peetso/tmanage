@@ -197,6 +197,19 @@ describe('HomeService.waitingOf ranking', () => {
     expect(entry?.kind === 'approval' ? entry.version : undefined).toBe(7);
   });
 
+  it('names what is being approved: the deliverable title and version (TESTUX P1 7)', async () => {
+    const named = {
+      ...approval({ id: 'a-named-0000000000000000000000008' }),
+      deliverableTitle: 'Homepage concept',
+      versionNo: 2,
+    };
+    const service = serviceWith([named]);
+
+    const [entry] = (await service.waitingOf(context, reviewer())).items;
+
+    expect(entry).toMatchObject({ deliverableTitle: 'Homepage concept', versionNo: 2 });
+  });
+
   it('returns no items for a reviewer with none, and drops an approval the user does not review', async () => {
     const empty = serviceWith([]);
     expect((await empty.waitingOf(context, reviewer())).items).toEqual([]);

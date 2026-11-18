@@ -27,6 +27,19 @@ interface ClientApprovalProjection {
   readonly approvedContacts: readonly string[];
 }
 
+/** Where a published version's review stands — the API's `ClientReviewState`. */
+export type ClientReviewState = 'awaiting_decision' | 'approved' | 'changes_requested';
+
+/**
+ * A version's live review, read from its approval — the API's `ClientReview`. The projection's own
+ * `decision` is frozen at publish and stays null, so a screen asks this, never the projection.
+ */
+export interface ClientReview {
+  readonly state: ClientReviewState;
+  /** The decision is this reader's to make now. */
+  readonly awaitingYou: boolean;
+}
+
 /**
  * The immutable client projection the deep-link screen renders — the API's `ClientProjectionView`.
  *
@@ -46,6 +59,8 @@ export interface ClientApprovalView {
    * for a staff preview, while an approval is pending). A version only shared opens as viewing.
    */
   readonly awaitingDecision: boolean;
+  /** The version's live review, or null when none was asked or it lapsed. */
+  readonly review: ClientReview | null;
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { useUiLabels } from './ui-labels.js';
 
 export interface ComboboxOption {
   /** The stable value a form receives. */
@@ -116,13 +117,15 @@ export function Combobox({
   value,
   onValueChange,
   onQueryChange,
-  emptyLabel = 'No matches',
+  emptyLabel: passedEmptyLabel,
   defaultOpen = false,
   openOnFocus = false,
   className,
   required,
   ...rest
 }: ComboboxProps) {
+  const labels = useUiLabels();
+  const emptyLabel = passedEmptyLabel ?? labels.noMatches;
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;

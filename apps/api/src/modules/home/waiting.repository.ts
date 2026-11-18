@@ -1,7 +1,12 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { PENDING_APPROVAL_STATES } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { approvals, clientRequests } from '../../common/database/schema.js';
+import {
+  approvals,
+  clientRequests,
+  deliverables,
+  deliverableVersions,
+} from '../../common/database/schema.js';
 import type { ApprovalRow, ClientRequestRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -15,6 +20,17 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * they are never selected. `23-ERD-AND-STATE-MACHINES` §6.
  */
 const HOME_OPEN_CLIENT_REQUEST_STATES = ['submitted', 'triage', 'needs_clarification'] as const;
+
+/**
+ * A pending approval with the names a person decides by: the deliverable's title and the version
+ * number. Without them every row read "Deliverable review" and the phone asked "Approve
+ * 'Deliverable review'?" (TESTUX P1 7). `null` when the deliverable row is gone or the version
+ * predates 0211's numbering.
+ */
+export type PendingApprovalRow = ApprovalRow & {
+  readonly deliverableTitle: string | null;
+  readonly versionNo: number | null;
+};
 
 /**
  * HOME-04's read half — the pending approvals in this tenant, read-only, for the Waiting list.
@@ -51,10 +67,28 @@ export class WaitingRepository {
   async listPending(
     runner: TenantQueryRunner,
     context: TenantContext,
-  ): Promise<readonly ApprovalRow[]> {
+  ): Promise<readonly PendingApprovalRow[]> {
     return tenantDrizzle(runner)
-      .select()
+      .select({
+        ...getTableColumns(approvals),
+        deliverableTitle: deliverables.title,
+        versionNo: deliverableVersions.versionNo,
+      })
       .from(approvals)
+      .leftJoin(
+        deliverables,
+        and(
+          eq(deliverables.organizationId, approvals.organizationId),
+          eq(deliverables.id, approvals.deliverableId),
+        ),
+      )
+      .leftJoin(
+        deliverableVersions,
+        and(
+          eq(deliverableVersions.organizationId, approvals.organizationId),
+          eq(deliverableVersions.id, approvals.deliverableVersionId),
+        ),
+      )
       .where(
         and(
           eq(approvals.organizationId, context.organizationId),

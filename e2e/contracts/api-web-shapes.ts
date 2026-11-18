@@ -52,6 +52,7 @@ import type { ChallengeResponseView as ApiChallengeResponseView } from '../../ap
 import type { ClientDecideView as ApiClientDecideView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientProjectionReadView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ApprovalEvidence as ApiApprovalEvidence } from '../../apps/api/src/modules/approvals/approval-records.js';
+import type { ClientReview as ApiClientReview } from '../../apps/api/src/modules/approvals/client-review.js';
 import type { PublicRecordVerdictView as ApiPublicRecordVerdictView } from '../../apps/api/src/modules/approvals/approval-record-verify.js';
 import type {
   ApprovalCertificateView as ApiApprovalCertificateView,
@@ -542,6 +543,7 @@ import type {
 import type {
   ClientApprovalView as WebClientApprovalView,
   ClientDecideResult as WebClientDecideResult,
+  ClientReview as WebClientReview,
 } from '../../apps/web/src/lib/api/approvals';
 import type {
   ApprovalCertificateView as WebApprovalCertificateView,
@@ -3107,6 +3109,13 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
 
 /** `GET …/approvals/projections/:deliverableVersionId` — the immutable client projection the deep-link screen renders. */
 type _clientProjection = Assert<Exact<ApiClientProjectionView, WebClientApprovalView>>;
+
+/**
+ * The live review of a published version (TESTUX P1 4/5), read from its approval, never from the
+ * frozen projection. It rides on the client projection and on every portal deliverable; one
+ * shared shape on each side, paired here once.
+ */
+type _clientReview = Assert<Exact<ApiClientReview, WebClientReview>>;
 
 /**
  * `POST …/approvals/projections/:deliverableVersionId/decision` — FR-05's client decide (x101).

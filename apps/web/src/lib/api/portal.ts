@@ -1,3 +1,4 @@
+import type { ClientReview } from './approvals';
 import type { ApiClient } from './client';
 import type { PublicFormDefinition } from './public-forms';
 
@@ -749,6 +750,8 @@ export interface PortalDeliverable {
   readonly publishedRisk: string | null;
   readonly decision: string | null;
   readonly approvedContacts: readonly string[];
+  /** The version's live review (not the frozen `decision`), or null when none was asked. */
+  readonly review: ClientReview | null;
 }
 
 /**

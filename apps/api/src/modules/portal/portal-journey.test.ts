@@ -8,6 +8,7 @@ import type {
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { PublicFormsRepository } from '../public-forms/public-forms.repository.js';
+import type { ClientReview } from '../approvals/client-review.js';
 import { deriveJourney } from './portal-journey.js';
 import type { JourneyEvidence } from './portal-journey.js';
 import { PortalJourneyService } from './portal-journey.service.js';
@@ -16,13 +17,16 @@ import type { JourneyStepsRepository } from './journey-steps.repository.js';
 
 const milestone = (id: string, status: ProjectMilestoneRow['status']) =>
   ({ id, title: `t-${id}`, clientTitle: null, dueOn: null, status }) as ProjectMilestoneRow;
-const version = (deliverableId: string, id: string, at: string, decision: string | null) =>
+const version = (deliverableId: string, id: string, at: string) =>
   ({
     deliverableId,
     deliverableVersionId: id,
     publishedAt: new Date(at),
-    projection: { title: id, decision },
+    projection: { title: id, decision: null },
   }) as ClientProjectionRow;
+const awaitingYou: ClientReview = { state: 'awaiting_decision', awaitingYou: true };
+const reviews = (entries: Record<string, ClientReview>): ReadonlyMap<string, ClientReview> =>
+  new Map(Object.entries(entries));
 const step = (id: string, kind: ClientJourneyStepRow['kind'], more: object = {}) =>
   ({
     id,
@@ -52,20 +56,42 @@ const principal = {
 const context = { organizationId: 'org' } as TenantContext;
 
 describe('52-27 client journey', () => {
-  it('marks steps done/now/next and picks the oldest undecided newest version as the turn', () => {
+  it('marks steps done/now/next and picks the oldest newest version awaiting you as the turn', () => {
     const journey = deriveJourney(
       'p1',
       { steps: [], evidence: none },
       [milestone('a', 'met'), milestone('b', 'missed'), milestone('c', 'planned')],
       [
-        version('d1', 'd1-v2', '2026-11-12', null),
-        version('d2', 'd2-v1', '2026-11-11', null),
-        version('d1', 'd1-v1', '2026-11-01', null),
+        version('d1', 'd1-v2', '2026-11-12'),
+        version('d2', 'd2-v1', '2026-11-11'),
+        version('d1', 'd1-v1', '2026-11-01'),
       ],
+      reviews({ 'd1-v2': awaitingYou, 'd2-v1': awaitingYou, 'd1-v1': awaitingYou }),
     );
     expect(journey.steps.map((s) => s.state)).toEqual(['done', 'now', 'next']);
     expect(journey.yourTurn).toMatchObject({ kind: 'review', deliverableVersionId: 'd2-v1' });
     expect(journey.completed).toBe(false);
+  });
+
+  it('never offers a decided, unasked or someone-else version as your turn (TESTUX P1 4/5)', () => {
+    const versions = [
+      version('d1', 'approved', '2026-11-10'),
+      version('d2', 'asked-of-other', '2026-11-09'),
+      version('d3', 'shared-only', '2026-11-08'),
+      version('d4', 'waiting', '2026-11-11'),
+    ];
+    const live = reviews({
+      approved: { state: 'approved', awaitingYou: false },
+      'asked-of-other': { state: 'awaiting_decision', awaitingYou: false },
+      waiting: awaitingYou,
+    });
+    const journey = deriveJourney('p1', { steps: [], evidence: none }, [], versions, live);
+    expect(journey.yourTurn).toMatchObject({ kind: 'review', deliverableVersionId: 'waiting' });
+
+    const afterDecision = reviews({ approved: { state: 'approved', awaitingYou: false } });
+    expect(
+      deriveJourney('p1', { steps: [], evidence: none }, [], versions, afterDecision).yourTurn,
+    ).toBeNull();
   });
 
   it('completes a step only from its server-side evidence', () => {
@@ -74,7 +100,7 @@ describe('52-27 client journey', () => {
       step('s', 'sign', { refId: 'req-1' }),
       step('u', 'upload'),
     ];
-    const without = deriveJourney('p1', { steps, evidence: none }, [], []);
+    const without = deriveJourney('p1', { steps, evidence: none }, [], [], new Map());
     expect(without.steps.map((s) => s.state)).toEqual(['done', 'now', 'next']);
     expect(without.yourTurn).toEqual({ kind: 'sign', stepId: 's', title: 's', targetId: 'req-1' });
 
@@ -83,7 +109,7 @@ describe('52-27 client journey', () => {
       signedRequestIds: new Set(['req-1']),
       lastUploadAt: new Date('2026-11-01'), // before the step was set: not this step's upload
     };
-    const signed = deriveJourney('p1', { steps, evidence }, [], []);
+    const signed = deriveJourney('p1', { steps, evidence }, [], [], new Map());
     expect(signed.steps.map((s) => s.state)).toEqual(['done', 'done', 'now']);
     expect(signed.yourTurn).toMatchObject({ kind: 'upload', targetId: null });
   });

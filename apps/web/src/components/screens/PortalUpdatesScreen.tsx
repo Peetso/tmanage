@@ -13,6 +13,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { longDay, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 
 type Translate = ReturnType<typeof useT>;
@@ -233,7 +234,8 @@ function ComingUp({ milestones, t }: { milestones: readonly ClientMilestone[]; t
 function weekday(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat('en-GB', {
+  // In the client's language, not a fixed en-GB (the Arabic portal read English weekdays).
+  return new Intl.DateTimeFormat(appDateLocale(), {
     weekday: 'long',
     day: 'numeric',
     month: 'short',

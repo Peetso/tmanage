@@ -31,4 +31,10 @@ describe('AccountMenu desktop download (Figma 412:6812)', () => {
     fireEvent.click(screen.getByRole('button', { name: en('trigger') }));
     expect(screen.queryByRole('menuitem', { name: en('downloadDesktop') })).toBeNull();
   });
+
+  it('does not offer the team desktop app to a client in the portal (TESTUX P2 26)', () => {
+    render(<AccountMenu organizationSlug="northstar" name="Salma Adel" audience="client" />);
+    fireEvent.click(screen.getByRole('button', { name: en('trigger') }));
+    expect(screen.queryByRole('menuitem', { name: en('downloadDesktop') })).toBeNull();
+  });
 });

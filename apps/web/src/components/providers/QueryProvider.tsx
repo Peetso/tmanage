@@ -39,6 +39,13 @@ export function QueryProvider({ children }: { children: ReactNode }) {
             // A mutation that is retried automatically is a mutation that can be applied
             // twice. Until the API carries an idempotency key (13 §3), this stays off.
             retry: false,
+            // A write always runs when asked. TanStack's default ('online') parks a mutation
+            // while the browser reports offline, before its function runs, so the offline-aware
+            // writes (`lib/offline/write-or-queue.ts`) never reached their queue: Log time sat
+            // on a grey "Working" with no "Kept on this phone" and sent itself later (TESTUX P1
+            // 8). Every other write now fails at once with the network error its screen shows,
+            // instead of a silent pending write that may land after the person has left.
+            networkMode: 'always',
           },
         },
       }),

@@ -297,7 +297,8 @@ function AccountMenuPanel({
           {linkItem(`${base}/settings/security`, key('accessTokens'))}
         </>
       ) : null}
-      {offerDesktopDownload(window) ? (
+      {/* TESTUX P2 26: the desktop app is the team's workspace; a client reviewer is not offered it. */}
+      {audience === 'member' && offerDesktopDownload(window) ? (
         <>
           <hr className="tm-account__rule" />
           {/* Figma 412:6812 / 412:6849. A plain anchor: the server, not Next.js, answers it. */}

@@ -7,12 +7,12 @@ import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { useSelectedPortalProject } from '../shell/PortalProjectSwitcher';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listPortalPeople, listPortalProjects } from '../../lib/api/portal';
-import type { PortalPerson } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
-import { Avatar, humanize, Tag } from './PortalParts';
+import { Avatar, portalRoleLabel, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 
 type Translate = ReturnType<typeof useT>;
@@ -49,6 +49,7 @@ export function PortalPeopleScreen({
   );
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -144,7 +145,7 @@ export function PortalPeopleScreen({
                     <p className="tm-pt-person-card__name">{contact.displayName}</p>
                     <Tag tone="lime">{t('PortalPeopleScreen.yourContact')}</Tag>
                   </div>
-                  <p className="tm-pt-person-card__role">{roleLabel(contact.role)}</p>
+                  <p className="tm-pt-person-card__role">{portalRoleLabel(contact.role, tOr)}</p>
                 </div>
                 <Link
                   className="tm-pt-btn tm-pt-btn--ink"
@@ -164,7 +165,9 @@ export function PortalPeopleScreen({
                         <Avatar name={person.displayName} tone="soft" size="md" />
                         <div className="tm-pt-item__main">
                           <p className="tm-pt-person-card__name">{person.displayName}</p>
-                          <p className="tm-pt-person-card__role">{roleLabel(person.role)}</p>
+                          <p className="tm-pt-person-card__role">
+                            {portalRoleLabel(person.role, tOr)}
+                          </p>
                         </div>
                       </li>
                     ))}
@@ -177,11 +180,6 @@ export function PortalPeopleScreen({
       </div>
     </ClientPortalShell>
   );
-}
-
-/** The roster's role, said in words (`project_manager` → "Project manager"). */
-function roleLabel(role: PortalPerson['role']): string {
-  return humanize(role);
 }
 
 function describe(error: unknown, t: Translate): string {

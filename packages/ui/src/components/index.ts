@@ -57,6 +57,7 @@ export { StateCapsule, type StateCapsuleProps, type CapsuleState } from './State
 export { InlineAlert, type InlineAlertProps, type AlertTone } from './InlineAlert.js';
 export { Skeleton, type SkeletonProps } from './Skeleton.js';
 export { SkipLink, type SkipLinkProps } from './SkipLink.js';
+export { ENGLISH_UI_LABELS, UiLabelsProvider, useUiLabels, type UiLabels } from './ui-labels.js';
 export { ThemeProvider, type ThemeProviderProps } from './ThemeProvider.js';
 export { VisuallyHidden, type VisuallyHiddenProps } from './VisuallyHidden.js';
 export {

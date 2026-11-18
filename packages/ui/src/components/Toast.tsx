@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import { useUiLabels } from './ui-labels.js';
 
 /** Same vocabulary as `InlineAlert`, and the same glyph-plus-word rule. */
 export type ToastTone = 'neutral' | 'success' | 'warning' | 'danger';
@@ -35,9 +36,11 @@ export function ToastRegion({
   children,
   className,
   // English by default; a page in another language passes its own translated name.
-  'aria-label': ariaLabel = 'Notifications',
+  'aria-label': passedAriaLabel,
   ...rest
 }: ToastRegionProps) {
+  const labels = useUiLabels();
+  const ariaLabel = passedAriaLabel ?? labels.notifications;
   return (
     <div
       {...rest}
@@ -74,10 +77,12 @@ export function Toast({
   children,
   tone = 'neutral',
   onDismiss,
-  dismissLabel = 'Dismiss notification',
+  dismissLabel: passedDismissLabel,
   className,
   ...rest
 }: ToastProps) {
+  const labels = useUiLabels();
+  const dismissLabel = passedDismissLabel ?? labels.dismissNotification;
   return (
     <div
       {...rest}

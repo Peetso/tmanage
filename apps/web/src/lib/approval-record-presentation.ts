@@ -1,4 +1,9 @@
-import type { ApprovalCertificateView, ApprovalRecordView } from './api/approval-records';
+import type {
+  ApprovalCertificateView,
+  ApprovalRecordEvidence,
+  ApprovalRecordView,
+} from './api/approval-records';
+import type { MessageKey } from './i18n/t';
 import type { DeliverableVersionView } from './api/deliverables';
 
 /**
@@ -47,6 +52,26 @@ export function shortFingerprint(hash: string): string {
 /** The whole fingerprint in groups of 16, as the printed record shows it. */
 export function groupedFingerprint(hash: string): string {
   return (bareHash(hash).match(/.{1,16}/g) ?? []).join(' ');
+}
+
+/**
+ * The catalog sentence for a sealed decision, said by the approver themselves (`you`) or about
+ * them (`named`). A version sealed before 0211 has no number: its sentence names none rather than
+ * printing "version –" on a certificate (TESTUX P1 6).
+ */
+export function recordSentenceKey(
+  evidence: Pick<ApprovalRecordEvidence, 'decision' | 'versionNo'>,
+  voice: 'you' | 'named',
+): MessageKey {
+  const approved = evidence.decision === 'approved';
+  const numbered = evidence.versionNo !== null;
+  if (voice === 'you') {
+    if (approved)
+      return numbered ? 'ApprovalRecord.youApproved' : 'ApprovalRecord.youApprovedUnnumbered';
+    return numbered ? 'ApprovalRecord.youAskedChanges' : 'ApprovalRecord.youAskedChangesUnnumbered';
+  }
+  if (approved) return numbered ? 'ApprovalRecord.sentence' : 'ApprovalRecord.sentenceUnnumbered';
+  return numbered ? 'ApprovalRecord.sentenceChanges' : 'ApprovalRecord.sentenceChangesUnnumbered';
 }
 
 /** The newest version whose approval was approved — the one a certificate exists for. */

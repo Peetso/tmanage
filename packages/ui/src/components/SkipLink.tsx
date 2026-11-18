@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useUiLabels } from './ui-labels.js';
 
 export interface SkipLinkProps {
   /** The id of the main region, without the `#`. */
@@ -14,14 +15,11 @@ export interface SkipLinkProps {
  * component rather than a snippet each screen copies, because the one that gets copied is
  * the one that gets forgotten on the screen with the longest rail.
  */
-export function SkipLink({
-  targetId,
-  children = 'Skip to main content',
-  className,
-}: SkipLinkProps) {
+export function SkipLink({ targetId, children, className }: SkipLinkProps) {
+  const { skipToMain } = useUiLabels();
   return (
     <a className={['tm-skip-link', className].filter(Boolean).join(' ')} href={`#${targetId}`}>
-      {children}
+      {children ?? skipToMain}
     </a>
   );
 }

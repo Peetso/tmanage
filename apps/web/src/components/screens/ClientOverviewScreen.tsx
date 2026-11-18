@@ -29,7 +29,16 @@ import { isWaitingOnClient, requestStatusLabel } from '../../lib/client-request-
 import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { PortalJourneyStepper } from './PortalJourneyStepper';
-import { Avatar, daysUntil, humanize, isPast, longDay, shortDay } from './PortalParts';
+import {
+  Avatar,
+  daysUntil,
+  humanize,
+  isPast,
+  longDay,
+  portalRoleLabel,
+  shortDay,
+} from './PortalParts';
+import { awaitsYou, isFinalReview, reviewLabelKey } from '../../lib/portal-review';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -138,7 +147,12 @@ export function ClientOverviewScreen({
   const items = workItems.data ?? [];
   const waiting = items.filter((item) => item.progress === 'waiting_on_you').sort(byDueDate);
   const questions = (requests.data ?? []).filter(isWaitingOnClient);
-  const actionCount = waiting.length + questions.length;
+  // TESTUX P1 4: a version sent for this client's decision is an action too. It was counted
+  // nowhere, so "0 actions waiting · all caught up" sat above "Your turn: Review and approve".
+  const reviews = (deliverables.data ?? [])
+    .filter((deliverable) => awaitsYou(deliverable.review))
+    .sort((left, right) => (left.publishedAt < right.publishedAt ? -1 : 1));
+  const actionCount = waiting.length + questions.length + reviews.length;
 
   return (
     <ClientPortalShell
@@ -151,7 +165,7 @@ export function ClientOverviewScreen({
       description={describeHeadline(project, actionCount, tOr)}
       headerAside={
         project ? (
-          <HeaderMetrics project={project} waiting={waiting} questions={questions} now={now} />
+          <HeaderMetrics project={project} count={actionCount} waiting={waiting} now={now} />
         ) : undefined
       }
     >
@@ -190,6 +204,7 @@ export function ClientOverviewScreen({
             providerName={providerName}
             waiting={waiting}
             questions={questions}
+            reviews={reviews}
             now={now}
           />
 
@@ -284,17 +299,17 @@ function describeHeadline(
 
 interface HeaderMetricsProps {
   project: PortalProject;
+  /** Every action waiting on the client — the same count the headline and the actions use. */
+  count: number;
   waiting: readonly PortalWorkItem[];
-  questions: readonly ClientRequest[];
   now: Date;
 }
 
 /** CL-01's two numbers: days to the agreed date, and how many things wait on the client. */
-function HeaderMetrics({ project, waiting, questions, now }: HeaderMetricsProps) {
+function HeaderMetrics({ project, count, waiting, now }: HeaderMetricsProps) {
   const t = useT();
   const tOr = useTOr();
   const days = daysUntil(project.committedAt, now);
-  const count = waiting.length + questions.length;
   const soon = waiting.some((item) => {
     const left = daysUntil(item.dueAt, now);
     return left !== null && left <= 7;
@@ -360,6 +375,8 @@ interface ActionsColumnProps {
   providerName: string;
   waiting: readonly PortalWorkItem[];
   questions: readonly ClientRequest[];
+  /** Versions sent for this client's decision, oldest first. */
+  reviews: readonly PortalDeliverable[];
   now: Date;
 }
 
@@ -372,11 +389,12 @@ function ActionsColumn({
   providerName,
   waiting,
   questions,
+  reviews,
   now,
 }: ActionsColumnProps) {
   const t = useT();
   const [first, ...rest] = waiting;
-  const nothing = waiting.length === 0 && questions.length === 0;
+  const nothing = waiting.length === 0 && questions.length === 0 && reviews.length === 0;
 
   return (
     <section className="tm-pt-col" aria-labelledby="tm-portal-actions">
@@ -432,6 +450,29 @@ function ActionsColumn({
                   : t('ClientOverviewScreen.noDateSet')}
               </p>
             </div>
+          </div>
+        </article>
+      ))}
+
+      {reviews.map((deliverable) => (
+        <article key={deliverable.id} className="tm-pt-card tm-pt-card--lg">
+          <div className="tm-pt-aside-row">
+            <span className="tm-pt-orb tm-pt-orb--md tm-pt-orb--lime" aria-hidden="true">
+              ▸
+            </span>
+            <div className="tm-pt-item__main">
+              <h3 className="tm-pt-card__title">{deliverable.title}</h3>
+              <p className="tm-pt-quiet">
+                {fill(t('PortalReview.sentForReview'), { date: shortDay(deliverable.publishedAt) })}
+              </p>
+            </div>
+            <Link
+              className="tm-pt-btn tm-pt-btn--lime"
+              href={`/${organizationSlug}/portal/deliverables/${encodeURIComponent(deliverable.id)}`}
+            >
+              {t('PortalReview.reviewAndApprove')}
+              <span className="tm-visually-hidden">: {deliverable.title}</span>
+            </Link>
           </div>
         </article>
       ))}
@@ -550,7 +591,8 @@ function DeliverablesCard({
       ) : (
         <ul className="tm-pt-files">
           {shown.map((deliverable) => {
-            const decided = deliverable.decision !== null;
+            const review = deliverable.review;
+            const decided = isFinalReview(review);
             return (
               <li key={deliverable.id} className="tm-pt-item">
                 <span
@@ -566,8 +608,8 @@ function DeliverablesCard({
                     </Link>
                   </p>
                   <p className="tm-pt-mono">
-                    {decided
-                      ? humanize(deliverable.decision!)
+                    {review
+                      ? t(reviewLabelKey(review))
                       : deliverable.milestoneState
                         ? humanize(deliverable.milestoneState)
                         : `${t('ClientOverviewScreen.sharedPrefix')}${shortDay(deliverable.publishedAt)}`}
@@ -682,6 +724,7 @@ function TeamCard({
   people: readonly PortalPerson[];
 }) {
   const t = useT();
+  const tOr = useTOr();
   if (people.length === 0) return null;
   return (
     <section className="tm-pt-card" aria-labelledby="tm-portal-team">
@@ -693,7 +736,7 @@ function TeamCard({
         {people.slice(0, 4).map((person) => (
           <li key={`${person.displayName}:${person.role}`} className="tm-pt-person">
             <Avatar name={person.displayName} />
-            {person.displayName.split(' ')[0]} · {humanize(person.role)}
+            {person.displayName.split(' ')[0]} · {portalRoleLabel(person.role, tOr)}
           </li>
         ))}
       </ul>

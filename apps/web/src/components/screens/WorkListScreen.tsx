@@ -21,11 +21,12 @@ import {
   stateCapsule,
   stateLabel,
 } from '../../lib/work-item-presentation';
+import { typeCode, typeName } from '../../lib/work-item-type';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
-import { activeIsEnglish, compactUnit, translateOr } from '../../lib/i18n/compact-time';
+import { activeIsEnglish, compactUnit } from '../../lib/i18n/compact-time';
 import { withNumerals } from '../../lib/i18n/display-format';
 import { appLocale } from '../../lib/i18n/app-locale';
 import { countNoun } from '../../lib/i18n/plural';
@@ -1059,28 +1060,6 @@ const AUDIENCE_GLYPH: Record<WorkItemAudience, string> = {
   client_visible: '◎',
   client_action_required: '!',
 };
-
-const TYPE_CODE: Record<string, string> = {
-  task: 'TSK',
-  bug: 'BUG',
-  deliverable: 'DEL',
-  document: 'DOC',
-  doc: 'DOC',
-  request: 'REQ',
-  milestone: 'MIL',
-};
-
-/** The tooltip word for a type code: the localized type name, never the raw key. */
-function typeName(type: string): string {
-  const key = type.toLowerCase();
-  return translateOr(`WorkItemType.${key}`, key.charAt(0).toUpperCase() + key.slice(1));
-}
-
-/** The type cell: the short Latin code ("TSK") in English, the localized type word elsewhere. */
-function typeCode(type: string): string {
-  if (!activeIsEnglish()) return typeName(type);
-  return TYPE_CODE[type.toLowerCase()] ?? type.slice(0, 3).toUpperCase();
-}
 
 /** "18 Aug" — WK-02's committed/forecast cells. A bare date is a calendar day, read in UTC. */
 function shortDay(value: string): string {

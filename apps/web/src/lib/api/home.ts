@@ -57,6 +57,9 @@ export interface Waiting {
         readonly deliverableId: string;
         readonly projectId: string;
         readonly requestedAt: string;
+        /** What is being approved: the deliverable's title and version number, when known. */
+        readonly deliverableTitle: string | null;
+        readonly versionNo: number | null;
         /** `approvals.version`, posted back by the inline decision (optimistic concurrency). */
         readonly version: number;
       }

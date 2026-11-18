@@ -21,6 +21,11 @@ import { PortalDeliverablePreview } from './PortalDeliverablePreview';
 import { PortalSignatureWaitingList } from './esign/PortalSignatureWaitingList';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { withNumerals } from '../../lib/i18n/display-format';
+import { pluralPhrase } from '../../lib/i18n/plural';
+import { awaitsYou, isFinalReview, reviewLabelKey } from '../../lib/portal-review';
 
 export interface ClientPortalDeliverablesScreenProps {
   organizationSlug: string;
@@ -59,6 +64,8 @@ export function ClientPortalDeliverablesScreen({
   );
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
   const [filter, setFilter] = useState<Filter>('all');
 
   const projects = useQuery({
@@ -91,7 +98,7 @@ export function ClientPortalDeliverablesScreen({
       activeNavigationId="deliverables"
       title={
         settled && everything.length > 0
-          ? headline(everything.length, finalCount)
+          ? headline(everything.length, finalCount, tOr, locale)
           : t('ClientPortalDeliverablesScreen.deliverables')
       }
       eyebrow={t('ClientPortalDeliverablesScreen.eyebrow')}
@@ -164,18 +171,37 @@ export function ClientPortalDeliverablesScreen({
   );
 }
 
-const COUNT_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-
-function headline(total: number, final: number): string {
-  const count = COUNT_WORDS[total] ?? String(total);
-  const pieces = `${count} piece${total === 1 ? '' : 's'} of work`;
-  if (final === 0) return `${pieces}, none final yet`;
-  if (final === total) return `${pieces}, all final`;
-  return `${pieces}, ${(COUNT_WORDS[final] ?? String(final)).toLowerCase()} already final`;
+/**
+ * The counting headline, in the locale's plural form. It came from English literals ("Ten pieces
+ * of work, none final yet") and so read English on the Arabic portal (TESTUX P0 3).
+ */
+function headline(
+  total: number,
+  final: number,
+  tOr: (key: string, english: string) => string,
+  locale: string,
+): string {
+  if (final === 0) {
+    return pluralPhrase(tOr, locale, 'ClientPortalDeliverablesScreen.headlineNoneFinal', total, {
+      one: 'One piece of work, not final yet',
+      other: '{count} pieces of work, none final yet',
+    });
+  }
+  if (final === total) {
+    return pluralPhrase(tOr, locale, 'ClientPortalDeliverablesScreen.headlineAllFinal', total, {
+      one: 'One piece of work, final',
+      other: '{count} pieces of work, all final',
+    });
+  }
+  return pluralPhrase(tOr, locale, 'ClientPortalDeliverablesScreen.headlineSomeFinal', total, {
+    one: '{count} pieces of work, {final} already final',
+    other: '{count} pieces of work, {final} already final',
+  }).replace(/\{final\}/gu, final.toLocaleString(withNumerals(locale)));
 }
 
+/** Final once its live review is approved — never the projection's frozen `decision`. */
 function isFinal(deliverable: PortalDeliverable): boolean {
-  return deliverable.decision !== null;
+  return isFinalReview(deliverable.review);
 }
 
 /** An enum-looking value (`in_review`) said in words; free text is shown as written. */
@@ -283,8 +309,13 @@ function DeliverablePanel({ api, organizationSlug, deliverable, lead }: Delivera
   const t = useT();
   const [filesOpen, setFilesOpen] = useState(false);
   const filesRegionId = useId();
-  const final = isFinal(deliverable);
+  const review = deliverable.review;
   const href = `/${organizationSlug}/portal/deliverables/${deliverable.id}`;
+  // TESTUX P2 19: a forecast day already behind us is not "Expected" any more.
+  const forecastPassed =
+    deliverable.forecastDate !== null &&
+    !isFinal(deliverable) &&
+    deliverable.forecastDate < new Date().toISOString().slice(0, 10);
 
   return (
     <article className={lead ? 'tm-pt-deliv tm-pt-deliv--lead' : 'tm-pt-deliv'}>
@@ -295,14 +326,23 @@ function DeliverablePanel({ api, organizationSlug, deliverable, lead }: Delivera
       />
 
       <div className="tm-pt-action__meta">
-        {final ? (
-          <Tag tone="done">✓ {words(deliverable.decision!)}</Tag>
+        {review ? (
+          <Tag
+            tone={isFinalReview(review) ? 'done' : lead || awaitsYou(review) ? 'lime' : undefined}
+          >
+            {isFinalReview(review) ? '✓ ' : ''}
+            {t(reviewLabelKey(review))}
+          </Tag>
         ) : deliverable.milestoneState ? (
           <Tag tone={lead ? 'lime' : undefined}>{words(deliverable.milestoneState)}</Tag>
         ) : null}
         <span className="tm-pt-mono">
           {deliverable.forecastDate
-            ? `${t('ClientPortalDeliverablesScreen.expectedPrefix')}${shortDay(deliverable.forecastDate)}`
+            ? `${
+                forecastPassed
+                  ? t('ClientPortalDeliverablesScreen.wasExpectedPrefix')
+                  : t('ClientPortalDeliverablesScreen.expectedPrefix')
+              }${shortDay(deliverable.forecastDate)}`
             : `${t('ClientPortalDeliverablesScreen.sharedPrefix')}${shortDay(deliverable.publishedAt)}`}
         </span>
       </div>

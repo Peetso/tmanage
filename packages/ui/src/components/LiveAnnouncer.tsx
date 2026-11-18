@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useUiLabels } from './ui-labels.js';
 
 /**
  * The announcement plumbing for status messages — WCAG 2.2 **4.1.3**.
@@ -63,7 +64,9 @@ export interface LiveAnnouncerProps {
   label?: string;
 }
 
-export function LiveAnnouncer({ children, label = 'Live announcements' }: LiveAnnouncerProps) {
+export function LiveAnnouncer({ children, label: passedLabel }: LiveAnnouncerProps) {
+  const labels = useUiLabels();
+  const label = passedLabel ?? labels.liveAnnouncements;
   const [polite, setPolite] = useState<readonly [string, string]>(['', '']);
   const [assertive, setAssertive] = useState<readonly [string, string]>(['', '']);
   const politeSlot = useRef(0);

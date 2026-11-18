@@ -20,6 +20,7 @@ import { getClientApproval } from '../../../lib/api/approvals';
 import { fetchMyProfile } from '../../../lib/api/member-profile';
 import {
   groupedFingerprint,
+  recordSentenceKey,
   shortFingerprint,
   summarizeRecord,
 } from '../../../lib/approval-record-presentation';
@@ -44,8 +45,14 @@ interface SheetProps {
   backHref: string;
   /** 52-19: the sealed PDF of this record (API path). */
   pdfPath: string;
-  /** 52-19: the evidence ZIP (API path); staff only, so the portal passes none. */
+  /**
+   * 52-19: the evidence ZIP (API path); the team's record only. The bundle copies the approved
+   * file, and that copy is not gated by the client file-sharing rule, so the portal passes none
+   * and names its PDF as the record instead (TESTUX P1 15).
+   */
   evidencePath?: string;
+  /** The PDF button's words; the portal says it is the approval record. */
+  pdfLabel?: string;
 }
 
 /**
@@ -64,6 +71,7 @@ export function ApprovalRecordSheet({
   backHref,
   pdfPath,
   evidencePath,
+  pdfLabel,
 }: SheetProps) {
   const t = useT();
   const tOr = useTOr();
@@ -104,7 +112,7 @@ export function ApprovalRecordSheet({
           <PdfDownloadButton
             path={pdfPath}
             fileName={`approval-record-${view.approvalId}.pdf`}
-            label={tOr('ApprovalRecord.downloadPdf', 'Download PDF')}
+            label={pdfLabel ?? tOr('ApprovalRecord.downloadPdf', 'Download PDF')}
             busyLabel={tOr('ApprovalRecord.downloadingPdf', 'Preparing the PDF')}
             failedLabel={tOr(
               'ApprovalRecord.downloadPdfFailed',
@@ -143,12 +151,9 @@ export function ApprovalRecordSheet({
         {evidence ? (
           <>
             <p className="tm-acert__lead" dir="auto">
-              {(evidence.decision === 'approved'
-                ? t('ApprovalRecord.sentence')
-                : t('ApprovalRecord.sentenceChanges')
-              )
+              {t(recordSentenceKey(evidence, 'named'))
                 .replace('{name}', who)
-                .replace('{version}', String(evidence.versionNo ?? '–'))
+                .replace('{version}', String(evidence.versionNo))
                 .replace('{title}', deliverableTitle)
                 .replace('{date}', fmt.dateTime(evidence.decidedAt))}
             </p>
@@ -160,10 +165,12 @@ export function ApprovalRecordSheet({
                   <dd dir="auto">{projectName}</dd>
                 </div>
               ) : null}
-              <div>
-                <dt>{t('ApprovalRecord.version')}</dt>
-                <dd>v{evidence.versionNo ?? '–'}</dd>
-              </div>
+              {evidence.versionNo !== null ? (
+                <div>
+                  <dt>{t('ApprovalRecord.version')}</dt>
+                  <dd>v{evidence.versionNo}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt>{t('ApprovalRecord.approvedFrom')}</dt>
                 <dd>
@@ -360,6 +367,7 @@ export function PortalApprovalCertificate({
   client?: ApiClient;
 }) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     FIXTURE_CLIENT_NAME,
@@ -400,6 +408,7 @@ export function PortalApprovalCertificate({
       approverCompany={clientName}
       backHref={`/${organizationSlug}/portal/deliverables/${encodeURIComponent(deliverableVersionId)}`}
       pdfPath={portalApprovalRecordPdfPath(organizationSlug, deliverableVersionId)}
+      pdfLabel={t('ApprovalRecord.downloadRecordPdf')}
     />
   );
 }

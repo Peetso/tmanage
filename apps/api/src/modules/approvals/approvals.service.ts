@@ -3,7 +3,6 @@ import {
   authorize,
   contentHashEquals,
   evaluateReviewerDecision,
-  PENDING_APPROVAL_STATES,
 } from '@tmanage/domain';
 import type { ApprovalPolicy, ApprovalState, Principal, ReviewerDecision } from '@tmanage/domain';
 import { ClientFileSharing } from '../files/client-file-sharing.js';
@@ -38,6 +37,8 @@ import type { AuditService } from '../audit/audit.service.js';
 import { assertVersionOpenable, mayDecideApprovals } from './approval-open-preconditions.js';
 import { AnchorSigner } from '../audit/audit-anchor-signer.js';
 import { RECORD_SCHEMA, verifyRecord } from './approval-records.js';
+import { awaitsClientDecision, clientReviewOf } from './client-review.js';
+import type { ClientReview } from './client-review.js';
 import type { ApprovalEvidence, DecisionEvidence, RecordVerification } from './approval-records.js';
 import { ApprovalRecordRaceError } from './approval-records.repository.js';
 import type { ApprovalRecordsRepository } from './approval-records.repository.js';
@@ -212,20 +213,8 @@ export interface ClientProjectionView {
  */
 export interface ClientProjectionReadView extends ClientProjectionView {
   readonly awaitingDecision: boolean;
-}
-
-/** The approval states in which a reviewer may still be asked to decide. */
-const PENDING_DECISION: ReadonlySet<string> = new Set(PENDING_APPROVAL_STATES);
-
-/**
- * Whether `principal` should be offered approve / request changes on a version whose approval is
- * `approval` — the same facts `clientDecide` gates on (a pending approval, the client among its
- * reviewers), so the screen never offers a decision the API would refuse. Staff previewing the
- * portal see what the client sees whenever any approval is pending.
- */
-export function awaitsClientDecision(approval: ApprovalRow | null, principal: Principal): boolean {
-  if (!approval || !PENDING_DECISION.has(approval.state)) return false;
-  return principal.kind !== 'client' || approval.reviewerIds.includes(principal.userId);
+  /** The version's live review (`client-review.ts`), or null when none was asked or it lapsed. */
+  readonly review: ClientReview | null;
 }
 
 /** What publishing supplies. The tenant and the frozen hash are not the caller's. */
@@ -766,6 +755,7 @@ export class ApprovalsService {
         return {
           ...toProjectionView(projection),
           awaitingDecision: awaitsClientDecision(approval, principal),
+          review: clientReviewOf(approval, principal),
         };
       }),
     );

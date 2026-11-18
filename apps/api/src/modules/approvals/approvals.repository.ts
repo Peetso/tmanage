@@ -235,6 +235,33 @@ export class ApprovalsRepository {
       .orderBy(desc(approvals.createdAt), desc(approvals.id));
   }
 
+  /**
+   * {@link findByVersion} for many versions in one read: each version's newest approval, keyed by
+   * version id. A version with no approval has no entry. Tenant-scoped like the single read.
+   */
+  async latestByVersions(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    deliverableVersionIds: readonly string[],
+  ): Promise<ReadonlyMap<string, ApprovalRow>> {
+    if (deliverableVersionIds.length === 0) return new Map();
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.organizationId, context.organizationId),
+          inArray(approvals.deliverableVersionId, [...deliverableVersionIds]),
+        ),
+      )
+      .orderBy(desc(approvals.createdAt), desc(approvals.id));
+    const latest = new Map<string, ApprovalRow>();
+    for (const row of rows) {
+      if (!latest.has(row.deliverableVersionId)) latest.set(row.deliverableVersionId, row);
+    }
+    return latest;
+  }
+
   async requireByVersion(
     runner: TenantQueryRunner,
     context: TenantContext,

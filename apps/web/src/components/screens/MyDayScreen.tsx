@@ -28,6 +28,7 @@ import { listFocusBlocks } from '../../lib/api/focus-blocks';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiErrorLines } from '../../lib/api/describe-error';
 import { formatDay, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
+import { typeCode, typeName } from '../../lib/work-item-type';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { translateOr } from '../../lib/i18n/compact-time';
@@ -612,7 +613,7 @@ function WorkCard({
             {typeGlyph(entry.workItem.type)}
           </span>
           <span className="tm-home-card__eyebrow-text">
-            {typeWord(entry.workItem.type)} · {projectName}
+            {typeName(entry.workItem.type)} · {projectName}
           </span>
         </span>
         <span className="tm-home-orb" aria-hidden="true">
@@ -663,6 +664,17 @@ function WorkCard({
   );
 }
 
+/** "Homepage concept · v2" — the deliverable and its version, else the generic label. */
+function approvalSubject(
+  entry: Extract<WaitingEntry, { kind: 'approval' }>,
+  generic: string,
+): string {
+  if (entry.deliverableTitle === null) return generic;
+  return entry.versionNo === null
+    ? entry.deliverableTitle
+    : `${entry.deliverableTitle} · v${entry.versionNo}`;
+}
+
 /** One "Waiting on you" row: who/what, the status in a word, since when, and the way in. */
 function WaitingRow({
   entry,
@@ -680,7 +692,11 @@ function WaitingRow({
   const locale = useActiveLocale();
   const isApproval = entry.kind === 'approval';
   const version = waitingVersion(entry);
-  const title = isApproval ? t('MyDayScreen.deliverableReview') : entry.title;
+  // TESTUX P1 7: the row and the Approve sheet name the work ("Homepage concept · v2"), so two
+  // waiting reviews never read the same; the generic label stays only when nothing is known.
+  const title = isApproval
+    ? approvalSubject(entry, t('MyDayScreen.deliverableReview'))
+    : entry.title;
   const since = isApproval ? entry.requestedAt : entry.waitingSince;
   // REQ-11: Triage opens the request itself, not the general inbox the person then has to search.
   const href =
@@ -947,28 +963,6 @@ function longDay(value: string, locale: string): string {
     day: 'numeric',
     month: 'short',
   });
-}
-
-function typeCode(type: string): string {
-  switch (type) {
-    case 'task':
-      return 'TSK';
-    case 'deliverable':
-      return 'DEL';
-    case 'doc':
-    case 'document':
-      return 'DOC';
-    case 'bug':
-      return 'BUG';
-    case 'milestone':
-      return 'MLS';
-    default:
-      return type.slice(0, 3).toUpperCase();
-  }
-}
-
-function typeWord(type: string): string {
-  return type.length > 0 ? type.charAt(0).toUpperCase() + type.slice(1) : 'Work';
 }
 
 function typeGlyph(type: string): string {

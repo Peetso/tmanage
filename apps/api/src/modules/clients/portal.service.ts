@@ -11,6 +11,9 @@ import {
   effectivePageSize as workItemPageSize,
 } from '../work/work-items.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
+import { ApprovalsRepository } from '../approvals/approvals.repository.js';
+import { clientReviewOf } from '../approvals/client-review.js';
+import type { ClientReview } from '../approvals/client-review.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
 import { ClientFileSharing } from '../files/client-file-sharing.js';
 import type { ClientFileState } from '../files/client-file-sharing.js';
@@ -145,6 +148,11 @@ export interface PortalDeliverableView {
   readonly decision: string | null;
   /** 12 §1 "approved contacts". */
   readonly approvedContacts: readonly string[];
+  /**
+   * The version's live review, read from its approval (`client-review.ts`) — not from the frozen
+   * projection's `decision`, which the product publishes as null. Null when no review was asked.
+   */
+  readonly review: ClientReview | null;
 }
 
 /**
@@ -326,7 +334,10 @@ export interface EditProjectUpdateInput {
 /** The audiences a client may ever see. `internal` is not among them and never will be. */
 const CLIENT_AUDIENCES: readonly Audience[] = ['client_visible', 'client_action_required'];
 
-function toDeliverableView(row: ClientProjectionRow): PortalDeliverableView {
+function toDeliverableView(
+  row: ClientProjectionRow,
+  review: ClientReview | null,
+): PortalDeliverableView {
   const projection = row.projection;
   return {
     id: row.deliverableVersionId,
@@ -340,6 +351,7 @@ function toDeliverableView(row: ClientProjectionRow): PortalDeliverableView {
     publishedRisk: projection.publishedRisk,
     decision: projection.decision,
     approvedContacts: projection.approvedContacts,
+    review,
   };
 }
 
@@ -428,6 +440,11 @@ export class PortalService {
     private readonly reviewThreads: ReviewThreadsRepository = new ReviewThreadsRepository(),
     /** FIX6 item 1. The one rule that decides whether a file may reach a client. */
     private readonly sharing: ClientFileSharing = new ClientFileSharing(undefined),
+    /** Each deliverable version's live approval, for its client review. */
+    private readonly approvals: Pick<
+      ApprovalsRepository,
+      'latestByVersions'
+    > = new ApprovalsRepository(),
   ) {}
 
   /** A10 — the linked-milestone check and the unpublish dialog's "already opened" read. */
@@ -628,11 +645,22 @@ export class PortalService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
 
-    const rows = await this.database.read(context, (runner) =>
-      this.projections.listByProject(runner, context, projectId),
-    );
+    const { rows, approvals } = await this.database.read(context, async (runner) => {
+      const rows = await this.projections.listByProject(runner, context, projectId);
+      const approvals = await this.approvals.latestByVersions(
+        runner,
+        context,
+        rows.map((row) => row.deliverableVersionId),
+      );
+      return { rows, approvals };
+    });
     await this.recordAccess(context, principal, projectId, 'deliverable');
-    return rows.map(toDeliverableView);
+    return rows.map((row) =>
+      toDeliverableView(
+        row,
+        clientReviewOf(approvals.get(row.deliverableVersionId) ?? null, principal),
+      ),
+    );
   }
 
   /**

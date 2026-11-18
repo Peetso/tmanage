@@ -77,11 +77,15 @@ async function observe(sql: string, params: readonly unknown[] = []): Promise<Ro
   return rows;
 }
 
+let versionCount = 0;
+
 /** Create an immutable deliverable version for the Atlas project. */
 async function createVersion(deliverableId: string, contentHash: string): Promise<string> {
   const row = await tenant.transaction(northstar, (tx) =>
     versions.create(tx, northstar, {
       projectId: world.northstar.projectId,
+      // Every version has its number (0211); one counter keeps them unique per deliverable.
+      versionNo: (versionCount += 1),
       deliverableId,
       contentHash,
       createdByUserId: world.northstar.manager.id,

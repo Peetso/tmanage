@@ -79,6 +79,17 @@ export function humanize(value: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
 }
 
+/**
+ * A delivery-team person's project role in the client's language. It was `humanize(role)`, so the
+ * Arabic portal named the team "Member" (TESTUX P0 3). An unknown role still reads in words.
+ */
+export function portalRoleLabel(
+  role: string,
+  tOr: (key: string, english: string) => string,
+): string {
+  return tOr(`PortalPeople.role.${role}`, humanize(role));
+}
+
 export function Avatar({
   name,
   tone = 'ink',

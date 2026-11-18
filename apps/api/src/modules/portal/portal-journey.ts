@@ -4,6 +4,7 @@ import type {
   ClientProjectionRow,
   ProjectMilestoneRow,
 } from '../../common/database/schema.js';
+import type { ClientReview } from '../approvals/client-review.js';
 
 /**
  * 52-27 — the client journey stepper, derived. The steps are the client's own journey steps
@@ -124,13 +125,16 @@ function stepTurn(step: ClientJourneyStepRow): PortalJourneyStepTurn | null {
  * without its evidence, a milestone not met) is `now`; earlier ones are `done`, later ones `next`.
  * When `now` is a journey step the client can open, that step is the turn. Otherwise the turn is a
  * review: only the newest version of each deliverable counts — an older undecided version a newer
- * one replaced is not the client's turn — and of those still undecided the one sent first.
+ * one replaced is not the client's turn — and of those, the one sent first whose live review waits
+ * on this reader (`reviews`, from the approvals — never the frozen projection, whose `decision` the
+ * product publishes as null, so a decided version stayed "Your turn": TESTUX P1 5).
  */
 export function deriveJourney(
   projectId: string,
   client: JourneyClientSteps,
   milestones: readonly ProjectMilestoneRow[],
   versionsNewestFirst: readonly ClientProjectionRow[],
+  reviews: ReadonlyMap<string, ClientReview>,
 ): PortalJourney {
   const done = [
     ...client.steps.map((step) => isJourneyStepDone(step, client.evidence)),
@@ -167,7 +171,7 @@ export function deriveJourney(
   for (const version of versionsNewestFirst) {
     if (seen.has(version.deliverableId)) continue;
     seen.add(version.deliverableId);
-    if (version.projection.decision !== null) continue;
+    if (reviews.get(version.deliverableVersionId)?.awaitingYou !== true) continue;
     if (turn === null || version.publishedAt <= turn.publishedAt) turn = version;
   }
 

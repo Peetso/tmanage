@@ -14,6 +14,7 @@ import type { WorkItemView } from '../work/work-items.service.js';
 import { MyDayRepository } from './my-day.repository.js';
 import { SavedContextRepository } from './saved-context.repository.js';
 import { WaitingRepository } from './waiting.repository.js';
+import type { PendingApprovalRow } from './waiting.repository.js';
 
 /**
  * HOME-03 "Personal work" — the first vertical slice of Home / My Day.
@@ -181,6 +182,9 @@ export interface ApprovalWaitingEntry {
   readonly projectId: string;
   /** When the review was requested — `approvals.created_at`, the "waiting since". */
   readonly requestedAt: string;
+  /** What is being approved: the deliverable's title, and its version number (0211). */
+  readonly deliverableTitle: string | null;
+  readonly versionNo: number | null;
   /**
    * `approvals.version`, the optimistic-concurrency token the decision route requires: the phone's
    * inline Approve / Send back posts it back, so a decision made on a stale row is refused.
@@ -249,7 +253,7 @@ function approvalWaitingReasonFor(row: ApprovalRow): ApprovalWaitingReason {
 }
 
 function toApprovalWaitingEntry(
-  row: ApprovalRow,
+  row: PendingApprovalRow,
   reason: ApprovalWaitingReason,
 ): ApprovalWaitingEntry {
   return {
@@ -259,6 +263,8 @@ function toApprovalWaitingEntry(
     deliverableId: row.deliverableId,
     projectId: row.projectId,
     requestedAt: row.createdAt.toISOString(),
+    deliverableTitle: row.deliverableTitle,
+    versionNo: row.versionNo,
     version: row.version,
   };
 }

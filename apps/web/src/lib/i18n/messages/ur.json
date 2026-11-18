@@ -1097,5 +1097,11 @@
   "planStorage.notice100": "آپ کا عارضی اسٹوریج بھر گیا ہے۔ نئے اپ لوڈ تب تک رکے رہیں گے جب تک آپ Google Drive یا OneDrive نہ جوڑیں یا فائلیں وہاں منتقل نہ کریں۔ کچھ بھی حذف نہیں ہوتا۔",
   "planStorage.runsLabel": "اس مدت میں آٹومیشن کے رن",
   "planStorage.runsBadge": "کوئی حد نہیں",
-  "planStorage.runsNote": "صرف آپ کی معلومات کے لیے۔ ہر پلان میں آٹومیشن لامحدود ہیں اور آپ کے پلان کی وجہ سے کبھی نہیں رکتیں۔"
+  "planStorage.runsNote": "صرف آپ کی معلومات کے لیے۔ ہر پلان میں آٹومیشن لامحدود ہیں اور آپ کے پلان کی وجہ سے کبھی نہیں رکتیں۔",
+  "UiLabels.working": "کام جاری ہے",
+  "UiLabels.skipToMain": "مرکزی مواد پر جائیں",
+  "UiLabels.liveAnnouncements": "براہِ راست اعلانات",
+  "UiLabels.notifications": "اطلاعات",
+  "UiLabels.dismissNotification": "اطلاع بند کریں",
+  "UiLabels.noMatches": "کوئی نتیجہ نہیں"
 }

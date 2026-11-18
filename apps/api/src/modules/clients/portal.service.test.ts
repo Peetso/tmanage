@@ -8,6 +8,7 @@ import { PortalService, progressOf } from './portal.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import type { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
+import type { ApprovalsRepository } from '../approvals/approvals.repository.js';
 import type { FileAssetsRepository } from '../files/file-assets.repository.js';
 import type {
   CreateProjectUpdateInput,
@@ -17,6 +18,7 @@ import type {
 import type { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type {
+  ApprovalRow,
   ClientProjectionPayload,
   ClientProjectionRow,
   FileAssetRow,
@@ -250,8 +252,21 @@ const PROJECTION_ALLOWLIST = [
   'approvedContacts',
 ] as const;
 
-/** The identity keys the portal adds for navigation — none is an internal record field. */
-const DELIVERABLE_IDENTITY_KEYS = ['id', 'deliverableId', 'publishedAt'] as const;
+/**
+ * The keys the portal adds: identity for navigation, and the live review (`client-review.ts`) —
+ * none is an internal record field.
+ */
+const DELIVERABLE_IDENTITY_KEYS = ['id', 'deliverableId', 'publishedAt', 'review'] as const;
+
+/** Approvals keyed by version, as `ApprovalsRepository.latestByVersions` answers. */
+function fakeApprovals(byVersion: Record<string, Partial<ApprovalRow>>): ApprovalsRepository {
+  return {
+    latestByVersions: () =>
+      Promise.resolve(
+        new Map(Object.entries(byVersion).map(([id, row]) => [id, { reviewerIds: [], ...row }])),
+      ),
+  } as unknown as ApprovalsRepository;
+}
 
 function projectionPayload(): ClientProjectionPayload {
   return {
@@ -360,6 +375,11 @@ describe('PortalService.deliverablesFor (x114)', () => {
       {} as unknown as WorkItemsRepository,
       fakeProjections([projectionRow(DELIVERABLE, READABLE_PROJECT)]),
       fakeFiles([]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fakeApprovals({}),
     );
 
     const result = await service.deliverablesFor(
@@ -408,6 +428,41 @@ describe('PortalService.deliverablesFor (x114)', () => {
       service.deliverablesFor(context, clientPrincipal(READABLE_PROJECT), OTHER_PROJECT),
     ).rejects.toMatchObject({ status: 404 } satisfies Partial<ApiError>);
     expect(listed).toBe(false);
+  });
+
+  it('reads the review from the live approval, not the frozen projection (TESTUX P1 4/5)', async () => {
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      fakeProjections([
+        projectionRow('d-asked', READABLE_PROJECT, { deliverableVersionId: 'v-asked' }),
+        projectionRow('d-approved', READABLE_PROJECT, { deliverableVersionId: 'v-approved' }),
+        projectionRow('d-shared', READABLE_PROJECT, { deliverableVersionId: 'v-shared' }),
+      ]),
+      fakeFiles([]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fakeApprovals({
+        'v-asked': { state: 'requested', reviewerIds: ['user-1'] },
+        'v-approved': { state: 'approved', reviewerIds: ['user-1'] },
+      }),
+    );
+
+    const result = await service.deliverablesFor(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+    expect(result.map((view) => [view.id, view.review])).toEqual([
+      ['v-asked', { state: 'awaiting_decision', awaitingYou: true }],
+      ['v-approved', { state: 'approved', awaitingYou: false }],
+      ['v-shared', null],
+    ]);
+    // The frozen projection still says nothing was decided: the review is not read from it.
+    expect(result.every((view) => view.decision === null)).toBe(true);
   });
 
   it('shows no unpublished deliverable — an empty list, not an error', async () => {

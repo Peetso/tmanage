@@ -89,9 +89,11 @@ function projectionPayload(title: string, contactEmail: string): ClientProjectio
   return {
     title,
     summary: 'The published direction for your review.',
-    milestoneState: 'in_review',
+    // As the product's own publish writes them (`DeliverablesService.publishOnce`): the portal
+    // shows the live review, so no hand-written milestone state or risk word is frozen here.
+    milestoneState: null,
     forecastDate: '2026-10-15',
-    publishedRisk: 'on_track',
+    publishedRisk: null,
     // Not yet decided — the client decides on the deep link; the projection carries no outcome.
     decision: null,
     approvedContacts: [contactEmail],
@@ -121,6 +123,8 @@ async function seedOne(
   const version = await versions.create(tx, context, {
     projectId: config.projectId,
     deliverableId,
+    // The first version of a fresh deliverable, numbered as the product numbers it (0211).
+    versionNo: 1,
     contentHash,
     createdByUserId: config.publisherUserId,
   });
