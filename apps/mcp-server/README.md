@@ -160,6 +160,28 @@ token is never handed to whoever can reach the port. Leave `TMANAGE_TOKEN` unset
 > Expose the `http` transport only over HTTPS and treat the endpoint as sensitive: a request's
 > bearer token is a live TManage credential.
 
+## Ready-made requests (recipes)
+
+Once connected, people ask in plain words. The Help centre carries seven ready-made requests,
+each with a Copy button, in English and Arabic: `/help/ai-recipes` (Arabic `/ar/help/ai-recipes`),
+source `apps/web/src/content/help/ai-recipes.ts`.
+
+| Recipe                          | What the assistant uses                           | Changes anything?              |
+| ------------------------------- | ------------------------------------------------- | ------------------------------ |
+| Plan my week                    | My day, work items, calendar focus blocks         | No                             |
+| Summarise a project for client  | Project, its open work items, the project context | No (shows a draft)             |
+| Sort my inbox                   | Inbox, notifications                              | No                             |
+| Find what is overdue            | Projects, work items                              | No                             |
+| Turn meeting notes into tasks   | Work items (create), people                       | Only after the member says yes |
+| Find a document and summarise   | Search, documents                                 | No                             |
+| Draft a reply in a conversation | Conversations, messages (list, create)            | Only after the member approves |
+
+A recipe may only ask for what the catalogue really exposes; add one there before adding a
+recipe that needs it. Confirm-class actions (deletes and the like) never run from a request:
+they wait for the member under **Settings → AI actions** (`/<org>/settings/ai-actions`, list
+read from `GET /v1/organizations/:orgSlug/ai/approvals`), with a "N waiting" badge on that menu
+entry and a card on the AI assistant page.
+
 ## Running from source (development)
 
 ```bash

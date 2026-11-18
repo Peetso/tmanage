@@ -13,6 +13,11 @@ export function connectorAddress(origin: string): string {
   return `${trimOrigin(origin)}/mcp`;
 }
 
+/** The entry for `mcpServers` in Cursor's or VS Code's `mcp.json`. No headers: OAuth signs in. */
+export function cursorEntry(address: string): string {
+  return `"tmanage": { "url": "${address}" }`;
+}
+
 /** The OpenAPI 3.1 file for GPT Actions and plain function calling: `<origin>/openapi/ai.json`. */
 export function openApiAddress(origin: string): string {
   return `${trimOrigin(origin)}/openapi/ai.json`;

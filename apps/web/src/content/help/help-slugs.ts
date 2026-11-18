@@ -25,6 +25,15 @@ export const HELP_SLUGS = [
   'export-from-basecamp',
   'export-from-jira',
   'connect-an-ai-assistant',
+  // 55-15p: the ready-made AI requests (`ai-recipes.ts`).
+  'ai-recipes',
+  'ai-recipe-plan-my-week',
+  'ai-recipe-client-update',
+  'ai-recipe-sort-inbox',
+  'ai-recipe-whats-overdue',
+  'ai-recipe-notes-to-tasks',
+  'ai-recipe-summarise-document',
+  'ai-recipe-draft-reply',
 ] as const;
 
 export type HelpSlug = (typeof HELP_SLUGS)[number];

@@ -6,6 +6,8 @@
  * (TManage, Google Drive, OneDrive) stay in Latin script. Figma: R35 L2-55-16 on the Product page.
  */
 
+import { AI_RECIPE_ARTICLES } from './ai-recipes';
+
 export type HelpLanguage = 'en' | 'ar';
 
 export type HelpCategoryId =
@@ -21,7 +23,9 @@ export interface HelpCategory {
 export type HelpBlock =
   | { kind: 'p'; text: string }
   | { kind: 'steps'; items: readonly string[] }
-  | { kind: 'tip'; text: string };
+  | { kind: 'tip'; text: string }
+  /** 55-15p: a request to paste into an AI assistant, drawn with a Copy button. */
+  | { kind: 'prompt'; text: string };
 
 export interface HelpArticleText {
   title: string;
@@ -1078,7 +1082,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     slug: 'connect-an-ai-assistant',
     category: 'getting-started',
     minutes: 3,
-    related: ['two-step-sign-in', 'create-your-workspace'],
+    related: ['ai-recipes', 'two-step-sign-in', 'create-your-workspace'],
     en: {
       title: 'Connect Claude, ChatGPT or another AI',
       summary: 'Use your own AI app with your workspace through MCP, with no AI fee from TManage.',
@@ -1165,6 +1169,8 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
       keywords: ['ذكاء اصطناعي', 'مساعد', 'كلود', 'شات جي بي تي', 'موصل', 'ربط'],
     },
   },
+  // 55-15p: the ready-made AI requests (hub + seven recipes), kept in their own file.
+  ...AI_RECIPE_ARTICLES,
 ];
 
 const BY_SLUG: ReadonlyMap<string, HelpArticle> = new Map(HELP_ARTICLES.map((a) => [a.slug, a]));

@@ -154,6 +154,15 @@
   white-space: nowrap;
 }
 
+/* 55-15p (Figma 715:39681, review 8): "2 waiting" on AI actions, the amber Waiting capsule. */
+.tm-cc-sections__waiting {
+  margin-inline-start: auto;
+  padding-block: 2px;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  white-space: nowrap;
+}
+
 .tm-cc-sections__item--static:hover {
   background: transparent;
   color: var(--ink-800);

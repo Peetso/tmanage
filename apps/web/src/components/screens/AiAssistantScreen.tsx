@@ -3,21 +3,29 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, StateCapsule, StatusDot } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { connectorAddress, deploymentAddress } from '../../lib/ai-connector-address';
-import { useOrganizationName } from '../../lib/use-organization-names';
+import { connectorAddress, cursorEntry, deploymentAddress } from '../../lib/ai-connector-address';
 import { listPersonalAccessTokens } from '../../lib/api/personal-access-tokens';
 import type { PersonalAccessTokenView } from '../../lib/api/personal-access-tokens';
+import { getConnectedApps } from '../../lib/api/connected-apps';
+import type { ConnectedApp } from '../../lib/api/connected-apps';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
-import type { MessageKey } from '../../lib/i18n/t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { appLocale } from '../../lib/i18n/app-locale';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import {
+  pendingTitle,
+  reviewHref,
+  singleClient,
+  usePendingAiApprovals,
+} from '../ai-actions/pending-ai-actions';
 import '../../styles/screens/preferences.css';
 import '../../styles/screens/ai-assistant.css';
-import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AiAssistantScreenProps {
   organizationSlug: string;
@@ -27,21 +35,23 @@ export interface AiAssistantScreenProps {
   serverUrl?: string;
   /** "Now", for the expiry check. Injected by tests. */
   now?: () => Date;
+  /** How often to look for the connection while waiting, in ms. Tests pass `false`. */
+  pollMs?: number | false;
 }
 
 /**
- * **AI assistant — connect your own Claude, ChatGPT or any MCP assistant.**
+ * **AI assistant — connect in three steps** (55-15p, Figma 715:39480 / 715:39892 waiting,
+ * 715:39681 / 715:40093 connected, review DESIGN-REVIEW-FIGMA-A points 7–9 and 16).
  *
- * TManage runs no paid AI model of its own. Instead, the TManage MCP server (`apps/mcp-server`)
- * lets the assistant a person already uses work in TManage over the ordinary HTTP API, signed in
- * with a personal access token. This screen is the front door to that: what it does in plain
- * words, the connection details for this deployment, the member's active tokens and whether an
- * assistant has used one. Tokens are created and revoked on the one Access tokens page
- * (`/{org}/settings/security`, t2-d), where every token gets an expiry; this screen links there.
+ * TManage runs no paid AI model of its own: the assistant a person already uses reaches the
+ * workspace through the hosted MCP endpoint. The page is three cards — pick your assistant, copy
+ * one line, check the connection — and, when an assistant has asked for something that changes
+ * work, a fourth card says how many actions wait for approval and links to them.
  *
- * Everything rides the existing personal-access-token routes (`…/me/personal-access-tokens`,
- * behind `work.read`, scoped by the server to the caller's own membership), so a token can only
- * ever do what its member can do, and nobody can see or revoke another member's tokens.
+ * The line to copy is always this deployment's own address, `connectorAddress(deploymentAddress())`
+ * read after hydration, never a typed host. "Connected" is read from the member's own connected
+ * apps (OAuth) and personal access tokens; while nothing has connected yet the page looks again
+ * every few seconds, so "Keep this page open" is true.
  */
 export function AiAssistantScreen({
   organizationSlug,
@@ -49,350 +59,249 @@ export function AiAssistantScreen({
   client,
   serverUrl,
   now = () => new Date(),
+  pollMs = 8_000,
 }: AiAssistantScreenProps) {
+  const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
-  const t = useT();
-  const queryKey = ['personal-access-tokens', organizationSlug] as const;
-
-  const statusLabel: Record<ConnectionStatus['kind'], string> = {
-    connected: t('AiAssistantScreen.statusConnected'),
-    waiting: t('AiAssistantScreen.statusWaiting'),
-    off: t('AiAssistantScreen.statusOff'),
-  };
-
-  const statusDetail = (status: ConnectionStatus): string => {
-    switch (status.kind) {
-      case 'connected':
-        return `${t('AiAssistantScreen.statusDetailConnectedPrefix')} ${formatDateTime(status.lastUsedAt)} ${t('AiAssistantScreen.statusDetailConnectedWith')} “${status.tokenName}”.`;
-      case 'waiting':
-        return t('AiAssistantScreen.statusDetailWaiting');
-      case 'off':
-        return t('AiAssistantScreen.statusDetailOff');
-    }
-  };
-  // Read after hydration: a same-origin deployment's address is the browser's own origin, which
-  // the server render cannot know.
   const hydrated = useHydrated();
   const origin = serverUrl ?? (hydrated ? deploymentAddress() : '');
-  // Assistants connect to the hosted MCP endpoint the API serves at `/mcp` (Streamable HTTP,
-  // signed in with the personal access token as a Bearer header).
   const address = origin === '' ? '' : connectorAddress(origin);
 
-  const tokens = useQuery({
-    queryKey,
-    queryFn: () => listPersonalAccessTokens(api, organizationSlug),
-  });
-
   const [assistant, setAssistant] = useState<AssistantId>('claude');
-  const workspaceName = useOrganizationName(organizationSlug, organizationName);
+  const option = ASSISTANTS.find((a) => a.id === assistant) ?? ASSISTANTS[0]!;
+  const assistantName =
+    option.labelKey === undefined ? option.label : tOr(option.labelKey, option.label);
 
-  const active = (tokens.data ?? []).filter((token) => isActive(token, now()));
-  const status = connectionStatus(active);
+  const [connected, setConnected] = useState(false);
+  const refetchInterval = connected || pollMs === false ? false : pollMs;
+  const tokens = useQuery({
+    queryKey: ['personal-access-tokens', organizationSlug],
+    queryFn: () => listPersonalAccessTokens(api, organizationSlug),
+    refetchInterval,
+  });
+  const apps = useQuery({
+    queryKey: ['connected-apps', organizationSlug],
+    queryFn: () => getConnectedApps(api, organizationSlug),
+    refetchInterval,
+    retry: false,
+  });
+  const pending = usePendingAiApprovals(organizationSlug, api);
+
+  const status = connectionFrom(apps.data?.apps ?? [], tokens.data ?? [], now());
+  if ((status !== null) !== connected) setConnected(status !== null);
+
+  const line = assistant === 'cursor' && address !== '' ? cursorEntry(address) : address;
+  const waitingItems = pending.data ?? [];
 
   return (
     <SettingsShell
       section="ai-assistant"
+      client={api}
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       eyebrow={t('AiAssistantScreen.eyebrow')}
       title={t('AiAssistantScreen.title')}
-      description={t('AiAssistantScreen.description')}
+      description={tOr(
+        'AiAssistantScreen.leadThreeSteps',
+        'Connect your assistant in three steps. It can only do what you can do, and anything that changes your work waits for your approval.',
+      )}
     >
-      <div className="tm-prefs tm-ai">
-        <div className="tm-prefs__main">
-          <section className="tm-prefs-card" aria-labelledby="tm-ai-how-heading">
-            <h2 id="tm-ai-how-heading" className="tm-prefs-eyebrow">
-              {t('AiAssistantScreen.howItWorks')}
-            </h2>
-            <ol className="tm-ai-steps">
-              <li className="tm-ai-step">
-                <span className="tm-ai-step__num" aria-hidden="true">
-                  1
-                </span>
-                <span className="tm-ai-step__text">
-                  <span className="tm-prefs-card__lead">{t('AiAssistantScreen.step1Lead')}</span>
-                  <span className="tm-prefs-card__body">{t('AiAssistantScreen.step1Body')}</span>
-                </span>
-              </li>
-              <li className="tm-ai-step">
-                <span className="tm-ai-step__num" aria-hidden="true">
-                  2
-                </span>
-                <span className="tm-ai-step__text">
-                  <span className="tm-prefs-card__lead">{t('AiAssistantScreen.step2Lead')}</span>
-                  <span className="tm-prefs-card__body">{t('AiAssistantScreen.step2Body')}</span>
-                </span>
-              </li>
-              <li className="tm-ai-step">
-                <span className="tm-ai-step__num" aria-hidden="true">
-                  3
-                </span>
-                <span className="tm-ai-step__text">
-                  <span className="tm-prefs-card__lead">{t('AiAssistantScreen.step3Lead')}</span>
-                  <span className="tm-prefs-card__body">{t('AiAssistantScreen.step3Body')}</span>
-                </span>
-              </li>
-            </ol>
-            <p className="tm-prefs-card__note">{t('AiAssistantScreen.noChargeNote')}</p>
-          </section>
-
-          <section className="tm-prefs-card" aria-labelledby="tm-ai-connect-heading">
-            <h2 id="tm-ai-connect-heading" className="tm-prefs-card__title">
-              {t('AiAssistantScreen.connectionDetails')}
-            </h2>
-
-            <div className="tm-ai-detail">
-              <span className="tm-prefs-field__label" id="tm-ai-address-label">
-                {t('AiAssistantScreen.addressLabel')}
-              </span>
-              <span className="tm-ai-detail__row">
-                <code className="tm-prefs-secret" aria-labelledby="tm-ai-address-label">
-                  {address}
-                </code>
-                <CopyButton text={address} label={t('AiAssistantScreen.copyAddress')} />
-              </span>
-            </div>
-
-            <div
-              className="tm-ai-tabs"
-              role="tablist"
-              aria-label={t('AiAssistantScreen.chooseAssistant')}
-            >
-              {ASSISTANTS.map((option) => (
+      <div className="tm-ai-connect">
+        <section className="tm-prefs-card tm-ai-card" aria-labelledby="tm-ai-step1">
+          <StepTitle id="tm-ai-step1" number={1}>
+            {tOr('AiAssistantScreen.stepPick', 'Pick your assistant')}
+          </StepTitle>
+          <div
+            className="tm-ai-chips"
+            role="group"
+            aria-label={t('AiAssistantScreen.chooseAssistant')}
+          >
+            {ASSISTANTS.map((a) => {
+              const selected = a.id === assistant;
+              return (
                 <button
-                  key={option.id}
+                  key={a.id}
                   type="button"
-                  role="tab"
-                  id={`tm-ai-tab-${option.id}`}
-                  aria-selected={assistant === option.id}
-                  aria-controls="tm-ai-panel"
-                  className="tm-ai-tab"
-                  onClick={() => setAssistant(option.id)}
+                  className="tm-chip tm-chip--compact tm-ai-chip"
+                  aria-pressed={selected}
+                  onClick={() => setAssistant(a.id)}
                 >
-                  {option.labelKey === undefined ? option.label : t(option.labelKey)}
+                  {selected ? (
+                    <span className="tm-ai-chip__check" aria-hidden="true">
+                      ✓
+                    </span>
+                  ) : null}
+                  {a.labelKey === undefined ? a.label : tOr(a.labelKey, a.label)}
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </div>
+        </section>
 
-            <AssistantPanel
-              assistant={assistant}
-              address={address}
-              token={null}
-              workspaceName={workspaceName}
-            />
-
+        <section className="tm-prefs-card tm-ai-card" aria-labelledby="tm-ai-step2">
+          <StepTitle id="tm-ai-step2" number={2}>
+            {tOr('AiAssistantScreen.stepCopy', 'Copy one line')}
+          </StepTitle>
+          <p className="tm-prefs-card__body" data-testid="tm-ai-path">
+            {tOr(option.pathKey, option.pathEnglish)}
+          </p>
+          <div className="tm-ai-line">
+            <code className="tm-ai-line__text" dir="ltr" data-testid="tm-ai-line">
+              {line}
+            </code>
+            <CopyButton text={line} label={t('ConnectAiHelp.copy')} />
+          </div>
+          {assistant === 'other' ? (
             <p className="tm-prefs-card__note">
               <Link href={`/${organizationSlug}/help/connect-ai`}>
                 {t('AiAssistantScreen.helpLink')}
               </Link>
             </p>
-          </section>
-        </div>
+          ) : null}
+        </section>
 
-        <div className="tm-prefs__side">
-          <section
-            className="tm-prefs-card tm-prefs-card--tight"
-            aria-labelledby="tm-ai-status-heading"
-          >
-            <h2 id="tm-ai-status-heading" className="tm-prefs-eyebrow">
-              {t('AiAssistantScreen.statusHeading')}
-            </h2>
-            {tokens.isPending ? (
-              <LoadingRegion label={t('AiAssistantScreen.loadingStatus')}>
-                <Skeleton />
-              </LoadingRegion>
-            ) : tokens.isError ? (
-              <InlineAlert tone="danger" title={t('AiAssistantScreen.loadKeysError')}>
-                {errorMessage(tokens.error)}
-              </InlineAlert>
-            ) : (
-              <p className="tm-ai-status" data-testid="tm-ai-status">
-                <span className={`tm-prefs-dot ${STATUS_DOT[status.kind]}`} aria-hidden="true" />
-                <span className="tm-ai-status__text">
-                  <span className="tm-prefs-card__lead">{statusLabel[status.kind]}</span>
-                  <span className="tm-prefs-card__body">{statusDetail(status)}</span>
-                </span>
+        <section
+          className="tm-prefs-card tm-ai-card"
+          aria-labelledby="tm-ai-step3"
+          aria-live="polite"
+        >
+          <StepTitle id="tm-ai-step3" number={3}>
+            {tOr('AiAssistantScreen.stepCheck', 'Check the connection')}
+          </StepTitle>
+          {status !== null ? (
+            <div className="tm-ai-status" data-testid="tm-ai-status">
+              <StateCapsule state="done">{t('AiAssistantScreen.statusConnected')}</StateCapsule>
+              <p className="tm-prefs-card__body">
+                {tOr(
+                  'AiAssistantScreen.connectedLine',
+                  '{client} connected on {when}. It signs in as you.',
+                )
+                  .replace('{client}', status.client)
+                  .replace('{when}', formatWhen(status.at))}
               </p>
-            )}
-          </section>
+            </div>
+          ) : tokens.isError && apps.isError ? (
+            <InlineAlert tone="danger" title={t('AiAssistantScreen.loadKeysError')}>
+              {errorMessage(tokens.error)}
+            </InlineAlert>
+          ) : (
+            <p className="tm-ai-status" data-testid="tm-ai-status">
+              <StatusDot tone="live">
+                {tOr(
+                  'AiAssistantScreen.waitingLine',
+                  'Waiting for {assistant} to connect. Keep this page open.',
+                ).replace('{assistant}', assistantName)}
+              </StatusDot>
+            </p>
+          )}
+        </section>
 
-          <section className="tm-prefs-card" aria-labelledby="tm-ai-create-heading">
-            <h2 id="tm-ai-create-heading" className="tm-prefs-card__title">
-              {t('AiAssistantScreen.createKeyHeading')}
+        {waitingItems.length > 0 ? (
+          <section
+            className="tm-prefs-card tm-ai-card"
+            aria-labelledby="tm-ai-pending"
+            data-testid="tm-ai-pending"
+          >
+            <h2 id="tm-ai-pending" className="tm-ai-card__title">
+              {pendingTitle(tOr, waitingItems.length, singleClient(waitingItems))}
             </h2>
-            <p className="tm-prefs-card__body">{t('AccessTokens.aiCreateBody')}</p>
+            <p className="tm-prefs-card__body">
+              {tOr(
+                'AiAssistantScreen.pendingBody',
+                'Nothing that changes your work runs until you approve it.',
+              )}
+            </p>
             <div>
               <Link
-                className="tm-prefs-capsule tm-prefs-capsule--ink"
-                href={`/${organizationSlug}/settings/security`}
+                className="tm-button tm-button--ink tm-button--accessible"
+                href={reviewHref(organizationSlug, waitingItems)}
               >
-                {t('AccessTokens.aiCreateLink')}
+                {tOr('AiAssistantScreen.review', 'Review')}
               </Link>
             </div>
           </section>
+        ) : null}
 
-          <section className="tm-prefs-card" aria-labelledby="tm-ai-keys-heading">
-            <h2 id="tm-ai-keys-heading" className="tm-prefs-card__title">
-              {t('AiAssistantScreen.yourKeys')}
-            </h2>
-            {tokens.isSuccess && active.length === 0 ? (
-              <p className="tm-prefs-card__body">{t('AiAssistantScreen.noActiveKeys')}</p>
-            ) : null}
-            {active.length > 0 ? (
-              <ul className="tm-prefs-tokens">
-                {active.map((token) => (
-                  <li key={token.id} className="tm-prefs-token">
-                    <span className="tm-prefs-token__text">
-                      <span className="tm-prefs-token__name">{token.name}</span>
-                      <span className="tm-prefs-token__meta">
-                        {token.lastUsedAt
-                          ? `${t('AiAssistantScreen.lastUsedPrefix')} ${formatDate(token.lastUsedAt)}`
-                          : t('AiAssistantScreen.notUsedYet')}
-                        {token.expiresAt
-                          ? ` ${t('AiAssistantScreen.expiresConnector')} ${formatDate(token.expiresAt)}`
-                          : ''}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <p className="tm-prefs-card__note">
-              {t('AiAssistantScreen.revokeNotePrefix')}{' '}
-              <Link href={`/${organizationSlug}/settings/security`}>
-                {t('AiAssistantScreen.accessTokensLink')}
-              </Link>
-              .
-            </p>
-          </section>
-        </div>
+        <p className="tm-prefs-card__note tm-ai-more">
+          <Link href={locale.startsWith('ar') ? '/ar/help/ai-recipes' : '/help/ai-recipes'}>
+            {tOr('AiAssistantScreen.recipesLink', 'Ready-made requests to try')}
+          </Link>
+          <span aria-hidden="true"> · </span>
+          <Link href={`/${organizationSlug}/settings/security`}>
+            {t('AiAssistantScreen.accessTokensLink')}
+          </Link>
+        </p>
       </div>
     </SettingsShell>
   );
 }
 
-// ── Assistants ────────────────────────────────────────────────────────────
-
-type AssistantId = 'claude' | 'claude-code' | 'chatgpt' | 'other';
-
-/** Brand names stay Latin in every locale; only "Other assistants" is translated. */
-const ASSISTANTS: readonly { id: AssistantId; label: string; labelKey?: MessageKey }[] = [
-  { id: 'claude', label: 'Claude' },
-  { id: 'claude-code', label: 'Claude Code' },
-  { id: 'chatgpt', label: 'ChatGPT' },
-  { id: 'other', label: 'Other assistants', labelKey: 'AiAssistantScreen.tabOther' },
-];
-
-export const TOKEN_PLACEHOLDER = 'paste-your-key-here';
-
-export { connectorAddress };
-
-function AssistantPanel({
-  assistant,
-  address,
-  token,
-  workspaceName,
-}: {
-  assistant: AssistantId;
-  address: string;
-  token: string | null;
-  workspaceName: string;
-}) {
-  const t = useT();
-  const panel = assistantPanel(t, assistant, address, token, workspaceName);
+function StepTitle({ id, number, children }: { id: string; number: number; children: string }) {
   return (
-    <div
-      id="tm-ai-panel"
-      role="tabpanel"
-      aria-labelledby={`tm-ai-tab-${assistant}`}
-      className="tm-ai-assistant-panel"
-    >
-      <ol className="tm-ai-howto">
-        {panel.steps.map((step) => (
-          <li key={step} className="tm-prefs-card__body">
-            {step}
-          </li>
-        ))}
-      </ol>
-      {panel.snippet === null ? null : (
-        <>
-          <pre className="tm-ai-snippet" data-testid="tm-ai-snippet">
-            <code>{panel.snippet}</code>
-          </pre>
-          <CopyButton text={panel.snippet} label={t('AiAssistantScreen.copySettings')} />
-        </>
-      )}
-    </div>
+    <h2 id={id} className="tm-ai-card__title tm-ai-card__title--step">
+      <span className="tm-ai-step-num" aria-hidden="true">
+        {number}
+      </span>
+      {children}
+    </h2>
   );
 }
 
-/**
- * The steps and snippet for one assistant (AUT-05, AUT-06). Claude and ChatGPT add TManage as a
- * custom connector and sign in with OAuth, so they need no key and no snippet. Claude Code signs
- * in with OAuth through `/mcp`, or takes the member's key as a header once one is created. Any
- * other MCP client gets the address and the key header.
- */
-export function assistantPanel(
-  t: (key: MessageKey) => string,
-  assistant: AssistantId,
-  address: string,
-  token: string | null,
-  workspaceName: string,
-): { steps: readonly string[]; snippet: string | null } {
-  const header = `Authorization: Bearer ${token ?? TOKEN_PLACEHOLDER}`;
-  switch (assistant) {
-    case 'claude':
-      return {
-        steps: [
-          t('ConnectAiHelp.claudeStep1'),
-          t('ConnectAiHelp.claudeStep2'),
-          t('ConnectAiHelp.claudeStep3'),
-        ],
-        snippet: null,
-      };
-    case 'claude-code':
-      return token === null
-        ? {
-            steps: [t('ConnectAiHelp.claudeCodeStep1')],
-            snippet: `claude mcp add --transport http tmanage ${address}`,
-          }
-        : {
-            steps: [t('AiAssistantScreen.ccStep1')],
-            snippet: [
-              `claude mcp add --transport http tmanage ${address} \\`,
-              `  --header "${header}"`,
-            ].join('\n'),
-          };
-    case 'chatgpt':
-      return {
-        steps: [
-          t('ConnectAiHelp.chatgptStep1'),
-          t('ConnectAiHelp.chatgptStep2'),
-          `${t('ConnectAiHelp.chatgptStep3Prefix')} ${workspaceName}.`,
-        ],
-        snippet: null,
-      };
-    case 'other':
-      return {
-        steps: [t('AiAssistantScreen.otherStep1')],
-        snippet: [`URL: ${address}`, header].join('\n'),
-      };
-  }
+// ── Assistants ────────────────────────────────────────────────────────────
+
+type AssistantId = 'claude' | 'chatgpt' | 'cursor' | 'other';
+
+interface AssistantOption {
+  readonly id: AssistantId;
+  /** Brand names stay Latin in every locale; only "Another assistant" is translated. */
+  readonly label: string;
+  readonly labelKey?: string;
+  /** Where the line goes, for step 2. */
+  readonly pathKey: string;
+  readonly pathEnglish: string;
 }
 
-// ── Status ────────────────────────────────────────────────────────────────
+const ASSISTANTS: readonly AssistantOption[] = [
+  {
+    id: 'claude',
+    label: 'Claude',
+    pathKey: 'AiAssistantScreen.pathClaude',
+    pathEnglish: 'Paste it into Claude → Settings → Connectors → Add custom connector.',
+  },
+  {
+    id: 'chatgpt',
+    label: 'ChatGPT',
+    pathKey: 'AiAssistantScreen.pathChatgpt',
+    pathEnglish: 'Paste it into ChatGPT → Settings → Connectors → Add custom MCP server.',
+  },
+  {
+    id: 'cursor',
+    label: 'Cursor',
+    pathKey: 'AiAssistantScreen.pathCursor',
+    pathEnglish: "Paste it into Cursor's mcp.json, inside mcpServers.",
+  },
+  {
+    id: 'other',
+    label: 'Another assistant',
+    labelKey: 'AiAssistantScreen.chipOther',
+    pathKey: 'AiAssistantScreen.pathOther',
+    pathEnglish: 'Add it to your assistant as an HTTP MCP server, then sign in.',
+  },
+];
 
-type ConnectionStatus =
-  | { kind: 'connected'; lastUsedAt: string; tokenName: string }
-  | { kind: 'waiting' }
-  | { kind: 'off' };
+export { connectorAddress };
 
-const STATUS_DOT: Record<ConnectionStatus['kind'], string> = {
-  connected: 'tm-prefs-dot--lime',
-  waiting: 'tm-prefs-dot--warn',
-  off: 'tm-prefs-dot--empty',
-};
+// ── Connection ────────────────────────────────────────────────────────────
+
+export interface Connection {
+  /** The assistant (OAuth app) or key name that signed in. */
+  readonly client: string;
+  /** When it was last seen: its last use, else when it connected. */
+  readonly at: string;
+}
 
 export function isActive(token: PersonalAccessTokenView, now: Date): boolean {
   if (token.revokedAt !== null) return false;
@@ -400,16 +309,29 @@ export function isActive(token: PersonalAccessTokenView, now: Date): boolean {
   return new Date(token.expiresAt).getTime() > now.getTime();
 }
 
-export function connectionStatus(active: readonly PersonalAccessTokenView[]): ConnectionStatus {
-  let latest: PersonalAccessTokenView | null = null;
-  for (const token of active) {
-    if (token.lastUsedAt === null) continue;
-    if (latest === null || token.lastUsedAt > (latest.lastUsedAt ?? '')) latest = token;
+/**
+ * Has an assistant connected as this member? The member's own connected apps (OAuth: Claude,
+ * ChatGPT, Cursor) count from the moment they connect; an active personal access token counts
+ * once it has been used. The most recent one names the assistant. Null: nothing yet.
+ */
+export function connectionFrom(
+  apps: readonly ConnectedApp[],
+  tokens: readonly PersonalAccessTokenView[],
+  now: Date,
+): Connection | null {
+  let latest: Connection | null = null;
+  const consider = (candidate: Connection) => {
+    if (latest === null || candidate.at > latest.at) latest = candidate;
+  };
+  for (const app of apps) {
+    if (!app.mine) continue;
+    consider({ client: app.clientName, at: app.lastUsedAt ?? app.connectedAt });
   }
-  if (latest?.lastUsedAt) {
-    return { kind: 'connected', lastUsedAt: latest.lastUsedAt, tokenName: latest.name };
+  for (const token of tokens) {
+    if (token.lastUsedAt === null || !isActive(token, now)) continue;
+    consider({ client: token.name, at: token.lastUsedAt });
   }
-  return active.length > 0 ? { kind: 'waiting' } : { kind: 'off' };
+  return latest;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -420,7 +342,9 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button
       type="button"
-      className="tm-prefs-capsule"
+      className="tm-button tm-button--outline tm-button--default"
+      disabled={text === ''}
+      aria-live="polite"
       onClick={() => {
         void navigator.clipboard
           ?.writeText(text)
@@ -433,14 +357,15 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString(appLocale());
-}
-
-function formatDateTime(iso: string): string {
+/** "18 Nov at 10:42" in the interface language. */
+function formatWhen(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleString(appLocale(), { dateStyle: 'medium', timeStyle: 'short' });
+    : date.toLocaleString(appLocale(), {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
 }

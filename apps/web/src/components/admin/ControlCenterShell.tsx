@@ -23,6 +23,7 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { HelpTip } from '../help/HelpTip';
+import { PendingAiActionsBadge } from '../ai-actions/pending-ai-actions';
 import '../../styles/screens/admin.css';
 import './control-center.css';
 import { ThemeSync } from '../shell/ThemeSync';
@@ -77,6 +78,8 @@ export type ControlCenterSection =
   | 'access-tokens'
   | 'calendar-connections'
   | 'ai-assistant'
+  // 55-15p: the actions an AI assistant asked for, waiting for the member's approval.
+  | 'ai-actions'
   | 'inbound-mail';
 
 /**
@@ -109,6 +112,8 @@ interface SectionLink {
    * the menu never offers a page that answers "You do not have permission". None: open to everyone.
    */
   readonly capability?: Capability;
+  /** English for a label whose key reaches the catalogs through an i18n fragment (`useTOr`). */
+  readonly fallback?: string;
 }
 
 interface SectionGroup {
@@ -200,6 +205,14 @@ const GROUPS: readonly SectionGroup[] = [
         id: 'ai-assistant',
         labelKey: 'SettingsHome.link.aiAssistant' as MessageKey,
         href: '/settings/ai-assistant',
+      },
+      // 55-15p (Figma 715:39681): under AI assistant, with the amber "2 waiting" capsule.
+      {
+        id: 'ai-actions',
+        labelKey: 'AiAssistantScreen.navAiActions' as MessageKey,
+        fallback: 'AI actions',
+        href: '/settings/ai-actions',
+        capability: 'ai.use',
       },
       {
         id: 'inbound-mail',
@@ -390,6 +403,7 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   'access-tokens': 'key',
   'calendar-connections': 'calendar',
   'ai-assistant': 'zap',
+  'ai-actions': 'listChecks',
   'inbound-mail': 'inbox',
 };
 
@@ -457,12 +471,13 @@ function SectionItem({
 }) {
   const t = useT();
   const tOr = useTOr();
+  const label = item.fallback === undefined ? t(item.labelKey) : tOr(item.labelKey, item.fallback);
   if (item.href === undefined) {
     return (
       <li>
         <span className="tm-cc-sections__item tm-cc-sections__item--static">
           <SectionIcon id={item.id} />
-          {t(item.labelKey)}
+          {label}
         </span>
       </li>
     );
@@ -478,8 +493,11 @@ function SectionItem({
       {...(current ? { 'aria-current': 'page' as const } : {})}
     >
       <SectionIcon id={item.id} />
-      {t(item.labelKey)}
+      {label}
       {item.id === 'storage' ? <StorageProviderBadge organizationSlug={organizationSlug} /> : null}
+      {item.id === 'ai-actions' ? (
+        <PendingAiActionsBadge organizationSlug={organizationSlug} />
+      ) : null}
     </Link>
   );
   return (

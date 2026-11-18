@@ -1,14 +1,109 @@
-/* AI assistant (Settings) — composes the Preferences card vocabulary; only the pieces it lacks. */
+/* AI assistant (Settings) — connect in three steps (55-15p, Figma 715:39480 / 715:39681).
+   Composes the Preferences card vocabulary; only the pieces it lacks. Logical properties only,
+   so Arabic mirrors it. */
 
-.tm-ai .tm-prefs__main {
-  flex: 1.6;
+.tm-ai-connect {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  max-inline-size: 36rem;
 }
 
-.tm-ai .tm-prefs__side {
+.tm-ai-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-ai-card__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-ai-card__title--step {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+}
+
+.tm-ai-step-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 28px;
+  block-size: 22px;
+  padding-inline: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  font-weight: 500;
+}
+
+.tm-ai-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* Filter/Chip selected (Figma): lime wash, word and ✓, never colour alone. */
+.tm-ai-chip[aria-pressed='true'],
+.tm-ai-chip[aria-pressed='true']:hover:not(:disabled) {
+  border-color: var(--lime-600);
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-ai-chip__check {
+  font-weight: 600;
+}
+
+/* The copy-line box: sunken surface, the address in mono, Copy at the end. */
+.tm-ai-line {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  padding-block: var(--s3);
+  padding-inline: var(--s4) var(--s3);
+  border-radius: 12px;
+  background: var(--paper-150);
+}
+
+.tm-ai-line__text {
   flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-950);
+  text-align: start;
 }
 
-.tm-ai-steps {
+.tm-ai-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.tm-ai-status .tm-prefs-card__body {
+  margin: 0;
+}
+
+.tm-ai-more {
+  margin: 0;
+}
+
+/* AI actions: the waiting list, one card per action. */
+.tm-ai-actions {
   display: flex;
   flex-direction: column;
   gap: var(--s4);
@@ -17,131 +112,6 @@
   list-style: none;
 }
 
-.tm-ai-step {
-  display: flex;
-  gap: var(--s3);
-  align-items: flex-start;
-}
-
-.tm-ai-step__num {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: 28px;
-  block-size: 28px;
-  border-radius: var(--r-capsule);
-  background: var(--ink-950);
-  color: var(--paper-50);
-  font-family: var(--font-mono);
-  font-size: var(--t-caption);
-  font-weight: 600;
-}
-
-.tm-ai-step__text,
-.tm-ai-status__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-inline-size: 0;
-}
-
-.tm-ai-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
-}
-
-.tm-ai-detail__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  align-items: center;
-}
-
-.tm-ai-detail__row .tm-prefs-secret {
-  flex: 1;
-  min-inline-size: 0;
-}
-
-.tm-ai-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-}
-
-.tm-ai-tab {
-  padding: 8px var(--s4);
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-capsule);
-  background: var(--paper-0);
-  font: inherit;
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
-  font-weight: 500;
-  color: var(--ink-800);
-  cursor: pointer;
-}
-
-.tm-ai-tab:hover {
-  border-color: var(--ink-650);
-  color: var(--ink-950);
-}
-
-.tm-ai-tab:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-.tm-ai-tab[aria-selected='true'] {
-  border-color: var(--ink-950);
-  background: var(--ink-950);
-  color: var(--paper-50);
-}
-
-/* R25 A18: not `.tm-ai-panel` — that is the fixed, 400px AI side panel (`ai-panel/ai-panel.css`),
-   whose global rule pinned this tab panel over the right-hand column. */
-.tm-ai-assistant-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-}
-
-.tm-ai-howto {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s1);
-  margin: 0;
-  padding-inline-start: 1.25em;
-}
-
-.tm-ai-snippet {
-  margin: 0;
-  padding: var(--s4);
-  overflow-x: auto;
-  border-radius: 12px;
-  background: var(--paper-50);
-  color: var(--ink-950);
-  font-family: var(--font-mono);
-  font-size: var(--t-caption);
-  line-height: 18px;
-  white-space: pre;
-}
-
-.tm-ai-status {
-  display: flex;
-  gap: var(--s3);
-  align-items: flex-start;
-  margin: 0;
-}
-
-.tm-ai-status .tm-prefs-dot {
-  margin-block-start: 7px;
-}
-
-@media (max-width: 73.69rem) {
-  .tm-ai .tm-prefs__main,
-  .tm-ai .tm-prefs__side {
-    flex: none;
-  }
+.tm-ai-actions .tm-state-capsule {
+  align-self: flex-start;
 }

@@ -1,4 +1,4 @@
-import { and, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, gt } from 'drizzle-orm';
 import { pendingAiActions, users } from '../../common/database/schema.js';
 import type { PendingAiActionRow } from '../../common/database/schema.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -76,6 +76,34 @@ export class PendingAiActionsRepository {
       )
       .limit(1);
     return rows[0];
+  }
+
+  /**
+   * The member's own actions still waiting for a decision (pending and not expired), newest
+   * first, at most `limit` — the "AI actions" list and the waiting badge (55-15p).
+   */
+  async listOwnPending(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    owner: { readonly membershipId: string; readonly userId: string },
+    now: Date,
+    limit: number,
+  ): Promise<PendingAiActionWithMember[]> {
+    return tenantDrizzle(runner)
+      .select({ row: pendingAiActions, memberName: users.displayName, memberEmail: users.email })
+      .from(pendingAiActions)
+      .innerJoin(users, eq(users.id, pendingAiActions.userId))
+      .where(
+        and(
+          eq(pendingAiActions.organizationId, context.organizationId),
+          eq(pendingAiActions.membershipId, owner.membershipId),
+          eq(pendingAiActions.userId, owner.userId),
+          eq(pendingAiActions.status, 'pending'),
+          gt(pendingAiActions.expiresAt, now),
+        ),
+      )
+      .orderBy(desc(pendingAiActions.createdAt))
+      .limit(limit);
   }
 
   /**

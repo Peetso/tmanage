@@ -46,6 +46,9 @@ import type { OpExecutor, PendingAiActionView } from './pending-actions.service.
  * The capability is `work.read`, the one every internal role holds — the same choice the member's
  * own personal access tokens make. The real control is rule 2.
  *
+ * The bare `GET …/ai/approvals` lists the member's own waiting actions (55-15p) under the same
+ * three rules.
+ *
  * These routes are in the AI registry's NEVER list: no AI tool can reach them.
  *
  * They are also behind the AI kill switches (S11): 503 while the platform switch is off, and an
@@ -81,6 +84,17 @@ export class PendingAiActionsController {
     @Inject(PENDING_AI_ACTIONS_SERVICE) private readonly approvals: PendingAiActionsService,
     @Inject(AI_ACCESS_SWITCHES) private readonly aiAccess: AiAccessSwitches,
   ) {}
+
+  /** 55-15p: the member's own actions waiting for approval, for the "AI actions" list and badge. */
+  @Get()
+  @RequireCapability('ai.use')
+  async list(
+    @Ctx() context: TenantContext,
+    @AuthScheme() authScheme: string | undefined,
+  ): Promise<{ items: PendingAiActionView[] }> {
+    requireCookieSession(authScheme);
+    return this.approvals.listPending(context);
+  }
 
   @Get(':id')
   @RequireCapability('ai.use')

@@ -32,6 +32,9 @@ export const HELP_COPY = {
     contextLink: 'Help for this page',
     switchLink: (name: string) => `Switching from ${name} to TManage`,
     compareLink: (name: string) => `TManage vs ${name}`,
+    promptLabel: 'Request to copy',
+    copy: 'Copy',
+    copied: 'Copied',
   },
   ar: {
     eyebrow: 'مركز المساعدة',
@@ -59,6 +62,9 @@ export const HELP_COPY = {
     contextLink: 'مساعدة لهذه الصفحة',
     switchLink: (name: string) => `الانتقال من ${name}${RLM} إلى TManage${RLM}`,
     compareLink: (name: string) => `${RLM}TManage مقابل ${name}`,
+    promptLabel: 'طلب للنسخ',
+    copy: 'نسخ',
+    copied: 'تم النسخ',
   },
 } satisfies Record<HelpLanguage, unknown>;
 

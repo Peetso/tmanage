@@ -8,6 +8,7 @@ import type { MessageKey } from '../../lib/i18n/t';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import {
   connectorAddress,
+  cursorEntry,
   deploymentAddress,
   openApiAddress,
 } from '../../lib/ai-connector-address';
@@ -27,10 +28,7 @@ export function claudeCodeCommand(address: string): string {
   return `claude mcp add --transport http tmanage ${address}`;
 }
 
-/** The entry for `mcpServers` in Cursor's or VS Code's `mcp.json`. No headers: OAuth signs in. */
-export function cursorEntry(address: string): string {
-  return `"tmanage": { "url": "${address}" }`;
-}
+export { cursorEntry };
 
 /**
  * **Connect an AI to TManage** — the S0-4 help page (Figma 360:1214 EN, 360:1333 AR).

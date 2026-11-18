@@ -133,6 +133,7 @@ export function llmsTxt(origin: string = siteOrigin()): string {
 function helpBlock(block: HelpBlock): string {
   if (block.kind === 'p') return block.text;
   if (block.kind === 'tip') return `> Tip: ${block.text}`;
+  if (block.kind === 'prompt') return ['```text', block.text, '```'].join('\n');
   return block.items.map((item, index) => `${index + 1}. ${item}`).join('\n');
 }
 

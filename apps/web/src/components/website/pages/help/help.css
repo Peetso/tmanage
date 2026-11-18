@@ -264,6 +264,53 @@
   color: var(--ink-650);
 }
 
+/* 55-15p: a request to copy into an AI assistant (the copy-line box: sunken surface + Copy). */
+.tm-web-help-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+}
+
+.tm-web-help-prompt__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+  text-transform: uppercase;
+}
+
+.tm-web-help-prompt__text {
+  margin: 0;
+  color: var(--ink-950);
+}
+
+.tm-web-help-prompt__copy {
+  align-self: flex-start;
+  min-block-size: 44px;
+  padding-inline: var(--s4);
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tm-web-help-prompt__copy:hover {
+  background: var(--tm-hover-surface);
+}
+
+.tm-web-help-prompt__copy:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .tm-web-help-related__title {
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);

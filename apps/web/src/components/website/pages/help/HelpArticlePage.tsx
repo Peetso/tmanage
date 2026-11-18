@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Badge } from '@tmanage/ui';
 import { ButtonLink } from '../../primitives';
@@ -38,6 +39,36 @@ function switchBackLinks(slug: string, language: HelpLanguage): HelpLink[] {
     });
   }
   return links;
+}
+
+/**
+ * 55-15p: a request to paste into an AI assistant — the text in the reader's language, and a Copy
+ * button that says "Copied" once the clipboard has it (announced through `aria-live`).
+ */
+export function HelpPromptBox({ text, language }: { text: string; language: HelpLanguage }) {
+  const copy = helpCopy(language);
+  const [copied, setCopied] = useState(false);
+  return (
+    <figure className="tm-web-help-prompt">
+      <figcaption className="tm-web-help-prompt__label">{copy.promptLabel}</figcaption>
+      <p className="tm-web-help-prompt__text" data-testid="tm-help-prompt">
+        {text}
+      </p>
+      <button
+        type="button"
+        className="tm-web-help-prompt__copy"
+        aria-live="polite"
+        onClick={() => {
+          void navigator.clipboard
+            ?.writeText(text)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false));
+        }}
+      >
+        {copied ? copy.copied : copy.copy}
+      </button>
+    </figure>
+  );
 }
 
 /**
@@ -90,6 +121,9 @@ export function HelpArticlePage({ article }: { article: HelpArticle }) {
                   ))}
                 </ol>
               );
+            }
+            if (block.kind === 'prompt') {
+              return <HelpPromptBox key={i} text={block.text} language={language} />;
             }
             if (block.kind === 'tip') {
               return (

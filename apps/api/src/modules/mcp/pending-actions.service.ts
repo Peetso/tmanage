@@ -80,6 +80,9 @@ export interface PendingActionOutcome {
   readonly result: unknown;
 }
 
+/** The most waiting actions one list returns; the badge says "50 waiting" at most. */
+export const PENDING_LIST_LIMIT = 50;
+
 const notFound = (): ApiError =>
   new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'pending_ai_action_not_visible');
 
@@ -155,6 +158,33 @@ export class PendingAiActionsService {
     }
     const subject = await this.readSubject(context, orgSlug, found);
     return subject === null ? view : { ...view, summary: { ...view.summary, subject } };
+  }
+
+  /**
+   * The signed-in member's own actions still waiting for approval, newest first (55-15p): the
+   * "AI actions" list and its waiting badge. Same view as one approval, without the subject read,
+   * so listing never runs anything as the member. A row whose stored arguments no longer verify is
+   * left out rather than failing the list.
+   */
+  async listPending(context: TenantContext): Promise<{ items: PendingAiActionView[] }> {
+    const rows = await this.database.read(context, (runner) =>
+      this.repository.listOwnPending(
+        runner,
+        context,
+        this.owner(context),
+        this.now(),
+        PENDING_LIST_LIMIT,
+      ),
+    );
+    const items: PendingAiActionView[] = [];
+    for (const found of rows) {
+      try {
+        items.push(this.toView(found));
+      } catch {
+        // Tampered or unknown op: never shown as approvable.
+      }
+    }
+    return { items };
   }
 
   /**

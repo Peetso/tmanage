@@ -52,6 +52,25 @@ export async function getAiApproval(
   return data;
 }
 
+/**
+ * 55-15p: the signed-in member's own actions waiting for approval, newest first (cookie session
+ * only) — the "AI actions" list, its menu badge and the AI assistant page's waiting card.
+ */
+export async function listPendingAiApprovals(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<readonly AiApprovalView[]> {
+  const { data } = await client.request<{ readonly items: readonly AiApprovalView[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/ai/approvals`,
+  });
+  return data.items;
+}
+
+/** The query key every reader of the waiting list shares, so the menu and the page ask once. */
+export function pendingAiApprovalsKey(organizationSlug: string): readonly string[] {
+  return ['ai-approvals-pending', organizationSlug];
+}
+
 export async function decideAiApproval(
   client: ApiClient,
   organizationSlug: string,
