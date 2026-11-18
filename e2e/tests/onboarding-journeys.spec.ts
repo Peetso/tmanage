@@ -85,7 +85,10 @@ test.describe.serial('the onboarding journeys', () => {
     await founder.page.getByLabel('Project name').fill('Autumn Brand Film');
     await founder.page.getByLabel('Target date').fill('2026-10-15');
     await founder.page.getByRole('button', { name: 'Create project' }).click();
-    await founder.page.waitForURL(`**/${ORG_SLUG}/onboarding/team`);
+    // ON-03 hands over `?project=created`, which the team step reads as "project made".
+    await founder.page.waitForURL(
+      new RegExp(`/${ORG_SLUG}/onboarding/team\\?project=created$`, 'u'),
+    );
 
     // ON-04: invite a teammate, read the role preview, create the invitation.
     // The teammate's own seeded address: the invitation screen branches on whether the invited
@@ -148,10 +151,10 @@ test.describe.serial('the onboarding journeys', () => {
     const member = await openAs(browser, world().northstar.designer.id);
 
     // A stranger organization's slug. The shell's membership gate (CQ-03) decides from the
-    // session's own organization list, so any slug not on it gets the same no-access page.
+    // session's own organization list, so any slug not on it gets the same not-found page.
     await member.page.goto('/brightops-consulting/work');
     await expect(
-      member.page.getByRole('heading', { name: 'You no longer have access' }),
+      member.page.getByRole('heading', { name: 'We couldn’t find that page' }),
     ).toBeVisible();
     const strangerMain = await member.page.getByRole('main').innerText();
     await expect(member.page.getByText('BrightOps Consulting')).toHaveCount(0);
@@ -161,7 +164,7 @@ test.describe.serial('the onboarding journeys', () => {
     // identical refusal, so the page tells nothing about which slugs exist.
     await member.page.goto('/northstar-studios/work');
     await expect(
-      member.page.getByRole('heading', { name: 'You no longer have access' }),
+      member.page.getByRole('heading', { name: 'We couldn’t find that page' }),
     ).toBeVisible();
     expect(await member.page.getByRole('main').innerText()).toBe(strangerMain);
 

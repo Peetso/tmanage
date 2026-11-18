@@ -71,7 +71,6 @@ for (const lang of LANGS) {
       await page.goto(inLang(`/${NORTHSTAR}/home`, lang));
       await expectLanguage(page, lang);
 
-      const subject = word(lang, 'MyDayScreen.deliverableReview');
       const rowApprove = page.getByRole('button', {
         name: startsWith(word(lang, 'PhoneHome.approve')),
       });
@@ -80,6 +79,13 @@ for (const lang of LANGS) {
       });
       await expect(rowApprove).toHaveCount(2);
       await expect(rowApprove.first()).toBeVisible();
+      // FIXUX-A P1 7: a row names what is being approved ("Project — deliverable · vN"), in the
+      // button's hidden ": {title}" suffix, and the sheet names the same item.
+      const subject = ((await rowApprove.first().textContent()) ?? '')
+        .split(': ')
+        .slice(1)
+        .join(': ');
+      expect(subject).toMatch(/· v1$/u);
 
       // Approve: the sheet names the review and says what goes on the record.
       await rowApprove.first().click();

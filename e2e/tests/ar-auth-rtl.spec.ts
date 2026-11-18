@@ -29,15 +29,16 @@ test.describe('Arabic sign-in and sign-up', () => {
     await expect(page).toHaveTitle('تسجيل الدخول · TManage');
     const email = page.getByLabel('بريد العمل');
     await expect(email).toHaveAttribute('dir', 'ltr');
-    await expect(page.getByRole('button', { name: 'تسجيل الدخول' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'تسجيل الدخول', exact: true })).toBeVisible();
     await expect(page.locator('a[href="/ar/sign-up"]').first()).toBeVisible();
+    // The alternates are absolute addresses on the public site (hreflang wants full URLs).
     await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute(
       'href',
-      '/sign-in',
+      /^https:\/\/[^/]+\/sign-in$/u,
     );
     await expect(page.locator('link[rel="alternate"][hreflang="ar"]')).toHaveAttribute(
       'href',
-      '/ar/sign-in',
+      /^https:\/\/[^/]+\/ar\/sign-in$/u,
     );
   });
 
@@ -47,8 +48,8 @@ test.describe('Arabic sign-in and sign-up', () => {
     await expect(email).toBeEnabled();
     await email.fill('nobody@example.test');
     await page.getByLabel(/^كلمة المرور/).fill('not the password at all');
-    await page.getByRole('button', { name: 'تسجيل الدخول' }).click();
-    await expect(page.getByText('البريد الإلكتروني وكلمة المرور غير متطابقين.')).toBeVisible();
+    await page.getByRole('button', { name: 'تسجيل الدخول', exact: true }).click();
+    await expect(page.getByText('البريد الإلكتروني أو كلمة المرور غير صحيحة.')).toBeVisible();
     await expect(page.getByText('The request carries no valid session')).toHaveCount(0);
   });
 

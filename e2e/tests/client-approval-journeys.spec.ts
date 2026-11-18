@@ -126,6 +126,8 @@ test.describe.serial('J4 — the client approval journeys', () => {
     const dialog = owner.page.getByRole('dialog', { name: 'Invite a client' });
     await dialog.getByLabel('Email').fill(CLIENT_EMAIL);
     await dialog.getByLabel('Client organization').fill(COMPANY);
+    // 55-08: the role (reviewer by default) sits behind "More options".
+    await dialog.getByRole('button', { name: /^More options/ }).click();
     await expect(dialog.getByRole('checkbox', { name: /^Reviewer/ })).toBeChecked();
     await dialog.getByRole('button', { name: 'Send invitation' }).click();
     await expect(dialog).toHaveCount(0);
@@ -219,7 +221,7 @@ test.describe.serial('J4 — the client approval journeys', () => {
     await owner.page.getByRole('button', { name: 'Upload new version' }).click();
     const versions = owner.page.getByRole('region', { name: 'Versions' });
     const v1 = versions.getByRole('listitem').filter({ hasText: V1_NOTE });
-    await expect(v1).toContainText('Not sent');
+    await expect(v1).toContainText('Only your team sees this');
 
     // BG2: Send for approval — the approver picker lists the person who just joined.
     await v1.getByRole('button', { name: 'Send for approval' }).click();
@@ -273,7 +275,7 @@ test.describe.serial('J4 — the client approval journeys', () => {
     await owner.page.getByRole('button', { name: 'Upload new version' }).click();
     const versions = owner.page.getByRole('region', { name: 'Versions' });
     const v2 = versions.getByRole('listitem').filter({ hasText: V2_NOTE });
-    await expect(v2).toContainText('Not sent');
+    await expect(v2).toContainText('Only your team sees this');
 
     await v2.getByRole('button', { name: 'Send for approval' }).click();
     const send = owner.page.getByRole('dialog', { name: 'Send for approval' });

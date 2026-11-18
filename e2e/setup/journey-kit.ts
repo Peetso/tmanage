@@ -125,12 +125,14 @@ export async function signedIn(
   browser: Browser,
   userId: string,
   options: {
-    readonly phone?: boolean;
+    /** A touch phone: `true` is {@link PHONE_390}; a size names another phone. */
+    readonly phone?: boolean | { readonly width: number; readonly height: number };
     readonly member?: { readonly org: string; readonly lang: Lang };
   } = {},
 ): Promise<SignedIn> {
+  const phone = options.phone === true ? PHONE_390 : options.phone;
   const context = await browser.newContext(
-    options.phone ? { viewport: PHONE_390, hasTouch: true, isMobile: true } : {},
+    phone ? { viewport: phone, hasTouch: true, isMobile: true } : {},
   );
   await context.addInitScript((slugs: readonly string[]) => {
     for (const slug of slugs) {

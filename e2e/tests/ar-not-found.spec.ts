@@ -18,27 +18,28 @@ test.describe('Arabic not-found page', () => {
       await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
       await expect(page.locator('html')).toHaveAttribute('lang', /^ar/);
       const heading = page.getByRole('heading', { level: 1 });
-      await expect(heading).toHaveText('لم نجد هذه الصفحة');
+      await expect(heading).toHaveText('لم نعثر على هذه الصفحة');
       expect(await heading.evaluate((node) => getComputedStyle(node).direction)).toBe('rtl');
       await expect(page).toHaveTitle('الصفحة غير موجودة · TManage');
       await expect(page.getByText('Page not found')).toHaveCount(0);
 
       const main = page.locator('main');
-      await expect(main.getByRole('link', { name: 'العودة إلى الصفحة الرئيسية' })).toHaveAttribute(
+      // CONFIRMPOLISH 5 (2026-11-17): one centred 404 whose two ways back are Home and Sign in.
+      await expect(main.getByRole('link', { name: 'العودة إلى الرئيسية' })).toHaveAttribute(
         'href',
         '/ar',
       );
-      await expect(main.getByRole('link', { name: 'تصفّح المصادر' })).toHaveAttribute(
+      await expect(main.getByRole('link', { name: 'تسجيل الدخول' })).toHaveAttribute(
         'href',
-        '/ar/resources',
+        '/ar/sign-in',
       );
     });
   }
 
-  test('the way back lands on the Arabic resources page', async ({ page }) => {
+  test('the way back lands on the Arabic home page', async ({ page }) => {
     await page.goto('/ar/no-such-page');
-    await page.locator('main').getByRole('link', { name: 'تصفّح المصادر' }).click();
-    await expect(page).toHaveURL(/\/ar\/resources$/);
+    await page.locator('main').getByRole('link', { name: 'العودة إلى الرئيسية' }).click();
+    await expect(page).toHaveURL(/\/ar$/);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   });
 });

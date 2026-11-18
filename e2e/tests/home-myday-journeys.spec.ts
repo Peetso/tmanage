@@ -31,6 +31,7 @@ interface World {
   readonly northstar: {
     readonly projectId: string;
     readonly workItemId: string;
+    readonly workItemTitle: string;
     readonly owner: SeededMember;
     readonly manager: SeededMember;
     readonly designer: SeededMember;
@@ -127,14 +128,13 @@ test.describe('Home / My Day — saved, pinned and recent context', () => {
       ).toHaveAttribute('href', `/${SLUG}/work/${workItemId}`);
 
       const recents = manager.page.getByRole('region', { name: 'Recently viewed', exact: true });
+      // The row reads the item's live title through its own authorized GET.
       await expect(
-        recents.getByRole('link', { name: 'Recently viewed work item', exact: true }),
+        recents.getByRole('link', { name: world().northstar.workItemTitle, exact: true }),
       ).toHaveAttribute('href', `/${SLUG}/work/${workItemId}`);
-      // Reference-only: a meeting has no stable route, so it is text, never a link — the rail
-      // discloses the kind and nothing a link to a place the member might not reach would.
-      const meeting = recents.getByText('Recently viewed meeting', { exact: true });
-      await expect(meeting).toBeVisible();
-      await expect(recents.getByRole('link', { name: 'Recently viewed meeting' })).toHaveCount(0);
+      // FIX5 item 6d: a recent whose object no longer exists (this meeting id names none) is left
+      // out, rather than drawn as a row the member cannot open.
+      await expect(recents.getByText('Recently viewed meeting', { exact: true })).toHaveCount(0);
 
       const savedRegion = manager.page.getByRole('region', { name: 'Saved', exact: true });
       await expect(

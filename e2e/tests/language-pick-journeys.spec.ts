@@ -3,9 +3,9 @@ import { API_URL } from '../setup/stack.js';
 
 /**
  * R12 R2 — a member picks a beta language on Preferences › Display and the whole tab follows it
- * (Figma "Languages (R2)" 501:29247). Until the Spanish catalog lands (slice 5) its strings are the
- * English copy, so the journey asserts the document language, not the words. The designer's row is
- * put back to English (US) at the end, because other journeys read the designer's screens.
+ * (Figma "Languages (R2)" 501:29247). The journey asserts the document language, and switches back
+ * through the Spanish words the page then shows. The designer's row is put back to English (US) at
+ * the end, because other journeys read the designer's screens.
  */
 
 interface World {
@@ -35,8 +35,9 @@ test('Preferences → Español sets html[lang="es-ES"], then back to English (US
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'es-ES');
 
-  await page.getByLabel('Language', { exact: true }).selectOption('en-US');
-  await page.getByRole('button', { name: /Save/ }).click();
+  // The Spanish catalog has landed: after the reload the page itself reads in Spanish.
+  await page.getByLabel('Idioma', { exact: true }).selectOption('en-US');
+  await page.getByRole('button', { name: /Guardar/ }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
   await context.close();
 });

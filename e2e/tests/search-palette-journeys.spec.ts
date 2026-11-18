@@ -12,11 +12,13 @@ import { API_URL } from '../setup/stack.js';
  *
  * - **PALETTE-OPEN** — Ctrl/Cmd-K opens the focus-trapped dialog, Escape closes it, and a second
  *   Ctrl/Cmd-K toggles it shut.
- * - **PALETTE-DEFAULT** — with no query the palette offers the default command set (the rail
- *   mirror) and neither a search-for row nor a recent-search row.
+ * - **PALETTE-DEFAULT** — with no query the palette offers the default command set (create
+ *   commands and the rail mirror under "Go to") and neither a search-for row nor a recent-search
+ *   row.
  * - **PALETTE-NAVIGATE** — typing filters to a navigate command, and activating it by click takes
  *   the caller to that tenant-scoped screen.
- * - **PALETTE-KEYBOARD** — ArrowDown moves the active row and Enter activates it, with no mouse.
+ * - **PALETTE-KEYBOARD** — the best match is the active row, the arrows move it, and Enter
+ *   activates it, with no mouse.
  * - **PALETTE-SEARCH** — the "search the workspace for …" row hands the query to the real results
  *   screen, seeds the per-organization recent search, and the clear-recent quick action forgets it.
  *
@@ -112,10 +114,11 @@ test('PALETTE-DEFAULT: an empty query offers the default command set and no sear
 
   const dialog = await openPalette(page);
 
-  // The rail-mirroring navigate commands and a quick action are all offered up front.
-  await expect(dialog.getByRole('option', { name: 'Go to Home' })).toBeVisible();
-  await expect(dialog.getByRole('option', { name: 'Go to Work' })).toBeVisible();
-  await expect(dialog.getByRole('option', { name: 'Search the workspace' })).toBeVisible();
+  // The rail-mirroring "Go to" destinations and a create command are all offered up front.
+  const goTo = dialog.getByRole('group', { name: 'Go to' });
+  await expect(goTo.getByRole('option', { name: /^My Day/u })).toBeVisible();
+  await expect(goTo.getByRole('option', { name: /^Work/u })).toBeVisible();
+  await expect(dialog.getByRole('option', { name: /^New task/u })).toBeVisible();
 
   // With no query there is neither a "search for …" seed row nor a recent-search row.
   await expect(dialog.getByRole('option', { name: /Search the workspace for/ })).toHaveCount(0);
@@ -133,7 +136,9 @@ test('PALETTE-NAVIGATE: typing filters to a navigate command, and a click goes t
   const dialog = await openPalette(page);
   await dialog.getByRole('combobox').fill('inbox');
 
-  const option = dialog.getByRole('option', { name: 'Go to Inbox' });
+  const option = dialog
+    .getByRole('group', { name: 'Go to' })
+    .getByRole('option', { name: 'Inbox' });
   await expect(option).toBeVisible();
   await option.click();
 
@@ -154,10 +159,15 @@ test('PALETTE-KEYBOARD: ArrowDown selects a command and Enter activates it, no m
   const dialog = await openPalette(page);
   await dialog.getByRole('combobox').fill('calendar');
 
-  // With a non-empty query row 0 is the "search for …" seed; one ArrowDown lands on the command.
-  const command = dialog.getByRole('option', { name: 'Go to Calendar' });
-  await expect(command).toBeVisible();
+  // The whole-label match ranks first and is the active row; ArrowDown moves off it (to the
+  // "search for …" row) and ArrowUp comes back, all on the keyboard.
+  const command = dialog
+    .getByRole('group', { name: 'Go to' })
+    .getByRole('option', { name: 'Calendar' });
+  await expect(command).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('ArrowDown');
+  await expect(command).toHaveAttribute('aria-selected', 'false');
+  await page.keyboard.press('ArrowUp');
   await expect(command).toHaveAttribute('aria-selected', 'true');
 
   await page.keyboard.press('Enter');

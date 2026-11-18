@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import type { Browser, BrowserContext, Locator, Page } from '@playwright/test';
-import { API_URL } from '../setup/stack.js';
+import type { Locator, Page } from '@playwright/test';
+import { signedIn } from '../setup/journey-kit.js';
 
 /**
  * The phone shell (audit 2026-10-25b, gap 8 — "23 Mobile proof"): one member, on a 375px phone,
@@ -16,8 +16,9 @@ import { API_URL } from '../setup/stack.js';
  *   and close it.
  * - **PH-03** — the FAB: a tap opens Quick capture with its title field ready.
  *
- * Arabic is chosen the way a shared link chooses it (`?lang=ar` on the first screen, persisted by
- * the boot script); every later screen is reached by tapping the dock, so the choice has to hold.
+ * Arabic is chosen the way the member chooses it, as their saved display language (R25 A6: a
+ * signed-in member's saved language wins over `?lang=`); every later screen is reached by tapping
+ * the dock, so the choice has to hold.
  * The words asserted are read from the two message catalogues rather than copied here, so a
  * re-worded label never makes this journey lie — and in Arabic the dock must also mirror: the
  * quick-capture orb sits on the left of the pill, not the right.
@@ -72,17 +73,6 @@ function word(lang: Lang, key: string): string {
   return value;
 }
 
-/** A phone context signed in through the dev session route — a real session, not a mock. */
-async function phoneAs(
-  browser: Browser,
-  userId: string,
-): Promise<{ context: BrowserContext; page: Page }> {
-  const context = await browser.newContext({ viewport: PHONE, hasTouch: true, isMobile: true });
-  const response = await context.request.post(`${API_URL}/v1/dev/sessions`, { data: { userId } });
-  expect(response.ok()).toBe(true);
-  return { context, page: await context.newPage() };
-}
-
 interface Dock {
   readonly bar: Locator;
   readonly destination: (key: string) => Locator;
@@ -131,10 +121,14 @@ for (const lang of ['en', 'ar'] as const) {
       // The journey opens every More tile (14+ routes); on a cold `next dev` each first visit
       // compiles, which alone outgrows the 120 s default.
       test.setTimeout(300_000);
-      const { context, page } = await phoneAs(browser, world().northstar.owner.id);
+      const owner = await signedIn(browser, world().northstar.owner.id, {
+        phone: PHONE,
+        member: { org: ORG, lang },
+      });
+      const { page } = owner;
       try {
         const phone = dock(page, lang);
-        await page.goto(`/${ORG}/home${lang === 'ar' ? '?lang=ar' : ''}`);
+        await page.goto(`/${ORG}/home`);
         await expectPhoneScreen(page, lang, phone);
 
         // The dock fits the phone, and mirrors in Arabic: the capture orb is on the trailing side.
@@ -222,7 +216,7 @@ for (const lang of ['en', 'ar'] as const) {
         expect(tileHrefs.length).toBeGreaterThanOrEqual(12);
         for (const href of tileHrefs) {
           expect(href, 'a More tile has no destination').not.toBe('');
-          const served = await context.request.get(href, { maxRedirects: 5 });
+          const served = await owner.context.request.get(href, { maxRedirects: 5 });
           expect(served.status(), `${href} answers 404`).not.toBe(404);
           if (!href.startsWith(`/${ORG}/`)) continue;
           await page.goto(`/${ORG}/home`);
@@ -246,7 +240,7 @@ for (const lang of ['en', 'ar'] as const) {
           page.getByRole('textbox', { name: word(lang, 'QuickCaptureScreen.titleLabel') }),
         ).toBeEditable();
       } finally {
-        await context.close();
+        await owner.close();
       }
     });
   });

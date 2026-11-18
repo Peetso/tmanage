@@ -245,7 +245,7 @@ test.describe('the Arabic journey', () => {
       await page.goto('/sign-in');
       await expect(page.getByRole('heading', { name: 'تسجيل الدخول' })).toBeVisible();
       await expectArabicScreen(page, 'sign-in', watch, page.locator('h1').first());
-      const disclosure = page.getByText('تسجيل دخول التطوير — ليس مصادقة');
+      const disclosure = page.getByText('دخول للتطوير — بدون تحقق من الهوية');
       await expect(disclosure).toBeVisible();
       if (!(await page.getByLabel('معرّف المستخدم').isVisible())) await disclosure.click();
       await expect(page.getByLabel('معرّف المستخدم')).toBeEnabled();
@@ -317,7 +317,7 @@ function arabicMessage(key: string): string {
 
 /** The Arabic public pages this journey reads, with the tab title each prerenders. */
 const ARABIC_PUBLIC_PAGES = [
-  { path: '/ar', title: `TManage — ${arabicMessage('HomePage.heroTitle')}` },
+  { path: '/ar', title: arabicMessage('HomePage.pageTitle') },
   { path: '/ar/pricing', title: `${arabicMessage('WebsiteTitle.pricing')} · TManage` },
 ] as const;
 
