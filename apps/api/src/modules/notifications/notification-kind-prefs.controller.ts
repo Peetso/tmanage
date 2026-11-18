@@ -55,6 +55,9 @@ export function kindEnabledByDefault(
   profile: NotificationProfile,
   kind: NotificationKind,
 ): boolean {
+  // EMAILBUILD2 (0373): "Tips from the TManage team" is on until the member turns it off,
+  // whatever the profile; the worker's person-mail sweep reads a missing row the same way.
+  if (kind === 'tips') return true;
   if (isRequiredActionKind(kind)) return true;
   const defaults = notificationDefaultsFor(profile);
   return [...defaults.immediateKinds, ...defaults.digestKinds].some((k) => k === kind);

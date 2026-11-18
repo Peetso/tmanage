@@ -188,6 +188,8 @@ describe('the grants and the schema agree', () => {
         'EMAILBUILD 0371: written only by the worker tips sweep; the API reads it (people card)',
       mail_tip_log:
         'EMAILBUILD 0371: written only by the worker tips sweep; the API never writes it',
+      platform_person_mail_sweep:
+        'EMAILBUILD2 0373: the sweep cursor, moved only by the worker; the API never writes it',
       changelog_entries:
         'x160 read-only from the application: the public changelog route only SELECTs (via the ' +
         'database-wide read grant); no app write path exists this slice — entries are authored by ' +

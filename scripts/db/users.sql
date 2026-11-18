@@ -2532,6 +2532,43 @@ GRANT INSERT, UPDATE ON `tmanage`.`platform_mail_people` TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`platform_mail_people` TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`mail_person_assignments` TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT ON `tmanage`.`mail_tip_log` TO 'tmanage_worker'@'%';
+-- 0373 (EMAILBUILD2). The person-mail sweep. `platform_feature_news` (global): platform admins
+-- write a release note and press Send once (INSERT, UPDATE of `sent_at`; no DELETE); the worker
+-- reads sent notes. `platform_person_mail_sweep` (global, one seeded row): the worker reads and
+-- moves its round-robin cursor (SELECT, UPDATE; the row is seeded by the migration). The
+-- "Tips from the TManage team" preference is the 0373 `tips` value of `notification_kind_prefs`
+-- (existing grants). The sweep asks, per workspace and per member, whether a feature is in use:
+-- one `(SELECT ... WHERE organization_id = ? LIMIT 1)` per table, so it reads (SELECT only) the
+-- feature tables below that it could not read before. It never reads a credential or secret
+-- table: the kinds that would need one ship switched off.
+GRANT INSERT, UPDATE ON `tmanage`.`platform_feature_news` TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`platform_feature_news` TO 'tmanage_worker'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`platform_person_mail_sweep` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`automation_schedules` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`document_templates` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`insight_report_schedules` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`insight_custom_reports` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`glossary_terms` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`doc_collections` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`meeting_action_items` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_checklist_templates` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_item_labels` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`insight_snapshots` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`insight_metric_alerts` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`org_objectives` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`meeting_series` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`org_announcements` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`member_teams` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`quotes` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`timesheets` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_forms` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`inbound_email_addresses` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`saved_searches` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`insight_saved_views` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`focus_blocks` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`doc_bookmarks` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`message_bookmarks` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`inbox_saved_filters` TO 'tmanage_worker'@'%';
 -- 0367 (57-13 follow-up). `storage_migration_jobs.total_bytes` (the size the job set out to move) is
 -- written once in the job's INSERT by the existing `storage_migration_jobs` grant; no new grant.
 -- 0359 (ADTRACK). `organizations` gains four nullable `signup_utm_*` columns, written once in the

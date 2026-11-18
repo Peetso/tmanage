@@ -97,6 +97,8 @@ import {
 import { runWebhookRetrySweepLoop } from './jobs/webhook-retry-sweeper.js';
 import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
 import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
+import { createPersonMailStore } from './common/database/person-mail-store.js';
+import { runPersonMailLoop } from './jobs/person-mail-sweep.js';
 // ---- 52-01 ---- forgotten-timer auto-stop.
 import { createTimerAutostopStore } from './common/database/timer-autostop-store.js';
 import { runTimerAutostopLoop } from './jobs/timer-autostop.js';
@@ -721,6 +723,17 @@ async function main(): Promise<void> {
     { store: createAuditAnchorStore(database), signer: anchorSignerFromEnv(process.env) },
     controller.signal,
   );
+  // ---- EMAILBUILD2 ---- the person-mail sweep, hourly beside the relay: at most 100 members per
+  // run, at most one mail each, through the notification transport (List-Unsubscribe, settings
+  // link) under template key 'tip', so the sender resolver signs it with the member's person.
+  const personMail = runPersonMailLoop(
+    {
+      store: createPersonMailStore(database),
+      mailer: notice('tip'),
+      webOrigin: env.WEB_PUBLIC_URL,
+    },
+    controller.signal,
+  );
   // ---- 56-23 ---- security detector every 5 minutes; at most one digest per 15 minutes to
   // ALERT_EMAILS (and own-org high signals to owners), through the same transport (mail_queue
   // when MAIL_QUEUE=on). No transport → signals are still recorded, nothing is mailed.
@@ -936,6 +949,8 @@ async function main(): Promise<void> {
     await approvalChain;
     // ---- 56-11 ----
     await auditAnchors;
+    // ---- EMAILBUILD2 ----
+    await personMail;
     // ---- 56-23 ----
     await securityDetector;
     // ---- 56-31 ----

@@ -196,4 +196,13 @@ describe('NotificationKindPrefsController (per-kind opt-out, x152)', () => {
     const standard = await controllerWith(repo).list(context, member());
     for (const entry of standard.kinds) expect(entry.delivery).toBe('immediate');
   });
+
+  it('EMAILBUILD2: "Tips from the TManage team" is on until turned off, and can be turned off', async () => {
+    const repo = new FakeRepo();
+    repo.profile = 'standard';
+    const listed = await controllerWith(repo).list(context, member());
+    expect(listed.kinds.find((k) => k.kind === 'tips')?.enabled).toBe(true);
+    const off = await controllerWith(repo).set(context, member(), 'tips', { enabled: false });
+    expect(off.kinds.find((k) => k.kind === 'tips')?.enabled).toBe(false);
+  });
 });

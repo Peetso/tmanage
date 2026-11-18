@@ -1516,6 +1516,9 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   'mail_hour_windows',
   // 0371 (EMAILBUILD). The TManage people who sign tips: a platform record, no organization.
   'platform_mail_people',
+  // 0373 (EMAILBUILD2). Platform release notes (Feature news card) and the person-mail sweep cursor.
+  'platform_feature_news',
+  'platform_person_mail_sweep',
   // ---- 52-21 ----
   // 0255. Public abuse telemetry and issued challenges. GLOBAL: the callers are anonymous (no
   // organization yet, or a visitor of one), every key is a hash (submitted values, the challenge

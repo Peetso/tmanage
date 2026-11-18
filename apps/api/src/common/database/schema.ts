@@ -6636,6 +6636,8 @@ export const NOTIFICATION_KINDS = [
   'file',
   // CQ-12 (0207): "Mentions" — being @mentioned in a channel or a document comment.
   'mention',
+  // EMAILBUILD2 (0373): "Tips from the TManage team" — every person mail (tips, news, follow-ups).
+  'tips',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -14463,4 +14465,43 @@ Object.assign(TABLES, {
   platform_mail_people: platformMailPeople,
   mail_person_assignments: mailPersonAssignments,
   mail_tip_log: mailTipLog,
+});
+
+// ---- EMAILBUILD2 · the person-mail engine (0373) ----
+
+/**
+ * 0373. A release note from the platform "Feature news" card. GLOBAL (platform record); `sentAt`
+ * is set once by Send, then the worker's hourly sweep delivers it once per user.
+ */
+export const platformFeatureNews = mysqlTable(
+  'platform_feature_news',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    titleEn: varchar('title_en', { length: 120 }).notNull(),
+    titleAr: varchar('title_ar', { length: 120 }).notNull(),
+    bodyEn: varchar('body_en', { length: 400 }).notNull(),
+    bodyAr: varchar('body_ar', { length: 400 }).notNull(),
+    link: varchar('link', { length: 500 }).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }),
+    sentByUserId: char('sent_by_user_id', { length: 36 }),
+  },
+  (table) => [index('ix_platform_feature_news_sent').on(table.sentAt)],
+);
+
+export type PlatformFeatureNewsRow = typeof platformFeatureNews.$inferSelect;
+
+/** 0373. Where the round-robin person-mail sweep stopped (one row, id 1). GLOBAL. */
+export const platformPersonMailSweep = mysqlTable('platform_person_mail_sweep', {
+  id: tinyint('id').primaryKey(),
+  cursorUserId: char('cursor_user_id', { length: 36 }),
+  lastRunAt: datetime('last_run_at', { mode: 'date', fsp: 3 }),
+});
+
+export type PlatformPersonMailSweepRow = typeof platformPersonMailSweep.$inferSelect;
+
+Object.assign(TABLES, {
+  platform_feature_news: platformFeatureNews,
+  platform_person_mail_sweep: platformPersonMailSweep,
 });
