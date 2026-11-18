@@ -56,7 +56,8 @@ const INVENTORY_PATH = resolve(HERE, '../../../docs/security/data-inventory.md')
 
 const RULES = ['delete', 'pseudonymise', 'keep-fiscal-redacted', 'none-no-personal-data'] as const;
 type Rule = (typeof RULES)[number];
-const STATUSES = ['enforced', 'gap', 'n/a'] as const;
+// `retained` (56-18 follow-up, 2026-11-16): kept on purpose, the reason in the notes.
+const STATUSES = ['enforced', 'retained', 'gap', 'n/a'] as const;
 type Status = (typeof STATUSES)[number];
 
 interface InventoryRow {
@@ -333,6 +334,22 @@ describe('PRIV-53-52 — an erasure through the privacy job honours the inventor
       if (row.status !== 'enforced' || (row.rule !== 'delete' && row.rule !== 'pseudonymise')) {
         continue;
       }
+      // A tenant table is checked by company, an OAuth table by the erased grant. A global
+      // per-person or age-out table (sessions, mail_queue, rate_limit_buckets …) holds no
+      // company key: its rule is carried out by AccountErasure or its named purge, which this
+      // company journey does not reach, so it is not judged here.
+      const byGrant =
+        TENANT_TABLES[row.table] !== 'organization_id' &&
+        Number(
+          (
+            await observe(
+              `select count(*) as c from information_schema.columns
+              where table_schema = database() and table_name = ? and column_name = 'grant_id'`,
+              [row.table],
+            )
+          )[0]?.['c'],
+        ) !== 0;
+      if (TENANT_TABLES[row.table] !== 'organization_id' && !byGrant) continue;
       const [count] =
         TENANT_TABLES[row.table] === 'organization_id'
           ? await observe(`select count(*) as c from \`${row.table}\` where organization_id = ?`, [

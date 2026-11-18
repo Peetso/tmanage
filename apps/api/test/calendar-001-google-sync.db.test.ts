@@ -166,11 +166,18 @@ describe('0237 — registry, identity and tenancy', () => {
       expect(TENANT_TABLES[table]).toBe('organization_id');
       expect(onTable('tmanage_app', table)).toContain(`tmanage.${table}:INSERT`);
       // platform-admin v2 · PA-03: the content purge reads and deletes soft-deleted attachments.
-      expect(onTable('tmanage_worker', table).sort()).toEqual(
-        table === 'meeting_attachments'
-          ? ['tmanage.meeting_attachments:DELETE', 'tmanage.meeting_attachments:SELECT']
-          : [],
-      );
+      // 56-02 key rotation: the worker re-encrypts stored calendar tokens (SELECT, UPDATE).
+      const workerGrants: Record<string, string[]> = {
+        meeting_attachments: [
+          'tmanage.meeting_attachments:DELETE',
+          'tmanage.meeting_attachments:SELECT',
+        ],
+        calendar_connections: [
+          'tmanage.calendar_connections:SELECT',
+          'tmanage.calendar_connections:UPDATE',
+        ],
+      };
+      expect(onTable('tmanage_worker', table).sort()).toEqual(workerGrants[table] ?? []);
     }
     const columns = await observe(
       `select column_name as name from information_schema.columns

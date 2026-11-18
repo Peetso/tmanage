@@ -576,8 +576,10 @@ describe('who can reach a channel', () => {
     const write = await post(clientSession, channel.id, { body: 'Can I?' });
 
     expect(list.statusCode).toBe(403);
-    expect(read.statusCode).toBe(403);
-    expect(write.statusCode).toBe(403);
+    // R7 slice 2: the read and post routes admit client principals to groups they belong to,
+    // so a channel they are not in answers like one that does not exist (no existence leak).
+    expect(read.statusCode).toBe(404);
+    expect(write.statusCode).toBe(404);
   });
 });
 

@@ -48,21 +48,22 @@ describe('X165 app directory over a real database', () => {
   it('lists a recorded connection with its settings as an object', async () => {
     const created = (await app.inject({
       method: 'POST',
-      url: `${DIRECTORY}/slack/connections`,
+      url: `${DIRECTORY}/github/connections`,
       headers: {
         cookie: owner.cookie,
         'x-csrf-token': owner.csrfToken,
         'content-type': 'application/json',
       },
-      payload: { label: 'Studio Slack', config: { channel: 'general' } },
+      payload: { label: 'Studio GitHub', config: { channel: 'general' } },
     })) as unknown as InjectedResponse;
     expect(created.statusCode, created.body).toBe(201);
 
     const response = await list();
     expect(response.statusCode, response.body).toBe(200);
-    const slack = response
+    // FIX5 (8c1eb895) took Slack out of the catalog; GitHub is a catalog app.
+    const github = response
       .json<{ apps: { id: string; connections: { config: unknown }[] }[] }>()
-      .apps.find((a) => a.id === 'slack');
-    expect(slack?.connections[0]?.config).toEqual({ channel: 'general' });
+      .apps.find((a) => a.id === 'github');
+    expect(github?.connections[0]?.config).toEqual({ channel: 'general' });
   });
 });

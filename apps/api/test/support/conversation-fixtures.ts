@@ -8,7 +8,7 @@ export const CHANNEL_ROW_DEFAULTS = {
   directUserHighId: null,
   photoFileAssetId: null,
   description: null,
-  onlyAdminsCanSend: 0,
+  onlyAdminsCanSend: false,
   inviteToken: null,
   lastMessageId: null,
   lastMessageAt: null,

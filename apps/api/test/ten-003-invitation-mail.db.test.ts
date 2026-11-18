@@ -246,10 +246,9 @@ describe('an issued invitation is emailed', () => {
 
     expect(issued.delivery).toBe('sent');
     const message = transport.messages[0]!;
-    // P3 designed emails: one subject shape for every invitation (who, where, which role);
-    // the client template is told apart by its heading in the body.
-    expect(message.subject).toBe('Maya Hassan invited you to Northstar Studio as Client viewer');
-    expect(message.text).toContain('Northstar Studio client portal on TManage');
+    // EMAIL-COPY (7703e3cd): a client invitation has its own subject, naming the portal.
+    expect(message.subject).toBe('Maya Hassan invited you to the Northstar Studio client portal');
+    expect(message.text).toContain('Northstar Studio client portal');
     expect(message.text).toContain('Atlas Hospitality');
 
     const events = await emailedEvents(issued.invitation.id);

@@ -75,6 +75,47 @@ export interface IssuedNumber {
   readonly number: string;
 }
 
+/** MariaDB 11.8 (`innodb_snapshot_isolation`): a locking read met a row newer than the snapshot. */
+const ER_CHECKREAD = 1020;
+const ER_LOCK_DEADLOCK = 1213;
+const NUMBER_ATTEMPTS = 8;
+
+function hasErrno(error: unknown, errno: number, code: string): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && typeof current === 'object' && current !== null; depth += 1) {
+    const candidate = current as { errno?: unknown; code?: unknown; cause?: unknown };
+    if (candidate.errno === errno || candidate.code === code) return true;
+    current = candidate.cause;
+  }
+  return false;
+}
+
+/**
+ * Racing issuers on one counter. The issuing transaction reads the invoice (and its settings)
+ * before it locks the counter row, so on MariaDB 11.8 (`innodb_snapshot_isolation` on by default)
+ * a second issuer that waited on the lock is refused with `ER_CHECKREAD` once the first commits:
+ * its snapshot predates the counter it is about to advance. The whole transaction is safe to run
+ * again — it rolled back, so no number was taken — and the next run starts a fresh snapshot.
+ */
+export function isRetryableSequenceRace(error: unknown): boolean {
+  return (
+    hasErrno(error, ER_CHECKREAD, 'ER_CHECKREAD') ||
+    hasErrno(error, ER_LOCK_DEADLOCK, 'ER_LOCK_DEADLOCK')
+  );
+}
+
+/** Run an issuing transaction, again (up to 8 times, jittered) when it lost a counter race. */
+export async function withSequenceRetry<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (!isRetryableSequenceRace(error) || attempt >= NUMBER_ATTEMPTS) throw error;
+      await new Promise((done) => setTimeout(done, 5 + Math.floor(Math.random() * 20 * attempt)));
+    }
+  }
+}
+
 export class DocumentSequenceService {
   constructor(private readonly store: DocumentSequenceStore) {}
 

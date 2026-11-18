@@ -622,6 +622,9 @@ describe('0030: documents is a tenant-scoped, project-owned, forward-only table'
         'purge_after',
         // 0272 (R5 rich editor): how `body` reads.
         'body_format',
+        // 0338 (document archive): when and by whom a document was archived.
+        'archived_at',
+        'archived_by_user_id',
       ].sort(),
     );
     // A document body is prose a person types â€” TEXT, and NOT NULL like conversations.body.
@@ -865,6 +868,13 @@ describe('0033: meeting_notes is a tenant-scoped, meeting-owned, append-only tab
         'kind',
         'meeting_id',
         'organization_id',
+        // 0326 (meeting-note drafts): an assistant's draft and its review.
+        'assistant_name',
+        'reviewed_at',
+        'reviewed_by_user_id',
+        'source',
+        'status',
+        'submitted_at',
       ].sort(),
     );
     // `kind` is an ENUM('note','decision'); `body` is TEXT and NOT NULL.

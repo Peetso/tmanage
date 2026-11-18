@@ -321,6 +321,14 @@ export async function truncateAll(admin: Pool): Promise<void> {
       'platform_admin_audit_events',
       'platform_settings',
       'idempotency_records',
+      // 56-05 (0250). Durable rate-limit buckets are global and keyed by the minute: a file that
+      // freezes `Date` would otherwise carry one case's sign-in tries into the next and see 429.
+      'rate_limit_buckets',
+      // 52-06 (0299). A retainer left by one case names a company the next case's reseed
+      // removed; the worker's period roll would then pick it up and write an orphan audit row.
+      'retainer_periods',
+      'retainer_projects',
+      'retainers',
       // USAGE-001 slice 2. Before `outbox_events`: a ledger row names the event that produced
       // it (and `usage_counters`, cleared below).
       'usage_ledger_entries',

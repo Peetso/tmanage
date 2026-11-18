@@ -396,6 +396,8 @@ describe('the producers', () => {
       fromState: 'backlog',
       toState: 'ready',
       workItemVersion: 2,
+      // Who moved it, so a consumer can tell a person's move from the relay's own.
+      actorUserId: owner.userId,
     });
 
     await work.update(ownerCtx, owner, acceptedWorkItemId, 2, { title: 'Retail palette pages' });

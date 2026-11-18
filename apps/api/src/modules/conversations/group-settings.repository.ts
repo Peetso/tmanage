@@ -40,7 +40,7 @@ export class GroupSettingsRepository {
     if (patch.description !== undefined) values['description'] = patch.description;
     if (patch.photoFileAssetId !== undefined) values['photoFileAssetId'] = patch.photoFileAssetId;
     if (patch.onlyAdminsCanSend !== undefined) {
-      values['onlyAdminsCanSend'] = patch.onlyAdminsCanSend ? 1 : 0;
+      values['onlyAdminsCanSend'] = patch.onlyAdminsCanSend;
     }
     await tenantDrizzle(runner)
       .update(conversations)

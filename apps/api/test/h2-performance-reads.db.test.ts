@@ -4,7 +4,7 @@ import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { TenantDatabase, createTenantContext } from '../src/common/database/tenant-context.js';
 import type { TenantContext } from '../src/common/database/tenant-context.js';
-import { HomeService } from '../src/modules/home/home.service.js';
+import { HomeService, overdueBefore } from '../src/modules/home/home.service.js';
 import {
   MY_DAY_LIMIT,
   MY_DAY_STATES,
@@ -36,6 +36,9 @@ let principal: Principal;
 
 const HOUR = 60 * 60 * 1000;
 const NOW = new Date();
+// Since ccc16f58 an item is overdue only before the start of NOW's day (UTC); one due earlier
+// today is still due soon.
+const START_OF_TODAY = overdueBefore(NOW);
 const OVERDUE = 60;
 const DUE_SOON = 20;
 const UNDATED = 50;
@@ -120,7 +123,7 @@ beforeAll(async () => {
       title: `H2 overdue ${i}`,
       state: 'in_progress',
       ownerUserId: owner.id,
-      dueAt: new Date(NOW.getTime() - (i + 1) * HOUR),
+      dueAt: new Date(START_OF_TODAY.getTime() - (i + 1) * HOUR),
       description: 'a long description the card never shows',
     })),
     ...Array.from({ length: DUE_SOON }, (_, i) => ({
@@ -180,8 +183,8 @@ describe('My Day is bounded and the hero still counts everything (H2)', () => {
         where organization_id = ? and owner_user_id = ? and deleted_at is null
           and state in (?)`,
       [
-        NOW,
-        NOW,
+        START_OF_TODAY,
+        START_OF_TODAY,
         new Date(NOW.getTime() + 3 * 24 * HOUR),
         world.northstar.organizationId,
         world.northstar.owner.id,

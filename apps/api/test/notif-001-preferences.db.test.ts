@@ -6,7 +6,6 @@ import { TenantDatabase, createTenantContext } from '../src/common/database/tena
 import type { TenantContext } from '../src/common/database/tenant-context.js';
 import { NotificationPreferencesRepository } from '../src/modules/notifications/notification-preferences.repository.js';
 import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
   NotificationPreferencesService,
   defaultsFor,
 } from '../src/modules/notifications/notification-preferences.service.js';
@@ -173,10 +172,10 @@ describe('NOTIF-001 notification preferences', () => {
       quietHoursEnd: null,
       quietHoursTimezone: null,
     });
-    // The manager, who saved nothing, still reads the defaults — not the owner's row.
-    expect(await service.getPreferences(managerCtx, manager)).toEqual(
-      DEFAULT_NOTIFICATION_PREFERENCES,
-    );
+    // The manager, who saved nothing, still reads the defaults — not the owner's row. Since
+    // 55-18 a member without a row reads the org profile (absent = calm), as the test above does.
+    const managerView = await service.getPreferences(managerCtx, manager);
+    expect(managerView).toEqual(defaultsFor('calm', managerView.quietHoursTimezone));
   });
 
   it('scopes by organization: the same user id has independent settings in two studios', async () => {

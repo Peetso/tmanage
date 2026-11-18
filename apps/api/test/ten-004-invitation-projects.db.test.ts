@@ -194,15 +194,17 @@ describe('issuing with projects and a note', () => {
     ]);
   });
 
-  it('refuses projects on a client invitation, and writes nothing', async () => {
+  // R38 G4 (ba586b92): a client invitation may be tagged with projects; they are the projects
+  // shared with the client organization when the invitee accepts.
+  it('tags a client invitation with its projects', async () => {
     const session = await signIn(owner().id);
     const response = await issue(session, {
       role: 'client_viewer',
       clientOrganizationId: world.atlas.clientOrganizationId,
       projectIds: [world.northstar.projectId],
     });
-    expect(response.statusCode).toBe(400);
-    expect(await observe('select id from invitation_projects')).toHaveLength(0);
+    expect(response.statusCode, response.body).toBe(201);
+    expect(await observe('select id from invitation_projects')).toHaveLength(1);
   });
 
   it('refuses a note longer than the column', async () => {

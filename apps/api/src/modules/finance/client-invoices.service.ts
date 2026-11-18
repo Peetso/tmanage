@@ -96,6 +96,7 @@ import {
 import type { LineInput } from './client-invoices-rules.js';
 import type { ClientInvoicesRepository, InvoiceChange } from './client-invoices.repository.js';
 import type { DocumentSequenceService } from './document-sequences.js';
+import { withSequenceRetry } from './document-sequences.js';
 import {
   chainLink,
   creditNoteUblLines,
@@ -1009,182 +1010,194 @@ export class ClientInvoicesService {
     const keyHash = idempotencyKeyHash(meta.idempotencyKey);
     const org = context.organizationId;
     const at = this.now();
-    const outcome = await this.options.database.transaction(context, async (tx) => {
-      const row = await this.repo.findInvoice(tx, org, id, true);
-      if (row === null) throw notFound();
-      if (row.state !== 'draft') {
-        if (keyHash !== null && row.sendKeyHash === keyHash) {
-          return {
-            view: await this.view(tx, org, row),
-            fresh: false,
-            country: null,
-            names: NO_NAMES,
-          };
+    const outcome = await withSequenceRetry(() =>
+      this.options.database.transaction(context, async (tx) => {
+        const row = await this.repo.findInvoice(tx, org, id, true);
+        if (row === null) throw notFound();
+        if (row.state !== 'draft') {
+          if (keyHash !== null && row.sendKeyHash === keyHash) {
+            return {
+              view: await this.view(tx, org, row),
+              fresh: false,
+              country: null,
+              names: NO_NAMES,
+            };
+          }
+          throw conflict('already_sent');
         }
-        throw conflict('already_sent');
-      }
-      const lines = await this.repo.lines(tx, org, id);
-      if (lines.length === 0) throw invalid('lines', 'an invoice needs at least one line');
-      const totals = invoiceTotals(lines.map(lineInputOf));
-      const threshold = Number(
-        (await this.repo.setting(tx, org, STEP_UP_SEND_SETTING_KEY)) ?? DEFAULT_STEP_UP_SEND_MINOR,
-      );
-      const baseTotal = toBaseMinor(totals.totalMinor, row.fxRate, row.baseCurrency, row.currency);
-      if (Number.isFinite(threshold) && baseTotal > threshold && !this.stepUpFresh(context, meta)) {
-        throw new ApiError(
-          403,
-          'reauthentication_required',
-          'Confirm your password to send an invoice of this size.',
-          undefined,
-          'client_invoice.send_step_up',
+        const lines = await this.repo.lines(tx, org, id);
+        if (lines.length === 0) throw invalid('lines', 'an invoice needs at least one line');
+        const totals = invoiceTotals(lines.map(lineInputOf));
+        const threshold = Number(
+          (await this.repo.setting(tx, org, STEP_UP_SEND_SETTING_KEY)) ??
+            DEFAULT_STEP_UP_SEND_MINOR,
         );
-      }
-      const issueDate = row.issueDate ?? isoDay(at);
-      await this.refuseLocked(tx, org, issueDate);
-      const client = await this.repo.clientBilling(tx, org, row.clientOrganizationId);
-      if (client === null) throw notFound();
-      const profile = await this.profile(tx, org);
-      const dueDate =
-        row.dueDate ?? addDays(issueDate, client.paymentTermsDays ?? profile.paymentTermsDays);
-      if (row.depositAppliedMinor > totals.totalMinor) {
-        throw invalid('depositAppliedMinor', 'must not exceed the invoice total');
-      }
-      const issued = await this.options.sequences.nextNumber(tx, org, 'invoice', at);
-      for (const line of lines) await this.link(tx, org, row.id, line, at);
-      const sent: ClientInvoiceRow = {
-        ...row,
-        number: issued.number,
-        state: 'sent',
-        issueDate,
-        dueDate,
-        subtotalMinor: totals.subtotalMinor,
-        discountMinor: totals.discountMinor,
-        taxMinor: totals.taxMinor,
-        totalMinor: totals.totalMinor,
-        buyerSnapshotJson: JSON.stringify({
-          name: client.name,
-          legalNameEn: client.legalNameEn,
-          legalNameAr: client.legalNameAr,
-          taxRegistrationNo: client.taxRegistrationNo,
-          addressEn: client.billingAddressEn,
-          addressAr: client.billingAddressAr,
-          email: client.billingEmail,
-        }),
-        sellerSnapshotJson: JSON.stringify({
-          legalNameEn: profile.legalNameEn,
-          legalNameAr: profile.legalNameAr,
-          taxRegistrationNo: profile.taxRegistrationNo,
-          addressEn: profile.addressEn,
-          addressAr: profile.addressAr,
-          country: profile.country,
-          bankDetails: profile.bankDetailsText,
-          // 52-12: the structured address the e-invoice XML is rebuilt from (regime orgs only).
-          ...(ublProfileOf(profile.einvoiceRegime) === null
-            ? {}
-            : { address: profile.addressJson }),
-        }),
-        sendKeyHash: keyHash,
-        sentAt: at,
-        sentTo: input.to.join(', ').slice(0, 254) || null,
-        taxNoticeShown: taxNoticeRequired(profile.country, row.documentLabel),
-        version: row.version + 1,
-        updatedAt: at,
-      };
-      sent.contentHash = invoiceContentHash(sent, lines);
-      if (profile.einvoiceRegime === 'zatca') {
-        // 52-12: the ICV is assigned here, with the number, never on a draft. Gapless: the
-        // invoice number already holds its sequence row lock (`DocumentSequenceService`), and
-        // `lockChain` serialises invoices with credit notes, which take another sequence.
-        await this.repo.lockChain(tx, org);
-        const head = await this.repo.chainHead(tx, org);
-        const link = chainLink(head, (position) =>
-          einvoiceXml(
-            invoiceDocument(sent),
-            invoiceUblLines(lines, sent.language),
-            'zatca',
-            position,
-          ),
+        const baseTotal = toBaseMinor(
+          totals.totalMinor,
+          row.fxRate,
+          row.baseCurrency,
+          row.currency,
         );
-        sent.zatcaIcv = link.icv;
-        sent.zatcaPih = link.pih;
-        sent.zatcaXmlHash = link.xmlHash;
-        sent.zatcaStatus = 'ready';
-        // 52-12 (R22-a): signed inside the same transaction; a failure never blocks the send.
-        const signed = await this.signLink(tx, context, id, 'invoice', id, link.xml);
-        if (signed !== null) {
-          sent.zatcaSignature = signed.signature;
-          sent.zatcaCertFingerprint = signed.fingerprint;
-          sent.zatcaStatus = 'signed';
+        if (
+          Number.isFinite(threshold) &&
+          baseTotal > threshold &&
+          !this.stepUpFresh(context, meta)
+        ) {
+          throw new ApiError(
+            403,
+            'reauthentication_required',
+            'Confirm your password to send an invoice of this size.',
+            undefined,
+            'client_invoice.send_step_up',
+          );
         }
-      }
-      await this.repo.updateInvoice(tx, org, id, {
-        zatcaIcv: sent.zatcaIcv ?? null,
-        zatcaPih: sent.zatcaPih ?? null,
-        zatcaXmlHash: sent.zatcaXmlHash ?? null,
-        zatcaStatus: sent.zatcaStatus ?? 'not_applicable',
-        zatcaSignature: sent.zatcaSignature ?? null,
-        zatcaCertFingerprint: sent.zatcaCertFingerprint ?? null,
-        number: sent.number,
-        state: sent.state,
-        issueDate,
-        dueDate,
-        subtotalMinor: sent.subtotalMinor,
-        discountMinor: sent.discountMinor,
-        taxMinor: sent.taxMinor,
-        totalMinor: sent.totalMinor,
-        buyerSnapshotJson: sent.buyerSnapshotJson,
-        sellerSnapshotJson: sent.sellerSnapshotJson,
-        contentHash: sent.contentHash,
-        sendKeyHash: keyHash,
-        sentAt: at,
-        sentTo: sent.sentTo,
-        taxNoticeShown: sent.taxNoticeShown,
-        version: sent.version,
-        updatedAt: at,
-      });
-      await this.event(
-        tx,
-        context,
-        id,
-        'sent',
-        'member',
-        meta,
-        {
+        const issueDate = row.issueDate ?? isoDay(at);
+        await this.refuseLocked(tx, org, issueDate);
+        const client = await this.repo.clientBilling(tx, org, row.clientOrganizationId);
+        if (client === null) throw notFound();
+        const profile = await this.profile(tx, org);
+        const dueDate =
+          row.dueDate ?? addDays(issueDate, client.paymentTermsDays ?? profile.paymentTermsDays);
+        if (row.depositAppliedMinor > totals.totalMinor) {
+          throw invalid('depositAppliedMinor', 'must not exceed the invoice total');
+        }
+        const issued = await this.options.sequences.nextNumber(tx, org, 'invoice', at);
+        for (const line of lines) await this.link(tx, org, row.id, line, at);
+        const sent: ClientInvoiceRow = {
+          ...row,
           number: issued.number,
-          recipients: input.to.length,
-          mail,
-        },
-        at,
-      );
-      await this.audited(tx, context, 'client_invoice.sent', id, {
-        number: issued.number,
-        total_minor: sent.totalMinor,
-        currency: sent.currency,
-        recipient_count: input.to.length,
-        mode: mail ? 'mail' : 'mark_sent',
-      });
-      if (mail) {
-        for (const recipientUserId of await this.repo.clientAdminUserIds(
-          tx,
-          org,
-          row.clientOrganizationId,
-        )) {
-          await this.options.notifications.insertForRecipient(tx, context, {
-            recipientUserId,
-            type: 'client_invoice.sent',
-            objectType: 'client_invoice',
-            objectId: id,
-            dedupeKey: `client_invoice.sent:${id}`,
-          });
+          state: 'sent',
+          issueDate,
+          dueDate,
+          subtotalMinor: totals.subtotalMinor,
+          discountMinor: totals.discountMinor,
+          taxMinor: totals.taxMinor,
+          totalMinor: totals.totalMinor,
+          buyerSnapshotJson: JSON.stringify({
+            name: client.name,
+            legalNameEn: client.legalNameEn,
+            legalNameAr: client.legalNameAr,
+            taxRegistrationNo: client.taxRegistrationNo,
+            addressEn: client.billingAddressEn,
+            addressAr: client.billingAddressAr,
+            email: client.billingEmail,
+          }),
+          sellerSnapshotJson: JSON.stringify({
+            legalNameEn: profile.legalNameEn,
+            legalNameAr: profile.legalNameAr,
+            taxRegistrationNo: profile.taxRegistrationNo,
+            addressEn: profile.addressEn,
+            addressAr: profile.addressAr,
+            country: profile.country,
+            bankDetails: profile.bankDetailsText,
+            // 52-12: the structured address the e-invoice XML is rebuilt from (regime orgs only).
+            ...(ublProfileOf(profile.einvoiceRegime) === null
+              ? {}
+              : { address: profile.addressJson }),
+          }),
+          sendKeyHash: keyHash,
+          sentAt: at,
+          sentTo: input.to.join(', ').slice(0, 254) || null,
+          taxNoticeShown: taxNoticeRequired(profile.country, row.documentLabel),
+          version: row.version + 1,
+          updatedAt: at,
+        };
+        sent.contentHash = invoiceContentHash(sent, lines);
+        if (profile.einvoiceRegime === 'zatca') {
+          // 52-12: the ICV is assigned here, with the number, never on a draft. Gapless: the
+          // invoice number already holds its sequence row lock (`DocumentSequenceService`), and
+          // `lockChain` serialises invoices with credit notes, which take another sequence.
+          await this.repo.lockChain(tx, org);
+          const head = await this.repo.chainHead(tx, org);
+          const link = chainLink(head, (position) =>
+            einvoiceXml(
+              invoiceDocument(sent),
+              invoiceUblLines(lines, sent.language),
+              'zatca',
+              position,
+            ),
+          );
+          sent.zatcaIcv = link.icv;
+          sent.zatcaPih = link.pih;
+          sent.zatcaXmlHash = link.xmlHash;
+          sent.zatcaStatus = 'ready';
+          // 52-12 (R22-a): signed inside the same transaction; a failure never blocks the send.
+          const signed = await this.signLink(tx, context, id, 'invoice', id, link.xml);
+          if (signed !== null) {
+            sent.zatcaSignature = signed.signature;
+            sent.zatcaCertFingerprint = signed.fingerprint;
+            sent.zatcaStatus = 'signed';
+          }
         }
-      }
-      return {
-        view: await this.view(tx, org, sent),
-        fresh: true,
-        country: sellerFromSnapshot(sent.sellerSnapshotJson).country,
-        names: await this.mailNames(tx, org, sent.clientOrganizationId),
-      };
-    });
+        await this.repo.updateInvoice(tx, org, id, {
+          zatcaIcv: sent.zatcaIcv ?? null,
+          zatcaPih: sent.zatcaPih ?? null,
+          zatcaXmlHash: sent.zatcaXmlHash ?? null,
+          zatcaStatus: sent.zatcaStatus ?? 'not_applicable',
+          zatcaSignature: sent.zatcaSignature ?? null,
+          zatcaCertFingerprint: sent.zatcaCertFingerprint ?? null,
+          number: sent.number,
+          state: sent.state,
+          issueDate,
+          dueDate,
+          subtotalMinor: sent.subtotalMinor,
+          discountMinor: sent.discountMinor,
+          taxMinor: sent.taxMinor,
+          totalMinor: sent.totalMinor,
+          buyerSnapshotJson: sent.buyerSnapshotJson,
+          sellerSnapshotJson: sent.sellerSnapshotJson,
+          contentHash: sent.contentHash,
+          sendKeyHash: keyHash,
+          sentAt: at,
+          sentTo: sent.sentTo,
+          taxNoticeShown: sent.taxNoticeShown,
+          version: sent.version,
+          updatedAt: at,
+        });
+        await this.event(
+          tx,
+          context,
+          id,
+          'sent',
+          'member',
+          meta,
+          {
+            number: issued.number,
+            recipients: input.to.length,
+            mail,
+          },
+          at,
+        );
+        await this.audited(tx, context, 'client_invoice.sent', id, {
+          number: issued.number,
+          total_minor: sent.totalMinor,
+          currency: sent.currency,
+          recipient_count: input.to.length,
+          mode: mail ? 'mail' : 'mark_sent',
+        });
+        if (mail) {
+          for (const recipientUserId of await this.repo.clientAdminUserIds(
+            tx,
+            org,
+            row.clientOrganizationId,
+          )) {
+            await this.options.notifications.insertForRecipient(tx, context, {
+              recipientUserId,
+              type: 'client_invoice.sent',
+              objectType: 'client_invoice',
+              objectId: id,
+              dedupeKey: `client_invoice.sent:${id}`,
+            });
+          }
+        }
+        return {
+          view: await this.view(tx, org, sent),
+          fresh: true,
+          country: sellerFromSnapshot(sent.sellerSnapshotJson).country,
+          names: await this.mailNames(tx, org, sent.clientOrganizationId),
+        };
+      }),
+    );
     if (outcome.fresh && mail) {
       const attachment = input.attachPdf ? await this.pdfAttachment(context, principal, id) : null;
       await this.deliver(
@@ -1457,159 +1470,161 @@ export class ClientInvoicesService {
     const input = validateCreditNote(body);
     const org = context.organizationId;
     const at = this.now();
-    return this.options.database.transaction(context, async (tx) => {
-      const row = await this.repo.findInvoice(tx, org, id, true);
-      if (row === null) throw notFound();
-      if (!isCreditable(row.state)) throw conflict(`not_creditable:${row.state}`);
-      const sources: readonly LineInput[] =
-        input.lines ??
-        (await this.repo.lines(tx, org, id)).map((l) => ({
-          id: null,
-          descriptionEn: l.descriptionEn,
-          descriptionAr: l.descriptionAr,
-          quantityCenti: 100,
-          unit: 'item',
-          // The line as issued: its discounted net, at its tax rate.
-          unitPriceMinor: Number(l.lineNetMinor),
-          discountBp: 0,
-          taxBp: l.taxBp,
+    return withSequenceRetry(() =>
+      this.options.database.transaction(context, async (tx) => {
+        const row = await this.repo.findInvoice(tx, org, id, true);
+        if (row === null) throw notFound();
+        if (!isCreditable(row.state)) throw conflict(`not_creditable:${row.state}`);
+        const sources: readonly LineInput[] =
+          input.lines ??
+          (await this.repo.lines(tx, org, id)).map((l) => ({
+            id: null,
+            descriptionEn: l.descriptionEn,
+            descriptionAr: l.descriptionAr,
+            quantityCenti: 100,
+            unit: 'item',
+            // The line as issued: its discounted net, at its tax rate.
+            unitPriceMinor: Number(l.lineNetMinor),
+            discountBp: 0,
+            taxBp: l.taxBp,
+          }));
+        const already = (await this.repo.creditNotes(tx, org, id)).reduce(
+          (sum, note) => sum + Number(note.totalMinor),
+          0,
+        );
+        let totals;
+        try {
+          totals = creditNoteTotals(sources.map(lineInputOf), Number(row.totalMinor), already);
+        } catch (error) {
+          if (error instanceof MoneyError) throw invalid('lines', 'credit_exceeds_invoice_total');
+          throw error;
+        }
+        const issued = await this.options.sequences.nextNumber(tx, org, 'credit_note', at);
+        const noteId = uuidv7();
+        const noteLines: ClientCreditNoteLineRow[] = sources.map((line, position) => ({
+          id: uuidv7(),
+          organizationId: org,
+          creditNoteId: noteId,
+          position,
+          descriptionEn: line.descriptionEn,
+          descriptionAr: line.descriptionAr,
+          quantityCenti: line.quantityCenti,
+          unit: line.unit,
+          unitPriceMinor: line.unitPriceMinor,
+          taxBp: line.taxBp,
+          lineNetMinor: totals.lines[position]!.lineNetMinor,
+          lineTaxMinor: totals.lines[position]!.lineTaxMinor,
+          lineGrossMinor: totals.lines[position]!.lineGrossMinor,
+          createdAt: at,
         }));
-      const already = (await this.repo.creditNotes(tx, org, id)).reduce(
-        (sum, note) => sum + Number(note.totalMinor),
-        0,
-      );
-      let totals;
-      try {
-        totals = creditNoteTotals(sources.map(lineInputOf), Number(row.totalMinor), already);
-      } catch (error) {
-        if (error instanceof MoneyError) throw invalid('lines', 'credit_exceeds_invoice_total');
-        throw error;
-      }
-      const issued = await this.options.sequences.nextNumber(tx, org, 'credit_note', at);
-      const noteId = uuidv7();
-      const noteLines: ClientCreditNoteLineRow[] = sources.map((line, position) => ({
-        id: uuidv7(),
-        organizationId: org,
-        creditNoteId: noteId,
-        position,
-        descriptionEn: line.descriptionEn,
-        descriptionAr: line.descriptionAr,
-        quantityCenti: line.quantityCenti,
-        unit: line.unit,
-        unitPriceMinor: line.unitPriceMinor,
-        taxBp: line.taxBp,
-        lineNetMinor: totals.lines[position]!.lineNetMinor,
-        lineTaxMinor: totals.lines[position]!.lineTaxMinor,
-        lineGrossMinor: totals.lines[position]!.lineGrossMinor,
-        createdAt: at,
-      }));
-      const note: ClientCreditNoteRow = {
-        id: noteId,
-        organizationId: org,
-        invoiceId: id,
-        number: issued.number,
-        reason: input.reason,
-        subtotalMinor: totals.subtotalMinor,
-        taxMinor: totals.taxMinor,
-        totalMinor: totals.totalMinor,
-        contentHash: createHash('sha256')
-          .update(
-            JSON.stringify([
-              issued.number,
-              row.number,
-              input.reason,
-              noteLines.map((l) => [
-                l.position,
-                l.descriptionEn,
-                l.descriptionAr,
-                l.quantityCenti,
-                l.unitPriceMinor,
-                l.taxBp,
-                l.lineNetMinor,
-                l.lineTaxMinor,
-              ]),
-              totals.totalMinor,
-            ]),
-            'utf8',
-          )
-          .digest('hex'),
-        pdfFileAssetId: null,
-        xmlFileAssetId: null,
-        zatcaIcv: null,
-        zatcaPih: null,
-        zatcaXmlHash: null,
-        zatcaStatus: 'not_applicable',
-        zatcaSignature: null,
-        zatcaCertFingerprint: null,
-        issuedAt: at,
-        createdBy: context.userId,
-        createdAt: at,
-        exportedAt: null,
-        exportTarget: null,
-      };
-      if ((await this.profile(tx, org)).einvoiceRegime === 'zatca') {
-        // 52-12: a credit note is a link of the same chain (one counter with the invoices), its
-        // seller as the corrected invoice froze it; assigned with its number, under `lockChain`.
-        await this.repo.lockChain(tx, org);
-        const doc: EinvoiceDocument = {
+        const note: ClientCreditNoteRow = {
           id: noteId,
+          organizationId: org,
+          invoiceId: id,
           number: issued.number,
-          kind: 'credit_note',
-          issuedAt: at,
-          issueDate: isoDay(at),
-          supplyDate: row.supplyDate ?? row.issueDate,
-          currency: row.currency,
-          buyerSnapshotJson: row.buyerSnapshotJson,
-          sellerSnapshotJson: row.sellerSnapshotJson,
+          reason: input.reason,
           subtotalMinor: totals.subtotalMinor,
-          discountMinor: 0,
           taxMinor: totals.taxMinor,
           totalMinor: totals.totalMinor,
-          billingReference: row.number,
-          creditReason: input.reason,
+          contentHash: createHash('sha256')
+            .update(
+              JSON.stringify([
+                issued.number,
+                row.number,
+                input.reason,
+                noteLines.map((l) => [
+                  l.position,
+                  l.descriptionEn,
+                  l.descriptionAr,
+                  l.quantityCenti,
+                  l.unitPriceMinor,
+                  l.taxBp,
+                  l.lineNetMinor,
+                  l.lineTaxMinor,
+                ]),
+                totals.totalMinor,
+              ]),
+              'utf8',
+            )
+            .digest('hex'),
+          pdfFileAssetId: null,
+          xmlFileAssetId: null,
+          zatcaIcv: null,
+          zatcaPih: null,
+          zatcaXmlHash: null,
+          zatcaStatus: 'not_applicable',
+          zatcaSignature: null,
+          zatcaCertFingerprint: null,
+          issuedAt: at,
+          createdBy: context.userId,
+          createdAt: at,
+          exportedAt: null,
+          exportTarget: null,
         };
-        const link = chainLink(await this.repo.chainHead(tx, org), (position) =>
-          einvoiceXml(doc, creditNoteUblLines(noteLines, row.language), 'zatca', position),
-        );
-        note.zatcaIcv = link.icv;
-        note.zatcaPih = link.pih;
-        note.zatcaXmlHash = link.xmlHash;
-        note.zatcaStatus = 'ready';
-        const signed = await this.signLink(tx, context, id, 'credit_note', noteId, link.xml);
-        if (signed !== null) {
-          note.zatcaSignature = signed.signature;
-          note.zatcaCertFingerprint = signed.fingerprint;
-          note.zatcaStatus = 'signed';
+        if ((await this.profile(tx, org)).einvoiceRegime === 'zatca') {
+          // 52-12: a credit note is a link of the same chain (one counter with the invoices), its
+          // seller as the corrected invoice froze it; assigned with its number, under `lockChain`.
+          await this.repo.lockChain(tx, org);
+          const doc: EinvoiceDocument = {
+            id: noteId,
+            number: issued.number,
+            kind: 'credit_note',
+            issuedAt: at,
+            issueDate: isoDay(at),
+            supplyDate: row.supplyDate ?? row.issueDate,
+            currency: row.currency,
+            buyerSnapshotJson: row.buyerSnapshotJson,
+            sellerSnapshotJson: row.sellerSnapshotJson,
+            subtotalMinor: totals.subtotalMinor,
+            discountMinor: 0,
+            taxMinor: totals.taxMinor,
+            totalMinor: totals.totalMinor,
+            billingReference: row.number,
+            creditReason: input.reason,
+          };
+          const link = chainLink(await this.repo.chainHead(tx, org), (position) =>
+            einvoiceXml(doc, creditNoteUblLines(noteLines, row.language), 'zatca', position),
+          );
+          note.zatcaIcv = link.icv;
+          note.zatcaPih = link.pih;
+          note.zatcaXmlHash = link.xmlHash;
+          note.zatcaStatus = 'ready';
+          const signed = await this.signLink(tx, context, id, 'credit_note', noteId, link.xml);
+          if (signed !== null) {
+            note.zatcaSignature = signed.signature;
+            note.zatcaCertFingerprint = signed.fingerprint;
+            note.zatcaStatus = 'signed';
+          }
         }
-      }
-      await this.repo.insertCreditNote(tx, note, noteLines);
-      const full = already + totals.totalMinor >= Number(row.totalMinor);
-      const change: InvoiceChange = { version: row.version + 1, updatedAt: at };
-      if (full) change.state = nextInvoiceState(row.state, 'credit_full') ?? row.state;
-      await this.repo.updateInvoice(tx, org, id, change);
-      await this.event(
-        tx,
-        context,
-        id,
-        'credited',
-        'member',
-        meta,
-        {
-          credit_note: issued.number,
+        await this.repo.insertCreditNote(tx, note, noteLines);
+        const full = already + totals.totalMinor >= Number(row.totalMinor);
+        const change: InvoiceChange = { version: row.version + 1, updatedAt: at };
+        if (full) change.state = nextInvoiceState(row.state, 'credit_full') ?? row.state;
+        await this.repo.updateInvoice(tx, org, id, change);
+        await this.event(
+          tx,
+          context,
+          id,
+          'credited',
+          'member',
+          meta,
+          {
+            credit_note: issued.number,
+            total_minor: totals.totalMinor,
+            full,
+          },
+          at,
+        );
+        await this.audited(tx, context, 'client_invoice.credited', id, {
+          // Not `credit_note_number`: `note` is a refused audit key segment (content, not a fact),
+          // and the refusal turned every credit note into a 500.
+          credit_number: issued.number,
           total_minor: totals.totalMinor,
           full,
-        },
-        at,
-      );
-      await this.audited(tx, context, 'client_invoice.credited', id, {
-        // Not `credit_note_number`: `note` is a refused audit key segment (content, not a fact),
-        // and the refusal turned every credit note into a 500.
-        credit_number: issued.number,
-        total_minor: totals.totalMinor,
-        full,
-      });
-      return this.view(tx, org, { ...row, ...change } as ClientInvoiceRow);
-    });
+        });
+        return this.view(tx, org, { ...row, ...change } as ClientInvoiceRow);
+      }),
+    );
   }
 
   /** A templated EN/AR reminder; one per invoice per day. */

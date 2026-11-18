@@ -286,7 +286,9 @@ describe('the register write path refuses SSRF targets and writes no row', () =>
     // The projection cannot carry the secret — prove it structurally and by value.
     expect(JSON.stringify(view)).not.toContain(VALID_SECRET);
     const viewRecord = view as unknown as Record<string, unknown>;
-    expect(viewRecord['secret']).toBeUndefined();
+    // Create answers `secret: null` when the caller supplied their own (they already hold it);
+    // only a generated secret is shown, once.
+    expect(viewRecord['secret']).toBeNull();
     expect(viewRecord['secretHash']).toBeUndefined();
 
     expect(await countEndpoints()).toBe(1);

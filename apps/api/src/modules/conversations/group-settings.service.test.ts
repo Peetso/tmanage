@@ -27,7 +27,7 @@ const group = {
   kind: 'group',
   archivedAt: null,
   name: 'G',
-  onlyAdminsCanSend: 0,
+  onlyAdminsCanSend: false,
 } as unknown as ConversationRow;
 const member = (userId: string, role: 'admin' | 'member', at: number) =>
   ({ userId, role, createdAt: new Date(at) }) as unknown as ConversationMembershipRow;

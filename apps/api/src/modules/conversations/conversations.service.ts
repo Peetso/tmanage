@@ -179,7 +179,7 @@ function toConversationView(
     name: row.name,
     photoFileAssetId: row.photoFileAssetId,
     description: row.description,
-    settings: { onlyAdminsCanSend: row.onlyAdminsCanSend === 1 },
+    settings: { onlyAdminsCanSend: row.onlyAdminsCanSend },
     lastMessageAt: row.lastMessageAt ? row.lastMessageAt.toISOString() : null,
     ...(viewerRole === undefined ? {} : { viewerRole }),
     createdByUserId: row.createdByUserId,
@@ -688,7 +688,7 @@ export class ConversationsService {
       // with a message a person can act on rather than a bare 404.
       throw new ApiError(409, 'conflict', 'This channel is archived, so nothing can be posted');
     }
-    if (conversation.onlyAdminsCanSend === 1) {
+    if (conversation.onlyAdminsCanSend) {
       // R7: the group setting. A 403, because the caller can already read the conversation.
       const membership = await this.database.read(context, (runner) =>
         this.conversations.findMembership(runner, context, conversationId, principal.userId),

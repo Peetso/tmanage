@@ -52,8 +52,24 @@ afterAll(async () => {
   await db?.stop();
 });
 
+/**
+ * A fresh project in Northstar's workspace. The seed world's own project already holds items, and
+ * the recompute refuses a project over MAX_GRAPH_NODES, so the 2,000-item chain gets its own.
+ */
+async function freshProject(): Promise<string> {
+  const id = uuidv7();
+  const at = new Date('2026-11-01T06:00:00Z');
+  await db.admin.query(
+    `INSERT INTO projects (id, organization_id, workspace_id, name, status, created_at, updated_at)
+     SELECT ?, organization_id, workspace_id, 'Critical path chain', 'active', ?, ?
+       FROM projects WHERE id = ?`,
+    [id, at, at, world.northstar.projectId],
+  );
+  return id;
+}
+
 /** `n` items in a chain (each FS after the previous), one working day each from 2026-11-01. */
-async function seedChain(n: number): Promise<string[]> {
+async function seedChain(n: number, projectId: string): Promise<string[]> {
   const ns = world.northstar;
   const ids = Array.from({ length: n }, () => uuidv7());
   const start = new Date('2026-11-01T06:00:00Z');
@@ -66,7 +82,7 @@ async function seedChain(n: number): Promise<string[]> {
         chunk.map((id, i) => [
           id,
           ns.organizationId,
-          ns.projectId,
+          projectId,
           `Chain ${at + i}`,
           'todo',
           start,
@@ -116,10 +132,11 @@ describe('0297 — registry', () => {
 
 describe('53-06 recompute', () => {
   it('PERF 53-T-16: 2,000 chained items recompute in under 500 ms, one batch, one tenant', async () => {
-    await seedChain(2000);
-    await service.recompute(ctx, world.northstar.projectId); // warm the pool and the calendar read
+    const projectId = await freshProject();
+    await seedChain(2000, projectId);
+    await service.recompute(ctx, projectId); // warm the pool and the calendar read
     const started = performance.now();
-    const outcome = await service.recompute(ctx, world.northstar.projectId);
+    const outcome = await service.recompute(ctx, projectId);
     expect(performance.now() - started).toBeLessThan(500);
     expect(outcome.items).toBe(2000);
 

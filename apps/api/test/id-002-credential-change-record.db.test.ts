@@ -649,8 +649,10 @@ describe('the owner can read their own credential history', () => {
     expect(Object.keys(changes[0]!).sort()).toEqual(['action', 'id', 'occurredAt']);
   });
 
-  it('asks only for the four credential-changing actions', () => {
+  it('asks only for the five credential-changing actions', () => {
     expect([...CREDENTIAL_CHANGE_ACTIONS].sort()).toEqual([
+      // The preferred sign-in factor changed (a credential choice, recorded like the others).
+      'mfa_default_changed',
       'mfa_factor_disabled',
       'mfa_factor_enrolled',
       'password_set',

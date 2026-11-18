@@ -120,7 +120,7 @@ export class GroupSettingsService {
         name: row.name,
         description: row.description,
         photoFileAssetId: row.photoFileAssetId,
-        onlyAdminsCanSend: row.onlyAdminsCanSend === 1,
+        onlyAdminsCanSend: row.onlyAdminsCanSend,
         viewerRole: membership.role,
         inviteToken: membership.role === 'admin' ? row.inviteToken : null,
         members: members.map((m) => ({
@@ -151,7 +151,7 @@ export class GroupSettingsService {
       }
       if (
         patch.onlyAdminsCanSend !== undefined &&
-        patch.onlyAdminsCanSend !== (row.onlyAdminsCanSend === 1)
+        patch.onlyAdminsCanSend !== row.onlyAdminsCanSend
       ) {
         await this.postSystem(tx, context, row, 'settings_changed', []);
       }

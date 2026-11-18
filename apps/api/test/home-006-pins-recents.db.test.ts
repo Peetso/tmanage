@@ -348,10 +348,23 @@ describe('home_recent_items (0192) — a membership’s recently-viewed referenc
     const base = Date.parse('2026-09-15T00:00:00.000Z');
 
     // One more distinct object than the cap; viewed_at increases with i, so i=0 is the oldest.
+    // FIX5 6d: the read lists only live targets, so each recent points at a real work item.
     const objectIds: string[] = [];
     for (let i = 0; i <= RECENT_ITEMS_CAP; i += 1) {
       const objectId = uuidv7();
       objectIds.push(objectId);
+      await db.admin.query(
+        `INSERT INTO work_items (id, organization_id, project_id, title, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          objectId,
+          world.northstar.organizationId,
+          world.northstar.projectId,
+          `Recent ${i}`,
+          new Date(base),
+          new Date(base),
+        ],
+      );
       await tenant.transaction(context, (tx) =>
         recentsRepo.recordView(tx, context, {
           membershipId,

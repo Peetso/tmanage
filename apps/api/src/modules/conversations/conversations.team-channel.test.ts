@@ -149,7 +149,7 @@ describe('CQ-12 project channels', () => {
   it('R7: refuses a non-admin post when only admins can send', async () => {
     const { service, conversations } = build();
     Object.assign(conversations, {
-      findById: async () => ({ ...channel(), onlyAdminsCanSend: 1 }),
+      findById: async () => ({ ...channel(), onlyAdminsCanSend: true }),
       findMembership: async () => ({ role: 'member' }),
     });
     await expect(

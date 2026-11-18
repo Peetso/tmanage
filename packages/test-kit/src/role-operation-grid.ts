@@ -354,6 +354,14 @@ export const GUARDED_OPERATIONS: readonly GuardedOperation[] = [
     collection: true,
     declaredAt: 'finance/finance.controller.ts @Post(tax-rates) finance.manage (52-23 §10)',
   },
+  {
+    capability: 'time.view_team',
+    method: 'GET',
+    path: '/time/team',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'time/time-auto.controller.ts @Get() time.view_team (FIX-2026-11-10)',
+  },
 ];
 
 /**

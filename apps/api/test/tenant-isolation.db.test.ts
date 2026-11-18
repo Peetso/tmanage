@@ -224,6 +224,10 @@ describe('schema invariants (ADR-0001 layer 1)', () => {
       'platform_support_sessions',
       // 56-31 (0256): the mail queue; platform mail (sign-in codes, resets) has no organization.
       'mail_queue',
+      // 0255: abuse counters for public endpoints; a row may name the company it concerns.
+      'public_abuse_events',
+      // 0334: the platform owner's notices to one company, read and written by platform staff.
+      'platform_owner_notices',
     ];
     for (const table of globalNamingAnOrganization) expect(isNonTenantTable(table)).toBe(true);
     // A module migration that adds a tenant table without registering it would otherwise

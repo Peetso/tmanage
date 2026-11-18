@@ -79,7 +79,15 @@ describe('upgrade from the live schema (0238) with data in it', () => {
       directory: migrationsDirectory,
       appliedBy: 'plat-022-deploy',
     });
-    expect(report.applied.map((file) => file.version)).toEqual(WAVE);
+    // The deploy applies the wave and then every later file, in order, up to today's head.
+    const later = (await readdir(migrationsDirectory))
+      .filter((file) => file.endsWith('.sql'))
+      .map((file) => Number(file.slice(0, 4)))
+      .filter((version) => version > LIVE_HEAD)
+      .sort((a, b) => a - b);
+    const applied = report.applied.map((file) => file.version);
+    expect(applied.slice(0, WAVE.length)).toEqual(WAVE);
+    expect(applied).toEqual(later);
     const ledger = await readLedger(connection);
     for (const wave of WAVE) {
       expect(ledger.filter((row) => row.version === wave && row.status === 'applied')).toHaveLength(

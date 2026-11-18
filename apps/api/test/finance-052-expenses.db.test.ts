@@ -68,7 +68,11 @@ describe('0292 — registry', () => {
     const worker = intents.get("'tmanage_worker'@'%'") as NonNullable<
       ReturnType<typeof intents.get>
     >;
-    expect(allows(worker, 'tmanage.expenses:SELECT')).toBe(false);
+    // 0296 finance daily facts: the worker reads expenses to roll them up, and writes none.
+    expect(allows(worker, 'tmanage.expenses:SELECT')).toBe(true);
+    expect(allows(worker, 'tmanage.expenses:INSERT')).toBe(false);
+    expect(allows(worker, 'tmanage.expenses:UPDATE')).toBe(false);
+    expect(allows(worker, 'tmanage.expenses:DELETE')).toBe(false);
   });
 });
 

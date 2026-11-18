@@ -458,6 +458,14 @@ export const projects = mysqlTable(
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
+    /** 0287: the billable default for new time and the project's own rate card. */
+    billableDefault: boolean('billable_default').notNull().default(true),
+    rateCardId: char('rate_card_id', { length: 36 }),
+    /** 0294: the work-key prefix and the next number it hands out. */
+    workKeyPrefix: varchar('work_key_prefix', { length: 10 }),
+    workKeyNext: int('work_key_next', { unsigned: true }).notNull().default(1),
+    /** 0306: story points switched on for this project. */
+    pointsEnabled: boolean('points_enabled').notNull().default(false),
   },
   (table) => [
     uniqueIndex('uq_projects_org_id').on(table.organizationId, table.id),
@@ -2868,6 +2876,15 @@ export const clientOrganizations = mysqlTable(
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
+    /** 0301: the invoicing identity a client invoice prints. */
+    legalNameEn: varchar('legal_name_en', { length: 200 }),
+    legalNameAr: varchar('legal_name_ar', { length: 200 }),
+    taxRegistrationNo: varchar('tax_registration_no', { length: 32 }),
+    billingAddressEn: varchar('billing_address_en', { length: 500 }),
+    billingAddressAr: varchar('billing_address_ar', { length: 500 }),
+    billingEmail: varchar('billing_email', { length: 254 }),
+    defaultCurrency: char('default_currency', { length: 3 }),
+    paymentTermsDays: int('payment_terms_days'),
   },
   (table) => [uniqueIndex('uq_client_organizations_org_id').on(table.organizationId, table.id)],
 );
@@ -3023,6 +3040,14 @@ export const workItems = mysqlTable(
     purgeAfter: datetime('purge_after', { mode: 'date', fsp: 3 }),
     /** 0340 (FIX3 item C): the hand-made Board/List order; `NULL` sorts by creation time. */
     boardRank: double('board_rank'),
+    /** 0287: billable override; `NULL` follows the project's default. */
+    billable: boolean('billable'),
+    /** 0294: the human work key, such as `WEB-12`. */
+    workKey: varchar('work_key', { length: 20 }),
+    /** 0306: the iteration the item sits in, its points, and when it was put there. */
+    iterationId: char('iteration_id', { length: 36 }),
+    points: smallint('points'),
+    iterationAssignedAt: datetime('iteration_assigned_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_work_items_org_id').on(table.organizationId, table.id),
@@ -3333,6 +3358,13 @@ export const workItemTimeLogs = mysqlTable(
     lockedAt: datetime('locked_at', { mode: 'date', fsp: 3 }),
     /** 52-02 fills it. */
     timesheetId: char('timesheet_id', { length: 36 }),
+    /** 0287: the rate and cost frozen when the entry was billed, and the invoice line. */
+    rateSnapshotMinor: bigint('rate_snapshot_minor', { mode: 'number' }),
+    costSnapshotMinor: bigint('cost_snapshot_minor', { mode: 'number' }),
+    snapshotCurrency: char('snapshot_currency', { length: 3 }),
+    invoiceLineId: char('invoice_line_id', { length: 36 }),
+    /** 0299: the retainer period this time was drawn from. */
+    retainerPeriodId: char('retainer_period_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_work_item_time_logs_org_id').on(table.organizationId, table.id),
@@ -6158,7 +6190,7 @@ export const conversations = mysqlTable(
     /** A group photo: a scanned `file_assets` row. */
     photoFileAssetId: char('photo_file_asset_id', { length: 36 }),
     description: varchar('description', { length: 500 }),
-    onlyAdminsCanSend: tinyint('only_admins_can_send').notNull().default(0),
+    onlyAdminsCanSend: boolean('only_admins_can_send').notNull().default(false),
     /** A group invite link's token (43 url-safe characters); NULL when no link is live. */
     inviteToken: char('invite_token', { length: 43 }),
     nextSequenceNo: bigint('next_sequence_no', { mode: 'number', unsigned: true })
@@ -10316,17 +10348,46 @@ export type NewProjectRow = typeof projects.$inferInsert;
  * A6 (0219): `description` (and 0340's `boardRank`) is optional in the row type only, so the hand-built test rows that
  * predate the column keep compiling; a row read from the database always carries it.
  */
-export type WorkItemRow = Omit<typeof workItems.$inferSelect, 'description' | 'boardRank'> & {
+export type WorkItemRow = Omit<
+  typeof workItems.$inferSelect,
+  | 'description'
+  | 'boardRank'
+  | 'billable'
+  | 'workKey'
+  | 'iterationId'
+  | 'points'
+  | 'iterationAssignedAt'
+> & {
   description?: string | null;
   /** 0340: optional for the same reason as `description`. */
   boardRank?: number | null;
+  /** 0287 / 0294 / 0306 (described 2026-11-18): optional for the same reason. */
+  billable?: boolean | null;
+  workKey?: string | null;
+  iterationId?: string | null;
+  points?: number | null;
+  iterationAssignedAt?: Date | null;
 };
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
 export type WorkItemSubtaskRow = typeof workItemSubtasks.$inferSelect;
 export type NewWorkItemSubtaskRow = typeof workItemSubtasks.$inferInsert;
-export type WorkItemTimeLogRow = typeof workItemTimeLogs.$inferSelect;
+/** 0287 / 0299 (described 2026-11-18): the billing columns are optional in the row type only. */
+export type WorkItemTimeLogRow = Omit<
+  typeof workItemTimeLogs.$inferSelect,
+  | 'rateSnapshotMinor'
+  | 'costSnapshotMinor'
+  | 'snapshotCurrency'
+  | 'invoiceLineId'
+  | 'retainerPeriodId'
+> & {
+  rateSnapshotMinor?: number | null;
+  costSnapshotMinor?: number | null;
+  snapshotCurrency?: string | null;
+  invoiceLineId?: string | null;
+  retainerPeriodId?: string | null;
+};
 export type NewWorkItemTimeLogRow = typeof workItemTimeLogs.$inferInsert;
 export type WorkItemEstimateRow = typeof workItemEstimates.$inferSelect;
 export type NewWorkItemEstimateRow = typeof workItemEstimates.$inferInsert;
@@ -10878,6 +10939,8 @@ export const productEvents = mysqlTable(
     propertiesJson: text('properties_json'),
   },
   (table) => [
+    // 0377: the tenant key 0251 left out.
+    uniqueIndex('uq_product_events_org_id').on(table.organizationId, table.id),
     index('ix_product_events_name_time').on(table.eventName, table.occurredAt),
     index('ix_product_events_org_time').on(table.organizationId, table.occurredAt),
   ],

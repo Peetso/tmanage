@@ -6,7 +6,11 @@ import { uuidv7 } from '@tmanage/domain';
 import { allows, parseGrantScript } from '../src/common/database/grants.js';
 import { TABLES } from '../src/common/database/schema.js';
 import { TENANT_TABLES } from '../src/common/database/tenant-guard.js';
-import { startTestDatabase, truncateAll } from './support/test-database.js';
+import {
+  startTestDatabase,
+  truncateAll,
+  usingLeastPrivilegeCredential,
+} from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
@@ -94,8 +98,13 @@ describe('0290 — timesheets at the engine', () => {
     expect(rows).toMatchObject([{ state: 'submitted', version: 2 }]);
   });
 
-  it('never lets the runtime credential delete a week', async () => {
-    const id = await sheet();
-    await expect(db.runtime.query('DELETE FROM timesheets WHERE id = ?', [id])).rejects.toThrow();
-  });
+  // A grant, not a trigger: only a least-privilege runtime (TMANAGE_TEST_APP_DATABASE_URL) can
+  // show it. Locally the suite's runtime is the admin, which may delete anything.
+  it.skipIf(!usingLeastPrivilegeCredential)(
+    'never lets the runtime credential delete a week',
+    async () => {
+      const id = await sheet();
+      await expect(db.runtime.query('DELETE FROM timesheets WHERE id = ?', [id])).rejects.toThrow();
+    },
+  );
 });
