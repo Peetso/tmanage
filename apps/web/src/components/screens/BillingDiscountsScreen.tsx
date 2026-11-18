@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
@@ -14,6 +14,9 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import '../../styles/screens/billing.css';
 
 export interface BillingDiscountsScreenProps {
@@ -45,6 +48,9 @@ export function BillingDiscountsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const discounts = useQuery({
     queryKey: ['billing-discounts', organizationSlug],
@@ -101,6 +107,7 @@ export function BillingDiscountsScreen({
             {t('BillingDiscountsScreen.recordHeading')}
           </h2>
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -207,9 +214,24 @@ export function BillingDiscountsScreen({
           ) : null}
 
           {discounts.isSuccess && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('BillingDiscountsScreen.emptyTitle')}>
-              {t('BillingDiscountsScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('BillingDiscountsScreen.emptyTitle')}
+              explanation={tOr(
+                'teachEmpty.billingDiscountsBody',
+                'Record a discount, a percentage or a fixed amount with an end date if it has one, and see which ones are still active.',
+              )}
+              action={
+                canUse('billing.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {tOr('teachEmpty.billingDiscountsAction', 'Add a discount')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (

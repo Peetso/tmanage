@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton, StatusDot } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -41,6 +43,8 @@ export function ProjectGithubScreen({
 }: ProjectGithubScreenProps) {
   const api = client ?? browserApiClient();
   const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const formatters = useDisplayFormatters();
   const describeError = useDescribeApiError();
   const queryClient = useQueryClient();
@@ -97,9 +101,24 @@ export function ProjectGithubScreen({
               <Skeleton />
             </LoadingRegion>
           ) : rows.length === 0 && !hooks.isError ? (
-            <p className="tm-pmi__muted">
-              {tOr('ProjectGithubScreen.empty', 'No repository is linked to this project yet.')}
-            </p>
+            <TeachingEmptyState
+              title={tOr('teachEmpty.projectGithubTitle', 'No repository linked yet')}
+              explanation={tOr(
+                'teachEmpty.projectGithubBody',
+                "Link this project's GitHub repository, and your team sees each task's commits and pull requests right on the task.",
+              )}
+              action={
+                canUse('org.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {tOr('teachEmpty.projectGithubAction', 'Link a repository')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <ul
               className="tm-pmi__list"
@@ -144,6 +163,7 @@ export function ProjectGithubScreen({
             </InlineAlert>
           ) : null}
           <form
+            ref={firstStep}
             className="tm-pmi__list"
             onSubmit={(event) => {
               event.preventDefault();

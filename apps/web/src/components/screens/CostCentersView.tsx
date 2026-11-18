@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
@@ -15,6 +15,9 @@ import {
 } from '../../lib/api/billing-cost-centers';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/billing.css';
 
@@ -47,6 +50,9 @@ export function CostCentersView({
   const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queryClient = useQueryClient();
 
   const costCenters = useQuery({
@@ -89,6 +95,7 @@ export function CostCentersView({
             {t('CostCentersView.newCostCenterHeading')}
           </h2>
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -158,9 +165,24 @@ export function CostCentersView({
           ) : null}
 
           {!costCenters.isPending && !costCenters.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('CostCentersView.emptyTitle')}>
-              {t('CostCentersView.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('CostCentersView.emptyTitle')}
+              explanation={tOr(
+                'teachEmpty.costCentersBody',
+                'A cost center groups projects under one code, like MKT-01, so you know which team or budget each project belongs to.',
+              )}
+              action={
+                canUse('billing.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {tOr('teachEmpty.costCentersAction', 'Create a cost center')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.map((center) => (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
@@ -13,6 +13,9 @@ import {
 } from '../../lib/api/billing';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/billing.css';
 
@@ -53,6 +56,9 @@ export function UsageAlertsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const alerts = useQuery({
     queryKey: ['usage-alerts', organizationSlug],
@@ -104,6 +110,7 @@ export function UsageAlertsScreen({
             {t('UsageAlertsScreen.newAlert')}
           </h2>
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -184,9 +191,24 @@ export function UsageAlertsScreen({
           ) : null}
 
           {!alerts.isPending && !alerts.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('UsageAlertsScreen.emptyTitle')}>
-              {t('UsageAlertsScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('UsageAlertsScreen.emptyTitle')}
+              explanation={tOr(
+                'teachEmpty.usageAlertsBody',
+                'An alert watches a usage number, like storage, and flags it here as soon as it passes the limit you set.',
+              )}
+              action={
+                canUse('billing.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {tOr('teachEmpty.usageAlertsAction', 'Add an alert')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (

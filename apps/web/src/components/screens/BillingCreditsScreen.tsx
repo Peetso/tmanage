@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
@@ -9,6 +9,9 @@ import { listBillingCredits, postBillingCredit } from '../../lib/api/billing-cre
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import '../../styles/screens/billing.css';
 import { appLocale } from '../../lib/i18n/app-locale';
 
@@ -39,6 +42,9 @@ export function BillingCreditsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const credits = useQuery({
     queryKey: ['billing-credits', organizationSlug],
@@ -87,6 +93,7 @@ export function BillingCreditsScreen({
             {t('BillingCreditsScreen.currentBalance')} <strong>{formatCurrency(balance)}</strong>
           </p>
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -156,9 +163,24 @@ export function BillingCreditsScreen({
           ) : null}
 
           {credits.isSuccess && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('BillingCreditsScreen.emptyTitle')}>
-              {t('BillingCreditsScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('BillingCreditsScreen.emptyTitle')}
+              explanation={tOr(
+                'teachEmpty.billingCreditsBody',
+                'Record a credit or an adjustment with its reason, and the balance here keeps the running total.',
+              )}
+              action={
+                canUse('billing.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {tOr('teachEmpty.billingCreditsAction', 'Post a credit')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (

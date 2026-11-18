@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
@@ -14,6 +14,9 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import '../../styles/screens/billing.css';
 
 export interface BillingContactsScreenProps {
@@ -42,6 +45,9 @@ export function BillingContactsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const contacts = useQuery({
     queryKey: ['billing-contacts', organizationSlug],
@@ -97,6 +103,7 @@ export function BillingContactsScreen({
             {t('BillingContactsScreen.addHeading')}
           </h2>
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -178,9 +185,24 @@ export function BillingContactsScreen({
           ) : null}
 
           {contacts.isSuccess && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('BillingContactsScreen.emptyTitle')}>
-              {t('BillingContactsScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('BillingContactsScreen.emptyTitle')}
+              explanation={tOr(
+                'teachEmpty.billingContactsBody',
+                'Name the people who handle billing, like your finance team, so everyone knows who to turn to about invoices.',
+              )}
+              action={
+                canUse('billing.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {tOr('teachEmpty.billingContactsAction', 'Add a contact')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (

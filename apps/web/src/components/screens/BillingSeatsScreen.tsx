@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
@@ -15,6 +15,9 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import '../../styles/screens/billing.css';
 import { appLocale } from '../../lib/i18n/app-locale';
 
@@ -45,6 +48,9 @@ export function BillingSeatsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const seats = useQuery({
     queryKey: ['billing-seats', organizationSlug],
@@ -100,6 +106,7 @@ export function BillingSeatsScreen({
             {t('BillingSeatsScreen.assignHeading')}
           </h2>
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -175,9 +182,24 @@ export function BillingSeatsScreen({
           ) : null}
 
           {seats.isSuccess && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('BillingSeatsScreen.emptyTitle')}>
-              {t('BillingSeatsScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('BillingSeatsScreen.emptyTitle')}
+              explanation={tOr(
+                'teachEmpty.billingSeatsBody',
+                'Give a member a seat on your plan, and see here who holds each seat and how many are in use.',
+              )}
+              action={
+                canUse('billing.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {tOr('teachEmpty.billingSeatsAction', 'Assign a seat')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (

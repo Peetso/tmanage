@@ -73,6 +73,15 @@ import { WebhookDeliveryScreen } from '../src/components/screens/WebhookDelivery
 import { WorkBoardColumnsView } from '../src/components/screens/WorkBoardColumnsView';
 import { WorkItemTimeLogScreen } from '../src/components/screens/WorkItemTimeLogScreen';
 import { WorkSavedViewsScreen } from '../src/components/screens/WorkSavedViewsScreen';
+import { BillingContactsScreen } from '../src/components/screens/BillingContactsScreen';
+import { BillingCreditsScreen } from '../src/components/screens/BillingCreditsScreen';
+import { BillingDiscountsScreen } from '../src/components/screens/BillingDiscountsScreen';
+import { BillingSeatsScreen } from '../src/components/screens/BillingSeatsScreen';
+import { CostCentersView } from '../src/components/screens/CostCentersView';
+import { InboundMailSettingsScreen } from '../src/components/screens/InboundMailSettingsScreen';
+import { ProjectGithubScreen } from '../src/components/screens/ProjectGithubScreen';
+import { PurchaseOrdersView } from '../src/components/screens/PurchaseOrdersView';
+import { UsageAlertsScreen } from '../src/components/screens/UsageAlertsScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { translate } from '../src/lib/i18n/t';
 
@@ -792,6 +801,89 @@ describe('teaching empty states (55-10p)', () => {
       mount(view, routes);
       const section = (await teaching(title)).closest('section') as HTMLElement;
       expect(section.querySelector(`a[data-help-slug="${slug}"]`)).not.toBeNull();
+    });
+  });
+  describe('billing and integrations (55-10p EMPTY3): teach, the action needs the permission', () => {
+    const routes = {
+      '/billing/usage-alerts': { alerts: [] },
+      '/billing/cost-centers': { costCenters: [] },
+      '/billing/purchase-orders': { purchaseOrders: [] },
+      '/billing/seats': { seats: [] },
+      '/billing/credits': { credits: [], balance: 0 },
+      '/billing/discounts': { discounts: [] },
+      '/billing/contacts': { contacts: [] },
+      '/integrations/github/repo-hooks': { hooks: [] },
+      '/inbound-email/address': { address: null },
+      '/inbound-email/log': { entries: [] },
+    };
+    const props = { organizationSlug: 'acme', organizationName: 'Acme' };
+    const cases: readonly [string, (client: ApiClient) => ReactElement, RegExp, string][] = [
+      [
+        'Usage alerts',
+        (client) => <UsageAlertsScreen {...props} client={client} />,
+        /no alerts yet/i,
+        'Add an alert',
+      ],
+      [
+        'Cost centers',
+        (client) => <CostCentersView {...props} client={client} />,
+        /no cost centers yet/i,
+        'Create a cost center',
+      ],
+      [
+        'Purchase orders',
+        (client) => <PurchaseOrdersView {...props} client={client} />,
+        /no purchase orders yet/i,
+        'Add a purchase order',
+      ],
+      [
+        'Seats',
+        (client) => <BillingSeatsScreen {...props} client={client} />,
+        /no active seats yet/i,
+        'Assign a seat',
+      ],
+      [
+        'Credits',
+        (client) => <BillingCreditsScreen {...props} client={client} />,
+        /no credits yet/i,
+        'Post a credit',
+      ],
+      [
+        'Discounts',
+        (client) => <BillingDiscountsScreen {...props} client={client} />,
+        /no discounts yet/i,
+        'Add a discount',
+      ],
+      [
+        'Billing contacts',
+        (client) => <BillingContactsScreen {...props} client={client} />,
+        /no billing contacts yet/i,
+        'Add a contact',
+      ],
+      [
+        'Project GitHub',
+        (client) => <ProjectGithubScreen {...props} projectId="p1" client={client} />,
+        /no repository linked yet/i,
+        'Link a repository',
+      ],
+    ];
+    it.each(cases)('%s', async (_name, view, title, action) => {
+      mount(view, routes);
+      const section = (await teaching(title)).closest('section') as HTMLElement;
+      const button = await within(section).findByRole('button', { name: action });
+      fireEvent.click(button);
+      expect(document.activeElement?.closest('form')).not.toBeNull();
+      cleanup();
+      mount(view, routes, 'custom-viewer');
+      const bare = (await teaching(title)).closest('section') as HTMLElement;
+      expect(within(bare).queryByRole('button')).toBeNull();
+    });
+
+    it('Inbound mail: the empty recent list teaches, with nothing to start', async () => {
+      mount((client) => <InboundMailSettingsScreen {...props} client={client} />, routes);
+      const section = (await teaching(/no mail yet/i)).closest('section') as HTMLElement;
+      expect(within(section).getByText(/what became of it/i)).not.toBeNull();
+      expect(within(section).queryByRole('button')).toBeNull();
     });
   });
 });

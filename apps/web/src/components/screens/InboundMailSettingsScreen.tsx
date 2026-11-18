@@ -15,6 +15,7 @@ import {
   type InboundLogEntry,
 } from '../../lib/api/inbound-email';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import '../../styles/screens/inbound-mail.css';
 
 export interface InboundMailSettingsScreenProps {
@@ -229,7 +230,13 @@ export function InboundMailSettingsScreen({
             </InlineAlert>
           ) : null}
           {log.isSuccess && log.data.length === 0 ? (
-            <p className="tm-prose">{tr(`${K}.recentEmpty`, 'No mail has arrived yet.')}</p>
+            <TeachingEmptyState
+              title={tr('teachEmpty.inboundMailTitle', 'No mail yet')}
+              explanation={tr(
+                'teachEmpty.inboundMailBody',
+                'Each message sent to the project address shows here with what became of it: a request, a work item, or waiting for review.',
+              )}
+            />
           ) : null}
           {log.isSuccess && log.data.length > 0 ? (
             <ul className="tm-inmail__list" aria-label={tr(`${K}.recentTitle`, 'Recent mail')}>

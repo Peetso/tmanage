@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import {
   closePurchaseOrder,
   createPurchaseOrder,
@@ -52,6 +55,9 @@ export function PurchaseOrdersView({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const purchaseOrders = useQuery({
     queryKey: ['purchase-orders', organizationSlug],
@@ -118,6 +124,7 @@ export function PurchaseOrdersView({
             {t('PurchaseOrdersView.newPurchaseOrder')}
           </h2>
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -203,9 +210,24 @@ export function PurchaseOrdersView({
           ) : null}
 
           {!purchaseOrders.isPending && !purchaseOrders.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('PurchaseOrdersView.emptyTitle')}>
-              {t('PurchaseOrdersView.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('PurchaseOrdersView.emptyTitle')}
+              explanation={tOr(
+                'teachEmpty.purchaseOrdersBody',
+                'Keep your purchase order numbers and amounts in one place, so each invoice can quote the right one.',
+              )}
+              action={
+                canUse('billing.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {tOr('teachEmpty.purchaseOrdersAction', 'Add a purchase order')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (
