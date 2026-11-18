@@ -15,6 +15,11 @@
  */
 
 export const TENANT_DATABASE = Symbol.for('tmanage.TenantDatabase');
+/**
+ * The database the company erasure runs on (H3): `tmanage_erasure`'s own pool where
+ * `ERASURE_DATABASE_URL` is set, else the same instance as {@link TENANT_DATABASE}.
+ */
+export const ERASURE_DATABASE = Symbol.for('tmanage.ErasureDatabase');
 export const API_CONFIG = Symbol.for('tmanage.ApiConfig');
 export const SESSION_SERVICE = Symbol.for('tmanage.SessionService');
 /** The Bearer personal-access-token authenticator the session guard falls back to (0202). */

@@ -5,6 +5,7 @@ import type { ApiConfig } from '../../common/http/api-config.js';
 import {
   API_CONFIG,
   AUDIT_SERVICE,
+  ERASURE_DATABASE,
   MALWARE_SCANNER,
   OBJECT_STORE,
   OUTBOX_EVENTS_REPOSITORY,
@@ -22,6 +23,7 @@ import {
 import { providerObjectSources } from '../files/provider-object-sources.js';
 import { ArchiveFileContents } from './privacy-archive-files.repository.js';
 import { PrivacyArchiveBuilder } from './privacy-archive.repository.js';
+import { CompanyErasure } from './privacy-erasure.repository.js';
 import { PRIVACY_JOB, PrivacyJob, PrivacyPass, privacyJobEnabled } from './privacy-job.js';
 import { PrivacyRepository } from './privacy.repository.js';
 import { PrivacyService } from './privacy.service.js';
@@ -32,8 +34,9 @@ export const PRIVACY_PASS = Symbol.for('tmanage.PrivacyPass');
 
 /**
  * D5 (Figma F5) — data export and deletion requests. Registered from `app.module.ts`; depends only on
- * the global tenant database, object store, malware scanner, audit service and outbox. The job runs
- * in this process only when it runs background work (`WORKER_INPROCESS=1` / `PRIVACY_JOBS_INPROCESS=1`).
+ * the global tenant and erasure databases, object store, malware scanner, audit service and outbox.
+ * The job runs in this process only when it runs background work (`WORKER_INPROCESS=1` /
+ * `PRIVACY_JOBS_INPROCESS=1`).
  */
 @Module({})
 export class PrivacyModule {
@@ -47,6 +50,7 @@ export class PrivacyModule {
         { token: AUDIT_SERVICE, optional: true },
         { token: OUTBOX_EVENTS_REPOSITORY, optional: true },
         { token: API_CONFIG, optional: true },
+        ERASURE_DATABASE,
       ],
       useFactory: (
         database: TenantDatabase,
@@ -55,6 +59,7 @@ export class PrivacyModule {
         audit: AuditService | undefined,
         outbox: OutboxEventsRepository | undefined,
         config: ApiConfig | undefined,
+        erasureDatabase: TenantDatabase,
       ) =>
         new PrivacyPass(
           database,
@@ -74,6 +79,10 @@ export class PrivacyModule {
               audit && config ? providerObjectSources(database, audit, config) : {},
             ),
           ),
+          undefined,
+          undefined,
+          // H3: the company erasure deletes on its own credential (`tmanage_erasure`).
+          new CompanyErasure(erasureDatabase, store),
         ),
     };
     const job: Provider = {

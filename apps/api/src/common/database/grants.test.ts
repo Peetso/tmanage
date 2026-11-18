@@ -127,6 +127,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // into a passing test.
     expect([...intents.keys()].sort()).toEqual([
       "'tmanage_app'@'%'",
+      "'tmanage_erasure'@'%'",
       "'tmanage_migrator'@'%'",
       "'tmanage_worker'@'%'",
     ]);
@@ -331,6 +332,7 @@ describe('parseGrantScript — account names that contain digits', () => {
     ['tmanage_app', `tm_app_${PROBE_SUFFIX}`],
     ['tmanage_worker', `tm_wrk_${PROBE_SUFFIX}`],
     ['tmanage_migrator', `tm_mig_${PROBE_SUFFIX}`],
+    ['tmanage_erasure', `tm_era_${PROBE_SUFFIX}`],
   ];
   const probeScript = PROBE_NAMES.reduce(
     (sql, [real, probe]) => sql.split(`'${real}'@'%'`).join(`'${probe}'@'%'`),

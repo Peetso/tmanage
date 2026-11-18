@@ -4,11 +4,11 @@ import type { Pool } from 'mysql2/promise';
 import { createTenantPool } from './connection.js';
 import { TenantDatabase } from './tenant-context.js';
 import type { TenantGuardEvent, TenantGuardMode } from './tenant-guard.js';
-import { TENANT_DATABASE } from '../http/tokens.js';
+import { ERASURE_DATABASE, TENANT_DATABASE } from '../http/tokens.js';
 
 /**
- * Where the one `TenantDatabase` for the process is registered — and the only module that may
- * hold a pool.
+ * Where the process's `TenantDatabase` is registered (and the company erasure's, on its own
+ * credential where one is configured) — and the only module that may hold a pool.
  *
  * This file lives under `src/common/database/`, which is the allowlisted directory in
  * ADR-0001 layer 4. That is why **both** entry points below are here rather than in
@@ -30,6 +30,11 @@ export interface DatabaseModuleOptions {
 
 export interface DatabaseUrlOptions extends DatabaseModuleOptions {
   readonly url: string;
+  /**
+   * The company erasure's own credential (`tmanage_erasure`, H3). Absent: the erasure runs on the
+   * runtime pool, which is what a single-user host (Hostinger) has.
+   */
+  readonly erasureUrl?: string;
   readonly connectionLimit: number;
   readonly statementTimeoutMs: number;
   readonly onConnectionError?: (error: unknown) => void;
@@ -42,13 +47,19 @@ export class DatabaseModule {
    * Build the pool from a connection URL. The production path.
    */
   static forUrl(options: DatabaseUrlOptions): DynamicModule {
-    const pool = createTenantPool({
-      url: options.url,
-      connectionLimit: options.connectionLimit,
-      statementTimeoutMs: options.statementTimeoutMs,
-      ...(options.onConnectionError ? { onConnectionError: options.onConnectionError } : {}),
+    const pool = (url: string, connectionLimit: number): Pool =>
+      createTenantPool({
+        url,
+        connectionLimit,
+        statementTimeoutMs: options.statementTimeoutMs,
+        ...(options.onConnectionError ? { onConnectionError: options.onConnectionError } : {}),
+      });
+    return DatabaseModule.forPool({
+      ...options,
+      pool: pool(options.url, options.connectionLimit),
+      // One connection: the erasure issues one statement at a time.
+      ...(options.erasureUrl === undefined ? {} : { erasurePool: pool(options.erasureUrl, 1) }),
     });
-    return DatabaseModule.forPool({ pool, ...options });
   }
 
   /**
@@ -59,15 +70,23 @@ export class DatabaseModule {
    * would either start another server or quietly reach past the harness that decides which
    * credential the application runs as.
    */
-  static forPool(options: DatabaseModuleOptions & { readonly pool: Pool }): DynamicModule {
-    const provider: Provider = {
-      provide: TENANT_DATABASE,
-      useValue: new TenantDatabase(options.pool, {
+  static forPool(
+    options: DatabaseModuleOptions & { readonly pool: Pool; readonly erasurePool?: Pool },
+  ): DynamicModule {
+    const tenantDatabase = (pool: Pool): TenantDatabase =>
+      new TenantDatabase(pool, {
         guardMode: options.guardMode,
         ...(options.onGuardEvent ? { onGuardEvent: options.onGuardEvent } : {}),
-      }),
-    };
+      });
+    const database = tenantDatabase(options.pool);
+    const providers: Provider[] = [
+      { provide: TENANT_DATABASE, useValue: database },
+      {
+        provide: ERASURE_DATABASE,
+        useValue: options.erasurePool ? tenantDatabase(options.erasurePool) : database,
+      },
+    ];
 
-    return { module: DatabaseModule, providers: [provider], exports: [provider] };
+    return { module: DatabaseModule, providers, exports: providers };
   }
 }

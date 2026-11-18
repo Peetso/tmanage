@@ -1,10 +1,17 @@
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ObjectStore } from '@tmanage/storage';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { PrivacyDeletionRequestRow } from '../../common/database/schema.js';
+import { splitStatements } from '../../common/database/migrator.js';
 import { TENANT_TABLES } from '../../common/database/tenant-guard.js';
 import type { AuditService } from '../audit/audit.service.js';
-import { CompanyErasure, RETAINED_TABLES, erasableTables } from './privacy-erasure.repository.js';
+import {
+  CompanyErasure,
+  GLOBAL_DEPENDENTS,
+  RETAINED_TABLES,
+  erasableTables,
+} from './privacy-erasure.repository.js';
 import type { ErasureOutcome } from './privacy-erasure.repository.js';
 import { ERASURE_DELAY_MS, PrivacyPass } from './privacy-job.js';
 import type { PrivacyRepository } from './privacy.repository.js';
@@ -118,6 +125,33 @@ describe('Company erasure — which tables', () => {
     expect(
       erasableTables({ a: 'organization_id', b: 'organization_id', organizations: 'id' }),
     ).toEqual(['b', 'a']);
+  });
+
+  it('is never held back by a foreign key from a table it does not empty', () => {
+    // PURGEFIX. Rounds and the row-by-row fallback settle any order between two erased tables, but
+    // a row in a table the erasure never empties (a retained or a global table) that points at an
+    // erased one would refuse that parent forever: the company would stay `referenced`. The only
+    // such edges allowed are the ones GLOBAL_DEPENDENTS removes first, read from the migrations.
+    const migrations = new URL('../../../migrations/', import.meta.url);
+    const erased = new Set(erasableTables());
+    const edges = new Set<string>();
+    for (const file of readdirSync(migrations).filter((name) => name.endsWith('.sql'))) {
+      for (const statement of splitStatements(readFileSync(new URL(file, migrations), 'utf8'))) {
+        const child =
+          /^\s*(?:CREATE TABLE(?: IF NOT EXISTS)?|ALTER TABLE)\s+`?([a-z0-9_]+)`?/i.exec(
+            statement,
+          )?.[1];
+        if (child === undefined || erased.has(child)) continue;
+        for (const match of statement.matchAll(/REFERENCES\s+`?([a-z0-9_]+)`?/gi)) {
+          const parent = match[1] as string;
+          if (erased.has(parent)) edges.add(`${child} -> ${parent}`);
+        }
+      }
+    }
+    const removedFirst = Object.entries(GLOBAL_DEPENDENTS).flatMap(([parent, dependents]) =>
+      dependents.map((dependent) => `${dependent.table} -> ${parent}`),
+    );
+    expect([...edges].sort()).toEqual(removedFirst.sort());
   });
 });
 

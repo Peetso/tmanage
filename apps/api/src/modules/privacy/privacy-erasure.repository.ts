@@ -148,7 +148,7 @@ const KEY_PAGE = 500;
  * under them are removed — they are dead credentials once the company is closed. Found by the
  * grant ids read under the company's own context, so nothing of another tenant is touched.
  */
-const GLOBAL_DEPENDENTS: Readonly<
+export const GLOBAL_DEPENDENTS: Readonly<
   Record<string, readonly { readonly table: string; readonly column: string }[]>
 > = {
   oauth_grants: [
@@ -157,6 +157,18 @@ const GLOBAL_DEPENDENTS: Readonly<
     { table: 'oauth_access_tokens', column: 'grant_id' },
   ],
 };
+
+/**
+ * Every table the company erasure deletes from: the erasable tenant tables and the global rows
+ * {@link GLOBAL_DEPENDENTS} lists for them. The erasure's own credential (`tmanage_erasure` in
+ * `scripts/db/users.sql`) holds SELECT and DELETE on exactly these and nothing else.
+ */
+export function erasureDeleteTables(tables: readonly string[] = erasableTables()): string[] {
+  return [
+    ...tables,
+    ...tables.flatMap((table) => (GLOBAL_DEPENDENTS[table] ?? []).map((dep) => dep.table)),
+  ];
+}
 
 /** Rows a row-by-row pass reads per page (the fallback for a self-referencing table). */
 const ROW_PAGE = 200;

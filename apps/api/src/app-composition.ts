@@ -37,6 +37,8 @@ export function composeAppModule(env: Env): DynamicModule {
     config: apiConfigFrom(env),
     database: DatabaseModule.forUrl({
       url: env.DATABASE_URL,
+      // H3: the company erasure's own credential; unset on a single-user host.
+      ...(env.ERASURE_DATABASE_URL === undefined ? {} : { erasureUrl: env.ERASURE_DATABASE_URL }),
       connectionLimit: env.DATABASE_POOL_MAX,
       statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
       guardMode: env.TENANT_GUARD_MODE,

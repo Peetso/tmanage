@@ -170,6 +170,13 @@
 --     `user_passwords`, `user_mfa_factors`, `user_recovery_codes` or
 --     `authentication_events`.
 --
+-- **`tmanage_erasure`** — the company erasure after an executed company deletion (H3).
+--   · `SELECT, DELETE` on exactly the tables `erasureDeleteTables()` names (every tenant table
+--     outside the erasure's RETAINED_TABLES, and the OAuth codes and tokens under a company's
+--     grants), and on **no** others: no INSERT, no UPDATE, no database-wide grant, nothing on
+--     `audit_events`, `audit_heads`, `audit_anchors`, `audit_retention_policy`,
+--     `privacy_exports`, `privacy_deletion_requests` or `organizations`.
+--
 -- **`tmanage_migrator`** — owns the schema, used only by the migrator.
 --   · `ALL PRIVILEGES` on `tmanage`.* and on nothing else
 --   · **no** global privilege — in particular no `CREATE USER`, no `GRANT OPTION` at the
@@ -202,13 +209,10 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_app'@'%';
 -- outside its RETAINED_TABLES, on the tenant pool — today this account. Roughly half of those
 -- tables withhold DELETE from this account on purpose (approvals, deliverable_versions,
 -- client_projections, invitations, messages, ...: "a runtime credential must not erase the
--- record"), so widening it would undo those decisions for every request the API serves. On a
--- deployment with these split users the erasure therefore reports `not_permitted` and leaves
--- `purged_at` NULL rather than forcing anything. The least-privilege answer is a separate purge
--- principal (SELECT + DELETE on exactly the erasable tables, nothing else) used only by the
--- erasure pool; it needs the privacy module wired to its own URL and the grant tests' probe
--- lists extended, so it is not created here until that lands. Hostinger runs one database user
--- and is unaffected.
+-- record"), so widening it would undo those decisions for every request the API serves. The
+-- erasure runs as its own principal instead, `tmanage_erasure` (SELECT + DELETE on exactly the
+-- tables it empties, nothing else; last section of this file), on the API's ERASURE_DATABASE
+-- pool. Hostinger runs one database user for everything and is unaffected either way.
 GRANT SELECT ON `tmanage`.* TO 'tmanage_app'@'%';
 
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`organizations`        TO 'tmanage_app'@'%';
@@ -2607,3 +2611,342 @@ GRANT INSERT ON `tmanage`.`referral_codes` TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`referral_signups` TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`referral_partners` TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`referral_partner_signups` TO 'tmanage_app'@'%';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Erasure user — the company erasure, and nothing else
+-- ─────────────────────────────────────────────────────────────────────────────
+-- H3 / PURGEFIX. `CompanyErasure` (`apps/api/src/modules/privacy/privacy-erasure.repository.ts`)
+-- deletes every row of a closed company from each tenant table outside its RETAINED_TABLES, and
+-- the OAuth codes and tokens issued under its grants (GLOBAL_DEPENDENTS). `tmanage_app` withholds
+-- DELETE from roughly half of those tables on purpose, so the erasure runs on this credential
+-- instead (`ERASURE_DATABASE_URL`, the API's ERASURE_DATABASE pool) and the runtime keeps its
+-- narrower set. SELECT beside each DELETE because a `DELETE … WHERE organization_id = ?` reads the
+-- column it filters by, and the erasure pages ids and object keys out of the same tables.
+--
+-- The list is exactly `erasureDeleteTables()`, sorted: `users-sql.test.ts` fails when a tenant
+-- table is registered without its line here, and when a line names a table the erasure does not
+-- empty. No INSERT, no UPDATE, no database-wide grant, nothing on the retained tables (the audit
+-- trail, its retention policy, the two privacy tables, the organization row).
+CREATE USER IF NOT EXISTS 'tmanage_erasure'@'%' IDENTIFIED BY 'local_dev_only_erasure';
+
+-- R10, as for the other three: what this account ends up with is what follows, and nothing an
+-- earlier revision or a panel gave it.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_erasure'@'%';
+
+GRANT SELECT, DELETE ON `tmanage`.`a11y_preferences` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`admin_export_requests` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`admin_security_alerts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`approval_chain_checks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`approval_delegations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`approval_records` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`approval_reviewer_decisions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`approval_steps` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`approvals` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`attachment_versions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`audit_event_changes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`automation_schedules` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`automation_template_tags` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`automation_variables` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_contacts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_cost_centers` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_credits` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_discounts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_plan_change_requests` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_profiles` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_purchase_orders` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_seats` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_tax_details` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`billing_usage_alerts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`budget_alert_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`calendar_connections` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`calendar_due_mirrors` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`calendar_feed_tokens` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_a11y_preferences` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_credit_note_lines` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_credit_notes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_invoice_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_invoice_lines` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_invoice_payments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_invoices` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_journey_steps` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_memberships` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_organizations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_projections` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`client_requests` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`cloud_folder_imports` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`connector_installations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`contact_suggestions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`conversation_memberships` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`conversation_message_drafts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`conversation_mutes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`conversation_pinned_messages` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`conversation_read_state` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`conversation_thread_replies` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`conversations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`custom_roles` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`decision_comments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`decision_locks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`decision_supersessions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`decision_work_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`decisions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`deliverable_versions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`deliverables` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`direct_conversations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`direct_messages` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`doc_bookmarks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`doc_collections` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`doc_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`doc_read_state` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`doc_reviews` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`doc_revisions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`doc_subscriptions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`doc_tags` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`document_comments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`document_template_variables` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`document_templates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`document_versions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`documents` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`einvoice_chain_checks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`expenses` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`external_approvers` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`figma_connections` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`figma_frames` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`figma_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`file_assets` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`file_comments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`file_folders` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`file_previews` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`file_review_decisions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`file_tags` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`file_versions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`finance_daily_facts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`finance_exports` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`focus_blocks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`form_submissions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`github_deliveries` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`github_repo_hooks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`glossary_terms` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`google_drive_attachments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`google_drive_folders` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`home_pinned_items` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`home_quick_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`home_recent_items` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`home_widget_prefs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`idempotency_records` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`import_jobs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`import_rows` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`inbound_email_addresses` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`inbound_email_attachments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`inbound_emails` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`inbox_flags` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`inbox_rules` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`inbox_saved_filters` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`inbox_snoozes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`inbox_source_mutes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_annotations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_custom_reports` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_dashboard_layouts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_metric_alerts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_metric_favorites` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_report_schedules` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_saved_views` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_snapshots` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`insight_targets` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`integration_channel_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`integration_channel_posts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`integration_connections` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`invitation_pending_keys` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`invitation_projects` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`invitations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`invoice_line_items` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`invoices` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`iterations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`link_previews` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`mail_person_assignments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`mail_tip_log` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_action_items` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_agenda_templates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_attachments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_attendance` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_attendees` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_call_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_client_attendees` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_external_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_guests` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_notes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_occurrence_overrides` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_rsvps` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_series` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_time_poll_votes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meeting_time_polls` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`meetings` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`member_admin_notes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`member_availability` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`member_cost_rates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`member_profiles` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`member_reporting_lines` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`member_teams` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`membership_permission_overrides` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`memberships` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`message_attachments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`message_bookmarks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`message_reactions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`message_revisions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`message_work_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`messages` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`milestone_client_projections` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`milestone_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`notification_kind_prefs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`notification_preferences` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`notifications` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`oauth_access_tokens` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`oauth_codes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`oauth_grants` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`oauth_refresh_tokens` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`objective_key_results` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`objective_work_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`onboarding_progress` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`onedrive_attachments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`onedrive_folders` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_announcements` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_block_rules` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_branding` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_document_sequences` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_exchange_rates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_feature_flags` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_finance_profiles` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_holidays` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_ip_allowlist` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_objectives` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_policies` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_quota_counters` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_secrets` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_settings` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_tax_rates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`org_working_calendars` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`organization_limits` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`organization_logos` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`outbox_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`pending_ai_actions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`person_allocations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`person_capacity` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`person_certifications` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`person_skills` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`person_time_off` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`personal_access_tokens` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`portal_access_log` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`portal_announcements` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`portal_branding` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`portal_client_messages` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`portal_feedback` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`portal_settings` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`pref_digest` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`pref_quiet_hours` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`pricing_survey_answers` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`product_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_baseline_items` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_baselines` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_budget_phases` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_budgets` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_clients` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_custom_fields` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_dependencies` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_favorites` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_internal_risks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_memberships` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_milestones` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_objectives` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_phases` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_retro_notes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_risks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_status_updates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_tags` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_templates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_update_comments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`project_updates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`projects` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`public_link_codes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`public_link_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`public_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`quote_lines` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`quotes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`rate_card_entries` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`rate_cards` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`referral_codes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`referral_signups` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`request_comments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`request_message_files` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`request_messages` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`request_tags` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`request_triage` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`retainer_periods` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`retainer_projects` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`retainers` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`review_comments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`review_threads` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`saved_context` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`saved_search_shares` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`saved_searches` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`saved_views` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`scim_tokens` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`search_history` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`search_index` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`search_pins` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`search_scopes` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`security_settings` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`security_signals` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`signature_request_signers` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`signature_requests` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`sso_connections` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`sso_saml_requests` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`storage_connections` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`storage_migration_jobs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`subscriptions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`support_messages` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`support_threads` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`template_packs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`time_auto_tracking` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`time_period_locks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`time_timers` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`timesheets` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`upload_sessions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`usage_counters` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`usage_ledger_entries` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_display_preferences` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_preferences` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_presence` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_shortcut_prefs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_startup_prefs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`webhook_deliveries` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`webhook_endpoints` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_blockers` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_board_columns` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_checklist_templates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_forms` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_assignees` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_checklist_items` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_client_audience` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_cloud_folders` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_code_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_comments` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_custom_fields` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_dependencies` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_estimates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_files` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_labels` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_links` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_recurrence` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_recurrence_instances` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_reminders` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_schedule_stats` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_subtasks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_time_logs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_item_watchers` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_items` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`workflow_conditions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`workflow_due_soon_fires` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`workflow_flow_versions` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`workflow_runs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`workflow_templates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`workspaces` TO 'tmanage_erasure'@'%';

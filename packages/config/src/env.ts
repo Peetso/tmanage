@@ -251,6 +251,13 @@ export const envSchema = z
      */
     WORKER_DATABASE_URL: mysqlUrl.optional(),
     /**
+     * The company erasure's own credential — `tmanage_erasure` in `scripts/db/users.sql`, which
+     * holds SELECT and DELETE on exactly the tables the erasure empties after an executed company
+     * deletion (H3), so the runtime user keeps its narrower DELETE set. Optional outside
+     * production, where the erasure runs on `DATABASE_URL`; required in production with split users.
+     */
+    ERASURE_DATABASE_URL: mysqlUrl.optional(),
+    /**
      * Single-database-user hosting. Hostinger's shared plans give a database exactly ONE user,
      * so the three-credential split above cannot be provisioned there. `true` is the explicit
      * acknowledgement that the runtime, migration and worker connections are the same user —
@@ -857,19 +864,35 @@ export const envSchema = z
           'must name a different database user from DATABASE_URL, not the same user twice',
         );
       }
-      if (env.WORKER_DATABASE_URL === undefined) {
+      const ownUsers = [
+        ['WORKER_DATABASE_URL', env.WORKER_DATABASE_URL, 'the relay', '25 §10'],
+        ['ERASURE_DATABASE_URL', env.ERASURE_DATABASE_URL, 'the company erasure', 'H3'],
+      ] as const;
+      for (const [key, url, who, ref] of ownUsers) {
+        if (url === undefined) {
+          fail(
+            key,
+            `is required in production: ${who} runs as its own least-privilege user (${ref})`,
+          );
+          continue;
+        }
+        const user = databaseUser(url);
+        if (user === databaseUser(env.DATABASE_URL)) {
+          fail(key, 'must name a different database user from DATABASE_URL');
+        }
+        if (user === databaseUser(env.DATABASE_MIGRATION_URL)) {
+          fail(key, 'must not name the migration user');
+        }
+      }
+      if (
+        env.WORKER_DATABASE_URL !== undefined &&
+        env.ERASURE_DATABASE_URL !== undefined &&
+        databaseUser(env.WORKER_DATABASE_URL) === databaseUser(env.ERASURE_DATABASE_URL)
+      ) {
         fail(
-          'WORKER_DATABASE_URL',
-          'is required in production: the relay runs as its own least-privilege user (25 §10)',
+          'ERASURE_DATABASE_URL',
+          'must name a different database user from WORKER_DATABASE_URL',
         );
-      } else {
-        const worker = databaseUser(env.WORKER_DATABASE_URL);
-        if (worker === databaseUser(env.DATABASE_URL)) {
-          fail('WORKER_DATABASE_URL', 'must name a different database user from DATABASE_URL');
-        }
-        if (worker === databaseUser(env.DATABASE_MIGRATION_URL)) {
-          fail('WORKER_DATABASE_URL', 'must not name the migration user');
-        }
       }
     }
     const substitutes: ReadonlyArray<readonly [string, string, string]> = [

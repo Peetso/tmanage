@@ -168,7 +168,10 @@ const withAdmin = describe.skipIf(!configured);
 // §1 · The live accounts, read-only
 // ─────────────────────────────────────────────────────────────────────────────
 
-withAdmin('§1 · the three live principals hold no more than the script states', () => {
+/** Every principal `users.sql` provisions. */
+const LIVE_PRINCIPALS = ['tmanage_app', 'tmanage_worker', 'tmanage_migrator', 'tmanage_erasure'];
+
+withAdmin('§1 · the live principals hold no more than the script states', () => {
   let admin: Connection;
 
   beforeAll(async () => {
@@ -179,7 +182,7 @@ withAdmin('§1 · the three live principals hold no more than the script states'
     await admin?.end();
   });
 
-  for (const user of ['tmanage_app', 'tmanage_worker', 'tmanage_migrator']) {
+  for (const user of LIVE_PRINCIPALS) {
     it(`'${user}' holds nothing beyond its stated set`, async () => {
       const intent = intentFor(user);
       const held = await heldPrivileges(admin, granteeOf(user));
@@ -229,7 +232,7 @@ withAdmin('§1 · the three live principals hold no more than the script states'
     // The other half, and the reason this is a reconciliation rather than a ceiling: a
     // REVOKE that ran while the GRANTs after it did not is an outage, and it would pass
     // every assertion above.
-    for (const user of ['tmanage_app', 'tmanage_worker', 'tmanage_migrator']) {
+    for (const user of LIVE_PRINCIPALS) {
       const held = await heldPrivileges(admin, granteeOf(user));
       expect(
         missingOf(intentFor(user), held),
@@ -244,7 +247,7 @@ withAdmin('§1 · the three live principals hold no more than the script states'
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * `users.sql` with its three principal names substituted, so the reconciliation can revoke
+ * `users.sql` with its principal names substituted, so the reconciliation can revoke
  * and rebuild without touching an account something else on the server is connected as.
  *
  * A textual substitution of the quoted `'name'@'%'` and nothing else: every `CREATE USER`,
@@ -256,6 +259,7 @@ const PROBE_NAMES: ReadonlyArray<readonly [string, string]> = [
   ['tmanage_app', `tm_app_${PROBE_SUFFIX}`],
   ['tmanage_worker', `tm_wrk_${PROBE_SUFFIX}`],
   ['tmanage_migrator', `tm_mig_${PROBE_SUFFIX}`],
+  ['tmanage_erasure', `tm_era_${PROBE_SUFFIX}`],
 ];
 
 function probeScript(): string {

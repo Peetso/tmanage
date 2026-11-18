@@ -30,6 +30,7 @@ one credential, so a one-user install sets only the database connection.
 | `DATABASE_URL` | yes |  | yes |  | Database — two distinct users (ADR-0001 layer 2, 25-AUTH-AND-TENANT-ISOLATION §5). |
 | `DATABASE_MIGRATION_URL` | yes |  | yes |  |  |
 | `WORKER_DATABASE_URL` | no |  | yes | yes | The relay's own credential — `tmanage_worker` in `scripts/db/users.sql`, which can mark outbox rows and append audit rows and delete nothing (`25-AUTH-AND-TENANT- ISOLATION` §2, §10: background work under minimal privileges). |
+| `ERASURE_DATABASE_URL` | no |  | yes | yes | The company erasure's own credential — `tmanage_erasure` in `scripts/db/users.sql`, which holds SELECT and DELETE on exactly the tables the erasure empties after an executed company deletion (H3), so the runtime user keeps its narrower DELETE set. |
 | `DATABASE_SINGLE_USER` | no | `false` | no |  | Single-database-user hosting. |
 | `DATABASE_POOL_MAX` | no | `5` | no |  | Hostinger's smallest Cloud plan has a tight connection allowance (50-BOOTSTRAP §4: "a small bounded pool ... |
 | `DATABASE_STATEMENT_TIMEOUT_MS` | no | `15000` | no |  |  |
@@ -49,7 +50,7 @@ one credential, so a one-user install sets only the database connection.
 | `STORAGE_FILESYSTEM_ROOT` | no | `.local/storage` | no |  |  |
 | `STORAGE_LOCAL_ROOT` | no |  | no | yes | The production root for `STORAGE_DRIVER=local` (one host, no object store). |
 | `STORAGE_LOCAL_SIGNING_SECRET` | no |  | yes | yes | Signs the part URLs the API serves itself when `STORAGE_DRIVER=filesystem` (ADR-0002's local substitute) or `STORAGE_DRIVER=local` (the single-host production driver). |
-| `STORAGE_ORG_BYTES_LIMIT_BYTES` | no | unset | no |  | Optional platform-wide safety ceiling on one workspace's TManage storage, in bytes. Unset: the plan allowance alone decides. Set: caps every plan above it (logged once at boot). Drive/OneDrive files never count. |
+| `STORAGE_ORG_BYTES_LIMIT_BYTES` | no |  | no |  | FILE-001 / 57-13r. |
 | `FILE_RETENTION_REJECTED_DAYS` | no | `30` | no |  | How long a rejected / quarantined object's bytes are kept before the retention-lifecycle job deletes the provider bytes and gives the counted bytes back — `49-PRICING` §5's "recoverable trash until its documented expiry". |
 | `SESSION_COOKIE_NAME` | no | `tmanage_session` | no |  |  |
 | `SESSION_SECRET` | yes |  | yes | yes |  |

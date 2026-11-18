@@ -43,6 +43,7 @@ const prodEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
   CLAMAV_HOST: 'clamd.tmanage.example',
   EMAIL_DRIVER: 'smtp',
   WORKER_DATABASE_URL: 'mysql://tmanage_worker:pw@localhost:3306/tmanage',
+  ERASURE_DATABASE_URL: 'mysql://tmanage_erasure:pw@localhost:3306/tmanage',
   SMTP_HOST: 'smtp.tmanage.example',
   SMTP_USERNAME: 'no-reply@tmanage.example',
   SMTP_PASSWORD: 'mail-credential-example',
@@ -183,6 +184,22 @@ describe('loadEnv', () => {
         ),
       ).toContain('WORKER_DATABASE_URL');
       expect(() => loadEnv(prodEnv())).not.toThrow();
+    });
+
+    it('in production, requires an erasure credential that is none of the other three users', () => {
+      expect(issuePaths(() => loadEnv(prodEnv({ ERASURE_DATABASE_URL: undefined })))).toContain(
+        'ERASURE_DATABASE_URL',
+      );
+      for (const user of ['tmanage_app', 'tmanage_migrator', 'tmanage_worker']) {
+        expect(
+          issuePaths(() =>
+            loadEnv(prodEnv({ ERASURE_DATABASE_URL: `mysql://${user}:pw@localhost:3306/tmanage` })),
+          ),
+          user,
+        ).toEqual(['ERASURE_DATABASE_URL']);
+      }
+      // Outside production the erasure runs on DATABASE_URL.
+      expect(() => loadEnv(devEnv())).not.toThrow();
     });
   });
 
