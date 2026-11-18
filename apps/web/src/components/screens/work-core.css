@@ -2086,15 +2086,6 @@ button.tm-wk-chip[aria-expanded='true'] {
   outline-offset: -2px;
 }
 
-/* Edit work item (Figma 377:3597), 2026-10-31 live test: the app-wide `.tm-choice` card rule is
-   `display: block`, which ran "Visible to the client" straight into its helper line. The design
-   stacks the helper under the label. */
-.tm-wk-dialog__visible.tm-choice {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
-}
-
 /* C25: "Which clients can see this?" under the audience choice (Figma 529:30880). */
 .tm-wk-clients {
   display: flex;

@@ -10,21 +10,7 @@
   overflow-wrap: anywhere;
 }
 
-/*
- * "Link to the message" (390:5985) is a plain checkbox row with its line underneath, under the
- * label — not the choice card the app globals paint on every .tm-choice (release visual check).
- */
-.tm-recdec .tm-choice,
-.tm-recdec .tm-choice:has(input:checked) {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-}
-
+/* "Link to the message" (390:5985): the checkbox's line sits under its label, not under the box. */
 .tm-recdec .tm-choice__hint {
   margin-inline-start: var(--s8);
 }

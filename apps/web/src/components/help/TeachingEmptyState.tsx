@@ -54,7 +54,14 @@ export function TeachingEmptyState({
   );
 }
 
-/** The usual primary action when the first step is a form on the same screen: focus its first field. */
+/**
+ * The usual primary action when the first step is a form on the same screen: focus its first field
+ * a person can use. A disabled field cannot take focus, so it is skipped rather than swallowing it.
+ */
 export function focusFirstField(form: HTMLFormElement | null): void {
-  form?.querySelector<HTMLElement>('input:not([type="hidden"]), textarea, select')?.focus();
+  form
+    ?.querySelector<HTMLElement>(
+      'input:not([type="hidden"]):not(:disabled), textarea:not(:disabled), select:not(:disabled)',
+    )
+    ?.focus();
 }

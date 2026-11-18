@@ -754,7 +754,7 @@ export function WorkListScreen({
                     <tr>
                       <th scope="col" className="tm-wk-cell--check">
                         <input
-                          className="tm-choice__input"
+                          className="tm-checkbox"
                           type="checkbox"
                           aria-label={t('WorkListScreen.selectAll')}
                           checked={allVisibleSelected}
@@ -869,7 +869,7 @@ export function WorkListScreen({
                             >
                               <td>
                                 <input
-                                  className="tm-choice__input"
+                                  className="tm-checkbox"
                                   type="checkbox"
                                   aria-label={`${t('WorkListScreen.selectRowPrefix')} ${item.title}`}
                                   checked={selected.has(item.id)}

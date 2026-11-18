@@ -80,9 +80,13 @@ describe('CopilotAnswerView', () => {
       ),
     );
 
-    // The answer region, naming the provider so the offline stub is not mistaken for a real model.
+    // The answer region says, in words, that the offline stub (not a model) put it together; the
+    // provider id itself is never on screen.
     expect(await screen.findByText(/guided answer/i)).toBeInTheDocument();
-    expect(screen.getByText(/local-stub/i)).toBeInTheDocument();
+    expect(
+      screen.getByText('Put together from your records, without an AI model'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/local-stub/i)).not.toBeInTheDocument();
 
     // The evidence region: at least one item, linking to its in-app source (org-prefixed).
     const evidence = screen.getByRole('list', { name: /evidence behind this answer/i });

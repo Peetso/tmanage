@@ -482,22 +482,7 @@
   font-size: var(--t-ui-sm);
 }
 
-/* The Checkbox primitive (row + hint) inside a compact form: the hint sits under the row. */
-.tm-dx-form .tm-choice {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--s1);
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.tm-dx-form .tm-choice:has(input:checked) {
-  border: 0;
-  background: transparent;
-}
-
+/* The Checkbox primitive inside a compact form: compact type, the hint under the label. */
 .tm-dx-form .tm-choice__label {
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);

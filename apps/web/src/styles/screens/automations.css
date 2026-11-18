@@ -587,7 +587,8 @@ a.tm-aut-rowtitle:hover {
 
 /* Fields inside the black card: the shared field primitive on a dark ground. */
 .tm-card--ink .tm-field__label,
-.tm-card--ink legend.tm-field__label {
+.tm-card--ink legend.tm-field__label,
+.tm-card--ink .tm-choice__label {
   color: #f7f7f3;
 }
 
@@ -595,7 +596,8 @@ a.tm-aut-rowtitle:hover {
   color: #a7aca0;
 }
 
-[data-theme='dark'] .tm-card--ink .tm-field__label {
+[data-theme='dark'] .tm-card--ink .tm-field__label,
+[data-theme='dark'] .tm-card--ink .tm-choice__label {
   color: var(--ink-950);
 }
 

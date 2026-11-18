@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, Checkbox, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
@@ -202,15 +202,11 @@ export function ProjectRisksScreen({
                   </select>
                 </div>
 
-                <label className="tm-choice tm-choice--inline">
-                  <input
-                    className="tm-choice__input"
-                    type="checkbox"
-                    checked={published}
-                    onChange={(event) => setPublished(event.target.checked)}
-                  />
-                  <span className="tm-choice__name">{t('ProjectRisksScreen.publishNow')}</span>
-                </label>
+                <Checkbox
+                  label={t('ProjectRisksScreen.publishNow')}
+                  checked={published}
+                  onChange={(event) => setPublished(event.target.checked)}
+                />
 
                 {create.isError ? (
                   <InlineAlert tone="danger" title={t('ProjectRisksScreen.recordFailed')} live>

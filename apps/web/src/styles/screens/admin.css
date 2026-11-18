@@ -631,10 +631,7 @@
 }
 
 .tm-cc-matrix__list .tm-choice {
-  border: 0;
-  padding: 0;
   min-block-size: 32px;
-  background: transparent;
 }
 
 /* ── Day capsules (ADM-14 working days, language) ──────────────────────────────────── */
@@ -805,13 +802,10 @@
   }
 }
 
-/* The Switch / Checkbox primitives draw their own bordered box; inside a setting row the row is the box. */
+/* A Switch / Checkbox inside a setting row takes the row's free width. */
 .tm-cc-rows .tm-choice {
   flex: 1;
   min-inline-size: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
 }
 
 /* Below 900px the section map (and ADM-03's role list) becomes one scrolling row of capsules

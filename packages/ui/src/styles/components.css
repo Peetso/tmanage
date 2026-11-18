@@ -1435,6 +1435,53 @@
   color: inherit;
 }
 
+/*
+ * A Checkbox / Radio / Switch on the inverted card. Its label and hint take the card's own ink,
+ * and in the light theme, where the ground is black, a checked box turns paper with an ink mark
+ * (a radio's ring and dot turn paper) so the control does not vanish into the ground. The dark
+ * theme's inverted card is a light paper, where the resting colours read, so it keeps them.
+ */
+.tm-card--ink .tm-choice__label,
+.tm-card--ink .tm-choice__hint {
+  color: inherit;
+}
+
+.tm-card--ink .tm-checkbox:checked,
+.tm-card--ink .tm-checkbox:indeterminate {
+  background: var(--tm-paper-absolute);
+  border-color: var(--tm-paper-absolute);
+}
+
+.tm-card--ink .tm-checkbox::before {
+  background: var(--tm-ink-absolute);
+}
+
+.tm-card--ink .tm-radio:checked {
+  border-color: var(--tm-paper-absolute);
+}
+
+.tm-card--ink .tm-radio::before {
+  background: var(--tm-paper-absolute);
+}
+
+[data-theme='dark'] .tm-card--ink .tm-checkbox:checked,
+[data-theme='dark'] .tm-card--ink .tm-checkbox:indeterminate {
+  background: var(--ink-950);
+  border-color: var(--ink-950);
+}
+
+[data-theme='dark'] .tm-card--ink .tm-checkbox::before {
+  background: var(--paper-0);
+}
+
+[data-theme='dark'] .tm-card--ink .tm-radio:checked {
+  border-color: var(--ink-950);
+}
+
+[data-theme='dark'] .tm-card--ink .tm-radio::before {
+  background: var(--ink-950);
+}
+
 .tm-card__meta {
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);

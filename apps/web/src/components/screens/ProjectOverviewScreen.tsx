@@ -7,6 +7,7 @@ import {
   Avatar,
   Badge,
   Button,
+  Checkbox,
   InlineAlert,
   LoadingRegion,
   Skeleton,
@@ -872,21 +873,13 @@ function MilestoneComposer({
           </div>
         </div>
 
-        {/*
-          CQ-07 (PRJ-05): a real, visible checkbox. The shared `.tm-choice--inline` hid the input
-          and inked the whole capsule when checked, which read as a black bar rather than a
-          control a person could tell was ticked.
-        */}
-        <label className="tm-prj-publish">
-          <input
-            type="checkbox"
-            checked={publishNow}
-            disabled={!hydrated}
-            onChange={(event) => setPublishNow(event.target.checked)}
-          />
-          <span>{t('ProjectOverviewScreen.publishNow')}</span>
-        </label>
-        <span className="tm-field__hint">{t('ProjectOverviewScreen.milestonePublishHint')}</span>
+        <Checkbox
+          label={t('ProjectOverviewScreen.publishNow')}
+          hint={t('ProjectOverviewScreen.milestonePublishHint')}
+          checked={publishNow}
+          disabled={!hydrated}
+          onChange={(event) => setPublishNow(event.target.checked)}
+        />
 
         {create.isError ? (
           <InlineAlert tone="danger" title={t('ProjectOverviewScreen.couldNotAddMilestone')} live>
@@ -1016,21 +1009,13 @@ function UpdateComposer({
           />
         </div>
 
-        {/*
-          CQ-07 (PRJ-05): a real, visible checkbox. The shared `.tm-choice--inline` hid the input
-          and inked the whole capsule when checked, which read as a black bar rather than a
-          control a person could tell was ticked.
-        */}
-        <label className="tm-prj-publish">
-          <input
-            type="checkbox"
-            checked={publishNow}
-            disabled={!hydrated}
-            onChange={(event) => setPublishNow(event.target.checked)}
-          />
-          <span>{t('ProjectOverviewScreen.publishNow')}</span>
-        </label>
-        <span className="tm-field__hint">{t('ProjectOverviewScreen.updatePublishHint')}</span>
+        <Checkbox
+          label={t('ProjectOverviewScreen.publishNow')}
+          hint={t('ProjectOverviewScreen.updatePublishHint')}
+          checked={publishNow}
+          disabled={!hydrated}
+          onChange={(event) => setPublishNow(event.target.checked)}
+        />
 
         {post.isError ? (
           <InlineAlert tone="danger" title={t('ProjectOverviewScreen.couldNotPost')} live>

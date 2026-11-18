@@ -46,8 +46,9 @@ const SCOPE_KEYS: Readonly<Record<CopilotAnswer['permissionBoundary']['scope'], 
  *
  * ## What it is honest about
  *
- * - **The provider is named.** The only provider wired today is the deterministic offline stub, and
- *   its id is shown, so a reader is never misled that a real model answered.
+ * - **The provider is named.** The API reports which provider answered; the reader sees it in words
+ *   (`providerLine`), so an answer put together offline from their records is never mistaken for
+ *   one a model wrote. The provider's id itself is for logs, not the screen.
  * - **The boundary is the server's, rendered not re-derived.** The API decides what the caller may
  *   and may not see; the panel renders exactly that.
  * - **The next safe action is read-only.** It links to the first cited in-app surface, so the one
@@ -246,10 +247,7 @@ function AnswerCard({
         <ReadAloudButton text={answer.answer} autoRead={readAloud} />
       </div>
       <p className="tm-sa-answer__text">{answer.answer}</p>
-      <p className="tm-sa-answer__provider">
-        {t('CopilotAnswerView.answeredByPrefix')}
-        {answer.provider}
-      </p>
+      <p className="tm-sa-answer__provider">{providerLine(t, answer.provider)}</p>
       <div
         className="tm-sa-answer__actions"
         aria-label={t('CopilotAnswerView.nextSafeActionAria')}
@@ -265,4 +263,21 @@ function AnswerCard({
       </div>
     </section>
   );
+}
+
+/**
+ * Who answered, in the reader's words. The ids are the API's provider ids (`copilot.provider.ts`,
+ * `copilot.remote.provider.ts`); one the screen does not know yet is still said to be a model.
+ */
+function providerLine(t: ReturnType<typeof useT>, provider: string): string {
+  switch (provider) {
+    case 'local-stub':
+      return t('CopilotAnswerView.providerOffline');
+    case 'anthropic':
+      return t('CopilotAnswerView.providerAnthropic');
+    case 'openai':
+      return t('CopilotAnswerView.providerOpenai');
+    default:
+      return t('CopilotAnswerView.providerOther');
+  }
 }

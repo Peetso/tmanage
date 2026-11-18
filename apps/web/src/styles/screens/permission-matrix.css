@@ -98,10 +98,6 @@
   border-radius: var(--r-control);
 }
 
-.tm-pm__box .tm-choice {
-  display: inline-flex;
-}
-
 .tm-pm__box .tm-choice__row {
   gap: 0;
 }

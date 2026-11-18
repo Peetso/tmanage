@@ -408,49 +408,6 @@ html[lang^='zh'] body {
   background: var(--line-300);
 }
 
-/*
- * A choice between named options — ON-01's operating templates, ON-03's audience.
- * The control underneath is always a real radio input; this only styles its label.
- */
-.tm-choice {
-  display: block;
-  padding: var(--s4);
-  border: var(--b-structural) solid var(--line-300);
-  border-radius: var(--r-card);
-  background: var(--paper-0);
-  cursor: pointer;
-}
-
-.tm-choice:has(input:checked) {
-  border-color: var(--ink-950);
-  background: var(--paper-50);
-}
-
-.tm-choice:has(input:focus-visible) {
-  box-shadow: var(--focus-ring);
-}
-
-.tm-choice__input {
-  position: absolute;
-  opacity: 0;
-  inline-size: 1px;
-  block-size: 1px;
-}
-
-.tm-choice__name {
-  display: block;
-  font-size: var(--t-heading-card);
-  line-height: var(--t-heading-card-line);
-  font-weight: 600;
-  color: var(--ink-950);
-}
-
-.tm-choice__detail {
-  display: block;
-  margin-block-start: var(--s1);
-  color: var(--ink-650);
-}
-
 /* ── Identity shell (ID-01 … ID-05) ─────────────────────────────────────── */
 
 .tm-identity {
@@ -1104,12 +1061,19 @@ html[lang^='zh'] body {
   color: var(--ink-950);
 }
 
+/*
+ * The meta beside a page title is one self-contained phrase of counts, dates and ranges
+ * ("1 on · 1 off", "since Aug 2026"). `plaintext` takes its direction from its own first strong
+ * letter, so a Latin phrase keeps its order on a right-to-left page and an Arabic one stays
+ * right to left. Every screen's meta goes through this one element.
+ */
 .tm-canvas-header__meta {
   align-self: flex-end;
   padding-block-end: var(--s1);
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);
   color: var(--ink-650);
+  unicode-bidi: plaintext;
 }
 
 .tm-canvas-header__actions {
@@ -1597,31 +1561,6 @@ html[lang^='zh'] body {
 /* A row of checkboxes reads as a row, and wraps rather than overflowing. */
 .tm-row--wrap {
   flex-wrap: wrap;
-}
-
-.tm-choice--inline {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--s2);
-  min-block-size: var(--control);
-  padding: 0 var(--s4);
-  border-width: var(--b-quiet);
-  border-radius: var(--r-capsule);
-}
-
-/* Inline choices are the filter capsules of 04 Primitives: a word, inked when chosen. */
-.tm-choice--inline .tm-choice__name {
-  font-size: var(--t-ui-md);
-  line-height: var(--t-ui-md-line);
-  font-weight: 500;
-  color: inherit;
-}
-
-.tm-choice--inline:has(input:checked) {
-  border-color: var(--ink-950);
-  background: var(--ink-950);
-  color: var(--paper-50);
 }
 
 /* ── Platform states (403 / 404 / 500 / empty / loading) ─────────────────────

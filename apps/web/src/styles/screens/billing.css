@@ -861,6 +861,13 @@
     align-items: stretch;
   }
 
+  /* Stacked, a card is as tall as its content: the side-by-side "share the row" basis of 0 would
+     otherwise become a height of 0 and fold every card down to its heading. */
+  .tm-bil > *,
+  .tm-bil-split > * {
+    flex: none;
+  }
+
   .tm-bil > .tm-panel--quiet,
   .tm-bil > .tm-bil-main {
     order: 0;

@@ -578,15 +578,3 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
-
-/*
- * Attach dialog: the app's globals paint every .tm-choice as an option card with
- * `display: block`, so the hint ran on after the label and collided with it ("Visible to
- * client The client sees…"). Here a choice is the UI kit's column again: control and label,
- * then the hint under them.
- */
-.tm-upload-version .tm-choice {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s1);
-}

@@ -236,7 +236,6 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
             />
           </div>
           <Checkbox
-            className="tm-web-contact-form__choice"
             label={t('DemoRequestForm.updatesLabel')}
             name="updates"
             checked={draft.updates}

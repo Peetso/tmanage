@@ -74,10 +74,6 @@
   inline-size: 20px;
 }
 
-.pl-check .tm-choice {
-  margin: 0;
-}
-
 .pl-row--selected td {
   background: var(--lime-100);
 }

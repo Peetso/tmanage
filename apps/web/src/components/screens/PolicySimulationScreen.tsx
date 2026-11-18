@@ -2,16 +2,19 @@
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, Select } from '@tmanage/ui';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Button, InlineAlert, Select } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { simulatePolicy, type PolicySimulationView } from '../../lib/api/policy-simulate';
+import { listProjects } from '../../lib/api/projects';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { useRoleDescription } from '../../lib/use-role-description';
+import { MembershipSelect, usePeopleDirectory } from '../people/MembershipSelect';
 
 export interface PolicySimulationScreenProps {
   organizationSlug: string;
@@ -24,9 +27,11 @@ export interface PolicySimulationScreenProps {
  *
  * `22-SCREEN-BY-SCREEN` §Administration. x174 lets an administrator store an access policy; this screen
  * answers the question that policy exists to inform — *would this member be allowed to do this?* It is a
- * faithful reader of the API's read-only simulator: it names a member and a capability (optionally a
- * project), and renders the decision the live evaluator would reach, with the deciding rule shown. It
- * never mutates anything — no role is granted, no policy is written.
+ * faithful reader of the API's read-only simulator: the administrator picks a member and a capability
+ * (optionally a project) by name, and the screen renders the decision the live evaluator would reach
+ * in words: allowed or not, the member's role and the reason. The rule id and denial code the API
+ * returns are for logs and support, not for the reader, so they are not drawn. It never mutates
+ * anything — no role is granted, no policy is written.
  *
  * ## What it does, and what it cannot
  *
@@ -48,6 +53,14 @@ export function PolicySimulationScreen({
   // is live. Without it, on a cold compile the Simulate click can land before the submit handler is
   // attached and is then lost, leaving the screen with neither a result nor an error.
   const hydrated = useHydrated();
+  const roleDescription = useRoleDescription();
+
+  // Who and where are chosen by name; the ids stay what the API is sent (D16).
+  const people = usePeopleDirectory(api, organizationSlug);
+  const projects = useQuery({
+    queryKey: ['projects', organizationSlug],
+    queryFn: () => listProjects(api, organizationSlug),
+  });
 
   const [memberId, setMemberId] = useState('');
   const [capability, setCapability] = useState<string>(CAPABILITIES_BY_AREA[0] ?? 'org.manage');
@@ -56,11 +69,10 @@ export function PolicySimulationScreen({
 
   const simulate = useMutation({
     mutationFn: () => {
-      const trimmedProject = projectId.trim();
       return simulatePolicy(api, organizationSlug, {
-        memberId: memberId.trim(),
+        memberId,
         capability,
-        ...(trimmedProject.length > 0 ? { context: { projectId: trimmedProject } } : {}),
+        ...(projectId === '' ? {} : { context: { projectId } }),
       });
     },
     onSuccess: (view) => setResult(view.result),
@@ -99,16 +111,27 @@ export function PolicySimulationScreen({
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
               setResult(null);
-              if (!simulate.isPending && memberId.trim().length > 0) simulate.mutate();
+              if (!simulate.isPending && memberId !== '') simulate.mutate();
             }}
           >
             <fieldset className="tm-fieldset tm-cc-form" disabled={!hydrated}>
-              <Field
-                label={t('PolicySimulationScreen.memberIdLabel')}
+              {people.isError ? (
+                <InlineAlert
+                  tone="danger"
+                  title={t('PolicySimulationScreen.peopleErrorTitle')}
+                  live
+                >
+                  {describeError(people.error)}
+                </InlineAlert>
+              ) : null}
+              <MembershipSelect
+                label={t('PolicySimulationScreen.memberLabel')}
+                hint={t('PolicySimulationScreen.memberHint')}
+                placeholder={t('PolicySimulationScreen.chooseMember')}
+                people={people.data?.people ?? []}
                 name="memberId"
                 value={memberId}
-                onChange={(event) => setMemberId(event.target.value)}
-                hint={t('PolicySimulationScreen.memberIdHint')}
+                onChange={setMemberId}
                 required
               />
               <Select
@@ -124,13 +147,20 @@ export function PolicySimulationScreen({
                   </option>
                 ))}
               </Select>
-              <Field
-                label={t('PolicySimulationScreen.projectIdLabel')}
+              <Select
+                label={t('PolicySimulationScreen.projectLabel')}
                 name="projectId"
                 value={projectId}
                 onChange={(event) => setProjectId(event.target.value)}
-                hint={t('PolicySimulationScreen.projectIdHint')}
-              />
+                hint={t('PolicySimulationScreen.projectHint')}
+              >
+                <option value="">{t('PolicySimulationScreen.wholeOrganization')}</option>
+                {(projects.data ?? []).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </Select>
 
               {simulate.isError ? (
                 <InlineAlert tone="danger" title={t('PolicySimulationScreen.simErrorTitle')} live>
@@ -170,18 +200,8 @@ export function PolicySimulationScreen({
                   : t('PolicySimulationScreen.denied')}
               </h2>
               <p className="tm-cc-card__body">
-                {t('PolicySimulationScreen.roleWord')} <strong>{result.role}</strong> —{' '}
-                {result.detail}
-              </p>
-              <hr className="tm-cc-rule" />
-              <p className="tm-cc-card__body">
-                {t('PolicySimulationScreen.decidingRule')} <code>{result.decidingRule}</code>
-                {result.denialCode ? (
-                  <>
-                    {' '}
-                    ({t('PolicySimulationScreen.codeWord')} {result.denialCode})
-                  </>
-                ) : null}
+                {t('PolicySimulationScreen.roleWord')}{' '}
+                <strong>{roleDescription(result.role).label}</strong> — {result.detail}
               </p>
             </>
           ) : (

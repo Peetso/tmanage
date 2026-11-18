@@ -9,10 +9,13 @@ import type { BillingSeat } from '../../src/lib/api/billing-seats';
 import type { InvoiceSummary } from '../../src/lib/api/invoices';
 import type { OrgPolicyView } from '../../src/lib/api/policies';
 import type { PolicySimulationView } from '../../src/lib/api/policy-simulate';
+import type { ProjectSummary } from '../../src/lib/api/projects';
 import type { WorkflowTemplateSummary } from '../../src/lib/api/automations';
 import type { AutomationScheduleSummary } from '../../src/lib/api/automation-schedules';
 import type { PersonSummary } from '../../src/lib/api/people';
-import type { UserPreferencesView } from '../../src/lib/api/preferences';
+import type { MyProfileView } from '../../src/lib/api/member-profile';
+import type { DisplayPreferencesView } from '../../src/lib/api/display-preferences';
+import type { FactorsView } from '../../src/lib/api/auth';
 import type { QuietHoursView } from '../../src/lib/api/quiet-hours';
 import type { ClientMilestone, PortalProject } from '../../src/lib/api/portal';
 import type { MaintenanceWindowView } from '../../src/lib/api/maintenance';
@@ -236,25 +239,27 @@ export const INSIGHTS_PORTFOLIO = {
 const BILLING_SEATS: readonly BillingSeat[] = [
   {
     id: 'seat-1',
-    membershipId: 'mem-ava',
+    membershipId: 'm-u-ava',
     assignedAt: '2026-09-01T09:00:00.000Z',
     releasedAt: null,
   },
   {
     id: 'seat-2',
-    membershipId: 'mem-liam',
+    membershipId: 'm-u-liam',
     assignedAt: '2026-09-18T14:30:00.000Z',
     releasedAt: null,
   },
 ];
 
-/** The seats list: two active seats against the plan. */
+/** The seats list: two active seats against the plan, held by people the roster names. */
 export function billingSeatsClient(): ApiClient {
-  return clientOver(({ url }) =>
-    url.includes('/billing/seats')
-      ? json({ seats: BILLING_SEATS, activeCount: BILLING_SEATS.length })
-      : json({ status: 404 }, 404),
-  );
+  return clientOver(({ url }) => {
+    if (url.includes('/billing/seats')) {
+      return json({ seats: BILLING_SEATS, activeCount: BILLING_SEATS.length });
+    }
+    if (url.includes('/people')) return json({ people: PEOPLE, nextAfter: null });
+    return json({ status: 404 }, 404);
+  });
 }
 
 const INVOICES: readonly InvoiceSummary[] = [
@@ -315,9 +320,24 @@ export function orgPolicyClient(): ApiClient {
   );
 }
 
+const SIMULATION_PROJECTS: readonly ProjectSummary[] = [
+  {
+    id: 'proj-rebrand',
+    workspaceId: 'ws-studio',
+    name: 'Rebrand',
+    status: 'active',
+    ownerUserId: 'u-ava',
+    committedAt: null,
+    forecastAt: '2026-12-20',
+    createdAt: '2026-09-01T09:00:00.000Z',
+    updatedAt: '2026-09-01T09:00:00.000Z',
+    archivedAt: null,
+  },
+];
+
 const POLICY_DECISION: PolicySimulationView = {
   result: {
-    memberId: 'mem-ava',
+    memberId: 'm-u-liam',
     role: 'manager',
     capability: 'project.manage',
     allowed: true,
@@ -328,13 +348,17 @@ const POLICY_DECISION: PolicySimulationView = {
   },
 };
 
-/** Answers the read-only "can this member do this?" POST with an allow decision. */
+/**
+ * Answers the read-only "can this member do this?" POST with an allow decision, and the people
+ * and projects the form offers by name.
+ */
 export function policySimulateClient(): ApiClient {
-  return clientOver(({ url, method }) =>
-    method === 'POST' && url.includes('/policies/simulate')
-      ? json(POLICY_DECISION)
-      : json({ status: 404 }, 404),
-  );
+  return clientOver(({ url, method }) => {
+    if (method === 'POST' && url.includes('/policies/simulate')) return json(POLICY_DECISION);
+    if (url.includes('/people')) return json({ people: PEOPLE, nextAfter: null });
+    if (url.includes('/projects')) return json({ projects: SIMULATION_PROJECTS });
+    return json({ status: 404 }, 404);
+  });
 }
 
 /* ------------------------------------------------------------------ Automations */
@@ -390,13 +414,16 @@ const AUTOMATION_SCHEDULES: readonly AutomationScheduleSummary[] = [
   },
 ];
 
-/** The scheduled triggers list — a daily and a weekly schedule. */
+/**
+ * The scheduled triggers list — a daily and a weekly schedule — and the template library the
+ * screen names each schedule from and offers in its form.
+ */
 export function automationSchedulesClient(): ApiClient {
-  return clientOver(({ url }) =>
-    url.includes('/automations/schedules')
-      ? json({ schedules: AUTOMATION_SCHEDULES })
-      : json({ status: 404 }, 404),
-  );
+  return clientOver(({ url }) => {
+    if (url.includes('/automations/schedules')) return json({ schedules: AUTOMATION_SCHEDULES });
+    if (url.includes('/automations/templates')) return json({ templates: AUTOMATION_TEMPLATES });
+    return json({ status: 404 }, 404);
+  });
 }
 
 /* ------------------------------------------------------------------ People directory */
@@ -458,17 +485,41 @@ export function peopleClient(): ApiClient {
 
 /* ------------------------------------------------------------------ Preferences */
 
-const PREFERENCES: UserPreferencesView = {
-  theme: 'system',
-  locale: 'en-GB',
-  density: 'comfortable',
+// The same profile and display row `preferences-screen.test.tsx` mounts the screen with.
+const MY_PROFILE: MyProfileView = {
+  displayName: 'Omar Adel',
+  email: 'omar@northstar.studio',
+  jobTitle: 'Project lead',
 };
 
-/** The stored appearance / language row the preferences form seeds from. */
-export function preferencesClient(): ApiClient {
-  return clientOver(({ url }) =>
-    url.includes('/me/preferences') ? json(PREFERENCES) : json({ status: 404 }, 404),
-  );
+const DISPLAY_PREFERENCES: DisplayPreferencesView = {
+  theme: 'system',
+  density: 'comfortable',
+  locale: 'en-US',
+  timezone: 'Europe/London',
+  dateFormat: 'iso',
+  numerals: 'latin',
+  calendarDisplay: 'gregorian',
+  weekStart: 'monday',
+  uiMode: 'simple',
+  uiModeSource: 'org_default',
+  uiModeLocked: false,
+};
+
+const NO_FACTORS: FactorsView = {
+  factors: [],
+  recoveryCodesRemaining: 0,
+  email: { address: 'o***@northstar.studio', verified: true },
+};
+
+/** The three reads the profile & preferences page seeds from: profile, language row, factors. */
+export function profilePreferencesClient(): ApiClient {
+  return clientOver(({ url }) => {
+    if (url.includes('/me/profile')) return json(MY_PROFILE);
+    if (url.includes('/me/display-preferences')) return json(DISPLAY_PREFERENCES);
+    if (url.includes('/auth/factors')) return json(NO_FACTORS);
+    return json({ status: 404 }, 404);
+  });
 }
 
 const QUIET_HOURS: QuietHoursView = {
@@ -565,6 +616,32 @@ export const MAINTENANCE_DOWN: MaintenanceWindowView = {
 
 /* ------------------------------------------------------------------ decorators */
 
+/** An answer to one of the shell's own API calls, or `undefined` to refuse it. */
+type ShellAnswer = (call: Call) => Response | undefined;
+
+/** The current story's shell answers; reset by `withStubbedNetwork` on every render. */
+let shellAnswer: ShellAnswer | undefined;
+
+function installFetchStub(): void {
+  if (typeof window === 'undefined' || '__vrFetchStubbed' in window) return;
+  const original = window.fetch.bind(window);
+  (window as unknown as { __vrFetchStubbed: boolean }).__vrFetchStubbed = true;
+  window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.includes('/v1/')) {
+      const answered = shellAnswer?.({ url, method: (init?.method ?? 'GET').toUpperCase() });
+      return Promise.resolve(
+        answered ??
+          new Response(JSON.stringify({ status: 503, detail: 'No API in Storybook.' }), {
+            status: 503,
+            headers: { 'content-type': 'application/json' },
+          }),
+      );
+    }
+    return original(input as RequestInfo, init);
+  }) as typeof window.fetch;
+}
+
 /**
  * Neutralise every API call a screen's *shell* makes on its own.
  *
@@ -575,22 +652,21 @@ export const MAINTENANCE_DOWN: MaintenanceWindowView = {
  * runtime) straight through.
  */
 export const withStubbedNetwork: Decorator = (Story) => {
-  if (typeof window !== 'undefined' && !('__vrFetchStubbed' in window)) {
-    const original = window.fetch.bind(window);
-    (window as unknown as { __vrFetchStubbed: boolean }).__vrFetchStubbed = true;
-    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes('/v1/')) {
-        return Promise.resolve(
-          new Response(JSON.stringify({ status: 503, detail: 'No API in Storybook.' }), {
-            status: 503,
-            headers: { 'content-type': 'application/json' },
-          }),
-        );
-      }
-      return original(input as RequestInfo, init);
-    }) as typeof window.fetch;
-  }
+  installFetchStub();
+  shellAnswer = undefined;
+  return <Story />;
+};
+
+/**
+ * The stored display row, answered to the shell too. The shell's `ThemeSync` reads the display
+ * preferences under the same query key as the profile page, so when the shell's request is
+ * refused the page shares that refusal and shows "could not be loaded". A story decorator, so it
+ * runs inside the meta's `withStubbedNetwork` and only for the story that asks for it.
+ */
+export const withStoredDisplayPreferences: Decorator = (Story) => {
+  installFetchStub();
+  shellAnswer = ({ url }) =>
+    url.includes('/me/display-preferences') ? json(DISPLAY_PREFERENCES) : undefined;
   return <Story />;
 };
 
@@ -652,4 +728,11 @@ export function setReactInputValue(input: HTMLInputElement, value: string): void
   const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
   descriptor?.set?.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** Choose a React-controlled select's option through the native setter so React's onChange fires. */
+export function setReactSelectValue(select: HTMLSelectElement, value: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value');
+  descriptor?.set?.call(select, value);
+  select.dispatchEvent(new Event('change', { bubbles: true }));
 }

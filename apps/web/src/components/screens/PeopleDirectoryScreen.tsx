@@ -25,8 +25,8 @@ import {
 } from '../people/PendingInvitations';
 import type { PendingInvitation } from '../people/PendingInvitations';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { listPeople } from '../../lib/api/people';
 import type { PersonSummary } from '../../lib/api/people';
+import { usePeopleDirectory } from '../people/MembershipSelect';
 import { fetchPendingInvitations, reissueInvitation } from '../../lib/api/admin-invitations';
 import type { IssuedInvitation } from '../../lib/api/invitations';
 import { useDescribeApiError } from '../../lib/api/describe-error';
@@ -164,10 +164,7 @@ export function PeopleDirectoryScreen({
     (myCustomRole?.capabilities.includes('org.manage') ?? false) ||
     (myCapabilities?.includes('org.manage') ?? false);
 
-  const people = useQuery({
-    queryKey: ['people-directory', organizationSlug, ''],
-    queryFn: () => listPeople(api, organizationSlug, {}),
-  });
+  const people = usePeopleDirectory(api, organizationSlug);
 
   const invitations = useQuery({
     queryKey: ['admin-invitations', organizationSlug],

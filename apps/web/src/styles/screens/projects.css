@@ -437,27 +437,6 @@
   gap: var(--s3);
 }
 
-/*
- * CQ-07 (PRJ-05): the "Publish to the client now" control is a real, visible checkbox with a
- * readable label — not the inked capsule the shared .tm-choice--inline painted, which read as a
- * solid black bar once it was checked by default.
- */
-.tm-prj-publish {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  color: var(--ink-950);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.tm-prj-publish input {
-  inline-size: 1.125rem;
-  block-size: 1.125rem;
-  accent-color: var(--ink-950);
-  cursor: pointer;
-}
-
 .tm-prj-milestones {
   display: flex;
   flex-direction: column;

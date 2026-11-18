@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRef, Fragment, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
@@ -97,14 +98,21 @@ export function AutomationSchedulesScreen({
     queryFn: () => listAutomationSchedules(api, organizationSlug),
   });
 
-  // The library, read to offer automations by name and to name each schedule's template. If it
-  // cannot be read the form falls back to the template id field.
+  // The library, read to offer automations by name and to name each schedule's automation. A
+  // schedule is only ever chosen by name: with no automation in the library there is nothing to
+  // schedule, and the form says where to make one.
   const templates = useQuery({
     queryKey: ['workflow-templates', organizationSlug],
     queryFn: async () => (await listWorkflowTemplates(api, organizationSlug)) ?? [],
   });
-  const library = Array.isArray(templates.data) ? templates.data : [];
-  const templateName = (id: string): string => library.find((t) => t.id === id)?.name ?? id;
+  const library = templates.data ?? [];
+  const templateName = (id: string): string => {
+    if (!templates.isSuccess) return '';
+    return (
+      library.find((template) => template.id === id)?.name ??
+      t('AutomationSchedulesScreen.removedAutomation')
+    );
+  };
 
   const [templateId, setTemplateId] = useState('');
   const [interval, setInterval] = useState<ScheduleInterval>('daily');
@@ -117,7 +125,7 @@ export function AutomationSchedulesScreen({
 
   const create = useMutation({
     mutationFn: () =>
-      scheduleAutomationTemplate(api, organizationSlug, templateId.trim(), {
+      scheduleAutomationTemplate(api, organizationSlug, templateId, {
         interval,
         ...(usesHour ? { hour: Number(hour) } : {}),
         ...(usesDay ? { dayOfWeek: Number(dayOfWeek) } : {}),
@@ -148,7 +156,7 @@ export function AutomationSchedulesScreen({
   });
 
   const rows = schedules.data ?? [];
-  const canCreate = templateId.trim() !== '' && !create.isPending;
+  const canCreate = templateId !== '' && !create.isPending;
   const onCount = rows.filter((schedule) => schedule.enabled).length;
 
   return (
@@ -403,32 +411,41 @@ export function AutomationSchedulesScreen({
                   if (canCreate) create.mutate();
                 }}
               >
-                {library.length > 0 ? (
-                  <Select
-                    label={t('AutomationSchedulesScreen.automationLabel')}
-                    name="templateId"
-                    value={templateId}
-                    onChange={(event) => setTemplateId(event.target.value)}
-                    hint={t('AutomationSchedulesScreen.automationHint')}
-                    required
+                {templates.isError ? (
+                  <InlineAlert
+                    tone="danger"
+                    title={t('AutomationSchedulesScreen.errorLibraryTitle')}
+                    live
                   >
-                    <option value="">{t('AutomationSchedulesScreen.chooseAutomation')}</option>
-                    {library.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </Select>
-                ) : (
-                  <Field
-                    label={t('AutomationSchedulesScreen.templateIdLabel')}
-                    name="templateId"
-                    value={templateId}
-                    onChange={(event) => setTemplateId(event.target.value)}
-                    hint={t('AutomationSchedulesScreen.templateIdHint')}
-                    required
-                  />
-                )}
+                    {describeError(t, templates.error)}
+                  </InlineAlert>
+                ) : null}
+                {templates.isSuccess && library.length === 0 ? (
+                  <InlineAlert
+                    tone="neutral"
+                    title={t('AutomationSchedulesScreen.noAutomationsTitle')}
+                  >
+                    <Link href={`/${organizationSlug}/automations`}>
+                      {t('AutomationSchedulesScreen.noAutomationsLink')}
+                    </Link>
+                  </InlineAlert>
+                ) : null}
+                <Select
+                  label={t('AutomationSchedulesScreen.automationLabel')}
+                  name="templateId"
+                  value={templateId}
+                  onChange={(event) => setTemplateId(event.target.value)}
+                  hint={t('AutomationSchedulesScreen.automationHint')}
+                  disabled={library.length === 0}
+                  required
+                >
+                  <option value="">{t('AutomationSchedulesScreen.chooseAutomation')}</option>
+                  {library.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </Select>
                 <Select
                   label={t('AutomationSchedulesScreen.intervalLabel')}
                   name="interval"

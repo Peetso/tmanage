@@ -67,9 +67,46 @@ const WEEKLY = {
   createdAt: '2026-09-27T09:00:00.000Z',
 };
 
-function screenOver(schedules: readonly (typeof DAILY | typeof WEEKLY)[]) {
+/** The library the screen names each schedule from and offers in its form. */
+const TEMPLATES = [
+  {
+    id: 'tpl-1',
+    name: 'Notify owner',
+    triggerKind: 'request_submitted',
+    actionKind: 'notify_owner',
+    config: {},
+    enabled: true,
+    createdBy: 'mem-a',
+    createdAt: '2026-09-20T09:00:00.000Z',
+  },
+  {
+    id: 'tpl-2',
+    name: 'Weekly digest',
+    triggerKind: 'meeting_scheduled',
+    actionKind: 'send_email_digest',
+    config: {},
+    enabled: true,
+    createdBy: 'mem-a',
+    createdAt: '2026-09-20T09:00:00.000Z',
+  },
+];
+
+/** The library answer, or `undefined` when the URL is not the library's. */
+function libraryAnswer(
+  url: string,
+  templates: readonly unknown[] = TEMPLATES,
+): Response | undefined {
+  return url.includes('/automations/templates') ? json({ templates }) : undefined;
+}
+
+function screenOver(
+  schedules: readonly (typeof DAILY | typeof WEEKLY)[],
+  templates: readonly unknown[] = TEMPLATES,
+) {
   const client = clientOver((call) => {
-    if (call.url.includes('/automations')) {
+    const library = libraryAnswer(call.url, templates);
+    if (library) return library;
+    if (call.url.includes('/automations/schedules')) {
       if (call.method === 'POST') return json(DAILY, 201);
       return json({ schedules });
     }
@@ -88,12 +125,16 @@ describe('AutomationSchedulesScreen', () => {
     const table = within(region).getByRole('table');
     const bodyRows = within(table).getAllByRole('row').slice(1);
     expect(bodyRows).toHaveLength(2);
-    expect(within(bodyRows[0]!).getByRole('rowheader')).toHaveTextContent('tpl-1');
+    // Each schedule is named by its automation, never by its id.
+    expect(within(bodyRows[0]!).getByRole('rowheader')).toHaveTextContent('Notify owner');
+    expect(within(table).queryByText(/tpl-/)).not.toBeInTheDocument();
     expect(within(table).getByText(/Weekly on Wednesday at 12:00/)).toBeInTheDocument();
     // 2026-10-31 live-test fix: the state is an On switch per row, not a read-only capsule.
-    expect(within(table).getByRole('switch', { name: 'Schedule for tpl-1 is on' })).toBeChecked();
     expect(
-      within(table).getByRole('switch', { name: 'Schedule for tpl-2 is on' }),
+      within(table).getByRole('switch', { name: 'Schedule for Notify owner is on' }),
+    ).toBeChecked();
+    expect(
+      within(table).getByRole('switch', { name: 'Schedule for Weekly digest is on' }),
     ).not.toBeChecked();
     expect(within(table).getByText(/Off, skipped until turned on/)).toBeInTheDocument();
 
@@ -106,13 +147,26 @@ describe('AutomationSchedulesScreen', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
-  it('creates a schedule through the form', async () => {
+  it('creates a schedule through the form, choosing the automation by name', async () => {
     render(screenOver([]));
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText(/workflow template id/i), 'tpl-1');
+    const automation = await screen.findByRole('combobox', { name: /automation/i });
+    await screen.findByRole('option', { name: 'Notify owner' });
+    await user.selectOptions(automation, 'Notify owner');
     await user.click(screen.getByRole('button', { name: /create schedule/i }));
     // The POST resolves 201 and the list is invalidated; the create control stays reachable.
     expect(await screen.findByRole('button', { name: /create schedule/i })).toBeInTheDocument();
+  });
+
+  it('says where to make an automation when the library is empty, with no id field', async () => {
+    render(screenOver([], []));
+    expect(await screen.findByText(/no automation to schedule yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /make one in the library/i })).toHaveAttribute(
+      'href',
+      '/acme/automations',
+    );
+    expect(screen.getByRole('combobox', { name: /automation/i })).toBeDisabled();
+    expect(screen.queryByLabelText(/template id/i)).not.toBeInTheDocument();
   });
 
   it('turns a schedule off with its switch (PATCH enabled:false)', async () => {
@@ -123,6 +177,8 @@ describe('AutomationSchedulesScreen', () => {
       fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
         const method = (init?.method ?? 'GET').toUpperCase();
         calls.push({ method, url: String(input), body: String(init?.body ?? '') });
+        const library = libraryAnswer(String(input));
+        if (library) return Promise.resolve(library);
         if (method === 'PATCH') return Promise.resolve(json({ ...DAILY, enabled: false }));
         if (String(input).includes('/schedules'))
           return Promise.resolve(json({ schedules: [DAILY] }));
@@ -141,7 +197,9 @@ describe('AutomationSchedulesScreen', () => {
       ),
     );
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('switch', { name: 'Schedule for tpl-1 is on' }));
+    await user.click(
+      await screen.findByRole('switch', { name: 'Schedule for Notify owner is on' }),
+    );
     const patch = await vi.waitFor(() => {
       const found = calls.find((call) => call.method === 'PATCH');
       if (!found) throw new Error('no PATCH yet');
@@ -159,6 +217,8 @@ describe('AutomationSchedulesScreen', () => {
       fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
         const method = (init?.method ?? 'GET').toUpperCase();
         calls.push({ method, url: String(input) });
+        const library = libraryAnswer(String(input));
+        if (library) return Promise.resolve(library);
         if (method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }));
         if (String(input).includes('/schedules'))
           return Promise.resolve(json({ schedules: [DAILY] }));
@@ -177,7 +237,9 @@ describe('AutomationSchedulesScreen', () => {
       ),
     );
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Remove the schedule for tpl-1' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Remove the schedule for Notify owner' }),
+    );
     const confirm = screen.getByRole('group', { name: 'Remove this schedule?' });
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false);
     await expectNoAxeViolations(container);
@@ -185,7 +247,7 @@ describe('AutomationSchedulesScreen', () => {
     await user.click(within(confirm).getByRole('button', { name: 'Keep it' }));
     expect(screen.queryByRole('group', { name: 'Remove this schedule?' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Remove the schedule for tpl-1' }));
+    await user.click(screen.getByRole('button', { name: 'Remove the schedule for Notify owner' }));
     await user.click(
       within(screen.getByRole('group', { name: 'Remove this schedule?' })).getByRole('button', {
         name: 'Remove',

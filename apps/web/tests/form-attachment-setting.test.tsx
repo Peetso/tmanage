@@ -44,8 +44,11 @@ describe('52-20a form attachment setting (web)', () => {
     });
   });
 
-  it('keeps "25 MB" whole in a left-to-right isolate inside an Arabic sentence', () => {
+  it('keeps "25 MB" whole in an isolate that takes its own direction inside an Arabic sentence', () => {
     const { container } = render(<p>{withIsolates('حتى {size} لكلٍّ منها', { size: '25 MB' })}</p>);
-    expect(container.querySelector('bdi[dir="ltr"]')?.textContent).toBe('25 MB');
+    const isolate = container.querySelector('bdi');
+    expect(isolate?.textContent).toBe('25 MB');
+    // No forced direction: `<bdi>` resolves it from the value, so an Arabic value stays RTL.
+    expect(isolate?.hasAttribute('dir')).toBe(false);
   });
 });

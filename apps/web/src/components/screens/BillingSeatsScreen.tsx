@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchAdminOverview } from '../../lib/api/admin-overview';
@@ -18,6 +18,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
+import { MembershipSelect, usePeopleDirectory } from '../people/MembershipSelect';
 import '../../styles/screens/billing.css';
 import { appLocale } from '../../lib/i18n/app-locale';
 
@@ -66,14 +67,24 @@ export function BillingSeatsScreen({
   });
   const activeMembers = overview.data?.activeMembers;
 
+  // A seat is given to, and listed by, a person's name; the membership id is only what the API keeps.
+  const people = usePeopleDirectory(api, organizationSlug);
+  const roster = people.data?.people ?? [];
+  const holderName = (membershipId: string): string => {
+    if (!people.isSuccess) return '';
+    return (
+      roster.find((person) => person.membershipId === membershipId)?.displayName ??
+      t('BillingSeatsScreen.formerMember')
+    );
+  };
+
   const [membershipId, setMembershipId] = useState('');
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['billing-seats', organizationSlug] });
 
   const assign = useMutation({
-    mutationFn: () =>
-      assignBillingSeat(api, organizationSlug, { membershipId: membershipId.trim() }),
+    mutationFn: () => assignBillingSeat(api, organizationSlug, { membershipId }),
     onSuccess: async () => {
       setMembershipId('');
       await invalidate();
@@ -88,7 +99,7 @@ export function BillingSeatsScreen({
   });
 
   const rows = seats.data?.seats ?? [];
-  const canAssign = membershipId.trim() !== '' && !assign.isPending;
+  const canAssign = membershipId !== '' && !assign.isPending;
 
   return (
     <SettingsShell
@@ -114,12 +125,19 @@ export function BillingSeatsScreen({
               if (canAssign) assign.mutate();
             }}
           >
-            <Field
-              label={t('BillingSeatsScreen.membershipIdLabel')}
+            {people.isError ? (
+              <InlineAlert tone="danger" title={t('BillingSeatsScreen.errorPeopleTitle')} live>
+                {describeError(t, people.error)}
+              </InlineAlert>
+            ) : null}
+            <MembershipSelect
+              label={t('BillingSeatsScreen.memberLabel')}
+              hint={t('BillingSeatsScreen.memberHint')}
+              placeholder={t('BillingSeatsScreen.chooseMember')}
+              people={roster}
               name="membershipId"
               value={membershipId}
-              onChange={(event) => setMembershipId(event.target.value)}
-              hint={t('BillingSeatsScreen.membershipIdHint')}
+              onChange={setMembershipId}
               required
             />
 
@@ -207,7 +225,7 @@ export function BillingSeatsScreen({
               <caption className="tm-visually-hidden">{t('BillingSeatsScreen.caption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">{t('BillingSeatsScreen.colMembership')}</th>
+                  <th scope="col">{t('BillingSeatsScreen.colMember')}</th>
                   <th scope="col">{t('BillingSeatsScreen.colAssigned')}</th>
                   <th scope="col">
                     <span className="tm-visually-hidden">
@@ -219,7 +237,7 @@ export function BillingSeatsScreen({
               <tbody>
                 {rows.map((seat) => (
                   <tr key={seat.id}>
-                    <td>{seat.membershipId}</td>
+                    <td>{holderName(seat.membershipId)}</td>
                     <td>{new Date(seat.assignedAt).toLocaleDateString(appLocale())}</td>
                     <td>
                       <Button

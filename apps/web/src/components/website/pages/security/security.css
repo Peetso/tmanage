@@ -471,14 +471,6 @@
   background: var(--paper-150);
 }
 
-/* The app's globals paint .tm-choice as a choice card; in the approval card it is a plain row. */
-.tm-sec-checks .tm-choice {
-  display: flex;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-
 .tm-sec-cta {
   grid-template-columns: minmax(0, 5fr) minmax(0, 4fr);
 }
