@@ -356,6 +356,34 @@ describe('automatic timer chip', () => {
     window.history.replaceState(null, '', '/');
   });
 
+  it('FINALCHECK: waits for a later visit while the first-visit Home tour is up', async () => {
+    window.localStorage.clear();
+    window.history.replaceState(null, '', '/northstar/home');
+    let homeTour: 'done' | null = null;
+    const { api, calls } = client((call) => {
+      if (call.url.endsWith('/time/auto')) {
+        return { status: 200, body: { ...STATE, enabled: false, ownSwitch: false } };
+      }
+      if (call.url.endsWith('/me/coach-marks')) {
+        const tours = { my_day: homeTour, projects: null, work_board: null };
+        return { status: 200, body: { tours, neverAgain: false } };
+      }
+      return { status: 200, body: {} };
+    });
+    const first = wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    await screen.findByRole('button', { name: /Auto timer/ });
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/me/coach-marks'))).toBe(true));
+    expect(screen.queryByRole('region', { name: 'Automatic timer' })).toBeNull();
+    first.unmount();
+
+    homeTour = 'done';
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    expect(
+      await screen.findByRole('button', { name: 'Turn on automatic time tracking' }),
+    ).toBeTruthy();
+    window.history.replaceState(null, '', '/');
+  });
+
   it('item 17: reports where tracking runs, so the owner can see it', async () => {
     const { api, calls } = client((call) =>
       call.url.endsWith('/time/auto') ? { status: 200, body: STATE } : { status: 200, body: {} },

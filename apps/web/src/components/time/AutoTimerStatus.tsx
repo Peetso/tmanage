@@ -23,6 +23,7 @@ import {
 import { pluralPhrase } from '../../lib/i18n/plural';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { coachMarksQuery, tourOpensHere } from '../help/coach-marks-query';
 import { pricingSurveyQuery } from '../screens/pricing-survey-query';
 import { desktopStartup, type DesktopStartupState } from './desktop-startup';
 import { autoTrackingKey, useAutoTracker } from './use-auto-tracker';
@@ -220,20 +221,24 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
   // Item 15: open the panel by itself once, at the first visit where tracking applies.
   const ask = state !== undefined && needsTurnOn(state, display) && display !== 'unsupported';
   const autoOpen = ask && onHomePage(organizationSlug);
-  // 57-17: Home asks one question at a time. While its "what would you pay" card is up, the panel
-  // keeps its first-visit opening for a later visit instead of covering the card.
+  // 57-17: Home asks one question at a time. While its "what would you pay" card or its
+  // first-visit tour is up, the panel keeps its first-visit opening for a later visit instead of
+  // opening beside them (FINALCHECK: tour and panel at once).
   const survey = useQuery({ ...pricingSurveyQuery(api, organizationSlug), enabled: autoOpen });
-  const surveyShown = survey.data?.show === true;
-  // Once the card was up on this visit, the panel waits even after it is answered or skipped.
-  const surveyAsked = useRef(false);
+  const tours = useQuery({ ...coachMarksQuery(api, organizationSlug), enabled: autoOpen });
+  const otherAsk =
+    survey.data?.show === true || tourOpensHere(tours.data, organizationSlug, 'my_day');
+  const settling = survey.isPending || tours.isPending;
+  // Once another ask was up on this visit, the panel waits even after it is answered or skipped.
+  const otherAsked = useRef(false);
   useEffect(() => {
-    if (!autoOpen || survey.isPending) return;
-    if (surveyShown) surveyAsked.current = true;
-    if (surveyAsked.current || readFlag(askedKey(organizationSlug))) return;
+    if (!autoOpen || settling) return;
+    if (otherAsk) otherAsked.current = true;
+    if (otherAsked.current || readFlag(askedKey(organizationSlug))) return;
     writeFlag(askedKey(organizationSlug));
     setOpenedByPerson(false);
     setOpen(true);
-  }, [autoOpen, survey.isPending, surveyShown, organizationSlug]);
+  }, [autoOpen, settling, otherAsk, organizationSlug]);
 
   // TIMETRACK: say nothing about this browser until its abilities are known (no false flash).
   if (!tracker.available || state === undefined || !tracker.detected) return null;

@@ -8,7 +8,6 @@ import type { AnchoredSide } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import {
-  getCoachMarks,
   rememberTourOutcome,
   rememberedNeverAgain,
   rememberedTourOutcome,
@@ -23,6 +22,7 @@ import type {
 } from '../../lib/api/coach-marks';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { COACH_MARK_STEPS } from './coach-mark-tours';
+import { coachMarksKey, coachMarksQuery } from './coach-marks-query';
 import './coach-marks.css';
 
 /** Below the target first, then above, then beside it in reading order. */
@@ -88,8 +88,8 @@ export function CoachMarkTour({
   const tOr = useTOr();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
-  const key = ['coach-marks', organizationSlug] as const;
-  const state = useQuery({ queryKey: key, queryFn: () => getCoachMarks(api, organizationSlug) });
+  const key = coachMarksKey(organizationSlug);
+  const state = useQuery(coachMarksQuery(api, organizationSlug));
   const save = useMutation({
     mutationFn: (patch: CoachMarksPatch) => saveCoachMarks(api, organizationSlug, patch),
     onSuccess: (view) => queryClient.setQueryData(key, view),
