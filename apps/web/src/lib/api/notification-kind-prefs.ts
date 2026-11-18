@@ -12,7 +12,17 @@ import type { ApiClient } from './client';
  */
 
 /** The person-facing notification families a member can opt out of. Must match the API's enum. */
-export type NotificationKind = 'client_request' | 'work_item' | 'message' | 'file' | 'mention';
+export type NotificationKind =
+  | 'client_request'
+  | 'work_item'
+  | 'message'
+  | 'file'
+  | 'mention'
+  // EMAILBUILD2 (0373): "Tips from the TManage team".
+  | 'tips';
+
+/** The kinds of the notification matrix: every kind except the tips preference (its own card). */
+export type MatrixNotificationKind = Exclude<NotificationKind, 'tips'>;
 
 /**
  * The caller's per-kind settings, every kind present. Each item is inlined rather than a second

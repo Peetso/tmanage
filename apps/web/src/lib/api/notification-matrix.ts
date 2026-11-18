@@ -1,5 +1,5 @@
 import type { ApiClient } from './client';
-import type { NotificationKind } from './notification-kind-prefs';
+import type { MatrixNotificationKind as NotificationKind } from './notification-kind-prefs';
 
 /**
  * 53-15 — the notification matrix: rows are the five kinds, columns In-app / E-mail / Digest.

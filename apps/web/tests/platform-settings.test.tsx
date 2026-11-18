@@ -302,6 +302,48 @@ describe('D1 · Platform settings — General', () => {
     );
   });
 
+  it('EMAILBUILD2: the Tips switch turns off and a feature note is sent once', async () => {
+    const note = {
+      id: '01960000-0000-7000-8000-0000000000aa',
+      titleEn: 'Boards',
+      titleAr: 'اللوحات',
+      bodyEn: 'Boards are here.',
+      bodyAr: 'وصلت اللوحات.',
+      link: '/work',
+      createdAt: '2026-11-18T09:00:00.000Z',
+      sentAt: null,
+    };
+    const calls = mount(
+      (client) => <PlatformGeneralSettingsScreen client={client} />,
+      (method, path, body) => {
+        if (method === 'GET' && path === '/v1/platform/person-mail') {
+          return json({ tipsEnabled: true, news: [note] });
+        }
+        if (method === 'PUT' && path === '/v1/platform/person-mail/switch') {
+          return json({ tipsEnabled: false, news: [note] });
+        }
+        if (method === 'POST' && path === `/v1/platform/person-mail/news/${note.id}/send`) {
+          return json({
+            tipsEnabled: false,
+            news: [{ ...note, sentAt: '2026-11-18T10:00:00.000Z' }],
+          });
+        }
+        return route(method, path, body);
+      },
+    );
+    expect(await screen.findByText('Boards')).toBeTruthy();
+    fireEvent.click(screen.getByRole('switch', { name: 'Tips and reminders' }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.path === '/v1/platform/person-mail/switch')).toMatchObject({
+        method: 'PUT',
+        body: { enabled: false },
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText('Sent')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
+  });
+
   it('shows the load error with Try again', async () => {
     mount(
       (client) => <PlatformGeneralSettingsScreen client={client} />,

@@ -4900,3 +4900,15 @@ import type {
 type _mailPerson = Assert<Exact<ApiMailPersonRecord, WebMailPersonView>>;
 type _mailPeople = Assert<Exact<ApiMailPeopleView, WebMailPeopleView>>;
 type _mailPersonTest = Assert<Exact<ApiMailPersonTestView, WebMailPersonTestView>>;
+
+// ---- EMAILBUILD2 · the "Tips and reminders" switch and "Feature news" (`/v1/platform/person-mail…`) ----
+import type {
+  FeatureNewsView as ApiFeatureNewsView,
+  PersonMailStateView as ApiPersonMailStateView,
+} from '../../apps/api/src/modules/platform-admin/settings/person-mail.service.js';
+import type {
+  FeatureNewsView as WebFeatureNewsView,
+  PersonMailStateView as WebPersonMailStateView,
+} from '../../apps/web/src/lib/api/platform-person-mail.js';
+type _featureNews = Assert<Exact<ApiFeatureNewsView, WebFeatureNewsView>>;
+type _personMailState = Assert<Exact<ApiPersonMailStateView, WebPersonMailStateView>>;

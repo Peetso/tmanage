@@ -2,10 +2,15 @@
 
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import type { NotificationKind } from '../../lib/api/notification-kind-prefs';
+import {
+  getNotificationKindPrefs,
+  setNotificationKindPref,
+  type MatrixNotificationKind,
+  type NotificationKind,
+} from '../../lib/api/notification-kind-prefs';
 import {
   FORCED_EMAIL_SETTING_KEY,
   forcedEmailValue,
@@ -57,6 +62,11 @@ const KIND_LABEL_KEYS: Readonly<Record<NotificationKind, { label: MessageKey; hi
       label: 'NotificationKindPrefs.kindMentionLabel',
       hint: 'NotificationKindPrefs.kindMentionHint',
     },
+    // EMAILBUILD2: not a matrix row; its own card in the side column (one switch).
+    tips: {
+      label: 'NotificationKindPrefs.kindTipsLabel',
+      hint: 'NotificationKindPrefs.kindTipsHint',
+    },
   };
 
 /** The matrix columns, in reading order (the row mirrors in RTL through the flex direction). */
@@ -70,7 +80,7 @@ const CHANNELS: readonly {
   { channel: 'digest', key: 'NotificationKindPrefs.channelDigest', english: 'Digest' },
 ];
 
-const KIND_ORDER: readonly NotificationKind[] = [
+const KIND_ORDER: readonly MatrixNotificationKind[] = [
   'client_request',
   'work_item',
   'message',
@@ -139,7 +149,7 @@ export function NotificationKindPrefs({
 
   const setCell = useMutation({
     mutationFn: (input: {
-      kind: NotificationKind;
+      kind: MatrixNotificationKind;
       channel: NotificationMatrixChannel;
       enabled: boolean;
     }) => setNotificationMatrixCell(api, organizationSlug, input),
@@ -152,7 +162,7 @@ export function NotificationKindPrefs({
   });
 
   const setForced = useMutation({
-    mutationFn: (kinds: readonly NotificationKind[]) =>
+    mutationFn: (kinds: readonly MatrixNotificationKind[]) =>
       setOrgSetting(
         api,
         organizationSlug,
@@ -163,6 +173,20 @@ export function NotificationKindPrefs({
       void queryClient.invalidateQueries({ queryKey });
     },
   });
+
+  // EMAILBUILD2: "Tips from the TManage team" — the per-kind preference `tips` (no row = on).
+  const kindPrefsKey = ['notification-kind-prefs', organizationSlug];
+  const kindPrefs = useQuery({
+    queryKey: kindPrefsKey,
+    queryFn: () => getNotificationKindPrefs(api, organizationSlug),
+    retry: false,
+  });
+  const setTips = useMutation({
+    mutationFn: (enabled: boolean) =>
+      setNotificationKindPref(api, organizationSlug, 'tips', { enabled }),
+    onSuccess: (data) => queryClient.setQueryData(kindPrefsKey, data),
+  });
+  const tipsOn = kindPrefs.data?.kinds.find((entry) => entry.kind === 'tips')?.enabled ?? true;
 
   const rows = prefs.data?.rows ?? [];
   const forcedKinds = prefs.data?.forcedEmailKinds ?? [];
@@ -371,6 +395,24 @@ export function NotificationKindPrefs({
               ) : null}
             </section>
           ) : null}
+
+          <section className="tm-prefs-card tm-prefs-card--tight" aria-labelledby="tm-tips-card">
+            <h2 id="tm-tips-card" className="tm-prefs-card__title">
+              {t('NotificationKindPrefs.kindTipsLabel')}
+            </h2>
+            <Switch
+              label={t('NotificationKindPrefs.kindTipsSwitch')}
+              hint={t('NotificationKindPrefs.kindTipsHint')}
+              checked={tipsOn}
+              disabled={kindPrefs.isPending || kindPrefs.isError || setTips.isPending}
+              onChange={() => setTips.mutate(!tipsOn)}
+            />
+            {setTips.isError ? (
+              <InlineAlert tone="danger" title={t('NotificationKindPrefs.saveError')} live>
+                {describeError(setTips.error)}
+              </InlineAlert>
+            ) : null}
+          </section>
 
           <section className="tm-prefs-card tm-prefs-card--tight" aria-labelledby="tm-quiet-card">
             <h2 id="tm-quiet-card" className="tm-prefs-card__title">

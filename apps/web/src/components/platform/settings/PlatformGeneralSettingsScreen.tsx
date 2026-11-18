@@ -53,6 +53,7 @@ import {
   platformErrorText,
 } from '../shared/ReasonDialog';
 import { PLATFORM_ME_QUERY_KEY, missingPlatformPermission } from '../shared/usePlatformPermissions';
+import { FeatureNewsCard } from './FeatureNewsCard';
 import { MailPeopleCard } from './MailPeopleCard';
 import { SettingsSubNav, changedLine, fill } from './settings-kit';
 
@@ -140,6 +141,7 @@ function GeneralBody({ api, me }: { api: ApiClient; me: PlatformMeView }) {
       </div>
       <IntegrationsSection api={api} canEdit={canEdit} />
       <MailPeopleCard api={api} canEdit={canEdit} />
+      <FeatureNewsCard api={api} canEdit={canEdit} />
       <p className="tm-cc-cell-sub">{t('PlatformSettings.footerAudit')}</p>
     </div>
   );
