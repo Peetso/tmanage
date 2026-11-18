@@ -51,6 +51,19 @@ function isOffScreen(element: HTMLElement): boolean {
 }
 
 /**
+ * Whether `node` sits in another modal dialog than the tour's `card` — one the person opened over
+ * the tour (the command palette). That modal owns focus and its keys; the tour does not take them.
+ */
+function inOtherModal(node: EventTarget | null, card: HTMLElement | null): boolean {
+  return (
+    node instanceof Element &&
+    card !== null &&
+    !card.contains(node) &&
+    node.closest('[aria-modal="true"]') !== null
+  );
+}
+
+/**
  * Row 55-09 — a short first-visit tour (Figma R49 L2, node 592:33601): "n of 3", Back / Next,
  * "Skip tour" and "Don't show tours again". It opens only when the member has never finished or
  * skipped this tour and has not turned tours off; the outcome is kept in their own preferences, so
@@ -183,6 +196,7 @@ export function CoachMarkTour({
   const placed = target === null || position !== null;
   useEffect(() => {
     if (!open || card === null || !placed) return;
+    if (inOtherModal(document.activeElement, card)) return;
     const action = primary.current?.querySelector<HTMLElement>('button');
     (action ?? card).focus({ preventScroll: true });
   }, [open, card, step, placed]);
@@ -197,6 +211,7 @@ export function CoachMarkTour({
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (inOtherModal(document.activeElement, card)) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         finishRef.current('skipped');
@@ -222,6 +237,7 @@ export function CoachMarkTour({
     // Focus that lands outside (the screen's own focus management on load) is brought back.
     const onFocusIn = (event: FocusEvent) => {
       if (card === null || !(event.target instanceof Node) || card.contains(event.target)) return;
+      if (inOtherModal(event.target, card)) return;
       const action = primary.current?.querySelector<HTMLElement>('button');
       (action ?? card).focus({ preventScroll: true });
     };

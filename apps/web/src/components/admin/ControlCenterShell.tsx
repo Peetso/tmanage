@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useContext } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
@@ -569,6 +569,17 @@ function StorageProviderBadge({ organizationSlug }: { organizationSlug: string }
 }
 
 /**
+ * Scrolls `menu` (and only the menu, never the page) so `entry` sits in its middle, when the entry
+ * is outside the menu's visible box. A menu that does not scroll is left as it is.
+ */
+export function revealInMenu(entry: HTMLElement, menu: HTMLElement): void {
+  const item = entry.getBoundingClientRect();
+  const box = menu.getBoundingClientRect();
+  if (item.top >= box.top && item.bottom <= box.bottom) return;
+  menu.scrollTop += item.top - box.top - (box.height - item.height) / 2;
+}
+
+/**
  * The OPS-1 menu. Exported so a screen outside `ControlCenterShell` can draw it too; `children`
  * (a screen's own list, such as ADM-03's roles) sits under the groups.
  */
@@ -589,8 +600,17 @@ export function ControlCenterSections({
     capabilities,
   );
   const marked = menuEntryFor(section);
+  const sectionsRef = useRef<HTMLDivElement>(null);
+  const drawnEntries = groups.reduce((count, group) => count + group.items.length, 0);
+  // The menu scrolls on its own and is longer than a laptop screen, so an entry low in it (Billing,
+  // Automations) was marked but out of sight: bring the marked entry into the menu's view.
+  useEffect(() => {
+    const current = sectionsRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    const menu = current?.closest<HTMLElement>('.tm-cc-menu');
+    if (current && menu) revealInMenu(current, menu);
+  }, [marked, drawnEntries]);
   return (
-    <div className="tm-cc-sections">
+    <div className="tm-cc-sections" ref={sectionsRef}>
       {groups.map((group) => (
         <div key={group.labelKey}>
           <p className="tm-cc-sections__label">{t(group.labelKey)}</p>

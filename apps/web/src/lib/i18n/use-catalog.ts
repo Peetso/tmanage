@@ -16,5 +16,13 @@ export function useCatalog(locale: string, parts?: readonly CatalogPart[]): void
   const scope = useCatalogScope();
   const needed = parts ?? scope;
   demandParts(needed);
-  if (!catalogReady(locale, needed)) use(loadCatalog(locale, needed));
+  // `use()` on every render, never behind a condition: a component that suspended on it must call
+  // it again when it resumes, or React reports an incorrect use of `use()`. Ready reads at once.
+  use(catalogReady(locale, needed) ? SETTLED : loadCatalog(locale, needed));
 }
+
+/** An already settled promise in the thenable shape React's `use()` reads without suspending. */
+const SETTLED: Promise<void> = Object.assign(Promise.resolve(), {
+  status: 'fulfilled',
+  value: undefined,
+});

@@ -310,6 +310,27 @@ describe('automatic timer chip', () => {
     window.history.replaceState(null, '', '/');
   });
 
+  it('opening by itself leaves the focus where the person has it (the command palette)', async () => {
+    window.localStorage.clear();
+    window.history.replaceState(null, '', '/northstar/home');
+    const field = document.createElement('input');
+    document.body.append(field);
+    try {
+      field.focus();
+      const { api } = client((call) =>
+        call.url.endsWith('/time/auto')
+          ? { status: 200, body: { ...STATE, enabled: false, ownSwitch: false } }
+          : { status: 200, body: {} },
+      );
+      wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+      await screen.findByRole('button', { name: 'Turn on automatic time tracking' });
+      expect(document.activeElement).toBe(field);
+    } finally {
+      field.remove();
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('57-17: waits for a later visit while Home asks "what would you pay"', async () => {
     window.localStorage.clear();
     window.history.replaceState(null, '', '/northstar/home');

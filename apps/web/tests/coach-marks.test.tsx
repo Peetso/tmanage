@@ -75,6 +75,46 @@ describe('first-visit tours (55-09)', () => {
     );
   });
 
+  it('lets a modal opened over it (the command palette) keep focus and its keys', async () => {
+    mount(UNSEEN);
+    expect(await screen.findByText('1 of 3')).toBeTruthy();
+    const palette = document.createElement('div');
+    palette.setAttribute('role', 'dialog');
+    palette.setAttribute('aria-modal', 'true');
+    const input = document.createElement('input');
+    palette.append(input);
+    document.body.append(palette);
+    try {
+      act(() => input.focus());
+      expect(document.activeElement).toBe(input);
+      // Tab and Escape inside the palette are the palette's: the tour neither pulls focus back
+      // nor is skipped.
+      fireEvent.keyDown(input, { key: 'Tab' });
+      expect(document.activeElement).toBe(input);
+      fireEvent.keyDown(input, { key: 'Escape' });
+      expect(screen.getByText('1 of 3')).toBeTruthy();
+    } finally {
+      palette.remove();
+    }
+  });
+
+  it('opening while a modal holds focus leaves the focus in that modal', async () => {
+    const palette = document.createElement('div');
+    palette.setAttribute('role', 'dialog');
+    palette.setAttribute('aria-modal', 'true');
+    const input = document.createElement('input');
+    palette.append(input);
+    document.body.append(palette);
+    try {
+      input.focus();
+      mount(UNSEEN);
+      expect(await screen.findByText('1 of 3')).toBeTruthy();
+      expect(document.activeElement).toBe(input);
+    } finally {
+      palette.remove();
+    }
+  });
+
   it('stays closed when tours are turned off', async () => {
     mount({ ...UNSEEN, neverAgain: true });
     await new Promise((r) => setTimeout(r, 20));

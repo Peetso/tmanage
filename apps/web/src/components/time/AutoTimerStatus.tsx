@@ -165,6 +165,9 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
   const tr = useTOr();
   const tracker = useAutoTracker(api, organizationSlug);
   const [open, setOpen] = useState(false);
+  // Only a panel the person opened takes focus: the one that opens by itself on a first visit
+  // must not pull focus out of whatever they are using (the command palette, a dialog, a field).
+  const [openedByPerson, setOpenedByPerson] = useState(false);
   const [used, setUsed] = useState(false);
   const panelId = useId();
   const wrapper = useRef<HTMLDivElement>(null);
@@ -228,6 +231,7 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
     if (surveyShown) surveyAsked.current = true;
     if (surveyAsked.current || readFlag(askedKey(organizationSlug))) return;
     writeFlag(askedKey(organizationSlug));
+    setOpenedByPerson(false);
     setOpen(true);
   }, [autoOpen, survey.isPending, surveyShown, organizationSlug]);
 
@@ -247,7 +251,10 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
       aria-expanded={open}
       aria-controls={panelId}
       aria-label={`${tr('AutoTimer.name', 'Auto timer')}: ${tr(labelKey, labelEnglish)}`}
-      onClick={() => setOpen((value) => !value)}
+      onClick={() => {
+        setOpenedByPerson(true);
+        setOpen((value) => !value);
+      }}
     >
       <span className="tm-autotimer__dot" aria-hidden="true" />
       <span className="tm-autotimer__name">{tr('AutoTimer.name', 'Auto timer')}</span>
@@ -277,6 +284,7 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
           display={display}
           support={tracker.support}
           onAllow={tracker.requestPermission}
+          takeFocus={openedByPerson}
           tr={tr}
         />
       ) : null}
@@ -284,12 +292,12 @@ export function AutoTimerStatus({ organizationSlug, client }: AutoTimerStatusPro
   );
 }
 
-function AutoTimerPanel(props: AutoTimerPanelProps) {
+function AutoTimerPanel({ takeFocus, ...props }: AutoTimerPanelProps & { takeFocus: boolean }) {
   const holder = useRef<HTMLDivElement>(null);
-  // UX test item 7: the panel takes focus when it opens, so keyboard users land inside it.
+  // UX test item 7: the panel the person opened takes focus, so keyboard users land inside it.
   useEffect(() => {
-    holder.current?.focus();
-  }, []);
+    if (takeFocus) holder.current?.focus();
+  }, [takeFocus]);
   return (
     <div
       ref={holder}
