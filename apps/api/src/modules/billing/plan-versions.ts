@@ -1,7 +1,7 @@
 import { ApiError } from '../../common/http/errors.js';
 import { CONTRACT_MAX_SIZE_BYTES } from '../files/upload-input.js';
 import type { BillingMode, PlanVersionEntitlements } from './billing-mode.js';
-import { PLAN_FEATURES, canonicalPlanId, isPlanId } from './plan-catalog.js';
+import { PLAN_FEATURES, PLAN_IDS, canonicalPlanId, isPlanId } from './plan-catalog.js';
 import type { CatalogPlanId, PlanFeature, PlanLimits } from './plan-catalog.js';
 
 /**
@@ -84,6 +84,33 @@ export function versionForSubscription(
   return ofPlan
     .filter((v) => v.effectiveFrom.getTime() <= at.getTime())
     .reduce<PlanVersion | null>((best, v) => (best && best.version > v.version ? best : v), null);
+}
+
+/**
+ * 57-02 (PLANWEB) · the ladder a visitor may pick from: per catalog plan, the newest version in
+ * force at `at` (in catalog order). A plan with no version in force is left out.
+ */
+export function plansInForce(versions: readonly PlanVersion[], at: Date): readonly PlanVersion[] {
+  return PLAN_IDS.flatMap((planId) => {
+    const current = versionForSubscription(versions, planId, null, at);
+    return current ? [current] : [];
+  });
+}
+
+/**
+ * 57-02 (PLANWEB) · a plan named at sign-up (`?plan=` from the pricing page), checked against the
+ * versions in force. Untrusted: only its id is read, never a price, and anything that is not a
+ * catalog plan with a version in force, or that is quoted per contract (no list price), is `null`.
+ */
+export function signupPlanChoice(
+  raw: unknown,
+  versions: readonly PlanVersion[],
+  at: Date,
+): PlanVersion | null {
+  if (!isPlanId(raw)) return null;
+  const planId = canonicalPlanId(raw);
+  const current = versionForSubscription(versions, planId, null, at);
+  return current !== null && current.monthlyCents !== null ? current : null;
 }
 
 function invalid(field: string, message: string): ApiError {

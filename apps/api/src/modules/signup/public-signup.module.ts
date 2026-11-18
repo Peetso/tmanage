@@ -17,6 +17,8 @@ import type { AuditService } from '../audit/audit.service.js';
 import { SessionService } from '../identity/session.service.js';
 import { CONTACT_MAX_PER_WINDOW, CONTACT_WINDOW_MS } from '../public-site/contact.module.js';
 import { ProvisioningService } from '../tenancy/provisioning.service.js';
+import { PlanVersionsRepository } from '../billing/plan-versions.repository.js';
+import { PlanVersionsService } from '../billing/plan-versions.service.js';
 import { createPublicSignupSwitch } from '../platform-admin/platform-settings.js';
 import { PublicSignupController } from './public-signup.controller.js';
 import { PublicSignupService } from './public-signup.service.js';
@@ -74,6 +76,8 @@ export class PublicSignupModule {
           undefined,
           // VERIFYMAIL: a password sign-up is mailed the link that confirms its address.
           new EmailConfirmationService(database, confirmMailer ?? null),
+          // PLANWEB: a plan picked on the pricing page, checked against the versions in force.
+          new PlanVersionsService(database, new PlanVersionsRepository(database)),
         ),
     };
     const sessions: Provider = {

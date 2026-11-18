@@ -36,6 +36,7 @@ import { PLAN_USAGE_SERVICE, PlanUsageController } from './plan-usage.controller
 import {
   PLAN_VERSIONS_SERVICE,
   PlatformPlanVersionsController,
+  PublicPlanVersionsController,
   WorkspacePlanController,
 } from './plan-versions.controller.js';
 import { PlanVersionsRepository } from './plan-versions.repository.js';
@@ -158,6 +159,8 @@ export class BillingModule {
         PlanUsageController,
         PlatformPlanVersionsController,
         WorkspacePlanController,
+        // PLANWEB: the pricing page's live figures (nothing while the beta is free).
+        PublicPlanVersionsController,
       ],
     };
   }

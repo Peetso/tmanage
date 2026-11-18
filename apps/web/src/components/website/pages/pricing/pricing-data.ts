@@ -2,7 +2,8 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 /**
  * Pricing page data (approved Figma section 376:2087, frames pr-desktop / pr-mobile).
  * Flat prices for the whole team — never per seat — with yearly billing at −20 %.
- * The words themselves live in the i18n catalogs; this file holds only keys, prices, links and flags.
+ * The words themselves live in the i18n catalogs; this file holds only keys, links and flags. Every
+ * price and limit figure is the live `plan_versions` ladder (PLANWEB), never a constant here.
  */
 
 export type BillingPeriod = 'monthly' | 'yearly';
@@ -13,15 +14,23 @@ export type PricingKey = `PricingPage.${string}`;
 /** Yearly billing saves 20 %: the yearly price per month is the monthly price × 0.8. */
 export const YEARLY_FACTOR = 0.8;
 
+/**
+ * PLANWEB: a bullet whose figure is the live plan version's limit (`plan_versions.limits_json`),
+ * not a number written into the copy.
+ */
+export type PricingLimitLine = 'limit:people' | 'limit:projects';
+
 export interface PricingPlan {
   id: 'free' | 'starter' | 'studio' | 'business' | 'enterprise';
   /** The tier name. English and Arabic both show the Latin name (Arabic prefixes U+200F). */
   nameKey: PricingKey;
   positioningKey: PricingKey;
-  /** Flat monthly price for the whole team in US cents; `null` is Enterprise's custom quote. */
-  monthlyCents: number | null;
+  /**
+   * The price is not here (PLANWEB): it is the plan's version in force, read live from
+   * `GET /v1/public/plan-versions`, and nothing is shown while the beta is free.
+   */
   cta: { labelKey: PricingKey; href: string };
-  featureKeys: readonly PricingKey[];
+  featureKeys: readonly (PricingKey | PricingLimitLine)[];
   /** Studio: the lime-bordered "Most teams start here" card with the lime CTA. */
   featured?: boolean;
   /** Enterprise: the ink card. */
@@ -33,11 +42,10 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'free',
     nameKey: 'PricingPage.planFreeName',
     positioningKey: 'PricingPage.flatFreePositioning',
-    monthlyCents: 0,
     cta: { labelKey: 'PricingPage.planFreeCta', href: SIGN_UP_HREF },
     featureKeys: [
-      'PricingPage.flatFreeFeature1',
-      'PricingPage.flatFreeFeature2',
+      'limit:people',
+      'limit:projects',
       'PricingPage.flatFreeFeature3',
       'PricingPage.flatFreeFeature4',
     ],
@@ -46,11 +54,10 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'starter',
     nameKey: 'PricingPage.planStarterName',
     positioningKey: 'PricingPage.flatStarterPositioning',
-    monthlyCents: 1900,
     cta: { labelKey: 'PricingPage.planStarterCta', href: SIGN_UP_HREF },
     featureKeys: [
-      'PricingPage.flatStarterFeature1',
-      'PricingPage.flatStarterFeature2',
+      'limit:people',
+      'limit:projects',
       'PricingPage.flatStarterFeature3',
       'PricingPage.flatStarterFeature4',
     ],
@@ -59,10 +66,9 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'studio',
     nameKey: 'PricingPage.planStudioName',
     positioningKey: 'PricingPage.flatStudioPositioning',
-    monthlyCents: 4900,
     cta: { labelKey: 'PricingPage.planStudioCta', href: SIGN_UP_HREF },
     featureKeys: [
-      'PricingPage.flatStudioFeature1',
+      'limit:people',
       'PricingPage.flatStudioFeature2',
       'PricingPage.flatStudioFeature3',
       'PricingPage.flatStudioFeature4',
@@ -73,10 +79,9 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'business',
     nameKey: 'PricingPage.planBusinessName',
     positioningKey: 'PricingPage.flatBusinessPositioning',
-    monthlyCents: 8900,
     cta: { labelKey: 'PricingPage.planBusinessCta', href: SIGN_UP_HREF },
     featureKeys: [
-      'PricingPage.flatBusinessFeature1',
+      'limit:people',
       'PricingPage.flatBusinessFeature2',
       'PricingPage.flatBusinessFeature3',
       'PricingPage.flatBusinessFeature4',
@@ -86,7 +91,6 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'enterprise',
     nameKey: 'PricingPage.planEnterpriseName',
     positioningKey: 'PricingPage.flatEnterprisePositioning',
-    monthlyCents: null,
     cta: { labelKey: 'PricingPage.planEnterpriseCta', href: '/contact' },
     featureKeys: [
       'PricingPage.flatEnterpriseFeature1',
@@ -129,11 +133,13 @@ export function planPrice(monthlyCents: number, period: BillingPeriod): PlanPric
   };
 }
 
+/**
+ * The FAQ beside the paid plans. PLANWEB: the founding-offer and free-plan answers are left out —
+ * they write figures (discounts, people, projects) the live ladder does not carry.
+ */
 export const PRICING_FAQ: readonly { questionKey: PricingKey; answerKey: PricingKey }[] = [
   { questionKey: 'PricingPage.faqPersonQuestion', answerKey: 'PricingPage.faqPersonAnswer' },
-  { questionKey: 'PricingPage.faqFoundingQuestion', answerKey: 'PricingPage.faqFoundingAnswer' },
   { questionKey: 'PricingPage.faqSwitchQuestion', answerKey: 'PricingPage.faqSwitchAnswer' },
-  { questionKey: 'PricingPage.faqFreePlanQuestion', answerKey: 'PricingPage.faqFreePlanAnswer' },
   // 57-05: the honest SAML/SCIM answer ("Not yet…"), allowlisted as planned in public-claims.ts.
   { questionKey: 'PricingPage.faqSsoQuestion', answerKey: 'PricingPage.faqSsoAnswer' },
 ];

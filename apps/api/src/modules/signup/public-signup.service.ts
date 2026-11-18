@@ -1,7 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { uuidv7, type SignupAttribution } from '@tmanage/domain';
 import { ApiError, type ApiErrorDetail } from '../../common/http/errors.js';
-import type { IdentityQueryRunner, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  IdentityQueryRunner,
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
+import type { PlanVersion } from '../billing/plan-versions.js';
+import { SubscriptionRepository } from '../billing/subscription.repository.js';
 import type { WelcomeMailer } from '../../common/email/welcome-email.js';
 import { serializeForLog } from '../../common/observability/logger.js';
 import type { SeedCipher } from '../identity/seed-cipher.js';
@@ -56,6 +63,13 @@ export interface PublicSignupBody {
   readonly startedAt?: unknown;
   readonly nonce?: unknown;
   readonly proof?: unknown;
+  /** PLANWEB: the plan picked on the pricing page (an id only; never a price). */
+  readonly plan?: unknown;
+}
+
+/** PLANWEB. The part of `PlanVersionsService` sign-up uses to check a picked plan. */
+export interface SignupPlanChooser {
+  signupChoice(raw: unknown, correlationId: string): Promise<PlanVersion | null>;
 }
 
 /** VERIFYMAIL. The part of `EmailConfirmationService` sign-up uses. */
@@ -68,6 +82,12 @@ export interface PublicSignupResult {
   readonly organizationId: string;
   readonly slug: string;
   readonly organizationName: string;
+  /**
+   * PLANWEB: the checked plan the person picked, or `null`. A free plan is already the new
+   * workspace's subscription (its version pinned); a paid one is only carried to the plan-change
+   * preview, where the ordinary request rules apply. Nothing is charged here.
+   */
+  readonly planId?: string | null;
 }
 
 /** Wire bodies (contracts-check pairs these with apps/web/src/lib/api/sign-up.ts). */
@@ -80,6 +100,8 @@ export interface PublicSignupView {
   readonly csrfToken: string;
   readonly expiresAt: string;
   readonly organizationSlug: string;
+  /** PLANWEB: the checked plan from the pricing page, or `null` (always `null` in the beta). */
+  readonly planId: string | null;
 }
 
 export const ACCOUNT_EXISTS_SIGNUP_MESSAGE = 'You already have an account. Sign in instead.';
@@ -98,6 +120,8 @@ export interface NewOwnerAccount {
   readonly alsoWithin?: (identity: IdentityQueryRunner, userId: string) => Promise<void>;
   /** ADTRACK. The landing page's `utm_*` values, already validated. */
   readonly signupAttribution?: SignupAttribution;
+  /** PLANWEB. The picked plan's version in force, already checked by {@link SignupPlanChooser}. */
+  readonly plan?: PlanVersion | null;
 }
 
 const EMAIL_MAX_LENGTH = 254;
@@ -160,6 +184,9 @@ export class PublicSignupService {
      * confirmed (a password sign-up). Optional; without it no confirmation mail is sent.
      */
     private readonly confirmations: SignupEmailConfirmation | null = null,
+    /** PLANWEB: checks a plan picked on the pricing page. Absent: the pick is ignored. */
+    private readonly plans: SignupPlanChooser | null = null,
+    private readonly subscriptions = new SubscriptionRepository(),
   ) {}
 
   async signUp(
@@ -168,6 +195,8 @@ export class PublicSignupService {
     signupAttribution?: SignupAttribution,
   ): Promise<PublicSignupResult> {
     const input = await this.validate(body);
+    // An unknown, stale or beta-time pick is not an error: the workspace starts on the default.
+    const plan = (await this.plans?.signupChoice(body.plan, correlationId)) ?? null;
     const passwordHash = await hashPassword(input.password);
     return this.createOwnerAccount({
       email: input.email,
@@ -179,6 +208,7 @@ export class PublicSignupService {
       emailVerified: false,
       correlationId,
       ...(signupAttribution === undefined ? {} : { signupAttribution }),
+      plan,
     });
   }
 
@@ -225,8 +255,14 @@ export class PublicSignupService {
         }
         if (account.alsoWithin) await account.alsoWithin(scope.identity, userId);
 
+        // The new organization's runner and context, kept for the subscription write below.
+        const tenant: { current?: { runner: TenantQueryRunner; context: TenantContext } } = {};
         const provisioned = await this.provisioning.provisionFounderWithin(
-          (context) => scope.tenant(context),
+          (context) => {
+            const runner = scope.tenant(context);
+            tenant.current = { runner, context };
+            return runner;
+          },
           {
             userId,
             slug,
@@ -240,11 +276,22 @@ export class PublicSignupService {
               : { signupAttribution: account.signupAttribution }),
           },
         );
+        const plan = account.plan ?? null;
+        // PLANWEB: a free pick becomes the subscription now, pinned to the version in force (so a
+        // later version never moves it). A paid pick writes nothing: no payment exists yet.
+        if (plan !== null && plan.monthlyCents === 0 && tenant.current !== undefined) {
+          await this.subscriptions.upsertPlan(tenant.current.runner, tenant.current.context, {
+            planId: plan.planId,
+            status: 'active',
+            planVersion: plan.version,
+          });
+        }
         return {
           userId,
           organizationId: provisioned.organizationId,
           slug: provisioned.slug,
           organizationName: provisioned.name,
+          planId: plan?.planId ?? null,
         };
       },
     );

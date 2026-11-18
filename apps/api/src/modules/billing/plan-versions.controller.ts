@@ -5,8 +5,10 @@ import {
   Ctx,
   CurrentPrincipal,
   NoTenant,
+  Public,
   RequireCapability,
 } from '../../common/http/decorators.js';
+import { requireRequestState } from '../../common/http/request-state.js';
 import { platformRequestContext } from '../platform-admin/platform-admin.access.js';
 import {
   CurrentPlatformAdmin,
@@ -17,6 +19,7 @@ import { RequirePlatformPermission } from '../platform-admin/require-platform-pe
 import type {
   PlanVersionView,
   PlanVersionsService,
+  PublishedPlansView,
   WorkspacePlanView,
 } from './plan-versions.service.js';
 
@@ -47,6 +50,23 @@ export class PlatformPlanVersionsController {
     @Req() request: object,
   ): Promise<PlanVersionView> {
     return this.plans.create(actor, body ?? {}, platformRequestContext(request));
+  }
+}
+
+/**
+ * `GET /v1/public/plan-versions` — 57-02 (PLANWEB). The pricing page's live figures: the version of
+ * each plan in force now, and nothing at all while the beta is free. `@Public()` like the other
+ * marketing reads: no session, no tenant, no input; the body is the global ladder, the same for
+ * every visitor, with no organization in it.
+ */
+@Controller('v1/public')
+@Public()
+export class PublicPlanVersionsController {
+  constructor(@Inject(PLAN_VERSIONS_SERVICE) private readonly plans: PlanVersionsService) {}
+
+  @Get('plan-versions')
+  published(@Req() request: object): Promise<PublishedPlansView> {
+    return this.plans.publishedPlans(requireRequestState(request).correlationId);
   }
 }
 

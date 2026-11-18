@@ -7,6 +7,8 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { PlanVersion } from '../billing/plan-versions.js';
+import type { SubscriptionRepository } from '../billing/subscription.repository.js';
 import type { CredentialsRepository } from '../identity/credentials.repository.js';
 import type * as PasswordModule from '../identity/password.js';
 import { ProvisioningService } from '../tenancy/provisioning.service.js';
@@ -43,7 +45,9 @@ const BODY = {
  * shared provisioning path actually builds — organization id, role, capabilities — not a spy's
  * echo of the arguments.
  */
-function harness(options: { emailTaken?: boolean; slugTakenTimes?: number } = {}) {
+function harness(
+  options: { emailTaken?: boolean; slugTakenTimes?: number; plan?: PlanVersion | null } = {},
+) {
   const tenantContexts: TenantContext[] = [];
   const founders: { organizationId: string; userId: string; role: string }[] = [];
   const createdSlugs: string[] = [];
@@ -120,6 +124,8 @@ function harness(options: { emailTaken?: boolean; slugTakenTimes?: number } = {}
   const deliver = vi.fn(async () => 'sent' as const);
   const confirm = vi.fn(async () => 'sent' as const);
 
+  const signupChoice = vi.fn(async () => options.plan ?? null);
+  const upsertPlan = vi.fn(async () => ({}));
   const service = new PublicSignupService(
     database,
     provisioning,
@@ -127,9 +133,13 @@ function harness(options: { emailTaken?: boolean; slugTakenTimes?: number } = {}
     accounts,
     credentials,
     { request: confirm },
+    { signupChoice },
+    { upsertPlan } as unknown as SubscriptionRepository,
   );
   return {
     service,
+    signupChoice,
+    upsertPlan,
     organizations,
     database,
     tenantContexts,
@@ -168,6 +178,34 @@ describe('PublicSignupService', () => {
         locale: 'ar',
       }),
     );
+  });
+
+  it('PLANWEB: a free pick becomes the new workspace subscription, pinned to its version', async () => {
+    const free = { planId: 'free', version: 4, monthlyCents: 0 } as PlanVersion;
+    const h = harness({ plan: free });
+    const result = await h.service.signUp({ ...BODY, plan: 'free' }, CORR_1);
+    expect(h.signupChoice).toHaveBeenCalledWith('free', CORR_1);
+    expect(h.upsertPlan).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: result.organizationId }),
+      { planId: 'free', status: 'active', planVersion: 4 },
+    );
+    expect(result.planId).toBe('free');
+  });
+
+  it('PLANWEB: a paid pick writes no subscription (nothing is bought); a refused pick is null', async () => {
+    const paid = harness({
+      plan: { planId: 'studio', version: 2, monthlyCents: 4900 } as PlanVersion,
+    });
+    await expect(paid.service.signUp({ ...BODY, plan: 'studio' }, CORR_1)).resolves.toMatchObject({
+      planId: 'studio',
+    });
+    expect(paid.upsertPlan).not.toHaveBeenCalled();
+    const refused = harness({ plan: null });
+    await expect(refused.service.signUp({ ...BODY, plan: 'gold' }, CORR_1)).resolves.toMatchObject({
+      planId: null,
+    });
+    expect(refused.upsertPlan).not.toHaveBeenCalled();
   });
 
   it('mails the confirm-your-e-mail link after a password sign-up (VERIFYMAIL)', async () => {

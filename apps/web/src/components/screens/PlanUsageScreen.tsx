@@ -20,6 +20,8 @@ import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { fetchPlanUsage } from '../../lib/api/plan-usage';
 import type { PlanUsageMeterView, PlanUsageView } from '../../lib/api/plan-usage';
+import { fetchWorkspacePlan } from '../../lib/api/plan-versions';
+import type { WorkspacePlanView } from '../../lib/api/plan-versions';
 import { useShellCapability } from '../shell/use-shell-capability';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -65,6 +67,14 @@ export function PlanUsageScreen({
   });
   // The public beta (BILLING_MODE=beta_free, the API's default): free for everyone, nothing to buy.
   const beta = usage.data?.billingMode !== 'paid';
+  // PLANWEB: the plan panel's price is the workspace's own `plan_versions` version (pinned, so a
+  // newer version never re-prices it). Never read during the beta, where no price is shown.
+  const workspacePlan = useQuery({
+    queryKey: ['workspace-plan', organizationSlug],
+    queryFn: () => fetchWorkspacePlan(api, organizationSlug),
+    enabled: usage.isSuccess && !beta,
+    retry: false,
+  });
   // 57-13c. Only people who may move company files see where they live; the server still decides.
   const canUse = useShellCapability(organizationSlug, client);
   const storageCard = canUse('org.security.manage') ? (
@@ -131,6 +141,7 @@ export function PlanUsageScreen({
         {usage.isSuccess && !beta ? (
           <PlanUsageBody
             view={usage.data}
+            livePlan={workspacePlan.data ?? null}
             locale={locale}
             tr={tr}
             organizationSlug={organizationSlug}
@@ -162,6 +173,7 @@ function changeTargetFor(view: PlanUsageView): string {
 
 function PlanUsageBody({
   view,
+  livePlan,
   locale,
   tr,
   organizationSlug,
@@ -169,22 +181,28 @@ function PlanUsageBody({
   onChangePlan,
 }: {
   view: PlanUsageView;
+  /** The workspace's plan version (`…/billing/plan`); `null` until read (then the usage view's). */
+  livePlan: WorkspacePlanView | null;
   locale: string;
   tr: PlanUsageText;
   organizationSlug: string;
   storageCard: ReactNode;
   onChangePlan: () => void;
 }) {
+  // The live version speaks for the same plan only; a mismatch (a change mid-read) keeps the view's.
+  const live = livePlan !== null && livePlan.planId === view.planId ? livePlan : null;
+  const monthlyCents = live === null ? view.monthlyCents : live.monthlyCents;
+  const currency = live === null ? view.currency : live.currency;
   const plan = planName(view.planId);
   const next = view.nextPlanId === null ? null : planName(view.nextPlanId);
   const ts = planStorageText(useTOr());
-  const price = view.monthlyCents === null ? null : money(view.monthlyCents, view.currency);
+  const price = monthlyCents === null ? null : money(monthlyCents, currency);
   const renews = view.renewsOn === null ? null : dayMonth(view.renewsOn, locale);
 
   const priceLine =
-    view.monthlyCents === null
+    monthlyCents === null
       ? tr('PlanUsage.priceCustom')
-      : view.monthlyCents === 0 || renews === null
+      : monthlyCents === 0 || renews === null
         ? tr('PlanUsage.priceFree')
         : fill(tr('PlanUsage.priceLine'), { price: price ?? '', date: renews });
 
@@ -306,7 +324,7 @@ function PlanUsageBody({
       {storageCard}
 
       <p className="tm-pu-foot">
-        {price !== null && renews !== null && view.monthlyCents !== 0
+        {price !== null && renews !== null && monthlyCents !== 0
           ? fill(tr('PlanUsage.nextBill'), { price, date: renews })
           : tr('PlanUsage.noBill')}
       </p>

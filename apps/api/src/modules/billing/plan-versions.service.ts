@@ -5,14 +5,22 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
 import type { RequestContext } from '../platform-admin/platform-admin.service.js';
 import { platformAuditFor } from '../platform-admin/platform-audit.service.js';
-import { billingMode, entitlementsFor } from './billing-mode.js';
+import { billingMode, entitlementsFor, resolveBillingMode } from './billing-mode.js';
 import type { BillingMode } from './billing-mode.js';
-import { DEFAULT_PLAN_ID, PLAN_MONTHLY_CENTS, readPlanId } from './plan-catalog.js';
+import {
+  DEFAULT_PLAN_ID,
+  PLAN_MONTHLY_CENTS,
+  canonicalPlanId,
+  isPlanId,
+  readPlanId,
+} from './plan-catalog.js';
 import type { CatalogPlanId, PlanFeature, PlanLimits } from './plan-catalog.js';
 import {
   parseNewPlanVersion,
   planLadderActive,
+  plansInForce,
   readPlanCurrency,
+  signupPlanChoice,
   versionForSubscription,
 } from './plan-versions.js';
 import type { PlanCurrency, PlanVersion } from './plan-versions.js';
@@ -61,6 +69,38 @@ export interface WorkspacePlanView {
   readonly features: readonly PlanFeature[];
 }
 
+/**
+ * `GET /v1/public/plan-versions` (PLANWEB). What the pricing page may show: nothing while the beta
+ * is free (`visible: false`, no plans, no prices), else the version of each plan in force now.
+ */
+export interface PublishedPlansView {
+  readonly visible: boolean;
+  readonly plans: readonly PublishedPlanView[];
+}
+
+export interface PublishedPlanView {
+  readonly planId: CatalogPlanId;
+  readonly version: number;
+  readonly currency: PlanCurrency;
+  readonly monthlyCents: number | null;
+  readonly yearlyCents: number | null;
+  readonly limits: PlanLimits;
+  readonly features: readonly PlanFeature[];
+}
+
+function published(version: PlanVersion): PublishedPlanView {
+  const { planId, currency, monthlyCents, yearlyCents, limits, features } = version;
+  return {
+    planId,
+    version: version.version,
+    currency,
+    monthlyCents,
+    yearlyCents,
+    limits,
+    features,
+  };
+}
+
 function view(version: PlanVersion): PlanVersionView {
   return { ...version, effectiveFrom: version.effectiveFrom.toISOString() };
 }
@@ -77,6 +117,34 @@ export class PlanVersionsService {
   /** `GET /v1/platform/plan-versions` — every version, newest first per plan. */
   async list(context: RequestContext): Promise<readonly PlanVersionView[]> {
     return (await this.store.all(context.correlationId)).map(view);
+  }
+
+  /**
+   * `GET /v1/public/plan-versions` — the pricing page's figures. While billing is `beta_free` the
+   * table is not even read: no plan and no price leaves the API during the beta.
+   */
+  async publishedPlans(correlationId: string): Promise<PublishedPlansView> {
+    if ((await resolveBillingMode(this.env)) !== 'paid') return { visible: false, plans: [] };
+    const versions = await this.store.all(correlationId);
+    return {
+      visible: true,
+      plans: plansInForce(
+        versions.filter((v) => v.currency === 'USD'),
+        this.now(),
+      ).map(published),
+    };
+  }
+
+  /**
+   * PLANWEB · the plan a sign-up named, checked against the versions in force; `null` during the
+   * beta, for an unknown plan, or one with no version in force. Never reads a price from the caller.
+   */
+  async signupChoice(raw: unknown, correlationId: string): Promise<PlanVersion | null> {
+    if (raw === undefined || raw === null || raw === '') return null;
+    if (!isPlanId(raw)) return null;
+    if ((await resolveBillingMode(this.env)) !== 'paid') return null;
+    const versions = await this.store.forPlan(canonicalPlanId(raw), 'USD', correlationId);
+    return signupPlanChoice(raw, versions, this.now());
   }
 
   /** `POST /v1/platform/plan-versions` — publish the plan's next version. Super admin only. */

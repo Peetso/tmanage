@@ -6,6 +6,7 @@ import { Badge, Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSignupAvailability, signUp } from '../../lib/api/sign-up';
+import { afterSignUpPath, planFromQuery } from '../../lib/api/plan-versions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
@@ -52,6 +53,8 @@ interface Created {
   readonly email: string;
   readonly organizationName: string;
   readonly organizationSlug: string;
+  /** PLANWEB: the plan the API accepted from the pricing page's `?plan=`, or `null`. */
+  readonly planId: string | null;
 }
 
 /** The button row of the frame: the button at its own width, not stretched. */
@@ -60,10 +63,11 @@ const ACTION_ROW = { display: 'flex', alignItems: 'center', gap: 'var(--s5)' } a
 export interface SignUpScreenProps {
   client?: ApiClient;
   /**
-   * Called with the new workspace's slug when the person leaves the check-your-email state.
-   * Default: full navigation to its home.
+   * Called with the new workspace's slug (and the plan the API accepted from `?plan=`, or `null`)
+   * when the person leaves the check-your-email state. Default: full navigation to its home, or to
+   * the plan-change preview for an accepted paid plan.
    */
-  onCompleted?: (organizationSlug: string) => void;
+  onCompleted?: (organizationSlug: string, planId: string | null) => void;
   boundary?: AuthBoundary;
   /** Rendered above the form — the "Continue with Google" button when configured. */
   alternatives?: ReactNode;
@@ -143,9 +147,12 @@ export function SignUpScreen({
     intent: 'sign-up',
     ...(organizationName.trim() === '' ? {} : { organizationName: organizationName.trim() }),
   });
+  /** PLANWEB: the pricing page's `?plan=` (a catalog id only), sent with the sign-up. */
+  const [pickedPlan, setPickedPlan] = useState<string | null>(null);
   useEffect(() => {
     setGoogleError(googleErrorKey(window.location.search));
     setMicrosoftError(microsoftErrorOf(window.location.search));
+    setPickedPlan(planFromQuery(new URLSearchParams(window.location.search).get('plan')));
   }, []);
 
   // SIGNUP3: the one required load. A weak connection gets two quiet retries, then a calm
@@ -200,9 +207,9 @@ export function SignUpScreen({
     });
   }
 
-  function complete(organizationSlug: string) {
-    if (onCompleted) onCompleted(organizationSlug);
-    else window.location.assign(`/${encodeURIComponent(organizationSlug)}/home`);
+  function complete(organizationSlug: string, planId: string | null) {
+    if (onCompleted) onCompleted(organizationSlug, planId);
+    else window.location.assign(afterSignUpPath(organizationSlug, planId));
   }
 
   function continueWithEmail(event: FormEvent<HTMLFormElement>) {
@@ -246,6 +253,7 @@ export function SignUpScreen({
         timezone: guessTimezone(),
         defaultLocale: locale.toLowerCase().startsWith('ar') ? 'ar' : 'en',
         website,
+        ...(pickedPlan === null ? {} : { plan: pickedPlan }),
         ...(await formProof.fields()),
       });
       setPassword('');
@@ -255,6 +263,7 @@ export function SignUpScreen({
         email: email.trim(),
         organizationName: organizationName.trim(),
         organizationSlug: outcome.organizationSlug,
+        planId: outcome.planId ?? null,
       });
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 404) {
@@ -322,7 +331,11 @@ export function SignUpScreen({
           </p>
         </div>
         <div style={ACTION_ROW}>
-          <Button tone="lime" size="accessible" onClick={() => complete(created.organizationSlug)}>
+          <Button
+            tone="lime"
+            size="accessible"
+            onClick={() => complete(created.organizationSlug, created.planId)}
+          >
             {g('GettingIn.openWorkspace')}
           </Button>
         </div>

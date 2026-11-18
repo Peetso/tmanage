@@ -58,6 +58,7 @@ describe('PublicSignupController', () => {
       csrfToken: 'csrf-1',
       expiresAt: '2026-10-19T00:00:00.000Z',
       organizationSlug: 'nile-studio',
+      planId: null,
     });
     expect(h.start).toHaveBeenCalledWith(expect.objectContaining({ userId: RESULT.userId }));
     expect(h.reply.header).toHaveBeenCalledWith('set-cookie', ['tm_access=a; HttpOnly']);

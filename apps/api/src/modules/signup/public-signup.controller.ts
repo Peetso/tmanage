@@ -176,6 +176,7 @@ export class PublicSignupController {
       csrfToken: established.csrfToken,
       expiresAt: established.expiresAt.toISOString(),
       organizationSlug: result.slug,
+      planId: result.planId ?? null,
     };
   }
 

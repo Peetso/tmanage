@@ -92,3 +92,50 @@ describe('57-02 versioned plan ladder', () => {
     );
   });
 });
+
+describe('PLANWEB public figures and the sign-up pick', () => {
+  const later = (n: number): PlanVersion => ({
+    ...version(n, 8, 2900),
+    effectiveFrom: new Date('2999-01-01'),
+  });
+  const free: PlanVersion = { ...version(1, 3, 0), id: 'f1', planId: 'free' };
+  const enterprise: PlanVersion = {
+    ...version(1, 0, 0),
+    id: 'e1',
+    planId: 'enterprise',
+    monthlyCents: null,
+  };
+  const ladder = [later(3), version(2, 8, 2900), version(1, 10, 1900), free, enterprise];
+  const all = vi.fn(async () => ladder);
+  const publicService = new PlanVersionsService(database, {
+    all,
+    forPlan: async (planId: string) => ladder.filter((v) => v.planId === planId),
+    create: vi.fn(),
+  } as PlanVersionsStore);
+
+  it('shows no plan and no price while the beta is free, without reading the table', async () => {
+    vi.stubEnv('BILLING_MODE', 'beta_free');
+    await expect(publicService.publishedPlans('c')).resolves.toEqual({ visible: false, plans: [] });
+    expect(all).not.toHaveBeenCalled();
+    await expect(publicService.signupChoice('starter', 'c')).resolves.toBeNull();
+  });
+
+  it('paid: each plan at the version in force now, in catalog order', async () => {
+    vi.stubEnv('BILLING_MODE', 'paid');
+    const view = await publicService.publishedPlans('c');
+    expect(view.plans.map((p) => [p.planId, p.version, p.monthlyCents])).toEqual([
+      ['free', 1, 0],
+      ['starter', 2, 2900],
+      ['enterprise', 1, null],
+    ]);
+  });
+
+  it('a sign-up pick is checked, never trusted: unknown or not in force is ignored', async () => {
+    vi.stubEnv('BILLING_MODE', 'paid');
+    expect((await publicService.signupChoice('starter', 'c'))?.version).toBe(2);
+    await expect(publicService.signupChoice('platinum', 'c')).resolves.toBeNull();
+    await expect(publicService.signupChoice('studio', 'c')).resolves.toBeNull();
+    await expect(publicService.signupChoice('enterprise', 'c')).resolves.toBeNull();
+    await expect(publicService.signupChoice({ planId: 'free' }, 'c')).resolves.toBeNull();
+  });
+});

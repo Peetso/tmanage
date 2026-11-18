@@ -126,15 +126,49 @@ describe('PricingPage (website /pricing)', () => {
   const L = (key: string) => translate('en-US', key as MessageKey);
   const ar = (key: string) => translate('ar-EG', key as MessageKey);
 
-  it('yearly maths: monthly × 0.8 per month, ×12 a year, two decimals', () => {
-    const byId = Object.fromEntries(PRICING_PLANS.map((plan) => [plan.id, plan.monthlyCents]));
-    expect(byId).toEqual({
-      free: 0,
-      starter: 1900,
-      studio: 4900,
-      business: 8900,
-      enterprise: null,
+  it('PLANWEB: paid figures are the live plan versions, and a CTA carries only the plan id', async () => {
+    const live = (planId: string, monthlyCents: number | null, people: number | null) => ({
+      planId,
+      version: 2,
+      currency: 'USD',
+      monthlyCents,
+      yearlyCents: null,
+      limits: { people, activeProjects: null, storageBytes: null, maxFileBytes: 1 },
+      features: [],
     });
+    const client = clientOver(() =>
+      json({ visible: true, plans: [live('starter', 2300, 12), live('enterprise', null, null)] }),
+    );
+    const { container } = render(<PricingPage client={client} />);
+    const starter = within(
+      await screen.findByRole('article', { name: L('PricingPage.planStarterName') }),
+    );
+    expect(starter.getByText('$23')).toBeInTheDocument();
+    expect(starter.getByText('Up to 12 internal people')).toBeInTheDocument();
+    expect(starter.getByRole('link', { name: L('PricingPage.planStarterCta') })).toHaveAttribute(
+      'href',
+      `${SIGN_UP_HREF}?plan=starter`,
+    );
+    // Only plans with a version in force show; Enterprise is custom and goes to contact.
+    expect(container.querySelectorAll('.tm-pricing-plan')).toHaveLength(2);
+    const enterprise = within(
+      screen.getByRole('article', { name: L('PricingPage.planEnterpriseName') }),
+    );
+    expect(enterprise.getByRole('link')).toHaveAttribute('href', '/contact');
+    expect((container.textContent ?? '').match(/\$\d+/g)).toEqual(['$23']);
+    expect(PRICING_PLANS.some((plan) => 'monthlyCents' in plan)).toBe(false);
+  });
+
+  it('PLANWEB: while the beta is free the API shows nothing and the page stays on the beta card', async () => {
+    const client = clientOver(() => json({ visible: false, plans: [] }));
+    const { container } = render(<PricingPage client={client} />);
+    expect(
+      await screen.findByRole('article', { name: L('PricingPage.betaCardTitle') }),
+    ).toBeVisible();
+    expect(container.querySelectorAll('.tm-pricing-plan')).toHaveLength(0);
+  });
+
+  it('yearly maths: monthly × 0.8 per month, ×12 a year, two decimals', () => {
     expect(planPrice(1900, 'yearly')).toEqual({
       perMonth: '$15.20',
       perYear: '$182.40',

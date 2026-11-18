@@ -93,7 +93,8 @@ describe('SignUpScreen', () => {
     expect(screen.getByText(/mona@example.com/)).toBeInTheDocument();
     expect(onCompleted).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Open my workspace' }));
-    expect(onCompleted).toHaveBeenCalledWith('nile-studio');
+    // PLANWEB: no `?plan=` and no plan in the answer, so no plan is carried.
+    expect(onCompleted).toHaveBeenCalledWith('nile-studio', null);
     const post = calls.find((c) => c.method === 'POST');
     expect(post?.url).toBe('https://api.example.test/v1/public/sign-up');
     expect(post?.body).toMatchObject({

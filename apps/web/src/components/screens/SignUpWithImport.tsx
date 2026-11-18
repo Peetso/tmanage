@@ -2,6 +2,7 @@
 
 import { SignUpScreen } from './SignUpScreen';
 import { importPagePath, importToolFromSearch } from '../../lib/import-link';
+import { afterSignUpPath } from '../../lib/api/plan-versions';
 
 /**
  * 54-29 — `/sign-up` as reached from a "switch from X" page (`/sign-up?import=<tool>`).
@@ -18,11 +19,11 @@ export function SignUpWithImport({
 }) {
   return (
     <SignUpScreen
-      onCompleted={(organizationSlug) => {
+      onCompleted={(organizationSlug, planId) => {
         const tool = importToolFromSearch(window.location.search);
         navigate(
           tool === undefined
-            ? `/${encodeURIComponent(organizationSlug)}/home`
+            ? afterSignUpPath(organizationSlug, planId)
             : importPagePath(organizationSlug, tool),
         );
       }}

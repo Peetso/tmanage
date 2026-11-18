@@ -26,6 +26,8 @@ export interface PublicSignupInput {
   readonly startedAt?: string;
   readonly nonce?: string;
   readonly proof?: string;
+  /** PLANWEB: the plan picked on the pricing page (an id only; the API checks it). */
+  readonly plan?: string;
 }
 
 /** The new owner's session, already issued (cookies set by the response). */
@@ -34,6 +36,8 @@ export interface PublicSignupView {
   readonly csrfToken: string;
   readonly expiresAt: string;
   readonly organizationSlug: string;
+  /** PLANWEB: the checked plan from the pricing page, or `null` (always `null` in the beta). */
+  readonly planId: string | null;
 }
 
 /** True when sign-up is open. 404 (switch off) resolves to false; anything else rethrows. */

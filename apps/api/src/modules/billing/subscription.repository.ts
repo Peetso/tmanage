@@ -31,6 +31,8 @@ import type { SubscriptionStatus } from './plan-catalog.js';
 export interface UpsertPlanInput {
   readonly planId: string;
   readonly status: SubscriptionStatus;
+  /** PLANWEB: the `plan_versions` version to pin (sign-up); absent keeps the stored/default one. */
+  readonly planVersion?: number;
 }
 
 export class SubscriptionRepository {
@@ -92,6 +94,7 @@ export class SubscriptionRepository {
         organizationId: context.organizationId,
         planId: input.planId,
         status: input.status,
+        ...(input.planVersion === undefined ? {} : { planVersion: input.planVersion }),
         currentPeriodEnd: null,
         createdAt: sql`current_timestamp(3)`,
         updatedAt: sql`current_timestamp(3)`,
@@ -100,6 +103,7 @@ export class SubscriptionRepository {
         set: {
           planId: input.planId,
           status: input.status,
+          ...(input.planVersion === undefined ? {} : { planVersion: input.planVersion }),
           updatedAt: sql`current_timestamp(3)`,
         },
       });
