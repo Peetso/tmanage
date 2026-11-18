@@ -168,12 +168,19 @@ describe('decidePersonMail', () => {
     expect(decide({ role: 'owner', facts: settled, state: state({ x: ago(7) }) })).not.toBeNull();
   });
 
-  it('stops everything but the security follow-up when the preference or the switch is off', () => {
+  it('stops everything but the security follow-up when the preference is off', () => {
     const due = { ...withoutInvoices(), newDeviceNoticeAt: ago(2) };
-    for (const input of [{ state: state({}, false) }, { switchOn: false }]) {
-      expect(decide({ role: 'owner', facts: withoutInvoices(), ...input })).toBeNull();
-      expect(decide({ role: 'owner', facts: due, ...input })?.kind.id).toBe(AFTER_NEW_DEVICE_ID);
-    }
+    const off = state({}, false);
+    expect(decide({ role: 'owner', facts: withoutInvoices(), state: off })).toBeNull();
+    expect(decide({ role: 'owner', facts: due, state: off })?.kind.id).toBe(AFTER_NEW_DEVICE_ID);
+  });
+
+  it('sends nothing at all, the security follow-up included, when the switch is off', () => {
+    const due = { ...facts(), newDeviceNoticeAt: ago(2) };
+    expect(decide({ role: 'owner', facts: due, switchOn: false })).toBeNull();
+    expect(decide({ role: 'owner', facts: due, switchOn: true })?.kind.id).toBe(
+      AFTER_NEW_DEVICE_ID,
+    );
   });
 
   it('sends the after-new-device follow-up per notice day, at most once per 30 days', () => {

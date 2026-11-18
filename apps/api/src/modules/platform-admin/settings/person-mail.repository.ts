@@ -83,7 +83,7 @@ const NEWS_TABLES = ['platform_feature_news', 'platform_admin_audit_events'] as 
 export class PersonMailRepository {
   constructor(private readonly database: TenantDatabase) {}
 
-  /** The switch (absent = on) and the newest notes. */
+  /** The switch (absent = off) and the newest notes. */
   state(
     correlationId: string,
   ): Promise<{ tipsEnabled: boolean; news: readonly FeatureNewsRecord[] }> {
@@ -92,7 +92,7 @@ export class PersonMailRepository {
         'value'
       ];
       const news = (await db.query<Row[]>(PERSON_MAIL_SQL.list)).map(toRecord);
-      return { tipsEnabled: value !== 'off', news };
+      return { tipsEnabled: value === 'on', news };
     });
   }
 

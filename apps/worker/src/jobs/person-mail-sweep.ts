@@ -57,7 +57,10 @@ export interface PersonMailMemberState {
 }
 
 export interface PersonMailStore {
-  /** The platform switch "Tips and reminders" (`platform_settings` `mail.tips_enabled`). */
+  /**
+   * The platform switch "Tips and reminders" (`platform_settings` `mail.tips_enabled`):
+   * true only when the row says 'on'; absent = off. Off stops every person mail.
+   */
   tipsSwitchOn(): Promise<boolean>;
   readCursor(): Promise<string | null>;
   writeCursor(userId: string | null, at: Date): Promise<void>;
@@ -140,6 +143,8 @@ export function decidePersonMail(input: {
   readonly switchOn: boolean;
 }): PersonMailDecision | null {
   const { facts, state, role } = input;
+  // The platform switch off (or never set) stops every kind, the security follow-up included.
+  if (!input.switchOn) return null;
   const now = facts.now.getTime();
   // None in a member's first 24 hours, whatever the kind.
   if (now - facts.joinedAt.getTime() < DAY) return null;
@@ -157,7 +162,7 @@ export function decidePersonMail(input: {
         a.id.localeCompare(b.id),
     );
   for (const kind of ordered) {
-    if (kind.cap !== 'outside' && (!input.switchOn || !state.tipsEnabled)) continue;
+    if (kind.cap !== 'outside' && !state.tipsEnabled) continue;
     if (!audienceAllows(kind, role) || !roleAllows(kind, role)) continue;
     const tipId =
       kind.id === AFTER_NEW_DEVICE_ID && facts.newDeviceNoticeAt !== null

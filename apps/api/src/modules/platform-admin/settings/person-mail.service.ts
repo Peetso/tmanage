@@ -13,8 +13,8 @@ import type {
 /**
  * EMAILBUILD2 — the platform side of the person-mail engine (amendment 2):
  *
- * - the "Tips and reminders" switch (`platform_settings` `mail.tips_enabled`, absent = on): off
- *   stops every tip, reminder and news mail; the after-new-device security follow-up still goes;
+ * - the "Tips and reminders" switch (`platform_settings` `mail.tips_enabled`, absent = off): off
+ *   stops every person mail, the after-new-device security follow-up included;
  * - the "Feature news" card: a platform admin writes a release note (title and up to two
  *   sentences, English and Arabic, one link) and presses Send once. From then on the worker's
  *   hourly sweep delivers it to every team member with tips on, once each, for 14 days.

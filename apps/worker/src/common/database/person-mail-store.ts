@@ -156,7 +156,7 @@ export function createPersonMailStore(database: WorkerDatabase): PersonMailStore
       const found = await database.read((tx) =>
         rows<{ value: string }>(tx, PERSON_MAIL_SQL.switch, [TIPS_SWITCH_KEY]),
       );
-      return found[0]?.value !== 'off';
+      return found[0]?.value === 'on';
     },
     async readCursor() {
       const found = await database.read((tx) =>
