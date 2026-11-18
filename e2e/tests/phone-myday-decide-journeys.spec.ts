@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { API_URL, seedApprovalFixture } from '../setup/stack.js';
 import {
   LANGS,
@@ -6,7 +6,7 @@ import {
   expectLanguage,
   inLang,
   seedWorld,
-  signedIn,
+  test,
   word,
 } from '../setup/journey-kit.js';
 
@@ -50,7 +50,7 @@ function startsWith(text: string): RegExp {
 for (const lang of LANGS) {
   test.describe.serial(`phone My Day decisions [${lang}]`, () => {
     test(`PM-01 [${lang}]: Approve and Send back from the bottom sheet at 390 px`, async ({
-      browser,
+      signIn,
     }) => {
       test.setTimeout(240_000);
       const { northstar } = world();
@@ -63,7 +63,7 @@ for (const lang of LANGS) {
         approvedContactUserId: northstar.designer.id,
       });
 
-      const lina = await signedIn(browser, northstar.designer.id, {
+      const lina = await signIn(northstar.designer.id, {
         phone: true,
         member: { org: NORTHSTAR, lang },
       });
@@ -128,10 +128,10 @@ for (const lang of LANGS) {
     });
 
     test(`PM-02 [${lang}]: Log time from the work card's bottom sheet at 390 px`, async ({
-      browser,
+      signIn,
     }) => {
       const { northstar } = world();
-      const lina = await signedIn(browser, northstar.designer.id, {
+      const lina = await signIn(northstar.designer.id, {
         phone: true,
         member: { org: NORTHSTAR, lang },
       });

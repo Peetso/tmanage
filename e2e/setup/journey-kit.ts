@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect } from '@playwright/test';
+import { expect, test as base } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { API_URL, WEB_URL } from './stack.js';
 
@@ -7,6 +7,10 @@ import { API_URL, WEB_URL } from './stack.js';
  * TESTE2E (2026-11-18) — the few things every bilingual journey of that pass needs, in one place
  * instead of one copy per spec: the seed world, the two message catalogues, a signed-in context
  * and the language check. The older specs keep their own copies; nothing here changes them.
+ *
+ * CLOSEOUT (2026-11-19): signing in and a member's saved language are `test` fixtures, so what a
+ * journey changes is undone in that test's teardown — also when it fails — never left to a
+ * `close()` the failure skipped.
  *
  * Words are read from the catalogues, never copied into a spec, so a re-worded label never makes
  * a journey lie, and the Arabic run asserts the Arabic words.
@@ -70,8 +74,15 @@ export interface SignedIn {
   readonly page: Page;
   /** For API calls the browser itself would make: cookie, this header and our origin. */
   readonly headers: Readonly<Record<string, string>>;
-  /** Puts back the member's saved language (when this sign-in changed it), then closes. */
+  /** Closes the context early; the test's teardown closes any still open. */
   readonly close: () => Promise<void>;
+}
+
+export interface SignInOptions {
+  /** A touch phone: `true` is {@link PHONE_390}; a size names another phone. */
+  readonly phone?: boolean | { readonly width: number; readonly height: number };
+  /** Saves `lang` as the member's own language in `org` for this test (see `memberLanguage`). */
+  readonly member?: { readonly org: string; readonly lang: Lang };
 }
 
 /** The seeded workspaces; coach-mark tours are dismissed on the device for each. */
@@ -91,76 +102,115 @@ const DISPLAY_FIELDS = [
   'weekStart',
 ] as const;
 
-/**
- * Save `locale` as the member's own language and return the one it replaces. A signed-in member's
- * language is their saved preference (R25 A6, `ThemeSync`), so `?lang=` does not choose it; the
- * journey chooses it the way the member would, in their display settings.
- */
-async function saveMemberLocale(
+/** Opens a real session for `userId` in `context`; returns the headers its API calls carry. */
+async function startSession(
   context: BrowserContext,
-  headers: Readonly<Record<string, string>>,
-  org: string,
-  locale: string,
-): Promise<string> {
-  const url = `${API_URL}/v1/organizations/${org}/me/display-preferences`;
-  const read = await context.request.get(url);
-  expect(read.ok(), await read.text()).toBe(true);
-  const view = (await read.json()) as Record<string, unknown>;
-  const body: Record<string, unknown> = {};
-  for (const field of DISPLAY_FIELDS) if (view[field] !== undefined) body[field] = view[field];
-  if (view['uiModeSource'] === 'self' && view['uiMode'] !== undefined)
-    body['uiMode'] = view['uiMode'];
-  const saved = await context.request.put(url, { headers, data: { ...body, locale } });
-  expect(saved.ok(), await saved.text()).toBe(true);
-  return view['locale'] as string;
-}
-
-/**
- * A context signed in through the dev session route — a real session, not a mock. With `member`,
- * the member's saved language is set to `member.lang` for this journey and put back by `close()`.
- * Product tours are dismissed on the device ("Don't show tours again"), as a returning person has
- * them: a tour's dialog would sit over the controls a journey is about.
- */
-export async function signedIn(
-  browser: Browser,
   userId: string,
-  options: {
-    /** A touch phone: `true` is {@link PHONE_390}; a size names another phone. */
-    readonly phone?: boolean | { readonly width: number; readonly height: number };
-    readonly member?: { readonly org: string; readonly lang: Lang };
-  } = {},
-): Promise<SignedIn> {
-  const phone = options.phone === true ? PHONE_390 : options.phone;
-  const context = await browser.newContext(
-    phone ? { viewport: phone, hasTouch: true, isMobile: true } : {},
-  );
-  await context.addInitScript((slugs: readonly string[]) => {
-    for (const slug of slugs) {
-      window.localStorage.setItem(`tm-coach:${slug}:never`, 'true');
-      // The automatic-timer panel opens by itself once on a first home visit; mark it asked.
-      window.localStorage.setItem(`tm.autotimer.asked.${slug}`, '1');
-    }
-  }, SEEDED_SLUGS);
+): Promise<Readonly<Record<string, string>>> {
   const response = await context.request.post(`${API_URL}/v1/dev/sessions`, { data: { userId } });
   expect(response.ok(), await response.text()).toBe(true);
   const { csrfToken } = (await response.json()) as { csrfToken: string };
-  const headers = { 'x-csrf-token': csrfToken, origin: WEB_URL };
-  const member = options.member;
-  const before = member
-    ? await saveMemberLocale(context, headers, member.org, SAVED_LOCALE[member.lang])
-    : undefined;
-  return {
-    context,
-    page: await context.newPage(),
-    headers,
-    close: async () => {
-      if (member && before !== undefined && before !== SAVED_LOCALE[member.lang]) {
-        await saveMemberLocale(context, headers, member.org, before);
-      }
-      await context.close();
-    },
-  };
+  return { 'x-csrf-token': csrfToken, origin: WEB_URL };
 }
+
+/**
+ * Saves `locale` as the member's own language in `org`, from a short session of their own, and
+ * returns the one it replaces. A signed-in member's language is their saved preference (R25 A6,
+ * `ThemeSync`), so `?lang=` does not choose it; the journey chooses it the way the member would,
+ * in their display settings.
+ */
+async function saveMemberLocale(
+  browser: Browser,
+  userId: string,
+  org: string,
+  locale: string,
+): Promise<string> {
+  const context = await browser.newContext();
+  try {
+    const headers = await startSession(context, userId);
+    const url = `${API_URL}/v1/organizations/${org}/me/display-preferences`;
+    const read = await context.request.get(url);
+    expect(read.ok(), await read.text()).toBe(true);
+    const view = (await read.json()) as Record<string, unknown>;
+    const body: Record<string, unknown> = {};
+    for (const field of DISPLAY_FIELDS) if (view[field] !== undefined) body[field] = view[field];
+    if (view['uiModeSource'] === 'self' && view['uiMode'] !== undefined)
+      body['uiMode'] = view['uiMode'];
+    const saved = await context.request.put(url, { headers, data: { ...body, locale } });
+    expect(saved.ok(), await saved.text()).toBe(true);
+    return view['locale'] as string;
+  } finally {
+    await context.close();
+  }
+}
+
+export interface JourneyFixtures {
+  /**
+   * Saves `lang` as the member's own language in `org` for this test only. The language it
+   * replaces is put back in the test's teardown, which runs when the test fails or times out
+   * too, so one failed Arabic journey never leaves Arabic behind for the next spec.
+   */
+  readonly memberLanguage: (userId: string, org: string, lang: Lang) => Promise<void>;
+  /**
+   * A context signed in through the dev session route — a real session, not a mock. With
+   * `member`, the member's language is set through {@link JourneyFixtures.memberLanguage}.
+   * Product tours are dismissed on the device ("Don't show tours again"), as a returning person
+   * has them: a tour's dialog would sit over the controls a journey is about.
+   */
+  readonly signIn: (userId: string, options?: SignInOptions) => Promise<SignedIn>;
+}
+
+/** The `signIn` fixture, for a spec's helper that signs someone in. */
+export type SignIn = JourneyFixtures['signIn'];
+
+/** The journeys' `test`: the fixtures above, each undone in the test's own teardown. */
+export const test = base.extend<JourneyFixtures>({
+  memberLanguage: async ({ browser }, use) => {
+    // The language each member had before this test, kept once per member and workspace.
+    const replaced = new Map<string, { userId: string; org: string; locale: string }>();
+    await use(async (userId, org, lang) => {
+      const locale = await saveMemberLocale(browser, userId, org, SAVED_LOCALE[lang]);
+      const key = `${userId} ${org}`;
+      if (!replaced.has(key)) replaced.set(key, { userId, org, locale });
+    });
+    const failures: unknown[] = [];
+    for (const { userId, org, locale } of replaced.values()) {
+      await saveMemberLocale(browser, userId, org, locale).catch((error: unknown) => {
+        failures.push(error);
+      });
+    }
+    if (failures.length > 0) throw failures[0];
+  },
+  signIn: async ({ browser, memberLanguage }, use) => {
+    const open = new Set<BrowserContext>();
+    await use(async (userId, options = {}) => {
+      if (options.member) await memberLanguage(userId, options.member.org, options.member.lang);
+      const phone = options.phone === true ? PHONE_390 : options.phone;
+      const context = await browser.newContext(
+        phone ? { viewport: phone, hasTouch: true, isMobile: true } : {},
+      );
+      open.add(context);
+      await context.addInitScript((slugs: readonly string[]) => {
+        for (const slug of slugs) {
+          window.localStorage.setItem(`tm-coach:${slug}:never`, 'true');
+          // The automatic-timer panel opens by itself once on a first home visit; mark it asked.
+          window.localStorage.setItem(`tm.autotimer.asked.${slug}`, '1');
+        }
+      }, SEEDED_SLUGS);
+      const headers = await startSession(context, userId);
+      return {
+        context,
+        page: await context.newPage(),
+        headers,
+        close: async () => {
+          open.delete(context);
+          await context.close();
+        },
+      };
+    });
+    for (const context of open) await context.close();
+  },
+});
 
 /** The Platform admin step-up: password only (`platform-settings-journeys.spec.ts`'s shape). */
 export async function platformStepUp(page: Page, password: string): Promise<void> {

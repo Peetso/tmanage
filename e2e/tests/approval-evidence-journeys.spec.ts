@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { API_URL, forgeApprovalRecord, seedApprovalFixture } from '../setup/stack.js';
 import {
@@ -7,7 +7,7 @@ import {
   expectLanguage,
   inLang,
   seedWorld,
-  signedIn,
+  test,
   word,
 } from '../setup/journey-kit.js';
 import type { Lang } from '../setup/journey-kit.js';
@@ -68,7 +68,7 @@ async function check(page: Page, lang: Lang, recordId: string, fingerprint: stri
 for (const lang of LANGS) {
   test.describe.serial(`approval evidence and verify [${lang}]`, () => {
     test(`EV-01 [${lang}]: a decided approval's evidence downloads and its record checks genuine`, async ({
-      browser,
+      signIn,
     }) => {
       test.setTimeout(240_000);
       const { northstar } = world();
@@ -82,7 +82,7 @@ for (const lang of LANGS) {
       });
 
       // Lina decides one review the way her phone does: the waiting row's version, approve.
-      const lina = await signedIn(browser, northstar.designer.id, {
+      const lina = await signIn(northstar.designer.id, {
         member: { org: NORTHSTAR, lang },
       });
       const base = `${API_URL}/v1/organizations/${NORTHSTAR}`;

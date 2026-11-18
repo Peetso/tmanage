@@ -1,7 +1,7 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
 import { API_URL } from '../setup/stack.js';
-import { LANGS, expectLanguage, inLang, seedWorld, signedIn, word } from '../setup/journey-kit.js';
+import { LANGS, expectLanguage, inLang, seedWorld, test, word } from '../setup/journey-kit.js';
 
 /**
  * TESTE2E (pass 2026-11-18) — a workspace's own data, in English and in Arabic:
@@ -43,10 +43,10 @@ function noticePattern(text: string): RegExp {
 for (const lang of LANGS) {
   test.describe(`workspace data [${lang}]`, () => {
     test(`WD-01 [${lang}]: an owner exports a project and finds Import; a member sees neither`, async ({
-      browser,
+      signIn,
     }) => {
       test.setTimeout(240_000);
-      const owner = await signedIn(browser, world().northstar.owner.id, {
+      const owner = await signIn(world().northstar.owner.id, {
         member: { org: NORTHSTAR, lang },
       });
       const { page } = owner;
@@ -81,7 +81,7 @@ for (const lang of LANGS) {
       await owner.close();
 
       // A member: no export right, no import right — neither control is drawn.
-      const member = await signedIn(browser, world().northstar.designer.id, {
+      const member = await signIn(world().northstar.designer.id, {
         member: { org: NORTHSTAR, lang },
       });
       await member.page.goto(inLang(`/${NORTHSTAR}/projects/${world().northstar.projectId}`, lang));
@@ -99,10 +99,10 @@ for (const lang of LANGS) {
     });
 
     test(`WD-02 [${lang}]: the storage card climbs through its 70 / 85 / 95 / 100 % notices`, async ({
-      browser,
+      signIn,
     }) => {
       test.setTimeout(240_000);
-      const owner = await signedIn(browser, world().twin.owner.id, { member: { org: TWIN, lang } });
+      const owner = await signIn(world().twin.owner.id, { member: { org: TWIN, lang } });
       const { page, context, headers } = owner;
       const reserved: string[] = [];
       let used = 0;
@@ -166,9 +166,9 @@ for (const lang of LANGS) {
     });
 
     test(`WD-03 [${lang}]: "Send me tips" turns off, survives a reload, and turns back on`, async ({
-      browser,
+      signIn,
     }) => {
-      const member = await signedIn(browser, world().northstar.designer.id, {
+      const member = await signIn(world().northstar.designer.id, {
         member: { org: NORTHSTAR, lang },
       });
       const { page } = member;

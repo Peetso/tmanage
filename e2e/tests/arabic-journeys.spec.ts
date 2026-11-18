@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import type { Browser, BrowserContext, Locator, Page, Response } from '@playwright/test';
+import { expectLanguage, test } from '../setup/journey-kit.js';
 import { API_URL, WEB_URL } from '../setup/stack.js';
 
 /**
@@ -9,8 +10,11 @@ import { API_URL, WEB_URL } from '../setup/stack.js';
  * document reads right-to-left, the screen's own labels are Arabic, and nothing of the English
  * catalogue is left on it.
  *
- * - **AR-01** — the switch is the website footer's "English · العربية", the one a signed-out
- *   person actually has; every later screen is reached with the choice it saved, never `?lang=`.
+ * - **AR-01** — a member whose saved display language is Arabic, on a new device: the website
+ *   footer's "English · العربية" (the switch a signed-out person has) leads to the Arabic sign-in,
+ *   and every screen after it is Arabic, reached without `?lang=`.
+ * - **AR-01b** — R25 A6, the saved display language wins: a member who saved English signs in
+ *   through the same Arabic page and keeps English.
  *
  * "No English leftovers" is checked mechanically, not by a list of strings that would rot: every
  * visible text node and every `aria-label`/`placeholder`/`title`/`alt` on the screen is read, and
@@ -222,47 +226,63 @@ const REQUEST_TITLE = 'تحديث قائمة الخدمات على الموقع'
 const CHANNEL_NAME = `قناة-الإطلاق-${Date.now()}`;
 const MESSAGE = 'سنراجع التصميم مع العميل يوم الخميس.';
 
+/**
+ * A signed-out visitor switches the website to Arabic in the footer and signs in as `userId`
+ * through the Arabic sign-in screen, which is read like every other Arabic screen. Ends on the
+ * workspace's home; returns the API watch that started with the sign-in.
+ */
+async function signInThroughArabicPage(
+  page: Page,
+  userId: string,
+): Promise<{ readonly settle: () => Promise<Set<string>> }> {
+  // The switch: the website footer's "العربية". The page mirrors without a reload.
+  await page.goto('/');
+  // The switch is a client button: on a cold `next dev` a click before hydration does nothing.
+  await page.waitForLoadState('networkidle');
+  await page
+    .locator('.tm-web-footer__lang--desktop')
+    .getByRole('button', { name: 'العربية' })
+    .click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+
+  // Sign-in, in Arabic, through the screen.
+  let watch = watchApiData(page);
+  await page.goto('/sign-in');
+  await expect(page.getByRole('heading', { name: 'تسجيل الدخول' })).toBeVisible();
+  await expectArabicScreen(page, 'sign-in', watch, page.locator('h1').first());
+  const disclosure = page.getByText('دخول للتطوير — بدون تحقق من الهوية');
+  await expect(disclosure).toBeVisible();
+  if (!(await page.getByLabel('معرّف المستخدم').isVisible())) await disclosure.click();
+  await expect(page.getByLabel('معرّف المستخدم')).toBeEnabled();
+  await page.getByLabel('معرّف المستخدم').fill(userId);
+  watch = watchApiData(page);
+  await page.getByRole('button', { name: 'بدء جلسة تطوير' }).click();
+
+  // Home: from the picker when the person has more than one workspace, else straight there.
+  await expect(page).toHaveURL(/\/(organizations|northstar-studio\/home)$/);
+  if (/\/organizations$/.test(page.url())) {
+    await page.locator(`a[href^="/${ORG}/"]`).first().click();
+    await expect(page).toHaveURL(new RegExp(`/${ORG}/`));
+  }
+  if (!/\/northstar-studio\/home$/.test(page.url())) {
+    watch = watchApiData(page);
+    await page.goto(`/${ORG}/home`);
+  }
+  return watch;
+}
+
 test.describe('the Arabic journey', () => {
-  test('AR-01: a person switches to Arabic and walks sign-in, home, work, chat and a request in it', async ({
+  test('AR-01: a member who saved Arabic signs in on the Arabic page and walks home, work, chat and a request in it', async ({
     browser,
+    memberLanguage,
   }) => {
     await clientFilesRequest(browser, REQUEST_TITLE);
+    await memberLanguage(world().northstar.owner.id, ORG, 'ar');
 
     const context = await browser.newContext();
     try {
       const page = await context.newPage();
-
-      // The switch: the website footer's "العربية". The page mirrors without a reload.
-      await page.goto('/');
-      await page
-        .locator('.tm-web-footer__lang--desktop')
-        .getByRole('button', { name: 'العربية' })
-        .click();
-      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-
-      // Sign-in, in Arabic, through the screen.
-      let watch = watchApiData(page);
-      await page.goto('/sign-in');
-      await expect(page.getByRole('heading', { name: 'تسجيل الدخول' })).toBeVisible();
-      await expectArabicScreen(page, 'sign-in', watch, page.locator('h1').first());
-      const disclosure = page.getByText('دخول للتطوير — بدون تحقق من الهوية');
-      await expect(disclosure).toBeVisible();
-      if (!(await page.getByLabel('معرّف المستخدم').isVisible())) await disclosure.click();
-      await expect(page.getByLabel('معرّف المستخدم')).toBeEnabled();
-      await page.getByLabel('معرّف المستخدم').fill(world().northstar.owner.id);
-      watch = watchApiData(page);
-      await page.getByRole('button', { name: 'بدء جلسة تطوير' }).click();
-
-      // Home: from the picker when the person has more than one workspace, else straight there.
-      await expect(page).toHaveURL(/\/(organizations|northstar-studio\/home)$/);
-      if (/\/organizations$/.test(page.url())) {
-        await page.locator(`a[href^="/${ORG}/"]`).first().click();
-        await expect(page).toHaveURL(new RegExp(`/${ORG}/`));
-      }
-      if (!/\/northstar-studio\/home$/.test(page.url())) {
-        watch = watchApiData(page);
-        await page.goto(`/${ORG}/home`);
-      }
+      let watch = await signInThroughArabicPage(page, world().northstar.owner.id);
       const nav = page.getByRole('navigation').first();
       await expectArabicScreen(page, 'home', watch, nav);
 
@@ -290,7 +310,10 @@ test.describe('the Arabic journey', () => {
       expect(posted.ok(), await posted.text()).toBe(true);
       watch = watchApiData(page);
       await page.goto(`/${ORG}/chat/${conversationId}`);
-      await expect(page.getByText(MESSAGE)).toBeVisible();
+      // In the channel's message list (the channel row in the list previews it too).
+      await expect(
+        page.getByLabel(arabicMessage('ProjectChannelScreen.messagesListAria')).getByText(MESSAGE),
+      ).toBeVisible();
       await expectArabicScreen(page, 'chat', watch, nav);
 
       // A client request, opened from the studio's request list.
@@ -299,6 +322,30 @@ test.describe('the Arabic journey', () => {
       await page.getByRole('link', { name: REQUEST_TITLE }).first().click();
       await expect(page.getByRole('heading', { name: REQUEST_TITLE }).first()).toBeVisible();
       await expectArabicScreen(page, 'request', watch, nav);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('AR-01b: a member who saved English keeps English after signing in on the Arabic page (R25 A6)', async ({
+    browser,
+    memberLanguage,
+  }) => {
+    await memberLanguage(world().northstar.owner.id, ORG, 'en');
+
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      await signInThroughArabicPage(page, world().northstar.owner.id);
+      const nav = page.getByRole('navigation').first();
+      await expectLanguage(page, 'en');
+      await expect(nav).toBeVisible();
+      await expect(nav, 'home: English labels').not.toContainText(/[؀-ۿ]/u);
+
+      // The saved language also rewrote the device's choice: the next load starts in English.
+      await page.reload();
+      await expectLanguage(page, 'en');
+      await expect(nav, 'after a reload: English labels').not.toContainText(/[؀-ۿ]/u);
     } finally {
       await context.close();
     }

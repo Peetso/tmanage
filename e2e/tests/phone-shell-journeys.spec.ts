@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
-import { signedIn } from '../setup/journey-kit.js';
+import { test } from '../setup/journey-kit.js';
 
 /**
  * The phone shell (audit 2026-10-25b, gap 8 — "23 Mobile proof"): one member, on a 375px phone,
@@ -116,12 +116,12 @@ const DESTINATIONS = [
 for (const lang of ['en', 'ar'] as const) {
   test.describe(`the phone shell [${lang}]`, () => {
     test(`PH-01..03 [${lang}]: tab bar, More sheet and quick capture carry a member around at 375px`, async ({
-      browser,
+      signIn,
     }) => {
       // The journey opens every More tile (14+ routes); on a cold `next dev` each first visit
       // compiles, which alone outgrows the 120 s default.
       test.setTimeout(300_000);
-      const owner = await signedIn(browser, world().northstar.owner.id, {
+      const owner = await signIn(world().northstar.owner.id, {
         phone: PHONE,
         member: { org: ORG, lang },
       });

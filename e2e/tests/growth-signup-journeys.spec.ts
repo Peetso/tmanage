@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import type { Browser, Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { API_URL, ageOrganization } from '../setup/stack.js';
 import {
   LANGS,
@@ -8,10 +8,10 @@ import {
   inLang,
   platformStepUp,
   seedWorld,
-  signedIn,
+  test,
   word,
 } from '../setup/journey-kit.js';
-import type { Lang } from '../setup/journey-kit.js';
+import type { Lang, SignIn } from '../setup/journey-kit.js';
 
 /**
  * TESTE2E (pass 2026-11-18) — the ways a company arrives, and the one question it is asked later,
@@ -96,8 +96,8 @@ async function signUp(page: Page, lang: Lang, company: string): Promise<SignUpSe
  * Billing mode through the Platform admin page, as E2E-PA10-01 does: the switch needs the
  * password step-up, which only the page's own requests carry.
  */
-async function setBillingMode(browser: Browser, mode: 'paid' | 'beta_free'): Promise<void> {
-  const admin = await signedIn(browser, world().platformAdmin.id);
+async function setBillingMode(signIn: SignIn, mode: 'paid' | 'beta_free'): Promise<void> {
+  const admin = await signIn(world().platformAdmin.id);
   const { page } = admin;
   await page.goto('/platform/settings');
   await platformStepUp(page, world().platformAdmin.password);
@@ -158,9 +158,10 @@ for (const lang of LANGS) {
 
     test(`GR-02 [${lang}]: with billing Paid, a plan's call to action carries ?plan= through sign-up`, async ({
       browser,
+      signIn,
     }) => {
       test.setTimeout(300_000);
-      await setBillingMode(browser, 'paid');
+      await setBillingMode(signIn, 'paid');
       try {
         const context = await browser.newContext();
         const page = await context.newPage();
@@ -184,15 +185,16 @@ for (const lang of LANGS) {
         );
         await context.close();
       } finally {
-        await setBillingMode(browser, 'beta_free');
+        await setBillingMode(signIn, 'beta_free');
       }
     });
 
     test(`GR-03 [${lang}]: a company signs up through the owner's invite link and is listed`, async ({
       browser,
+      signIn,
     }) => {
       test.setTimeout(240_000);
-      const owner = await signedIn(browser, world().northstar.owner.id, {
+      const owner = await signIn(world().northstar.owner.id, {
         member: { org: NORTHSTAR, lang },
       });
       await owner.page.goto(inLang(`/${NORTHSTAR}/admin/invite-agencies`, lang));
@@ -225,7 +227,7 @@ for (const lang of LANGS) {
       await owner.close();
 
       // Not the owner: no link to hand out.
-      const manager = await signedIn(browser, world().northstar.manager.id, {
+      const manager = await signIn(world().northstar.manager.id, {
         member: { org: NORTHSTAR, lang },
       });
       await manager.page.goto(inLang(`/${NORTHSTAR}/admin/invite-agencies`, lang));
@@ -236,7 +238,7 @@ for (const lang of LANGS) {
     });
 
     test(`GR-04 [${lang}]: after 14 days the owner is asked once what they would pay; never a client`, async ({
-      browser,
+      signIn,
     }) => {
       test.setTimeout(240_000);
       // English asks Northstar's owner (and answers); Arabic the twin's (and skips).
@@ -251,7 +253,7 @@ for (const lang of LANGS) {
       const question = word(lang, 'PricingSurvey.question');
 
       // A workspace created today: its owner is not asked yet.
-      const young = await signedIn(browser, world().brightops.owner.id, {
+      const young = await signIn(world().brightops.owner.id, {
         member: { org: 'brightops-consulting', lang },
       });
       await young.page.goto(inLang('/brightops-consulting/home', lang));
@@ -261,7 +263,7 @@ for (const lang of LANGS) {
       await young.close();
 
       await ageOrganization(databaseUrl(), organizationId, 15);
-      const asked = await signedIn(browser, owner.id, { member: { org: slug, lang } });
+      const asked = await signIn(owner.id, { member: { org: slug, lang } });
       const { page } = asked;
       await page.goto(inLang(`/${slug}/home`, lang));
       await expectLanguage(page, lang);
@@ -295,7 +297,7 @@ for (const lang of LANGS) {
 
       if (lang === 'en') {
         // A manager of the same (old enough) workspace is not asked.
-        const manager = await signedIn(browser, world().northstar.manager.id);
+        const manager = await signIn(world().northstar.manager.id);
         const answer = await manager.context.request.get(
           `${API_URL}/v1/organizations/${NORTHSTAR}/pricing-survey`,
         );
@@ -307,7 +309,7 @@ for (const lang of LANGS) {
       }
 
       // A client, never: the API refuses them and their portal has no such card.
-      const client = await signedIn(browser, world().atlas.admin.id);
+      const client = await signIn(world().atlas.admin.id);
       const refused = await client.context.request.get(
         `${API_URL}/v1/organizations/${NORTHSTAR}/pricing-survey`,
       );

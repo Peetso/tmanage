@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { API_URL } from '../setup/stack.js';
-import { LANGS, expectLanguage, inLang, seedWorld, signedIn, word } from '../setup/journey-kit.js';
+import { LANGS, expectLanguage, inLang, seedWorld, test, word } from '../setup/journey-kit.js';
 
 /**
  * TESTE2E (pass 2026-11-18) — MCPEASE: connecting an AI assistant in three steps, and the actions
@@ -33,11 +33,11 @@ function countPattern(text: string, count: number): RegExp {
 
 for (const lang of LANGS) {
   test(`AI-01 [${lang}]: three steps connect an assistant, and its waiting action is counted and declined`, async ({
-    browser,
     request,
+    signIn,
   }) => {
     test.setTimeout(240_000);
-    const owner = await signedIn(browser, world().twin.owner.id, { member: { org: TWIN, lang } });
+    const owner = await signIn(world().twin.owner.id, { member: { org: TWIN, lang } });
     const { page, context, headers } = owner;
     const base = `${API_URL}/v1/organizations/${TWIN}`;
 

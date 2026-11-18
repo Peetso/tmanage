@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { LANGS, expectLanguage, inLang, seedWorld, signedIn, word } from '../setup/journey-kit.js';
+import { expect } from '@playwright/test';
+import { LANGS, expectLanguage, inLang, seedWorld, test, word } from '../setup/journey-kit.js';
 
 /**
  * TESTE2E (pass 2026-11-18) — EMPTY2 / EMPTY3: one teaching empty state per area, in English and
@@ -134,11 +134,11 @@ const PORTAL: Area = {
 
 for (const lang of LANGS) {
   test(`TE-01 [${lang}]: every workspace area teaches what its empty list is for`, async ({
-    browser,
+    signIn,
   }) => {
     // Thirteen screens, each compiled on its first visit by a cold `next dev`.
     test.setTimeout(600_000);
-    const owner = await signedIn(browser, world().twin.owner.id, { member: { org: TWIN, lang } });
+    const owner = await signIn(world().twin.owner.id, { member: { org: TWIN, lang } });
     const { page } = owner;
     for (const area of AREAS) {
       await test.step(`${area.area}: ${area.path}`, async () => {
@@ -157,8 +157,8 @@ for (const lang of LANGS) {
     await owner.close();
   });
 
-  test(`TE-02 [${lang}]: the client portal teaches its empty updates`, async ({ browser }) => {
-    const client = await signedIn(browser, world().meridian.reviewer.id);
+  test(`TE-02 [${lang}]: the client portal teaches its empty updates`, async ({ signIn }) => {
+    const client = await signIn(world().meridian.reviewer.id);
     const { page } = client;
     await page.goto(inLang(PORTAL.path, lang));
     await expectLanguage(page, lang);

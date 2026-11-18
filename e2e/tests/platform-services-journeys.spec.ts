@@ -1,15 +1,14 @@
-import { expect, test } from '@playwright/test';
-import type { Browser } from '@playwright/test';
+import { expect } from '@playwright/test';
 import {
   LANGS,
   expectLanguage,
   inLang,
   platformStepUp,
   seedWorld,
-  signedIn,
+  test,
   word,
 } from '../setup/journey-kit.js';
-import type { Lang, SignedIn } from '../setup/journey-kit.js';
+import type { Lang, SignIn, SignedIn } from '../setup/journey-kit.js';
 
 /**
  * TESTE2E (pass 2026-11-18) — the Platform admin's service cards, in English and in Arabic:
@@ -39,8 +38,8 @@ interface World {
 const NORTHSTAR = 'northstar-studio';
 const world = (): World => seedWorld<World>();
 
-async function openPlatform(browser: Browser, path: string, lang: Lang): Promise<SignedIn> {
-  const admin = await signedIn(browser, world().platformAdmin.id);
+async function openPlatform(signIn: SignIn, path: string, lang: Lang): Promise<SignedIn> {
+  const admin = await signIn(world().platformAdmin.id);
   await admin.page.goto(inLang(path, lang));
   await platformStepUp(admin.page, world().platformAdmin.password);
   await expectLanguage(admin.page, lang);
@@ -50,10 +49,10 @@ async function openPlatform(browser: Browser, path: string, lang: Lang): Promise
 for (const lang of LANGS) {
   test.describe.serial(`platform services [${lang}]`, () => {
     test(`PS-01 [${lang}]: GitHub switched off reads "Paused by TManage" in a workspace, then on again`, async ({
-      browser,
+      signIn,
     }) => {
       test.setTimeout(240_000);
-      const admin = await openPlatform(browser, '/platform/settings', lang);
+      const admin = await openPlatform(signIn, '/platform/settings', lang);
       const github = word(lang, 'platformServices.github');
       await expect(
         admin.page.getByRole('heading', { name: word(lang, 'platformServices.title') }),
@@ -72,7 +71,7 @@ for (const lang of LANGS) {
         await expect(dialog).toHaveCount(0);
       };
 
-      const owner = await signedIn(browser, world().northstar.owner.id, {
+      const owner = await signIn(world().northstar.owner.id, {
         member: { org: NORTHSTAR, lang },
       });
       try {
@@ -112,8 +111,8 @@ for (const lang of LANGS) {
       await admin.context.close();
     });
 
-    test(`PS-02 [${lang}]: the overview draws the Server capacity card`, async ({ browser }) => {
-      const admin = await openPlatform(browser, '/platform/settings', lang);
+    test(`PS-02 [${lang}]: the overview draws the Server capacity card`, async ({ signIn }) => {
+      const admin = await openPlatform(signIn, '/platform/settings', lang);
       await admin.page.goto(inLang('/platform', lang));
       await expectLanguage(admin.page, lang);
       await expect(
@@ -131,9 +130,9 @@ for (const lang of LANGS) {
     });
 
     test(`PS-03 [${lang}]: an operator adds an e-mail person, who appears signing e-mails`, async ({
-      browser,
+      signIn,
     }) => {
-      const admin = await openPlatform(browser, '/platform/settings', lang);
+      const admin = await openPlatform(signIn, '/platform/settings', lang);
       const { page } = admin;
       await expect(
         page.getByRole('heading', { name: word(lang, 'PlatformMailPeople.title') }),
