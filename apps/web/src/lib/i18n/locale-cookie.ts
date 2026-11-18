@@ -9,7 +9,9 @@ import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences'
  * already (B17, `server-html-attributes.ts`), so a dynamic page's first HTML has the right
  * `<html lang dir>`; `cookies()` in every render would make every route dynamic and stop the public
  * pages being prerendered and CDN-cached (release no-go 70645c82), so on those pages the locale is
- * still set in the browser before the first paint.
+ * still set in the browser before the first paint. The one exception is Arabic on a page with an
+ * Arabic twin: `src/proxy.ts` sends that request to the twin (`saved-arabic-redirect.ts`), which is
+ * prerendered in Arabic, so its words are right in the first paint too.
  *
  * The cookie is a display preference, not a credential: readable by the page (not HttpOnly, so the
  * boot script and the store can agree with it), `SameSite=Lax`, one year, `Secure` on https. Its

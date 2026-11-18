@@ -124,13 +124,16 @@ describe('the root layout stays static (public pages prerendered)', () => {
   it('has no request proxy left over from the server render', () => {
     expect(existsSync(LAYOUT_SOURCE)).toBe(true);
     expect(existsSync(join(SRC, 'middleware.ts'))).toBe(false);
-    // 56-01's `proxy.ts` sets the CSP nonce headers; it must never pick a locale (read the
-    // cookie, rewrite or redirect) — that is what the removed server-locale proxy did. Its allowed
-    // rewrites are AGENTREADY's `Accept: text/markdown` answer (the page's Markdown twin,
-    // `markdownPathFor`) and NOTFOUND's prerendered 404 page (`notFoundPage`, chosen by path);
-    // neither picks a locale. Its one redirect is PLATFORMFIX's signed-out request for a
-    // signed-in area (`signedOutAreaRedirect`) to sign-in. Its one cookie read is `sessionHint`:
-    // whether the CSRF cookie is present (`request.cookies.has`), never a value.
+    // 56-01's `proxy.ts` sets the CSP nonce headers; it must never render a page in a locale
+    // (hand the saved locale to the render, or rewrite by it) — that is what the removed
+    // server-locale proxy did, and it made every route dynamic. Its allowed rewrites are
+    // AGENTREADY's `Accept: text/markdown` answer (the page's Markdown twin, `markdownPathFor`)
+    // and NOTFOUND's prerendered 404 page (`notFoundPage`, chosen by path); neither picks a
+    // locale. Its redirects are PLATFORMFIX's signed-out request for a signed-in area
+    // (`signedOutAreaRedirect`) to sign-in, and LIVEFIX's saved-Arabic visitor to the Arabic twin
+    // (`savedArabicRedirect`): another address, itself prerendered, so no page turns dynamic. Its
+    // cookie reads are `sessionHint` — whether the CSRF cookie is present (`request.cookies.has`),
+    // never a value — and the one `Cookie` header that Arabic redirect is decided from.
     const proxy = join(SRC, 'proxy.ts');
     if (existsSync(proxy)) {
       const source = readFileSync(proxy, 'utf8');
@@ -141,13 +144,17 @@ describe('the root layout stays static (public pages prerendered)', () => {
         expect(use).toMatch(/^\.cookies\.has\(name\), request\.headers\.get\('host'\)\)[,;]?$/);
       }
       expect(source).toMatch(/sessionHint\(\(name\) => request\.cookies\.has\(name\)/);
-      const redirects = source.match(/NextResponse\.redirect\([^,]*/g) ?? [];
-      for (const redirect of redirects) {
-        expect(redirect).toBe('NextResponse.redirect(new URL(signIn');
-      }
-      expect(redirects.length === 0 || /const signIn = signedOutAreaRedirect\(/.test(source)).toBe(
-        true,
+      expect(source.match(/headers\.get\('cookie'\)/gi) ?? []).toHaveLength(1);
+      expect(source).toMatch(
+        /savedArabicRedirect\(\s*request\.nextUrl\.pathname,\s*request\.nextUrl\.search,\s*request\.headers\.get\('cookie'\),\s*\)/,
       );
+      const redirects = source.match(/NextResponse\.redirect\([^,]*/g) ?? [];
+      expect([...redirects].sort()).toEqual([
+        'NextResponse.redirect(new URL(signIn',
+        'NextResponse.redirect(new URL(target',
+      ]);
+      expect(source).toMatch(/const signIn = signedOutAreaRedirect\(/);
+      expect(source).toMatch(/const target = savedArabicRedirect\(/);
       const rewrites = source.match(/NextResponse\.rewrite\([^,]*/g) ?? [];
       for (const rewrite of rewrites) {
         expect(rewrite).toMatch(

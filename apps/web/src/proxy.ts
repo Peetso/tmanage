@@ -9,6 +9,7 @@ import {
   hasArabicTwin,
   isArabicPublicPath,
 } from './lib/i18n/public-locale-routes';
+import { savedArabicRedirect } from './lib/i18n/saved-arabic-redirect';
 import { markdownPathFor, prefersMarkdown, publicPageLinkHeader } from './lib/markdown-negotiation';
 import { rememberSignupAttribution } from './lib/signup-attribution-cookie';
 import { publicNotFoundPage } from './lib/public-not-found';
@@ -69,6 +70,10 @@ export function proxy(request: NextRequest): NextResponse {
   // PLATFORMFIX: a signed-out request for a signed-in area (Platform admin above all) is sent to
   // sign-in here, before any of the area's shell is rendered.
   const signIn = signedOutAreaRedirect(request.nextUrl.pathname, hasSession);
+  // LIVEFIX: a saved-Arabic visitor on an English public address is sent to its Arabic twin, so
+  // the first paint is Arabic rather than English laid out right to left.
+  const arabicTwin =
+    signIn === undefined && notFoundPage === undefined ? arabicTwinRedirect(request) : undefined;
   // `next dev` renders every page per request; a stale build's manifest must not count there.
   const pageHashes = development
     ? undefined
@@ -91,15 +96,37 @@ export function proxy(request: NextRequest): NextResponse {
   const response =
     signIn !== undefined
       ? NextResponse.redirect(new URL(signIn, request.url), 307)
-      : notFoundPage === undefined
-        ? publicPageResponse(request, requestHeaders)
-        : NextResponse.rewrite(new URL(notFoundPage, request.url), {
-            status: 404,
-            request: { headers: requestHeaders },
-          });
+      : (arabicTwin ??
+        (notFoundPage === undefined
+          ? publicPageResponse(request, requestHeaders)
+          : NextResponse.rewrite(new URL(notFoundPage, request.url), {
+              status: 404,
+              request: { headers: requestHeaders },
+            })));
   // `append`: in report-only mode `content-security-policy` carries the enforced frame-ancestors
   // stand-in; appending never overwrites a header Next or next.config.ts already set.
   for (const [name, value] of headers.response) response.headers.append(name, value);
+  return response;
+}
+
+/**
+ * The 307 to the Arabic twin for a page request whose saved (or `?lang=`) language is Arabic
+ * (`lib/i18n/saved-arabic-redirect.ts`), or `undefined`. A request for Markdown keeps the English
+ * address (`publicPageResponse`). The answer depends on the cookie, so it varies by `Cookie` and
+ * no shared cache may keep it for another visitor.
+ */
+function arabicTwinRedirect(request: NextRequest): NextResponse | undefined {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return undefined;
+  if (prefersMarkdown(request.headers.get('accept'))) return undefined;
+  const target = savedArabicRedirect(
+    request.nextUrl.pathname,
+    request.nextUrl.search,
+    request.headers.get('cookie'),
+  );
+  if (target === undefined) return undefined;
+  const response = NextResponse.redirect(new URL(target, request.url), 307);
+  response.headers.set('cache-control', 'private, no-store');
+  response.headers.set('vary', 'Cookie');
   return response;
 }
 

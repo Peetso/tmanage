@@ -1,4 +1,9 @@
-import { englishPublicPath, hasArabicTwin, isArabicPublicPath } from './i18n/public-locale-routes';
+import {
+  englishPublicPath,
+  hasArabicPage,
+  hasArabicTwin,
+  isArabicPublicPath,
+} from './i18n/public-locale-routes';
 import { NOT_FOUND_PAGE } from './workspace-gate';
 
 /**
@@ -29,17 +34,11 @@ const ENGLISH_SLUG_SECTIONS = [
 ] as const;
 
 /**
- * Arabic pages with their own route but no listed twin: `/ar/verify` (`app/ar/(site)/verify`),
- * where every Arabic approval certificate points, stays out of the sitemap and hreflang pairs.
- */
-const ARABIC_UNLISTED_PAGES: ReadonlySet<string> = new Set(['/verify']);
-
-/**
  * The prerendered not-found page `pathname` is answered with, or `undefined` when the path is a
  * page that exists (or is not a public website path this knows about).
  *
  * - `/ar` and everything under it: the Arabic not-found page unless the path is the Arabic twin
- *   of an existing page (the catch-all, help, compare, resources, sign-in and sign-up).
+ *   of an existing page (the catch-all, help, compare, resources, sign-in, sign-up and verify).
  * - `/help/<x>`, `/compare/<x>`, `/switch/<x>` and `/alternatives/<x>` (one segment): the English
  *   not-found page unless `<x>` is a published article, comparison, switch or alternative page.
  * - `/website-kit` in production, where the page calls `notFound()`.
@@ -50,9 +49,7 @@ export function publicNotFoundPage(
 ): string | undefined {
   if (isArabicPublicPath(pathname)) {
     const english = englishPublicPath(pathname);
-    return hasArabicTwin(english) || ARABIC_UNLISTED_PAGES.has(english)
-      ? undefined
-      : ARABIC_NOT_FOUND_PAGE;
+    return hasArabicPage(english) ? undefined : ARABIC_NOT_FOUND_PAGE;
   }
   for (const section of ENGLISH_SLUG_SECTIONS) {
     if (!pathname.startsWith(section)) continue;

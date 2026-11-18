@@ -150,6 +150,21 @@ export function hasArabicTwin(path: string | null | undefined): path is string {
   return typeof path === 'string' && WITH_TWIN.has(path);
 }
 
+/**
+ * Pages with an Arabic route of their own but no listed twin: `/ar/verify`
+ * (`app/ar/(site)/verify`), where every Arabic approval certificate points, stays out of the
+ * sitemap and the hreflang pairs, so it is not in {@link hasArabicTwin}'s table.
+ */
+const ARABIC_UNLISTED_PATHS: ReadonlySet<string> = new Set(['/verify']);
+
+/**
+ * True when `path` (no query or hash) has an Arabic page under `/ar`: a listed twin
+ * ({@link hasArabicTwin}) or an unlisted one (`/verify`).
+ */
+export function hasArabicPage(path: string | null | undefined): path is string {
+  return hasArabicTwin(path) || (typeof path === 'string' && ARABIC_UNLISTED_PATHS.has(path));
+}
+
 /** The Arabic twin of any path {@link hasArabicTwin} accepts (`/sign-in` → `/ar/sign-in`). */
 export function arabicTwinPath(path: string): string {
   return path === '/' ? ARABIC_PREFIX : `${ARABIC_PREFIX}${path}`;
@@ -205,8 +220,8 @@ export function localizeHref(href: string): string {
 }
 
 /**
- * Where the language switch goes on `pathname`, or `undefined` to stay (a page without a twin,
- * or already in that language). `?lang=` is dropped — the path now names the language — and the
+ * Where the language switch goes on `pathname`, or `undefined` to stay (a page without an Arabic
+ * page, {@link hasArabicPage}, or already in that language). `?lang=` is dropped — the path now names the language — and the
  * rest of the query and the hash are kept.
  */
 export function languageSwitchTarget(
@@ -218,7 +233,7 @@ export function languageSwitchTarget(
   if (typeof pathname !== 'string') return undefined;
   const arabicNow = isArabicPublicPath(pathname);
   const english = englishPublicPath(pathname);
-  if (!hasArabicTwin(english) || arabicNow === toArabic) return undefined;
+  if (!hasArabicPage(english) || arabicNow === toArabic) return undefined;
   const params = new URLSearchParams(search);
   params.delete('lang');
   const query = params.toString();
