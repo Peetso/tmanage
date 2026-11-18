@@ -607,6 +607,9 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/ar/sign-in': PAGE_OWNS_TITLE,
   '/ar/sign-up': PAGE_OWNS_TITLE,
   '/ar/switch/[slug]': PAGE_OWNS_TITLE,
+  // 52-19: the public verify page, never indexed, sets its own title in each language.
+  '/ar/verify': PAGE_OWNS_TITLE,
+  '/verify': PAGE_OWNS_TITLE,
   '/alternatives': PAGE_OWNS_TITLE,
   '/alternatives/[slug]': PAGE_OWNS_TITLE,
   '/compare': PAGE_OWNS_TITLE,

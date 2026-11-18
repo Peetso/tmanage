@@ -42,6 +42,8 @@ export interface ApprovalRecordEvidence {
 
 /** One sealed decision record and what checking it found — the API's `ApprovalRecordView`. */
 export interface ApprovalRecordView {
+  /** The record's ID — printed on the certificate for the public `/verify` check. */
+  readonly recordId: string;
   readonly recordNo: number;
   readonly recordHash: string;
   readonly previousRecordHash: string;
@@ -142,4 +144,57 @@ export async function downloadRecordPdf(
   anchor.remove();
   URL.revokeObjectURL(objectUrl);
   return true;
+}
+
+/** 52-19 — what a stranger pastes on `/verify`: the printed record ID and record fingerprint. */
+export interface ApprovalRecordVerifyInput {
+  readonly recordId: string;
+  readonly fingerprint: string;
+}
+
+/**
+ * 52-19 — the public verdict, the API's `PublicRecordVerdictView`. A missing ID and a wrong
+ * fingerprint are both `not_found`; the date and decision come only with `genuine`.
+ */
+export interface PublicRecordVerdictView {
+  readonly verdict: 'genuine' | 'not_found' | 'altered';
+  readonly decidedAt: string | null;
+  readonly decision: 'approved' | 'changes_requested' | 'signed' | null;
+  readonly workspaceName: string | null;
+}
+
+/** `POST /v1/public/approval-records/verify` — no session, no CSRF (`@Public()`), POST so the fingerprint is never in a URL. */
+export async function verifyApprovalRecord(
+  client: ApiClient,
+  input: ApprovalRecordVerifyInput,
+): Promise<PublicRecordVerdictView> {
+  const { data } = await client.request<PublicRecordVerdictView>({
+    method: 'POST',
+    path: '/v1/public/approval-records/verify',
+    body: input,
+    authentication: 'none',
+  });
+  return data;
+}
+
+/**
+ * 52-19 — the certificate's link to `/verify`, with the ID and fingerprint in the fragment: a
+ * fragment is never sent to a server, so neither lands in an access log or a referrer.
+ */
+export function approvalRecordVerifyHref(
+  recordId: string,
+  recordHash: string,
+  arabic = false,
+): string {
+  const fragment = new URLSearchParams({ record: recordId, fingerprint: recordHash });
+  return `${arabic ? '/ar' : ''}/verify#${fragment.toString()}`;
+}
+
+/** Read `#record=…&fingerprint=…` back; empty strings when absent. */
+export function readVerifyFragment(hash: string): ApprovalRecordVerifyInput {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  return {
+    recordId: (params.get('record') ?? '').slice(0, 200),
+    fingerprint: (params.get('fingerprint') ?? '').slice(0, 200),
+  };
 }

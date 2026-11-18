@@ -58,6 +58,15 @@ import {
   ApprovalEvidenceController,
 } from './approval-records-evidence.controller.js';
 import { ApprovalEvidenceService } from './approval-records-evidence.service.js';
+import {
+  APPROVAL_RECORD_VERIFY_SERVICE,
+  ApprovalRecordVerifyController,
+} from './approval-record-verify.controller.js';
+import {
+  ApprovalRecordVerifyRepository,
+  findRecordForVerify,
+} from './approval-record-verify.repository.js';
+import { ApprovalRecordVerifyService } from './approval-record-verify.service.js';
 import { VersionStore } from '../files/provider-objects.js';
 import { providerObjectSources } from '../files/provider-object-sources.js';
 
@@ -250,12 +259,26 @@ export class ApprovalsModule {
         ),
     };
 
+    // 52-19 (web half) — the public "is this record genuine?" check behind `/verify`.
+    const recordVerifyService: Provider = {
+      provide: APPROVAL_RECORD_VERIFY_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new ApprovalRecordVerifyService(
+          database,
+          findRecordForVerify(database),
+          new ApprovalRecordVerifyRepository(),
+          new ApprovalRecordsRepository(),
+        ),
+    };
+
     return {
       module: ApprovalsModule,
       providers: [
         service,
         certificatePdfService,
         evidenceService,
+        recordVerifyService,
         delegationService,
         stepsService,
         deliverablesService,
@@ -271,6 +294,7 @@ export class ApprovalsModule {
         ExternalApprovalsController,
         ApprovalCertificatePdfController,
         ApprovalEvidenceController,
+        ApprovalRecordVerifyController,
       ],
     };
   }

@@ -60,6 +60,7 @@ function view(): ApprovalCertificateView {
     intact: true,
     records: [
       {
+        recordId: '0190a000-0000-7000-8000-00000000c0de',
         recordNo: 1,
         recordHash: sealed.recordHash,
         previousRecordHash: recordGenesisHash(ORG),

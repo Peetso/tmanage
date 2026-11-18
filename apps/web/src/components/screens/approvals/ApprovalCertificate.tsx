@@ -8,6 +8,7 @@ import { browserApiClient } from '../../../lib/api/browser-client';
 import {
   approvalEvidenceZipPath,
   approvalRecordPdfPath,
+  approvalRecordVerifyHref,
   getApprovalRecord,
   getPortalApprovalRecord,
   portalApprovalRecordPdfPath,
@@ -28,6 +29,8 @@ import { FIXTURE_CLIENT_NAME, FIXTURE_ORGANIZATION_NAME } from '../../../lib/fix
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useT } from '../../../lib/i18n/use-t';
 import { useTOr } from '../../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
+import { useHydrated } from '../../../lib/use-hydrated';
 import { PdfDownloadButton } from './PdfDownloadButton';
 import '../../../styles/screens/approval-record.css';
 
@@ -48,8 +51,8 @@ interface SheetProps {
 /**
  * 52-19 (Figma 605:34269 / AR 605:34313): the printable approval record — an A4 sheet styled for
  * print, printed by the browser (`window.print`), plus the server's sealed PDF (52-19, "Download
- * PDF", offered only while the record verifies). No public verify link and no certificate number:
- * neither exists yet, so neither is shown.
+ * PDF", offered only while the record verifies), and the public check: the decisive record's ID,
+ * its fingerprint (the record hash) and the `/verify` link carrying both in its fragment.
  */
 export function ApprovalRecordSheet({
   view,
@@ -69,6 +72,15 @@ export function ApprovalRecordSheet({
   const evidence = summary.decisive?.evidence ?? null;
   const verified = summary.status === 'verified';
   const today = fmt.day(new Date().toISOString());
+  const locale = useActiveLocale();
+  const hydrated = useHydrated();
+  const decisive = summary.decisive;
+  // 52-19: the public check's link; the ID and fingerprint ride in the fragment (never sent on).
+  const verifyHref =
+    decisive === null
+      ? null
+      : approvalRecordVerifyHref(decisive.recordId, decisive.recordHash, locale.startsWith('ar'));
+  const verifyAddress = `${hydrated ? window.location.host : ''}${locale.startsWith('ar') ? '/ar' : ''}/verify`;
 
   const person =
     approverName ??
@@ -196,6 +208,36 @@ export function ApprovalRecordSheet({
                   : t('ApprovalRecord.checkChangedBody').replace('{org}', organizationName)}
               </p>
             </section>
+            {verifyHref !== null && decisive !== null ? (
+              <section className="tm-acert__check" aria-labelledby="tm-acert-verify">
+                <h2 id="tm-acert-verify" className="tm-arec__title">
+                  {tOr('ApprovalRecord.verifyTitle', 'Check this record')}
+                </h2>
+                <p className="tm-acert__body">
+                  {tOr(
+                    'ApprovalRecord.verifyBody',
+                    'Anyone can check this record without an account at',
+                  )}{' '}
+                  <a href={verifyHref} dir="ltr">
+                    {verifyAddress}
+                  </a>
+                </p>
+                <dl className="tm-acert__grid">
+                  <div className="tm-acert__wide">
+                    <dt>{tOr('ApprovalRecord.recordId', 'Record ID')}</dt>
+                    <dd className="tm-acert__mono" dir="ltr">
+                      {decisive.recordId}
+                    </dd>
+                  </div>
+                  <div className="tm-acert__wide">
+                    <dt>{tOr('ApprovalRecord.recordFingerprint', 'Record fingerprint')}</dt>
+                    <dd className="tm-acert__mono" dir="ltr">
+                      {groupedFingerprint(decisive.recordHash)}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            ) : null}
             {view.records.length > 1 ? (
               <section aria-labelledby="tm-acert-history">
                 <h2 id="tm-acert-history" className="tm-arec__title">

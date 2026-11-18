@@ -18,7 +18,7 @@ const view = (ok: boolean) =>
     decidedAt: null,
     records: [
       {
-        ...{ recordNo: 4, recordHash: H, previousRecordHash: H, signed: true },
+        ...{ recordId: 'r4', recordNo: 4, recordHash: H, previousRecordHash: H, signed: true },
         verification: { hashValid: ok, chainValid: true, signatureValid: ok },
         evidence: {
           ...{ ...evidence, ...ids, deliverableVersionId: 'v3', previousRecordHash: H },

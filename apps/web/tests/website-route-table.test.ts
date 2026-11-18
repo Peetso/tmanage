@@ -184,6 +184,12 @@ const ROUTES: Record<string, RouteRow> = {
     title: 'In-house teams',
   },
   '/status': { component: 'StatusScreen', from: 'screens/StatusScreen', title: 'Service status' },
+  // 52-19: the public approval-record check (noindex; its Arabic twin is its own route).
+  '/verify': {
+    component: 'VerifyRecordPage',
+    from: 'website/pages/verify/VerifyRecordPage',
+    title: 'Verify an approval record',
+  },
 };
 
 /** Routes that are not public pages and carry no single page component. */

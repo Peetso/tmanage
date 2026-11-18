@@ -1,0 +1,81 @@
+/*
+ * 52-19 (web half) — Verify this approval record (Figma 714:39384 … 714:39919). Page-only layout:
+ * every value is a Limeframe token (tokens.css) or a website-layer variable; no new colour, font,
+ * radius or shadow. Cards are a quiet line on paper, never a shadow. Logical properties only, so
+ * the Arabic page mirrors without overrides.
+ */
+
+.tm-web-verify__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  max-inline-size: var(--reading);
+  margin-inline: auto;
+}
+
+.tm-web-verify__column .tm-web-eyebrow__dot {
+  display: none;
+}
+
+.tm-web-verify__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-web-verify__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-web-verify__fields .tm-field {
+  inline-size: 100%;
+}
+
+.tm-web-verify__mono .tm-field__control {
+  font-family: var(--font-mono);
+}
+
+.tm-web-verify__status:empty {
+  display: none;
+}
+
+/* Review point 10: the verdict outranks the form (Heading/MD). */
+.tm-web-verify__verdict {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+}
+
+.tm-web-verify__fact {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-950);
+}
+
+/* Review point 10: the time zone after the time, Mono/Caption. */
+.tm-web-verify__zone {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-web-verify__body {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}

@@ -86,7 +86,9 @@ describe('the Arabic route table', () => {
           !HELP_PATHS.includes(route) &&
           !COMPARE_PATHS.includes(route) &&
           !ALTERNATIVE_PATHS.includes(route) &&
-          route !== FACTS_PATH,
+          route !== FACTS_PATH &&
+          // 52-19: /verify is never indexed, so its Arabic twin is its own route, off the table.
+          route !== '/verify',
       )
       .sort();
     expect([...PUBLIC_LOCALIZED_PATHS].sort()).toEqual(english);

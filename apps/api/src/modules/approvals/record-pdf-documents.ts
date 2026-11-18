@@ -82,12 +82,17 @@ function seal(signed: boolean): string {
 }
 
 function recordRows(record: {
+  /** 52-19: the ID the public `/verify` page asks for, beside the record hash. */
+  readonly recordId?: string;
   readonly recordNo: number;
   readonly recordHash: string;
   readonly previousRecordHash: string;
   readonly signed: boolean;
 }): PdfRow[] {
   return [
+    ...(record.recordId === undefined
+      ? []
+      : [{ label: 'Record ID', value: record.recordId, mono: true }]),
     { label: 'Record number', value: String(record.recordNo) },
     { label: 'Record hash (SHA-256)', value: record.recordHash, mono: true },
     { label: 'Previous record hash', value: record.previousRecordHash, mono: true },
@@ -150,6 +155,8 @@ export function certificatePdfDocument(
       'This PDF shows sealed approval records. Each record is attached to this file as ' +
         'record-<number>.json; the SHA-256 of that file is the record hash printed above.',
       CHAIN_NOTE,
+      'Anyone can check a record without an account: open the Verify page on the TManage ' +
+        'website (/verify) and enter its record ID and record hash.',
     ],
     footer: `TManage approval record  /  approval ${view.approvalId}`,
     // A verified record's JSON is canonical, so re-serialising the evidence gives the sealed bytes.

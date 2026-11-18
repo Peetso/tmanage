@@ -125,6 +125,8 @@ export interface ClientDecisionInput {
 
 /** 52-19. One sealed decision record and what checking it found. */
 export interface ApprovalRecordView {
+  /** The record's ID — printed on the certificate for the public `/verify` check. */
+  readonly recordId: string;
   readonly recordNo: number;
   readonly recordHash: string;
   readonly previousRecordHash: string;
@@ -847,6 +849,7 @@ export class ApprovalsService {
     const records = rows.map((row): ApprovalRecordView => {
       const verification = verifyRecord(row, previous.get(row.recordNo - 1) ?? null, this.signer);
       return {
+        recordId: row.id,
         recordNo: row.recordNo,
         recordHash: row.recordHash,
         previousRecordHash: row.previousRecordHash,
