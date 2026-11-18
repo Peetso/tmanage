@@ -1,5 +1,6 @@
 import { PLATFORM_SUPPORT_ROLE, capabilitySetFor, isInternalRole } from '@tmanage/domain';
-import type { Mailer, MailLanguage } from '@tmanage/mail';
+import { MailRecipientSuppressedError, smtpRecipientRefusal } from '@tmanage/mail';
+import type { MailDelivery, Mailer, MailLanguage } from '@tmanage/mail';
 import {
   PERSON_MAIL_CATALOG,
   newsKind,
@@ -26,6 +27,15 @@ import type { SweepLock } from '../common/database/sweep-lock.js';
  * preference "Tips from the TManage team" (`notification_kind_prefs` kind `tips`) and the platform
  * switch "Tips and reminders" stop everything else; a kind whose condition is no longer true is
  * simply never picked again.
+ *
+ * MAILREST — a send that fails after the claim is not lost: the row goes to 'retry' and is sent
+ * again after {@link PERSON_MAIL_BACKOFF_MS} (1 h, 4 h, 12 h), at most
+ * {@link PERSON_MAIL_MAX_ATTEMPTS} attempts in all, then ends 'gave_up'. A failure no retry can fix
+ * (the address is suppressed, or the server refused the recipient) gives up at once. Each attempt
+ * is its own claim (`reclaim`: only the run that moves the row from 'retry' to 'sending' sends),
+ * and a row left at 'sending' is never retried, so a mail is never sent twice. A retry is checked
+ * again before it goes (switch, preference, role, the kind still due) and counts as that member's
+ * one mail of the run.
  */
 
 export const PERSON_MAIL_BATCH = 100;
@@ -35,6 +45,12 @@ export const NEWS_DELIVERY_DAYS = 14;
 export const AFTER_NEW_DEVICE_ID = 'security:after_new_device';
 const AFTER_NEW_DEVICE_EVERY_DAYS = 30;
 const DAY = 86_400_000;
+const HOUR = 3_600_000;
+/** The wait after attempt n (index n - 1); the claim is attempt 1. */
+export const PERSON_MAIL_BACKOFF_MS: readonly number[] = [HOUR, 4 * HOUR, 12 * HOUR];
+export const PERSON_MAIL_MAX_ATTEMPTS = PERSON_MAIL_BACKOFF_MS.length + 1;
+/** Due retries handled per run, before the round-robin batch. */
+export const PERSON_MAIL_RETRY_BATCH = 25;
 
 /** One active team member of one live workspace. */
 export interface PersonMailCandidate {
@@ -75,9 +91,35 @@ export interface PersonMailStore {
   workspaceFacts(organizationId: string, now: Date): Promise<WorkspaceFactsPart>;
   /** Member facts and state. */
   memberFacts(candidate: PersonMailCandidate, now: Date): Promise<MemberFactsPart>;
-  /** Claim-then-send: true only when this call wrote the log row. */
+  /** Claim-then-send: true only when this call wrote the log row (status 'sending', attempt 1). */
   claim(candidate: PersonMailCandidate, tipId: string, at: Date): Promise<boolean>;
+  /** 'retry' rows due by `now` whose member is still a live candidate, oldest due first. */
+  dueRetries(now: Date, limit: number): Promise<readonly PersonMailRetry[]>;
+  /** Takes a due row back to 'sending' as attempt `attempts + 1`; true only for the one winner. */
+  reclaim(retry: PersonMailRetry, at: Date): Promise<boolean>;
+  /** Ends attempt `attempts` of a 'sending' row. */
+  settle(
+    candidate: PersonMailCandidate,
+    tipId: string,
+    attempts: number,
+    outcome: PersonMailOutcome,
+    at: Date,
+  ): Promise<void>;
 }
+
+/** A tip whose send failed and is due again. */
+export interface PersonMailRetry {
+  readonly candidate: PersonMailCandidate;
+  readonly tipId: string;
+  /** Attempts already started (the claim was the first). */
+  readonly attempts: number;
+}
+
+/** How one attempt ended. `error` is a short, address-free token. */
+export type PersonMailOutcome =
+  | { readonly status: 'sent' }
+  | { readonly status: 'retry'; readonly nextAttemptAt: Date; readonly error: string }
+  | { readonly status: 'gave_up'; readonly error: string };
 
 export type WorkspaceFactsPart = Pick<
   PersonMailFacts,
@@ -196,6 +238,40 @@ export interface PersonMailSweepResult {
   readonly wrapped: boolean;
 }
 
+/** A short, address-free token for `mail_tip_log.last_error` (ASCII, at most 32). */
+export function personMailErrorToken(error: unknown): string {
+  if (error instanceof MailRecipientSuppressedError) return 'suppressed';
+  const smtp = error as { readonly responseCode?: unknown; readonly code?: unknown } | null;
+  if (typeof smtp?.responseCode === 'number') return `smtp_${String(smtp.responseCode)}`;
+  if (typeof smtp?.code === 'string' && /^[A-Z_]{2,26}$/u.test(smtp.code)) {
+    return `smtp_${smtp.code}`;
+  }
+  const name = error instanceof Error ? error.name.replaceAll(/[^A-Za-z0-9_]/gu, '') : '';
+  return (name || 'error').slice(0, 32);
+}
+
+/** The outcome of a failed attempt: retry with back-off, or give up when retrying cannot help. */
+export function failedAttemptOutcome(
+  error: unknown,
+  attempts: number,
+  now: Date,
+): PersonMailOutcome {
+  const token = personMailErrorToken(error);
+  const final =
+    error instanceof MailRecipientSuppressedError || smtpRecipientRefusal(error) !== null;
+  const wait = PERSON_MAIL_BACKOFF_MS[attempts - 1];
+  if (final || attempts >= PERSON_MAIL_MAX_ATTEMPTS || wait === undefined) {
+    return { status: 'gave_up', error: token };
+  }
+  return { status: 'retry', nextAttemptAt: new Date(now.getTime() + wait), error: token };
+}
+
+/** The kind a logged tip id names, among the catalog and this run's news. */
+function kindForTip(kinds: readonly PersonMailKind[], tipId: string): PersonMailKind | undefined {
+  const id = tipId.startsWith(`${AFTER_NEW_DEVICE_ID}:`) ? AFTER_NEW_DEVICE_ID : tipId;
+  return kinds.find((kind) => kind.id === id);
+}
+
 /** One run: at most {@link PERSON_MAIL_BATCH} members, one mail each at most. */
 export async function sweepPersonMail(deps: {
   readonly store: PersonMailStore;
@@ -210,20 +286,106 @@ export async function sweepPersonMail(deps: {
   const cursor = await store.readCursor();
   const candidates = await store.listCandidates(cursor, batch);
   const wrapped = candidates.length < batch;
-  if (deps.mailer === null || candidates.length === 0) {
+  // An empty batch still runs: due retries do not wait for candidates.
+  if (deps.mailer === null) {
     await store.writeCursor(wrapped ? null : (candidates.at(-1)?.userId ?? null), now);
     return { looked: candidates.length, sent: 0, wrapped };
   }
   const switchOn = await store.tipsSwitchOn();
+  const mailer = deps.mailer;
   const kinds = [...PERSON_MAIL_CATALOG, ...(await store.publishedNews(now)).map(newsKind)];
   const workspaces = new Map<string, WorkspaceFactsPart>();
-  let sent = 0;
-  for (const candidate of candidates) {
-    let workspace = workspaces.get(candidate.organizationId);
+  const workspaceOf = async (organizationId: string): Promise<WorkspaceFactsPart> => {
+    let workspace = workspaces.get(organizationId);
     if (workspace === undefined) {
-      workspace = await store.workspaceFacts(candidate.organizationId, now);
-      workspaces.set(candidate.organizationId, workspace);
+      workspace = await store.workspaceFacts(organizationId, now);
+      workspaces.set(organizationId, workspace);
     }
+    return workspace;
+  };
+  const settle = async (
+    candidate: PersonMailCandidate,
+    tipId: string,
+    attempts: number,
+    outcome: PersonMailOutcome,
+  ): Promise<void> => {
+    try {
+      await store.settle(candidate, tipId, attempts, outcome, now);
+    } catch (error) {
+      // The row stays 'sending': never retried, so never sent twice.
+      deps.onSendError?.(error);
+    }
+  };
+  /** One attempt of a claimed tip; true when the mail left. */
+  const deliver = async (
+    candidate: PersonMailCandidate,
+    kind: PersonMailKind,
+    tipId: string,
+    facts: PersonMailFacts,
+    attempts: number,
+  ): Promise<boolean> => {
+    let delivery: MailDelivery;
+    try {
+      delivery = await mailer.send(
+        composePersonMail(kind, {
+          to: candidate.email,
+          language: memberLanguage(candidate.locale),
+          displayName: candidate.displayName,
+          workspaceName: candidate.workspaceName,
+          slug: candidate.slug,
+          webOrigin: deps.webOrigin,
+          organizationId: candidate.organizationId,
+          userId: candidate.userId,
+          count: kind.count?.(facts) ?? 0,
+        }),
+      );
+    } catch (error) {
+      deps.onSendError?.(error);
+      await settle(candidate, tipId, attempts, failedAttemptOutcome(error, attempts, now));
+      return false;
+    }
+    // 'none': the transport held it (the address unsubscribed); final, nothing to retry.
+    await settle(
+      candidate,
+      tipId,
+      attempts,
+      delivery === 'sent' ? { status: 'sent' } : { status: 'gave_up', error: 'unsubscribed' },
+    );
+    return delivery === 'sent';
+  };
+  let sent = 0;
+  // ---- due retries first; each counts as that member's one mail of the run ----
+  const retried = new Set<string>();
+  if (switchOn) {
+    for (const retry of await store.dueRetries(now, PERSON_MAIL_RETRY_BATCH)) {
+      const { candidate, tipId } = retry;
+      if (!(await store.reclaim(retry, now))) continue;
+      const attempts = retry.attempts + 1;
+      retried.add(`${candidate.organizationId}:${candidate.userId}`);
+      const member = await store.memberFacts(candidate, now);
+      const facts: PersonMailFacts = {
+        ...(await workspaceOf(candidate.organizationId)),
+        ...member,
+        now,
+      };
+      const kind = kindForTip(kinds, tipId);
+      const due =
+        kind !== undefined &&
+        kind.enabled &&
+        (kind.cap === 'outside' || member.tipsEnabled) &&
+        audienceAllows(kind, candidate.role) &&
+        roleAllows(kind, candidate.role) &&
+        kind.when(facts);
+      if (!due) {
+        await settle(candidate, tipId, attempts, { status: 'gave_up', error: 'no_longer_due' });
+        continue;
+      }
+      if (await deliver(candidate, kind, tipId, facts, attempts)) sent += 1;
+    }
+  }
+  for (const candidate of candidates) {
+    if (retried.has(`${candidate.organizationId}:${candidate.userId}`)) continue;
+    const workspace = await workspaceOf(candidate.organizationId);
     const member = await store.memberFacts(candidate, now);
     const facts: PersonMailFacts = { ...workspace, ...member, now };
     const decision = decidePersonMail({
@@ -235,26 +397,7 @@ export async function sweepPersonMail(deps: {
     });
     if (decision === null) continue;
     if (!(await store.claim(candidate, decision.tipId, now))) continue;
-    try {
-      await deps.mailer.send(
-        composePersonMail(decision.kind, {
-          to: candidate.email,
-          language: memberLanguage(candidate.locale),
-          displayName: candidate.displayName,
-          workspaceName: candidate.workspaceName,
-          slug: candidate.slug,
-          webOrigin: deps.webOrigin,
-          organizationId: candidate.organizationId,
-          userId: candidate.userId,
-          count: decision.kind.count?.(facts) ?? 0,
-        }),
-      );
-      sent += 1;
-    } catch (error) {
-      // Claimed and not sent: a tip is never sent twice, so this one is lost, never repeated.
-      // A suppressed address (unsubscribed or bounced) lands here too.
-      deps.onSendError?.(error);
-    }
+    if (await deliver(candidate, decision.kind, decision.tipId, facts, 1)) sent += 1;
   }
   await store.writeCursor(wrapped ? null : (candidates.at(-1)?.userId ?? null), now);
   return { looked: candidates.length, sent, wrapped };

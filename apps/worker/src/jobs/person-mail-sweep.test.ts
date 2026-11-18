@@ -1,4 +1,5 @@
 import { capabilitySetFor } from '@tmanage/domain';
+import { MailRecipientSuppressedError } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { describe, expect, it } from 'vitest';
 import {
@@ -9,12 +10,16 @@ import {
 } from '../notifications/person-mail-catalog.js';
 import {
   AFTER_NEW_DEVICE_ID,
+  PERSON_MAIL_MAX_ATTEMPTS,
   decidePersonMail,
+  failedAttemptOutcome,
   memberLanguage,
   sweepPersonMail,
   type MemberFactsPart,
   type PersonMailCandidate,
   type PersonMailMemberState,
+  type PersonMailOutcome,
+  type PersonMailRetry,
   type PersonMailStore,
   type WorkspaceFactsPart,
 } from './person-mail-sweep.js';
@@ -290,6 +295,9 @@ describe('sweepPersonMail', () => {
         claimed.push(`${c.userId}:${tipId}`);
         return Promise.resolve(claimOk);
       },
+      dueRetries: () => Promise.resolve([]),
+      reclaim: () => Promise.resolve(false),
+      settle: () => Promise.resolve(),
     };
     return { store, claimed, cursors, workspaceReads: () => workspaceReads };
   }
@@ -341,5 +349,202 @@ describe('sweepPersonMail', () => {
     expect(result).toEqual({ looked: 1, sent: 0, wrapped: true });
     expect(sent).toHaveLength(0);
     expect(fake.cursors).toEqual([null]);
+  });
+});
+
+describe('MAILREST — person mail retried after a failed send, never sent twice', () => {
+  const HOUR = 3_600_000;
+  const member: PersonMailCandidate = {
+    organizationId: 'org-1',
+    membershipId: 'm-u1',
+    userId: 'u1',
+    role: 'owner',
+    email: 'u1@example.test',
+    displayName: 'Sara',
+    locale: 'en',
+    slug: 'acme',
+    workspaceName: 'Acme Studio',
+  };
+
+  interface Row {
+    status: 'sending' | 'sent' | 'retry' | 'gave_up';
+    attempts: number;
+    nextAttemptAt: Date | null;
+    error: string | null;
+    sentAt: Date;
+  }
+
+  /** A tip log that behaves like `mail_tip_log` with 0374: guarded claim, reclaim and settle. */
+  function tipLog(options: { switchOn?: boolean; candidates?: PersonMailCandidate[] } = {}) {
+    const rows = new Map<string, Row>();
+    const base = withoutInvoices();
+    const store: PersonMailStore = {
+      tipsSwitchOn: () => Promise.resolve(options.switchOn ?? true),
+      readCursor: () => Promise.resolve(null),
+      writeCursor: () => Promise.resolve(),
+      listCandidates: () => Promise.resolve(options.candidates ?? [member]),
+      publishedNews: () => Promise.resolve([]),
+      workspaceFacts: () => Promise.resolve(base),
+      memberFacts: () => {
+        const sent = new Map([...rows].map(([id, row]) => [id, row.sentAt]));
+        return Promise.resolve({ ...base, sent, tipsEnabled: true });
+      },
+      claim: (_c, tipId, at) => {
+        if (rows.has(tipId)) return Promise.resolve(false);
+        rows.set(tipId, {
+          status: 'sending',
+          attempts: 1,
+          nextAttemptAt: null,
+          error: null,
+          sentAt: at,
+        });
+        return Promise.resolve(true);
+      },
+      dueRetries: (now) => {
+        const due: PersonMailRetry[] = [];
+        for (const [tipId, row] of rows) {
+          if (row.status === 'retry' && row.nextAttemptAt !== null && row.nextAttemptAt <= now) {
+            due.push({ candidate: member, tipId, attempts: row.attempts });
+          }
+        }
+        return Promise.resolve(due);
+      },
+      reclaim: (retry) => {
+        const row = rows.get(retry.tipId);
+        if (row?.status !== 'retry' || row.attempts !== retry.attempts)
+          return Promise.resolve(false);
+        row.status = 'sending';
+        row.attempts += 1;
+        row.nextAttemptAt = null;
+        return Promise.resolve(true);
+      },
+      settle: (_c, tipId, attempts, outcome: PersonMailOutcome, at) => {
+        const row = rows.get(tipId);
+        if (row?.status !== 'sending' || row.attempts !== attempts) return Promise.resolve();
+        row.status = outcome.status;
+        row.nextAttemptAt = outcome.status === 'retry' ? outcome.nextAttemptAt : null;
+        row.error = outcome.status === 'sent' ? null : outcome.error;
+        if (outcome.status === 'sent') row.sentAt = at;
+        return Promise.resolve();
+      },
+    };
+    return { store, rows };
+  }
+
+  /** Fails the first `failures` sends with `error`, then accepts. */
+  function flaky(failures: number, error: unknown = new Error('connection reset')) {
+    const attempts: MailMessage[] = [];
+    const mailer: Mailer = {
+      send: (message) => {
+        attempts.push(message);
+        return attempts.length <= failures
+          ? Promise.reject(error)
+          : Promise.resolve('sent' as const);
+      },
+    };
+    return { mailer, attempts };
+  }
+
+  const run = (store: PersonMailStore, mailer: Mailer, at: Date) =>
+    sweepPersonMail({ store, mailer, webOrigin: 'https://tmanageapp.com', now: at });
+
+  it('retries a failed send after the back-off, then records it sent', async () => {
+    const log = tipLog();
+    const { mailer, attempts } = flaky(1);
+    expect((await run(log.store, mailer, NOW)).sent).toBe(0);
+    expect(log.rows.get('feature:invoices')).toMatchObject({
+      status: 'retry',
+      attempts: 1,
+      nextAttemptAt: new Date(NOW.getTime() + HOUR),
+      error: 'Error',
+    });
+    // Not yet due: nothing is sent again.
+    await run(log.store, mailer, new Date(NOW.getTime() + HOUR / 2));
+    expect(attempts).toHaveLength(1);
+    const later = new Date(NOW.getTime() + HOUR);
+    expect((await run(log.store, mailer, later)).sent).toBe(1);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]?.text).toBe(attempts[0]?.text);
+    expect(log.rows.get('feature:invoices')).toMatchObject({
+      status: 'sent',
+      attempts: 2,
+      sentAt: later,
+    });
+  });
+
+  it('gives up after the last attempt and never sends that tip again', async () => {
+    const log = tipLog();
+    const { mailer, attempts } = flaky(99);
+    let at = NOW;
+    for (let hour = 0; hour <= 40; hour += 1) {
+      at = new Date(NOW.getTime() + hour * HOUR);
+      await run(log.store, mailer, at);
+    }
+    expect(attempts).toHaveLength(PERSON_MAIL_MAX_ATTEMPTS);
+    expect(log.rows.get('feature:invoices')).toMatchObject({
+      status: 'gave_up',
+      attempts: PERSON_MAIL_MAX_ATTEMPTS,
+      nextAttemptAt: null,
+    });
+    await run(log.store, mailer, new Date(at.getTime() + 30 * 24 * HOUR));
+    expect(attempts.filter((m) => m.text === attempts[0]?.text)).toHaveLength(
+      PERSON_MAIL_MAX_ATTEMPTS,
+    );
+  });
+
+  it('gives up at once on a suppressed address or a refused recipient', () => {
+    const refused = Object.assign(new Error('rejected'), { command: 'RCPT TO', responseCode: 550 });
+    expect(failedAttemptOutcome(new MailRecipientSuppressedError(), 1, NOW)).toEqual({
+      status: 'gave_up',
+      error: 'suppressed',
+    });
+    expect(failedAttemptOutcome(refused, 1, NOW)).toEqual({ status: 'gave_up', error: 'smtp_550' });
+    expect(
+      failedAttemptOutcome(Object.assign(new Error('x'), { responseCode: 451 }), 2, NOW),
+    ).toEqual({
+      status: 'retry',
+      nextAttemptAt: new Date(NOW.getTime() + 4 * HOUR),
+      error: 'smtp_451',
+    });
+  });
+
+  it('sends a due retry once when two runs reach it (the re-claim has one winner)', async () => {
+    const log = tipLog();
+    const first = flaky(1);
+    await run(log.store, first.mailer, NOW);
+    const later = new Date(NOW.getTime() + HOUR);
+    const { mailer, attempts } = flaky(0);
+    // Both runs read the same due row before either re-claims it.
+    const due = await log.store.dueRetries(later, 25);
+    const racing: PersonMailStore = { ...log.store, dueRetries: () => Promise.resolve(due) };
+    await Promise.all([run(racing, mailer, later), run(racing, mailer, later)]);
+    expect(attempts).toHaveLength(1);
+    expect(log.rows.get('feature:invoices')).toMatchObject({ status: 'sent', attempts: 2 });
+  });
+
+  it('never retries a row left mid-send, and sends no retry while the switch is off', async () => {
+    const log = tipLog({ candidates: [] });
+    log.rows.set('feature:invoices', {
+      status: 'sending',
+      attempts: 1,
+      nextAttemptAt: null,
+      error: null,
+      sentAt: NOW,
+    });
+    const { mailer, attempts } = flaky(0);
+    await run(log.store, mailer, new Date(NOW.getTime() + 2 * HOUR));
+    expect(attempts).toHaveLength(0);
+
+    const off = tipLog({ switchOn: false, candidates: [] });
+    off.rows.set('feature:invoices', {
+      status: 'retry',
+      attempts: 1,
+      nextAttemptAt: NOW,
+      error: 'Error',
+      sentAt: NOW,
+    });
+    await run(off.store, mailer, new Date(NOW.getTime() + 2 * HOUR));
+    expect(attempts).toHaveLength(0);
+    expect(off.rows.get('feature:invoices')?.status).toBe('retry');
   });
 });

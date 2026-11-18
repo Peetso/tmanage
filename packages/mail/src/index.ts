@@ -129,6 +129,21 @@ export { parseFeedbackReport } from './feedback-report.js';
 export type { FeedbackReport, FeedbackType } from './feedback-report.js';
 export { BounceGuardMailer, MailRecipientSuppressedError, forCompany } from './bounce-guard.js';
 export type { BounceSuppressionLookup } from './bounce-guard.js';
+// MAILREST — a recipient refused at RCPT TO suppresses the address (every sending identity).
+export {
+  REFUSAL_SOFT_LIMIT,
+  REFUSAL_SOFT_WINDOW_MS,
+  SmtpRefusalMailer,
+  nextRefusalState,
+  refusalReference,
+  smtpRecipientRefusal,
+} from './bounce-refusal.js';
+export type {
+  RecipientBounceRecord,
+  RefusalInput,
+  RefusalRecorder,
+  SmtpRefusal,
+} from './bounce-refusal.js';
 // 56-23 — the batched security alert's words (sent by the worker's security detector).
 export {
   composeSecurityAlertDigest,

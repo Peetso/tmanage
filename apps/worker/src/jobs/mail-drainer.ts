@@ -12,6 +12,7 @@ import {
   lanePausedSettingKey,
   mailboxCeilingSettingKey,
   parseCeiling,
+  smtpRecipientRefusal,
 } from '@tmanage/mail';
 import type {
   MailLane,
@@ -310,7 +311,8 @@ export async function drainMailOnce(
             continue;
           }
         }
-        if (row.attempts >= MAX_SEND_ATTEMPTS) {
+        // MAILREST: a 5xx to RCPT TO is final for this address; retrying only repeats it.
+        if (row.attempts >= MAX_SEND_ATTEMPTS || smtpRecipientRefusal(error) !== null) {
           await deps.store.markFailed(row.id, token, errorToken(error));
           report.failed += 1;
         } else {

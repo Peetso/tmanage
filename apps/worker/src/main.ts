@@ -8,6 +8,7 @@ import {
   SendCeilingMailer,
   SenderResolvingMailer,
   SmtpMailer,
+  SmtpRefusalMailer,
   createIdentityMailers,
   composeSecurityAlertDigest,
   deriveBounceKey,
@@ -19,6 +20,7 @@ import { CONTACT_EMAILS } from '@tmanage/domain';
 // ---- 56-31 ---- the mail priority lanes: the queue store and its drainer.
 import { createMailQueueStore } from './common/database/mail-queue-store.js';
 import { createMailPeopleDirectory } from './common/database/mail-people-store.js';
+import { createBounceRefusalRecorder } from './common/database/bounce-refusal-store.js';
 import { createBounceSuppressionLookup } from './common/database/bounce-suppression-store.js';
 import type { MailQueueStore } from './common/database/mail-queue-store.js';
 import { createMailDrainerState, drainMailOnce, runMailDrainLoop } from './jobs/mail-drainer.js';
@@ -594,8 +596,13 @@ async function main(): Promise<void> {
   const queueStore: MailQueueStore | null = mailQueueOn(env)
     ? createMailQueueStore(database)
     : null;
-  const securityDriver = securityMailerFrom(env);
-  const senders = driver === null ? null : sendersFrom(env, driver);
+  // MAILREST: a recipient refused at RCPT TO (any identity) is recorded in the company's bounce
+  // store, so later company mail to it is held exactly as after a bounce report.
+  const refusals = createBounceRefusalRecorder(database);
+  const security = securityMailerFrom(env);
+  const securityDriver = security === null ? null : new SmtpRefusalMailer(security, refusals);
+  const senders =
+    driver === null ? null : new SmtpRefusalMailer(sendersFrom(env, driver), refusals);
   const drainer: MailDrainerDeps | null =
     queueStore === null || senders === null
       ? null
