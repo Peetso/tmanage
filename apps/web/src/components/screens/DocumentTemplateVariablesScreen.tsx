@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
@@ -15,6 +15,8 @@ import {
 } from '../../lib/api/document-template-variables';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
@@ -56,6 +58,8 @@ export function DocumentTemplateVariablesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queryKey = ['document-template-variables', organizationSlug, templateId];
 
   const variables = useQuery({
@@ -144,12 +148,21 @@ export function DocumentTemplateVariablesScreen({
           ) : null}
 
           {!variables.isPending && !variables.isError && rows.length === 0 ? (
-            <div className="tm-dx-empty">
-              <p className="tm-dx-empty__title">
-                {t('DocumentTemplateVariablesScreen.emptyTitle')}
-              </p>
-              <p className="tm-dx-empty__body">{t('DocumentTemplateVariablesScreen.emptyBody')}</p>
-            </div>
+            <TeachingEmptyState
+              title={t('DocumentTemplateVariablesScreen.emptyTitle')}
+              explanation={t('teachEmpty.documentTemplateVariablesBody')}
+              action={
+                canUse('doc.write') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.documentTemplateVariablesAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : null}
 
           {rows.length > 0 ? (
@@ -228,6 +241,7 @@ export function DocumentTemplateVariablesScreen({
               {t('DocumentTemplateVariablesScreen.newVariable')}
             </h2>
             <form
+              ref={firstStep}
               className="tm-dx-form"
               noValidate
               onSubmit={(event: FormEvent<HTMLFormElement>) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -15,6 +15,8 @@ import type {
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightTargetsScreenProps {
@@ -62,6 +64,8 @@ export function InsightTargetsScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const [metric, setMetric] = useState<MetricTargetMetric>('open_items');
   const [period, setPeriod] = useState<MetricTargetPeriod>('weekly');
   const [value, setValue] = useState('10');
@@ -98,6 +102,7 @@ export function InsightTargetsScreen({
           </h2>
 
           <form
+            ref={firstStep}
             className="tm-row"
             onSubmit={(event) => {
               event.preventDefault();
@@ -184,17 +189,45 @@ export function InsightTargetsScreen({
             </InlineAlert>
           ) : null}
 
-          {status.isSuccess ? <TargetStatusTable rows={rows} /> : null}
+          {status.isSuccess ? (
+            <TargetStatusTable
+              rows={rows}
+              action={
+                canUse('org.manage') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.insightTargetsAction')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : null}
         </section>
       </div>
     </AppShell>
   );
 }
 
-function TargetStatusTable({ rows }: { rows: readonly MetricTargetStatusView[] }) {
+function TargetStatusTable({
+  rows,
+  action,
+}: {
+  readonly rows: readonly MetricTargetStatusView[];
+  /** The teaching state's one action, when the role may set a target. */
+  readonly action?: ReactNode;
+}) {
   const t = useT();
   if (rows.length === 0) {
-    return <p className="tm-prose">{t('InsightTargetsScreen.empty')}</p>;
+    return (
+      <TeachingEmptyState
+        title={t('teachEmpty.insightTargetsTitle')}
+        explanation={t('teachEmpty.insightTargetsBody')}
+        action={action}
+      />
+    );
   }
 
   return (

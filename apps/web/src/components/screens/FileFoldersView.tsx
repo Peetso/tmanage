@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -13,6 +13,8 @@ import {
 } from '../../lib/api/file-folders';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useUndo } from '../../lib/undo/use-undo';
 import { undoKey } from '../../lib/undo/undo-queue';
@@ -48,6 +50,8 @@ export function FileFoldersView({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tOr = useTOr();
   const undo = useUndo();
   const queryKey = ['file-folders', organizationSlug, projectId] as const;
@@ -98,6 +102,7 @@ export function FileFoldersView({
           {t('FileFoldersView.newFolder')}
         </h2>
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -154,7 +159,23 @@ export function FileFoldersView({
 
         {folders.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">{t('FileFoldersView.empty')}</p>
+            <TeachingEmptyState
+              title={t('teachEmpty.fileFoldersTitle')}
+              explanation={t('teachEmpty.fileFoldersBody')}
+              action={
+                canUse('file.upload') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.fileFoldersAction')}
+                  </Button>
+                ) : undefined
+              }
+              helpSlug="upload-and-share-files"
+              helpLabel={t('EmptyStates.howFilesWork')}
+            />
           ) : (
             <ul className="tm-stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {rows.map((folder) => (

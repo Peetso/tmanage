@@ -18,6 +18,7 @@ import type {
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/inbox.css';
 
@@ -130,9 +131,10 @@ export function InboxSourceMutesView({
       ) : null}
 
       {!muted.isPending && !muted.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title={t('InboxSourceMutesView.emptyTitle')}>
-          {t('InboxSourceMutesView.emptyBody')}
-        </InlineAlert>
+        <TeachingEmptyState
+          title={t('InboxSourceMutesView.emptyTitle')}
+          explanation={t('teachEmpty.inboxSourceMutesBody')}
+        />
       ) : null}
 
       {rows.length > 0 ? (

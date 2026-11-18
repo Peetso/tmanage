@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import Link from 'next/link';
@@ -14,6 +14,8 @@ import { PendingBadge } from '../pwa/PendingBadge';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { formatDuration } from '../../lib/i18n/duration';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -44,6 +46,8 @@ export function WorkItemTimeLogScreen({
 }: WorkItemTimeLogScreenProps) {
   const describeError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tr = useTOr();
   const locale = useActiveLocale();
   // UX test 2026-11-15: durations in the reader's language, not "45m".
@@ -132,6 +136,7 @@ export function WorkItemTimeLogScreen({
             {t('WorkItemTimeLogScreen.logTimeHeading')}
           </h2>
           <form
+            ref={firstStep}
             className="tm-stack"
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -203,9 +208,23 @@ export function WorkItemTimeLogScreen({
           ) : null}
 
           {!logs.isPending && !logs.isError && entries.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('WorkItemTimeLogScreen.emptyTitle')}>
-              {t('WorkItemTimeLogScreen.emptyBody')}
-            </InlineAlert>
+            <TeachingEmptyState
+              title={t('WorkItemTimeLogScreen.emptyTitle')}
+              explanation={t('teachEmpty.workItemTimeLogBody')}
+              action={
+                canUse('work.update') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.workItemTimeLogAction')}
+                  </Button>
+                ) : undefined
+              }
+              helpSlug="log-time-timesheets"
+              helpLabel={t('teachEmpty.howTimeWorks')}
+            />
           ) : null}
 
           {!logs.isPending && !logs.isError && entries.length > 0 ? (

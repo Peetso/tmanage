@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -21,6 +21,8 @@ import type {
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InboxRulesScreenProps {
@@ -61,6 +63,8 @@ export function InboxRulesScreen({
 }: InboxRulesScreenProps) {
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['inbox-rules', organizationSlug];
@@ -117,6 +121,7 @@ export function InboxRulesScreen({
       ) : (
         <div className="tm-inbox-rules">
           <form
+            ref={firstStep}
             className="tm-card"
             aria-labelledby="tm-inbox-rules-add-heading"
             onSubmit={(event) => {
@@ -208,12 +213,21 @@ export function InboxRulesScreen({
               </span>
             </div>
             {rules.data.length === 0 ? (
-              <div className="tm-inbox-caught-up">
-                <span className="tm-inbox-orb tm-inbox-orb--quiet" aria-hidden="true">
-                  ✓
-                </span>
-                <p className="tm-inbox-caught-up__text">{t('InboxRulesScreen.empty')}</p>
-              </div>
+              <TeachingEmptyState
+                title={t('teachEmpty.inboxRulesTitle')}
+                explanation={t('teachEmpty.inboxRulesBody')}
+                action={
+                  canUse('work.read') ? (
+                    <Button
+                      tone="lime"
+                      size="accessible"
+                      onClick={() => focusFirstField(firstStep.current)}
+                    >
+                      {t('teachEmpty.inboxRulesAction')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
               <ul className="tm-inbox-rule-list" aria-label={t('InboxRulesScreen.listLabel')}>
                 {rules.data.map((rule, index) => (

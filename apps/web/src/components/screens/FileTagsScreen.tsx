@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { defineFileTag, listFileTags } from '../../lib/api/file-tags';
 import type { ApiClient } from '../../lib/api/client';
@@ -33,6 +35,8 @@ export function FileTagsScreen({
 }: FileTagsScreenProps) {
   const describe = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['file-tags', organizationSlug] as const;
@@ -70,6 +74,7 @@ export function FileTagsScreen({
           {t('FileTagsScreen.newTagHeading')}
         </h2>
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -126,7 +131,23 @@ export function FileTagsScreen({
 
         {tags.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">{t('FileTagsScreen.empty')}</p>
+            <TeachingEmptyState
+              title={t('teachEmpty.fileTagsTitle')}
+              explanation={t('teachEmpty.fileTagsBody')}
+              action={
+                canUse('file.upload') ? (
+                  <Button
+                    tone="lime"
+                    size="accessible"
+                    onClick={() => focusFirstField(firstStep.current)}
+                  >
+                    {t('teachEmpty.fileTagsAction')}
+                  </Button>
+                ) : undefined
+              }
+              helpSlug="upload-and-share-files"
+              helpLabel={t('EmptyStates.howFilesWork')}
+            />
           ) : (
             <ul
               className="tm-row tm-row--wrap"

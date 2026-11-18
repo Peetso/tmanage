@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   MAX_QUICK_LINKS,
@@ -41,6 +43,8 @@ export function HomeQuickLinksScreen({
 }: HomeQuickLinksScreenProps) {
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['home-quick-links', organizationSlug];
@@ -126,6 +130,7 @@ export function HomeQuickLinksScreen({
       ) : (
         <div className="tm-stack">
           <form
+            ref={firstStep}
             className="tm-panel tm-stack"
             aria-labelledby="tm-quick-links-add-heading"
             onSubmit={(event) => {
@@ -179,7 +184,21 @@ export function HomeQuickLinksScreen({
               {t('HomeQuickLinksScreen.listHeading')}
             </h2>
             {current.length === 0 ? (
-              <p className="tm-muted">{t('HomeQuickLinksScreen.empty')}</p>
+              <TeachingEmptyState
+                title={t('teachEmpty.homeQuickLinksTitle')}
+                explanation={t('teachEmpty.homeQuickLinksBody')}
+                action={
+                  canUse('work.read') ? (
+                    <Button
+                      tone="lime"
+                      size="accessible"
+                      onClick={() => focusFirstField(firstStep.current)}
+                    >
+                      {t('teachEmpty.homeQuickLinksAction')}
+                    </Button>
+                  ) : undefined
+                }
+              />
             ) : (
               <ul className="tm-stack" aria-label={t('HomeQuickLinksScreen.listLabel')}>
                 {current.map((link, index) => (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -13,6 +13,8 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 
 export interface AutomationTemplateTagsViewProps {
   organizationSlug: string;
@@ -45,6 +47,8 @@ export function AutomationTemplateTagsView({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tagsKey = ['automation-template-tags', organizationSlug, templateId];
 
   const tags = useQuery({
@@ -92,6 +96,7 @@ export function AutomationTemplateTagsView({
       <p className="tm-muted">{t('AutomationTemplateTagsView.lede')}</p>
 
       <form
+        ref={firstStep}
         className="tm-stack"
         noValidate
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -141,9 +146,21 @@ export function AutomationTemplateTagsView({
       ) : null}
 
       {!tags.isPending && !tags.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title={t('AutomationTemplateTagsView.emptyTitle')}>
-          {t('AutomationTemplateTagsView.emptyBody')}
-        </InlineAlert>
+        <TeachingEmptyState
+          title={t('AutomationTemplateTagsView.emptyTitle')}
+          explanation={t('teachEmpty.automationTemplateTagsBody')}
+          action={
+            canUse('org.manage') ? (
+              <Button
+                tone="lime"
+                size="accessible"
+                onClick={() => focusFirstField(firstStep.current)}
+              >
+                {t('teachEmpty.automationTemplateTagsAction')}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : null}
 
       {rows.length > 0 ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -13,6 +13,8 @@ import {
 } from '../../lib/api/doc-revisions';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { appLocale } from '../../lib/i18n/app-locale';
 
@@ -48,6 +50,8 @@ export function DocRevisionsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
 
   const document = useQuery({
     queryKey: ['document', organizationSlug, documentId],
@@ -96,6 +100,7 @@ export function DocRevisionsScreen({
           {t('DocRevisionsScreen.captureHeading')}
         </h2>
         <form
+          ref={firstStep}
           className="tm-stack"
           noValidate
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -174,9 +179,21 @@ export function DocRevisionsScreen({
         ) : null}
 
         {!revisions.isPending && !revisions.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title={t('DocRevisionsScreen.emptyTitle')}>
-            {t('DocRevisionsScreen.emptyBody')}
-          </InlineAlert>
+          <TeachingEmptyState
+            title={t('DocRevisionsScreen.emptyTitle')}
+            explanation={t('teachEmpty.docRevisionsBody')}
+            action={
+              canUse('doc.write') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => focusFirstField(firstStep.current)}
+                >
+                  {t('teachEmpty.docRevisionsAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : null}
 
         {rows.length > 0 ? (

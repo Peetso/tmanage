@@ -12,6 +12,7 @@ import type {
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/inbox.css';
 import { appLocale } from '../../lib/i18n/app-locale';
@@ -120,9 +121,10 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
       ) : null}
 
       {!snoozed.isPending && !snoozed.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title={t('InboxSnoozeView.emptyTitle')}>
-          {t('InboxSnoozeView.emptyBody')}
-        </InlineAlert>
+        <TeachingEmptyState
+          title={t('InboxSnoozeView.emptyTitle')}
+          explanation={t('teachEmpty.inboxSnoozeBody')}
+        />
       ) : null}
 
       {rows.length > 0 ? (

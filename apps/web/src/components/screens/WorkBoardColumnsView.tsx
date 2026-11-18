@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import {
@@ -13,6 +13,8 @@ import {
 } from '../../lib/api/board-columns';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkBoardColumnsViewProps {
@@ -43,6 +45,8 @@ const STATE_LABELS: Record<WorkItemStateKey, string> = {
 export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumnsViewProps) {
   const describe = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, api);
+  const firstStep = useRef<HTMLFormElement>(null);
   const queries = useQueryClient();
   const queryKey = ['work-board-columns', organizationSlug] as const;
   const [label, setLabel] = useState('');
@@ -109,7 +113,12 @@ export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumns
         </InlineAlert>
       ) : null}
 
-      <form className="tm-stack" onSubmit={submit} aria-label={t('WorkBoardColumnsView.formLabel')}>
+      <form
+        ref={firstStep}
+        className="tm-stack"
+        onSubmit={submit}
+        aria-label={t('WorkBoardColumnsView.formLabel')}
+      >
         <Field
           label={t('WorkBoardColumnsView.label')}
           value={label}
@@ -165,7 +174,21 @@ export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumns
 
       {columns.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">{t('WorkBoardColumnsView.empty')}</p>
+          <TeachingEmptyState
+            title={t('teachEmpty.workBoardColumnsTitle')}
+            explanation={t('teachEmpty.workBoardColumnsBody')}
+            action={
+              canUse('org.manage') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => focusFirstField(firstStep.current)}
+                >
+                  {t('teachEmpty.workBoardColumnsAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <ul className="tm-list" aria-label={t('WorkBoardColumnsView.listLabel')}>
             {items.map((column) => (

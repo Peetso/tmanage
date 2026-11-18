@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -11,6 +11,8 @@ import type { SavedViewInput, SavedViewView } from '../../lib/api/work-views';
 import { savedViewKeys } from '../../lib/query-keys';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/work-planning.css';
 
@@ -47,6 +49,8 @@ export function WorkSavedViewsScreen({
 }: WorkSavedViewsScreenProps) {
   const describeError = useDescribeApiError();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -150,10 +154,21 @@ export function WorkSavedViewsScreen({
         ) : null}
 
         {!savedViews.isPending && !savedViews.isError && rows.length === 0 ? (
-          <div className="wp-empty">
-            <h3 className="wp-empty__title">{t('WorkSavedViewsScreen.emptyTitle')}</h3>
-            <p className="wp-empty__body">{t('WorkSavedViewsScreen.emptyBody')}</p>
-          </div>
+          <TeachingEmptyState
+            title={t('WorkSavedViewsScreen.emptyTitle')}
+            explanation={t('teachEmpty.workSavedViewsBody')}
+            action={
+              canUse('work.read') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => focusFirstField(firstStep.current)}
+                >
+                  {t('teachEmpty.workSavedViewsAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : null}
 
         {rows.length > 0 ? (
@@ -200,6 +215,7 @@ export function WorkSavedViewsScreen({
         </h2>
 
         <form
+          ref={firstStep}
           className="wp-editor"
           onSubmit={(event) => {
             event.preventDefault();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -13,6 +13,8 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AutomationConditionsScreenProps {
@@ -54,6 +56,8 @@ export function AutomationConditionsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const tOr = useTOr();
   const queryKey = ['workflow-conditions', organizationSlug, templateId];
 
@@ -127,6 +131,7 @@ export function AutomationConditionsScreen({
       <p className="tm-muted">{t('AutomationConditionsScreen.lede')}</p>
 
       <form
+        ref={firstStep}
         className="tm-stack"
         noValidate
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -213,9 +218,21 @@ export function AutomationConditionsScreen({
       ) : null}
 
       {!conditions.isPending && !conditions.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title={t('AutomationConditionsScreen.emptyTitle')}>
-          {t('AutomationConditionsScreen.emptyBody')}
-        </InlineAlert>
+        <TeachingEmptyState
+          title={t('AutomationConditionsScreen.emptyTitle')}
+          explanation={t('teachEmpty.automationConditionsBody')}
+          action={
+            canUse('org.manage') ? (
+              <Button
+                tone="lime"
+                size="accessible"
+                onClick={() => focusFirstField(firstStep.current)}
+              >
+                {t('teachEmpty.automationConditionsAction')}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : null}
 
       {rows.length > 0 ? (

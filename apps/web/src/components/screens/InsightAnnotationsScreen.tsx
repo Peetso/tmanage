@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/insights.css';
 import { useT } from '../../lib/i18n/use-t';
+import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
+import { useShellCapability } from '../shell/use-shell-capability';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   addInsightAnnotation,
@@ -52,6 +54,8 @@ export function InsightAnnotationsScreen({
 }: InsightAnnotationsScreenProps) {
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
+  const canUse = useShellCapability(organizationSlug, client);
+  const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -105,6 +109,7 @@ export function InsightAnnotationsScreen({
     >
       <div className="tm-ins tm-ins-tool">
         <form
+          ref={firstStep}
           className="tm-panel tm-stack"
           aria-labelledby="tm-annotation-heading"
           onSubmit={submit}
@@ -158,9 +163,21 @@ export function InsightAnnotationsScreen({
             {errorMessage(annotations.error)}
           </InlineAlert>
         ) : annotations.data.length === 0 ? (
-          <InlineAlert tone="neutral" title={t('InsightAnnotationsScreen.emptyTitle')}>
-            {t('InsightAnnotationsScreen.emptyBody')}
-          </InlineAlert>
+          <TeachingEmptyState
+            title={t('InsightAnnotationsScreen.emptyTitle')}
+            explanation={t('teachEmpty.insightAnnotationsBody')}
+            action={
+              canUse('report.view') ? (
+                <Button
+                  tone="lime"
+                  size="accessible"
+                  onClick={() => focusFirstField(firstStep.current)}
+                >
+                  {t('teachEmpty.insightAnnotationsAction')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <ul className="tm-list tm-stack" aria-label={t('InsightAnnotationsScreen.listLabel')}>
             {annotations.data.map((annotation) => (
