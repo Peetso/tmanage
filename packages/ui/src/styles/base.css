@@ -21,6 +21,15 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/*
+ * A themed subtree (`ThemeProvider` — a client-portal preview, a story, a component test) re-declares
+ * the text colour: an inherited `color` is the value resolved where it was declared, so text that
+ * inherits it from `body` would keep the outer theme's ink inside a dark subtree.
+ */
+[data-theme] {
+  color: var(--ink-800);
+}
+
 body {
   margin: 0;
   background: var(--paper-150);

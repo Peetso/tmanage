@@ -95,7 +95,7 @@ export function CopilotAnswerView({
       title={t('CopilotAnswerView.title')}
       eyebrow={t('CopilotAnswerView.eyebrow')}
       actions={
-        <a href="#tm-copilot-boundary" className="tm-sa-capsule">
+        <a href="#tm-copilot-boundary" className="tm-button tm-button--outline tm-button--default">
           {t('CopilotAnswerView.whatItMayDo')}
         </a>
       }

@@ -297,7 +297,12 @@ export function QuietHoursScreen({
           <aside className="tm-prefs__side" aria-labelledby="tm-quiet-summary">
             <div className="tm-prefs-card tm-prefs-card--tight">
               <h2 id="tm-quiet-summary" className="tm-prefs-card__title">
-                {enabled ? `${startTime} – ${endTime}` : t('QuietHoursScreen.summaryOff')}
+                {/* A range reads start to end in Arabic too: isolated left to right. */}
+                {enabled ? (
+                  <bdi dir="ltr">{`${startTime} – ${endTime}`}</bdi>
+                ) : (
+                  t('QuietHoursScreen.summaryOff')
+                )}
               </h2>
               <p className="tm-prefs-card__body">
                 {enabled

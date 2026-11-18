@@ -87,6 +87,7 @@ export function BillingInvoicesScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       eyebrow={t('BillingInvoicesScreen.eyebrow')}
+      crumbs={[t('ControlCenterShell.billing'), t('BillingInvoicesScreen.titleFallback')]}
       title={
         rows.length > 0
           ? `${rows.length} ${rows.length === 1 ? t('BillingInvoicesScreen.invoiceOne') : t('BillingInvoicesScreen.invoiceMany')}`

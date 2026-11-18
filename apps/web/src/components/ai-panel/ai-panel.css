@@ -4,7 +4,8 @@
  * the inline end (left in Arabic) with its resize grip on the inner edge.
  */
 
-/* The design's Button instance: 48px, 20px sides, UI/MD, the border/control line. */
+/* The popover and side-panel Button instance: 48px, 20px sides, UI/MD, the border/control line.
+   The top-bar launcher itself is a plain default Button, one height with every page-header action. */
 .tm-ai-button {
   --tm-control-h: 48px;
   padding-inline: var(--s5);

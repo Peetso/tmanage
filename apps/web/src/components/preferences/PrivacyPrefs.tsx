@@ -35,9 +35,8 @@ export function PrivacyPrefs({
   const checked = save.isPending ? Boolean(save.variables) : (prefs.data?.showLastSeen ?? true);
 
   return (
-    <section aria-labelledby="tm-profile-privacy" className="tm-chat-privacy">
-      <hr className="tm-prefs-rule" />
-      <h2 id="tm-profile-privacy" className="tm-chat-privacy__heading">
+    <section aria-labelledby="tm-profile-privacy" className="tm-prefs-group">
+      <h2 id="tm-profile-privacy" className="tm-prefs-heading">
         {t('Preferences.privacy.title')}
       </h2>
       <PreferenceToggle

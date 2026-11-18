@@ -155,11 +155,14 @@
 
 /*
  * WCAG 2.2 — 2.5.8 Target Size (Minimum): every control of the shell chrome is at least 24 × 24 CSS
- * pixels, whatever its glyph or label measures.
+ * pixels, whatever its glyph or label measures. A floor only: the whole selector sits in `:where()`
+ * (specificity 0), so a component's own size — the Button's `--tm-control-h` — always wins over it.
  */
-.tm-app
-  :where(.tm-rail, .tm-mobile-nav, .tm-canvas-header__actions, .tm-day-pulse, .tm-app__topbar)
-  :where(a, button, [role='button'], summary) {
+:where(
+  .tm-app
+    :is(.tm-rail, .tm-mobile-nav, .tm-canvas-header__actions, .tm-day-pulse, .tm-app__topbar)
+    :is(a, button, [role='button'], summary)
+) {
   min-inline-size: 24px;
   min-block-size: 24px;
 }

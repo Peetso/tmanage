@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from './WebLink';
 import { activeLocale } from '../../lib/i18n/locale-store';
@@ -17,6 +18,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
 import { WebIcon } from './WebIcon';
 import { BrandLockup } from './primitives';
+import './language-switch.css';
 import {
   DESKTOP_APP_HREF,
   FOOTER_COLUMNS,
@@ -83,7 +85,7 @@ export function LanguageSwitch() {
         العربية
       </button>
       {OFFERED_LOCALES.filter(isBetaLocale).map((value) => (
-        <span key={value} className="tm-web-lang__more">
+        <Fragment key={value}>
           <span aria-hidden="true">·</span>
           <button
             type="button"
@@ -94,7 +96,7 @@ export function LanguageSwitch() {
           >
             {localeNativeName(value)}
           </button>
-        </span>
+        </Fragment>
       ))}
     </div>
   );

@@ -199,7 +199,6 @@ export function AiPanelLauncher({ organizationSlug }: { readonly organizationSlu
       <Button
         tone="outline"
         size="default"
-        className="tm-ai-button"
         aria-haspopup="dialog"
         aria-expanded={
           popover.kind !== 'none' && !(popover.kind === 'chooser' && popover.from === 'panel')

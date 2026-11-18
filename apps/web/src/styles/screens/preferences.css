@@ -257,6 +257,22 @@
   min-inline-size: 0;
 }
 
+/* Every section of the profile preferences card (Language, Security, Privacy): one layout, one
+   heading. */
+.tm-prefs-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-prefs-heading {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
 .tm-prefs-rule {
   block-size: 1px;
   margin: 0;
@@ -283,7 +299,9 @@
   grid-column: 1 / -1;
 }
 
-.tm-prefs-field__label {
+/* A design-system field set in a preferences field (the time-zone Combobox) wears the same label. */
+.tm-prefs-field__label,
+.tm-prefs-field > .tm-field__label {
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 15px;
@@ -298,7 +316,9 @@
   inline-size: 100%;
   min-block-size: 46px;
   padding: 0 var(--s4);
-  border: var(--b-quiet) solid var(--line-300);
+  /* The design-system field border (WCAG 1.4.11, see `.tm-field__control`), so a select here and
+     the time-zone Combobox beside it draw one edge. */
+  border: var(--b-quiet) solid var(--ink-500);
   border-radius: 12px;
   background: var(--paper-50);
   color: var(--ink-950);

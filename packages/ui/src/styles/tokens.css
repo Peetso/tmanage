@@ -147,6 +147,8 @@
   --lime-600: #8fd23c;
   --lime-100: #29351d;
   --client-500: #a98ae5;
+  /* Success text on the dark paper: 7.9:1 on --paper-0 (the light value read 3.9:1 here). */
+  --success-600: #4cc690;
   --warning-600: #e9a85c;
   --danger-600: #ff7780;
   --focus-ring: 0 0 0 2px #f5f6f0, 0 0 0 5px #a9ed55;

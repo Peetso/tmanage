@@ -273,13 +273,6 @@ const S = {
     padding: 'var(--s10)',
   },
   photoRow: { display: 'flex', alignItems: 'center', gap: 'var(--s4)' },
-  heading: {
-    margin: 0,
-    fontSize: 'var(--t-heading-card)',
-    lineHeight: 'var(--t-heading-card-line)',
-    fontWeight: 500,
-    color: 'var(--ink-950)',
-  },
   lead: { margin: 0, fontSize: 'var(--t-body-md)', color: 'var(--ink-650)' },
   fieldset: {
     display: 'flex',
@@ -483,8 +476,8 @@ export function PreferencesScreen({
 
           <hr className="tm-prefs-rule" />
 
-          <section aria-labelledby="tm-profile-language" style={S.fieldset}>
-            <h2 id="tm-profile-language" style={S.heading}>
+          <section aria-labelledby="tm-profile-language" className="tm-prefs-group">
+            <h2 id="tm-profile-language" className="tm-prefs-heading">
               {t('Profile.languageHeading')}
             </h2>
             {prefs.isError ? (
@@ -538,8 +531,8 @@ export function PreferencesScreen({
 
           <hr className="tm-prefs-rule" />
 
-          <section aria-labelledby="tm-profile-security" style={S.fieldset}>
-            <h2 id="tm-profile-security" style={S.heading}>
+          <section aria-labelledby="tm-profile-security" className="tm-prefs-group">
+            <h2 id="tm-profile-security" className="tm-prefs-heading">
               {t('Profile.securityHeading')}
             </h2>
             <div style={S.row}>
@@ -565,6 +558,8 @@ export function PreferencesScreen({
             </div>
             <PasswordRow api={api} t={t} twoStepOn={twoStepOn} />
           </section>
+          <hr className="tm-prefs-rule" />
+
           <PrivacyPrefs organizationSlug={organizationSlug} client={api} />
 
           {save.isError ? (

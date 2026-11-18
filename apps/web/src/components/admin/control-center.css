@@ -4,6 +4,7 @@
  */
 
 .tm-cc-app {
+  --tm-cc-topbar-h: 64px;
   min-block-size: 100vh;
   background: var(--paper-50);
 }
@@ -15,7 +16,7 @@
   align-items: center;
   /* Logo, Beta tag and breadcrumb 12px apart (Figma 419:9994). */
   gap: var(--s3);
-  min-block-size: 64px;
+  min-block-size: var(--tm-cc-topbar-h);
   padding-inline: var(--s6);
   border-block-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
@@ -110,9 +111,20 @@
   min-block-size: 0;
 }
 
+/*
+ * The menu never stretches the page: it is held in view beside the canvas, at most one screen high
+ * under the top bar, and scrolls on its own. A page as short as its content stays one screen high,
+ * so a fixed layer (a dialog's backdrop) covers all of it. The column rule is the canvas's edge,
+ * which always runs the frame's full height.
+ */
 .tm-cc-menu {
+  position: sticky;
+  inset-block-start: 0;
+  align-self: start;
+  box-sizing: border-box;
+  max-block-size: calc(100vh - var(--tm-cc-topbar-h));
+  overflow-y: auto;
   padding: var(--s6) var(--s4);
-  border-inline-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
 }
 
@@ -171,6 +183,7 @@
 .tm-cc-main {
   gap: var(--s6);
   padding: var(--s8) var(--s8) var(--s12);
+  border-inline-start: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-cc-main > .tm-canvas-header .tm-canvas-header__title {
@@ -284,13 +297,16 @@
   }
 
   .tm-cc-menu {
+    position: static;
+    max-block-size: none;
+    overflow-y: visible;
     padding: var(--s3) var(--s4);
-    border-inline-end: 0;
     border-block-end: var(--b-quiet) solid var(--line-300);
   }
 
   .tm-cc-main {
     padding: var(--s5) var(--s4) var(--s8);
+    border-inline-start: 0;
   }
 
   .tm-cc-topbar {

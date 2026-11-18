@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
+import { Button } from '@tmanage/ui';
 import { useHelpContextArticle } from '../help/HelpContextLink';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import './support.css';
@@ -45,8 +46,9 @@ export function SupportLauncher({
 
   return (
     <div className="tm-support-launcher">
-      <button
-        type="button"
+      <Button
+        tone="outline"
+        size="default"
         className="tm-support-launcher__trigger"
         aria-haspopup="menu"
         aria-expanded={menuOpen}
@@ -54,7 +56,7 @@ export function SupportLauncher({
         onClick={() => setMenuOpen((open) => !open)}
       >
         {tOr('Support.menuLabel', 'Help')}
-      </button>
+      </Button>
       {menuOpen ? (
         <ul id={menuId} role="menu" className="tm-support-menu">
           {/* FIX3 item 10: the guide for this screen (the old "?" beside the title) is the menu's

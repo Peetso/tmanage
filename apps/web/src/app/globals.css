@@ -1240,7 +1240,7 @@ html[lang^='zh'] body {
 .tm-portal__header {
   display: flex;
   align-items: center;
-  gap: var(--s8);
+  gap: var(--s4) var(--s8);
   flex-wrap: wrap;
   min-block-size: 92px;
   padding: var(--s5) var(--s12);
@@ -1280,11 +1280,24 @@ html[lang^='zh'] body {
   line-height: var(--t-caption-line);
 }
 
+/* The brand row: the client's identity at the start, the project, the "Client portal" chip and
+   the avatar at the end. */
 .tm-portal__context {
   margin-inline-start: auto;
   display: flex;
+  align-items: center;
   gap: var(--s2);
   flex-wrap: wrap;
+}
+
+/* The tab row holds the tabs alone, under the brand row; it scrolls sideways rather than wrap. */
+.tm-portal__nav {
+  order: 1;
+  flex-basis: 100%;
+  min-inline-size: 0;
+  overflow-x: auto;
+  /* Room for a tab's focus ring inside the scroller's clip. */
+  padding-block: var(--s1);
 }
 
 .tm-portal__nav-list {
@@ -1293,7 +1306,6 @@ html[lang^='zh'] body {
   list-style: none;
   display: flex;
   gap: var(--s1);
-  flex-wrap: wrap;
 }
 
 .tm-portal__nav-item {
@@ -2904,13 +2916,6 @@ html[lang^='zh'] body {
 
 .tm-file-pick:has(input:focus-visible) {
   box-shadow: var(--focus-ring);
-}
-
-/* SMALLFIX 5 (WCAG 2.5.8): each language-switch button (website footer, sign-in card, state
-   screens) is at least 24 px high to tap, with its text, colours and row unchanged. Here, once,
-   because the three switch styles live in stylesheets that load on different pages. */
-.tm-web-lang__option {
-  min-height: var(--s6);
 }
 
 /* CONFIRMPOLISH 5 (Figma 640:35585, frames 01/02): a page-level 404, wherever it renders (the

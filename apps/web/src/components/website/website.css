@@ -904,42 +904,6 @@ a.tm-web-orb--outline:hover {
   display: none;
 }
 
-/* The language row wraps instead of widening the page: with every beta locale it is ~434 px,
-   wider than a 390 px phone (the /ar pages scrolled sideways). */
-.tm-web-lang {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s1);
-  max-inline-size: 100%;
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
-  color: var(--ink-950);
-}
-
-.tm-web-lang__more {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s1);
-}
-
-.tm-web-lang__option {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.tm-web-lang__option[lang='ar'] {
-  font-family: var(--font-arabic);
-}
-
-.tm-web-lang__option:hover {
-  text-decoration: underline;
-}
-
 /* ── Web/Section and Web/Section header ──────────────────────────────────── */
 
 .tm-web-section--default {

@@ -6,23 +6,6 @@
   display: inline-flex;
 }
 
-.tm-support-launcher__trigger {
-  min-block-size: var(--s8);
-  padding-inline: var(--s3);
-  border: var(--b-quiet) solid var(--ink-500);
-  border-radius: var(--r-capsule);
-  background: var(--paper-0);
-  color: var(--ink-950);
-  font: inherit;
-  font-size: var(--t-ui-sm);
-  cursor: pointer;
-}
-
-.tm-support-launcher__trigger:hover {
-  background: var(--paper-150);
-}
-
-.tm-support-launcher__trigger:focus-visible,
 .tm-support-menu__item:focus-visible,
 .tm-gethelp-request:focus-visible,
 .tm-inbox-open:focus-visible,

@@ -155,6 +155,7 @@ export function AutomationRunHistoryScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       eyebrow={t('AutomationRunHistoryScreen.eyebrow')}
+      crumbs={[t('ControlCenterShell.automations'), t('AutomationRunHistoryScreen.titleFallback')]}
       title={
         loaded
           ? `${rows.length} ${rows.length === 1 ? t('AutomationRunHistoryScreen.titleRunsOne') : t('AutomationRunHistoryScreen.titleRunsMany')}`

@@ -9,7 +9,11 @@ export interface SettingsShellProps extends Omit<AppShellProps, 'title'> {
   /** The menu entry this page is (marked in the menu, named in the breadcrumb). */
   readonly section: ControlCenterSection;
   readonly title: string;
-  /** The breadcrumb after "Control center"; the title when absent. */
+  /**
+   * The breadcrumb after "Control center"; the title when absent. A page whose title is data
+   * (a count, a name) must pass its fixed page name here: the breadcrumb names the page, never
+   * its headline.
+   */
   readonly crumbs?: readonly string[];
   readonly client?: ApiClient;
 }

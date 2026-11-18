@@ -43,7 +43,11 @@ const withTheme: Decorator = (Story, context) => {
       dir={direction === 'rtl' ? 'rtl' : 'ltr'}
       lang={direction === 'rtl' ? 'ar' : 'en'}
     >
-      <Story />
+      {/* The stand-in for `<body>`: the themed ground a screen with no surface of its own sits on,
+          so a dark story is never light text on the light page behind the subtree. */}
+      <div style={{ background: 'var(--paper-150)' }}>
+        <Story />
+      </div>
     </ThemeProvider>
   );
 };

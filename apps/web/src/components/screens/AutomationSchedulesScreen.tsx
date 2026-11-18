@@ -278,7 +278,7 @@ export function AutomationSchedulesScreen({
                                 </span>
                               </th>
                               <td className="tm-aut-mono tm-aut-hide-sm">
-                                {formatNextRun(schedule.nextRunAt)}
+                                <bdi dir="ltr">{formatNextRun(schedule.nextRunAt)}</bdi>
                               </td>
                               <td className="tm-aut-end">
                                 <input
