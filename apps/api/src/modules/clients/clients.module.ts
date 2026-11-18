@@ -34,6 +34,9 @@ import { ClientOrganizationsRepository } from './client-organizations.repository
 import { ProjectClientsRepository } from './project-clients.repository.js';
 import { ClientsService } from './clients.service.js';
 import { ClientsController } from './clients.controller.js';
+import { ClientSummaryController } from './client-summary.controller.js';
+import { CLIENT_SUMMARY_SERVICE, ClientSummaryService } from './client-summary.service.js';
+import { buildSummarySources } from '../projects/summary-sources.js';
 import { PortalService } from './portal.service.js';
 import { PortalController } from './portal.controller.js';
 import { ProjectUpdatesController } from './project-updates.controller.js';
@@ -361,6 +364,29 @@ export class ClientsModule {
         ),
     };
 
+    // ONEPAGE (B01): the client page's one read, composed from the existing read services.
+    const clientSummary: Provider = {
+      provide: CLIENT_SUMMARY_SERVICE,
+      inject: [
+        CLIENTS_SERVICE,
+        TENANT_DATABASE,
+        AUDIT_SERVICE,
+        OUTBOX_EVENTS_REPOSITORY,
+        MALWARE_SCANNER,
+      ],
+      useFactory: (
+        clients: ClientsService,
+        database: TenantDatabase,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+        scanner: MalwareScanner,
+      ) =>
+        new ClientSummaryService(
+          clients,
+          buildSummarySources({ database, audit, outbox, scanner }),
+        ),
+    };
+
     return {
       module: ClientsModule,
       providers: [
@@ -378,6 +404,7 @@ export class ClientsModule {
         updateComments,
         portalAnnouncements,
         clientMessages,
+        clientSummary,
       ],
       exports: [service, portal],
       controllers: [
@@ -395,6 +422,7 @@ export class ClientsModule {
         PortalUpdateCommentsController,
         PortalAnnouncementsController,
         PortalClientMessagesController,
+        ClientSummaryController,
       ],
     };
   }

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   AUDIT_SERVICE,
+  MALWARE_SCANNER,
   MEMBERSHIPS_REPOSITORY,
   OUTBOX_EVENTS_REPOSITORY,
   PROJECTS_REPOSITORY,
@@ -11,6 +12,7 @@ import {
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
 import { ProjectsRepository } from './projects.repository.js';
 import { ProjectsService } from './projects.service.js';
 import { ProjectsController } from './projects.controller.js';
@@ -24,6 +26,9 @@ import { SuggestDueController } from './suggest-due.controller.js';
 import { SuggestDueService } from './suggest-due.service.js';
 import { ProjectExportController } from './project-export.controller.js';
 import { ProjectExportService } from './project-export.service.js';
+import { ProjectSummaryController } from './project-summary.controller.js';
+import { PROJECT_SUMMARY_SERVICE, ProjectSummaryService } from './project-summary.service.js';
+import { buildSummarySources } from './summary-sources.js';
 
 @Module({})
 export class ProjectsModule {
@@ -84,6 +89,29 @@ export class ProjectsModule {
         new ProjectExportService(database, audit),
     };
 
+    // ONEPAGE (B01): the project page's one read, composed from the existing read services.
+    const summaryService: Provider = {
+      provide: PROJECT_SUMMARY_SERVICE,
+      inject: [
+        PROJECTS_SERVICE,
+        TENANT_DATABASE,
+        AUDIT_SERVICE,
+        OUTBOX_EVENTS_REPOSITORY,
+        MALWARE_SCANNER,
+      ],
+      useFactory: (
+        projects: ProjectsService,
+        database: TenantDatabase,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+        scanner: MalwareScanner,
+      ) =>
+        new ProjectSummaryService(
+          projects,
+          buildSummarySources({ database, audit, outbox, scanner }),
+        ),
+    };
+
     return {
       module: ProjectsModule,
       providers: [
@@ -94,6 +122,7 @@ export class ProjectsModule {
         membershipsService,
         suggestDueService,
         exportService,
+        summaryService,
       ],
       exports: [service, membershipsService],
       controllers: [
@@ -101,6 +130,7 @@ export class ProjectsModule {
         ProjectMembersController,
         SuggestDueController,
         ProjectExportController,
+        ProjectSummaryController,
       ],
     };
   }
