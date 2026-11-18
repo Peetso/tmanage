@@ -18,7 +18,8 @@ import { expect, test, type Page } from '@playwright/test';
  * - axe-core finds 0 critical or serious WCAG A/AA violations (the `a11y-audit.spec.ts` method).
  *
  * VR-53-54: six `toHaveScreenshot` baselines in this spec's snapshot folder — desktop and phone for
- * `/ar`, `/ar/pricing` and `/ar/security`. Not the Storybook VR suite, whose shots stay untouched.
+ * the top of `/ar`, `/ar/pricing` and `/ar/security` — plus the site footer of `/ar` on each device
+ * (the six are viewport shots and never reach it). Not the Storybook VR suite.
  * Re-take them only for a change that touches these pages: `playwright test ar-public-pages -u`.
  */
 
@@ -235,5 +236,22 @@ test.describe('Arabic public pages — right to left, no English fallback, acces
         }
       });
     }
+  }
+
+  for (const [device, viewport] of Object.entries(VIEWPORTS)) {
+    test(`VR-53-54 /ar footer on ${device}`, async ({ browser }) => {
+      const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+      try {
+        const page = await context.newPage();
+        await open(page, '/ar');
+        await page.evaluate(() => document.fonts.ready);
+        await expect(page.locator('footer.tm-web-footer')).toHaveScreenshot(
+          `ar-home-footer-${device}.png`,
+          { animations: 'disabled', caret: 'hide', maxDiffPixelRatio: 0.02 },
+        );
+      } finally {
+        await context.close();
+      }
+    });
   }
 });
