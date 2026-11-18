@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { ALTERNATIVE_SLUGS } from '../../content/alternatives/alternative-slugs';
+import { ARABIC_KIT_PATHS } from '../../content/arabic/arabic-slugs';
 import { RESOURCE_SLUGS } from '../../components/website/pages/resources/resource-slugs';
 import { COMPARE_SLUGS, SWITCH_SLUGS } from '../../content/compare/compare-slugs';
 import { HELP_SLUGS } from '../../content/help/help-slugs';
@@ -121,6 +122,9 @@ export const ALTERNATIVE_PATHS: readonly string[] = [
 /** The facts page (SEOF, B7), with its twin at `/ar/facts`. */
 export const FACTS_PATH = '/facts';
 
+/** The Arabic-first product page and its use cases (row 57-07), twins under `/ar/arabic`. */
+export { ARABIC_KIT_PATHS };
+
 const WITH_TWIN: ReadonlySet<string> = new Set<string>([
   ...PUBLIC_LOCALIZED_PATHS,
   ...ARABIC_AUTH_PATHS,
@@ -130,6 +134,7 @@ const WITH_TWIN: ReadonlySet<string> = new Set<string>([
   ...SWITCH_PATHS,
   ...ALTERNATIVE_PATHS,
   FACTS_PATH,
+  ...ARABIC_KIT_PATHS,
 ]);
 
 /**

@@ -323,6 +323,8 @@ export const FOOTER_COLUMNS: readonly WebFooterColumn[] = [
       { label: 'SiteNav.agencies', href: '/solutions/agencies' },
       { label: 'SiteNav.consultancies', href: '/solutions/consultancies' },
       { label: 'SiteNav.inHouse', href: '/solutions/in-house' },
+      // 57-07 (MENA): the Arabic-first product page.
+      { label: 'SiteNav.inArabic', href: '/arabic' },
     ],
   },
   {

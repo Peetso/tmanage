@@ -44,6 +44,17 @@ const ROUTES: Record<string, RouteRow> = {
     title: null,
   },
   '/facts': { component: 'FactsPage', from: 'website/pages/facts/FactsPage', title: null },
+  // 57-07 (MENA): the titles come from ARABIC_FIRST_COPY and USE_CASE_COPY.
+  '/arabic': {
+    component: 'ArabicFirstPage',
+    from: 'website/pages/arabic/ArabicFirstPage',
+    title: null,
+  },
+  '/arabic/[slug]': {
+    component: 'ArabicUseCasePage',
+    from: 'website/pages/arabic/ArabicFirstPage',
+    title: null,
+  },
   '/client-portal': {
     component: 'ClientPortalPage',
     from: 'website/pages/client-portal/ClientPortalPage',

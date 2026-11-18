@@ -22,6 +22,7 @@ import {
   arabicPublicTitle,
   englishPublicPath,
   ALTERNATIVE_PATHS,
+  ARABIC_KIT_PATHS,
   COMPARE_PATHS,
   FACTS_PATH,
   HELP_PATHS,
@@ -87,6 +88,8 @@ describe('the Arabic route table', () => {
           !COMPARE_PATHS.includes(route) &&
           !ALTERNATIVE_PATHS.includes(route) &&
           route !== FACTS_PATH &&
+          // 57-07 (MENA): the Arabic-first page and its use cases have their own Arabic routes.
+          !ARABIC_KIT_PATHS.includes(route) &&
           // 52-19: /verify is never indexed, so its Arabic twin is its own route, off the table.
           route !== '/verify',
       )

@@ -7,6 +7,12 @@ import {
 import { COMPARE_COPY, SWITCH_COPY } from '../content/compare/compare-copy';
 import { COMPARE_ENTRIES } from '../content/compare/compare-entries';
 import { SWITCH_ENTRIES } from '../content/compare/switch-entries';
+import {
+  ARABIC_FIRST_COPY,
+  ARABIC_KIT_UPDATED_ON,
+  USE_CASE_COPY,
+  USE_CASE_ENTRIES,
+} from '../content/arabic/arabic-pages';
 import { FACTS_COPY, FACTS_UPDATED_ON } from '../content/facts/facts';
 import { HELP_ARTICLES } from '../content/help/help-articles';
 import { ARABIC_AUTH_PATHS, PUBLIC_LOCALIZED_PATHS } from './i18n/public-locale-routes';
@@ -190,10 +196,34 @@ const FACTS_PAGE: PublicPage = {
   lastModified: FACTS_UPDATED_ON,
 };
 
+/**
+ * Row 57-07 (MENA) — the Arabic-first product page with the product pages, its use cases with the
+ * solutions.
+ */
+function arabicKitPages(): PublicPage[] {
+  return [
+    {
+      path: '/arabic',
+      title: ARABIC_FIRST_COPY.en.tabTitle,
+      summary: ARABIC_FIRST_COPY.en.description,
+      section: 'product',
+      lastModified: ARABIC_KIT_UPDATED_ON,
+    },
+    ...USE_CASE_ENTRIES.map((entry): PublicPage => ({
+      path: `/arabic/${entry.slug}`,
+      title: USE_CASE_COPY.en.tabTitle(entry.en.name),
+      summary: entry.en.lede,
+      section: 'solutions',
+      lastModified: ARABIC_KIT_UPDATED_ON,
+    })),
+  ];
+}
+
 /** Every English public page, in the sitemap's order. */
 export const PUBLIC_PAGES: readonly PublicPage[] = [
   ...PUBLIC_LOCALIZED_PATHS.map(websitePage),
   FACTS_PAGE,
+  ...arabicKitPages(),
   ...resourcePages(),
   ...helpPages(),
   ...comparePages(),

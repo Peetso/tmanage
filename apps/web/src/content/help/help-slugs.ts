@@ -34,6 +34,12 @@ export const HELP_SLUGS = [
   'ai-recipe-notes-to-tasks',
   'ai-recipe-summarise-document',
   'ai-recipe-draft-reply',
+  // 57-07 (MENA): the Arabic-first starter set (`arabic-help.ts`).
+  'switch-to-arabic',
+  'arabic-and-english-workspace',
+  'arabic-dates-and-numbers',
+  'send-for-client-approval',
+  'check-an-approval-record',
 ] as const;
 
 export type HelpSlug = (typeof HELP_SLUGS)[number];

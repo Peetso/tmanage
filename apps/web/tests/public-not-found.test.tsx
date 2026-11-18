@@ -83,7 +83,8 @@ describe('an unknown page of the public website', () => {
       routes.map((route) => ({
         route,
         status: 404,
-        heading: route.startsWith('/ar') ? 'لم نعثر على هذه الصفحة' : 'We couldn’t find that page',
+        // `/ar/…` only: `/arabic/[slug]` (57-07) is an English page.
+        heading: route.startsWith('/ar/') ? 'لم نعثر على هذه الصفحة' : 'We couldn’t find that page',
       })),
     );
   });

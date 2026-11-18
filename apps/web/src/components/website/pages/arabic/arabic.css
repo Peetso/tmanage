@@ -1,0 +1,170 @@
+/*
+ * Row 57-07 (MENA) — the Arabic-first product page and its use-case pages (Figma 725:39834 /
+ * 725:39970, 725:40234 / 725:40106). Logical properties only, so one stylesheet draws both
+ * directions; Arabic text takes Alexandria from the site's `:lang(ar)` stack.
+ */
+
+.tm-web-arabic-hero .tm-web-header {
+  max-inline-size: none;
+}
+
+.tm-web-arabic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-block-start: var(--s6);
+}
+
+.tm-web-arabic-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s10);
+  padding-block-end: var(--s16);
+}
+
+.tm-web-arabic-title {
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+/* One titled block: its heading, then its cards, preview or text. */
+.tm-web-arabic-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.tm-web-arabic-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-web-arabic-cards--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tm-web-arabic-cards--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tm-web-arabic-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-web-arabic-card__step {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-web-arabic-card__title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-web-arabic-card p {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-web-arabic-card .tm-button {
+  align-self: flex-start;
+  margin-block-start: auto;
+}
+
+/* The approval-card preview: a drawing of the app's card, not a control. */
+.tm-web-arabic-preview {
+  margin: 0;
+}
+
+.tm-web-arabic-preview__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  inline-size: min(100%, 520px);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-web-arabic-preview__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-web-arabic-preview__since,
+.tm-web-arabic-preview__project {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-web-arabic-preview__project {
+  color: var(--ink-650);
+}
+
+.tm-web-arabic-preview__name {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-web-arabic-preview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-web-arabic-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  max-inline-size: 720px;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+@media (max-width: 1023px) {
+  .tm-web-arabic-cards--four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-web-arabic-cards,
+  .tm-web-arabic-cards--two,
+  .tm-web-arabic-cards--four {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-web-arabic-card {
+    padding: var(--s6);
+  }
+
+  .tm-web-arabic-actions .tm-button {
+    min-block-size: 44px;
+  }
+}

@@ -598,6 +598,8 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/ar/[[...path]]': PAGE_OWNS_TITLE,
   '/ar/alternatives': PAGE_OWNS_TITLE,
   '/ar/alternatives/[slug]': PAGE_OWNS_TITLE,
+  '/ar/arabic': PAGE_OWNS_TITLE,
+  '/ar/arabic/[slug]': PAGE_OWNS_TITLE,
   '/ar/compare': PAGE_OWNS_TITLE,
   '/ar/compare/[slug]': PAGE_OWNS_TITLE,
   '/ar/facts': PAGE_OWNS_TITLE,
@@ -613,6 +615,9 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/verify': PAGE_OWNS_TITLE,
   '/alternatives': PAGE_OWNS_TITLE,
   '/alternatives/[slug]': PAGE_OWNS_TITLE,
+  // 57-07 (MENA): the Arabic-first product page and its use cases set their own titles.
+  '/arabic': PAGE_OWNS_TITLE,
+  '/arabic/[slug]': PAGE_OWNS_TITLE,
   '/compare': PAGE_OWNS_TITLE,
   '/compare/[slug]': PAGE_OWNS_TITLE,
   '/facts': PAGE_OWNS_TITLE,

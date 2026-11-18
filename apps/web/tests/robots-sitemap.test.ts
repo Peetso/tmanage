@@ -7,6 +7,7 @@ import { metadata as arabicSignInMetadata } from '@/app/ar/sign-in/page';
 import { metadata as arabicSignUpMetadata } from '@/app/ar/sign-up/page';
 import { ALL_RESOURCES } from '@/components/website/pages/resources/resources-data';
 import { ALTERNATIVE_ENTRIES } from '@/content/alternatives/alternative-entries';
+import { ARABIC_KIT_PATHS } from '@/content/arabic/arabic-slugs';
 import { COMPARE_ENTRIES } from '@/content/compare/compare-entries';
 import { SWITCH_ENTRIES } from '@/content/compare/switch-entries';
 import { HELP_ARTICLES } from '@/content/help/help-articles';
@@ -54,7 +55,8 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
       SWITCH_ENTRIES.length +
       1 +
       ALTERNATIVE_ENTRIES.length +
-      1;
+      1 +
+      ARABIC_KIT_PATHS.length;
     expect(urls.length).toBe(2 * withTwin + SINGLE_LOCALE_PATHS.length);
     expect(new Set(urls).size).toBe(urls.length);
   });

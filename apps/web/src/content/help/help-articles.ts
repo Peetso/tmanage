@@ -7,15 +7,23 @@
  */
 
 import { AI_RECIPE_ARTICLES } from './ai-recipes';
+import { ARABIC_HELP_ARTICLES } from './arabic-help';
 
 export type HelpLanguage = 'en' | 'ar';
 
 export type HelpCategoryId =
-  'getting-started' | 'projects' | 'tasks' | 'client-portal' | 'files' | 'time-money' | 'security';
+  | 'getting-started'
+  | 'arabic'
+  | 'projects'
+  | 'tasks'
+  | 'client-portal'
+  | 'files'
+  | 'time-money'
+  | 'security';
 
 export interface HelpCategory {
   id: HelpCategoryId;
-  icon: 'bolt' | 'briefcase' | 'check' | 'portal' | 'doc' | 'chart' | 'shield';
+  icon: 'bolt' | 'globe' | 'briefcase' | 'check' | 'portal' | 'doc' | 'chart' | 'shield';
   title: Record<HelpLanguage, string>;
   blurb: Record<HelpLanguage, string>;
 }
@@ -52,6 +60,16 @@ export const HELP_CATEGORIES: readonly HelpCategory[] = [
     blurb: {
       en: 'Set up your workspace and bring your team in.',
       ar: 'جهّز مساحة عملك وأضف فريقك.',
+    },
+  },
+  // 57-07 (MENA): the Arabic-first starter topic (`arabic-help.ts`).
+  {
+    id: 'arabic',
+    icon: 'globe',
+    title: { en: 'Arabic and language', ar: 'العربية واللغة' },
+    blurb: {
+      en: 'Work in Arabic, in English, or both.',
+      ar: 'اعمل بالعربية أو بالإنجليزية أو بكلتيهما.',
     },
   },
   {
@@ -1171,6 +1189,8 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
   },
   // 55-15p: the ready-made AI requests (hub + seven recipes), kept in their own file.
   ...AI_RECIPE_ARTICLES,
+  // 57-07 (MENA): Arabic and language, and client approval by link.
+  ...ARABIC_HELP_ARTICLES,
 ];
 
 const BY_SLUG: ReadonlyMap<string, HelpArticle> = new Map(HELP_ARTICLES.map((a) => [a.slug, a]));
