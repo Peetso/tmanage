@@ -130,6 +130,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.access_review_confirmed',
   // ---- 57-02 ----
   'platform.plan_version_created',
+  // ---- 57-08 REFERRAL ----
+  'platform.referral_partner_created',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

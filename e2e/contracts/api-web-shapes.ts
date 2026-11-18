@@ -4966,3 +4966,18 @@ type _platformPricingAnswer = Assert<
 type _platformPricingSurvey = Assert<
   Exact<ApiPlatformPricingSurveyView, WebPlatformPricingSurveyView>
 >;
+
+// ---- 57-08 REFERRAL · the owner's invite link and the Platform partner list ----
+import type {
+  PlatformPartnerView as ApiPlatformPartnerView,
+  PlatformReferralsView as ApiPlatformReferralsView,
+  ReferralView as ApiReferralView,
+} from '../../apps/api/src/modules/billing/referrals.service.js';
+import type {
+  PlatformPartnerView as WebPlatformPartnerView,
+  PlatformReferralsView as WebPlatformReferralsView,
+  ReferralView as WebReferralView,
+} from '../../apps/web/src/lib/api/referrals.js';
+type _referral = Assert<Exact<ApiReferralView, WebReferralView>>;
+type _platformPartner = Assert<Exact<ApiPlatformPartnerView, WebPlatformPartnerView>>;
+type _platformReferrals = Assert<Exact<ApiPlatformReferralsView, WebPlatformReferralsView>>;

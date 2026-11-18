@@ -121,6 +121,9 @@ export const NEVER_REASONS = [
   // 57-17. The beta pricing question: a person's own answer (or skip) about what they would pay.
   // Their opinion, asked once; an AI principal must never answer or skip it for them.
   'pricing_survey',
+  // 57-08. The owner's invite link (view, create the code): a growth link the owner chooses to share
+  // with other companies. Owner-only by design; an AI principal must never create or hand it out.
+  'referral',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

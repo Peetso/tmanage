@@ -118,6 +118,11 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/admin/feature-flags': { en: 'Feature flags', key: 'RouteTitle.adminFeatureFlags' },
   '/[orgSlug]/admin/file-safety': { en: 'Blocked files', key: 'BlockedFiles.title' },
   '/[orgSlug]/admin/incidents': { en: 'Incidents', key: 'RouteTitle.adminIncidents' },
+  // 57-08 REFERRAL: Settings › People › Invite companies (owner only).
+  '/[orgSlug]/admin/invite-agencies': {
+    en: 'Invite companies',
+    key: 'InviteAgencies.navLabel',
+  },
   '/[orgSlug]/admin/ip-allowlist': { en: 'IP allowlist', key: 'RouteTitle.adminIpAllowlist' },
   '/[orgSlug]/admin/privacy': { en: 'Privacy', key: 'RouteTitle.adminPrivacy' },
   '/[orgSlug]/admin/public-links': { en: 'Public links', key: 'RouteTitle.adminPublicLinks' },
@@ -606,6 +611,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/ar/help': PAGE_OWNS_TITLE,
   '/ar/help/[slug]': PAGE_OWNS_TITLE,
   '/ar/page-not-found': PAGE_OWNS_TITLE,
+  '/ar/referral': PAGE_OWNS_TITLE,
   '/ar/resources/[slug]': PAGE_OWNS_TITLE,
   '/ar/sign-in': PAGE_OWNS_TITLE,
   '/ar/sign-up': PAGE_OWNS_TITLE,
@@ -622,6 +628,8 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/compare/[slug]': PAGE_OWNS_TITLE,
   '/facts': PAGE_OWNS_TITLE,
   '/help/[slug]': PAGE_OWNS_TITLE,
+  // 57-08 (REFERRAL): "Invite a company" sets its own title in each language.
+  '/referral': PAGE_OWNS_TITLE,
   '/resources/[slug]': PAGE_OWNS_TITLE,
   '/switch/[slug]': PAGE_OWNS_TITLE,
   '/website-kit': PAGE_OWNS_TITLE,

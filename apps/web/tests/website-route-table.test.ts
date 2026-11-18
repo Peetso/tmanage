@@ -55,6 +55,12 @@ const ROUTES: Record<string, RouteRow> = {
     from: 'website/pages/arabic/ArabicFirstPage',
     title: null,
   },
+  // 57-08 (REFERRAL): the title comes from REFERRAL_PAGE_COPY.
+  '/referral': {
+    component: 'ReferralPage',
+    from: 'website/pages/referral/ReferralPage',
+    title: null,
+  },
   '/client-portal': {
     component: 'ClientPortalPage',
     from: 'website/pages/client-portal/ClientPortalPage',

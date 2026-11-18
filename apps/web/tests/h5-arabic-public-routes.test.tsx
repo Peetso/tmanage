@@ -25,6 +25,7 @@ import {
   ARABIC_KIT_PATHS,
   COMPARE_PATHS,
   FACTS_PATH,
+  REFERRAL_PATH,
   HELP_PATHS,
   isArabicPublicPath,
   languageSwitchTarget,
@@ -90,6 +91,8 @@ describe('the Arabic route table', () => {
           route !== FACTS_PATH &&
           // 57-07 (MENA): the Arabic-first page and its use cases have their own Arabic routes.
           !ARABIC_KIT_PATHS.includes(route) &&
+          // 57-08 (REFERRAL): "Invite a company" has its own Arabic route.
+          route !== REFERRAL_PATH &&
           // 52-19: /verify is never indexed, so its Arabic twin is its own route, off the table.
           route !== '/verify',
       )

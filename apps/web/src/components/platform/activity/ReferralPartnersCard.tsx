@@ -18,7 +18,7 @@ import { ACTIVITY_KEY } from './ActivityFrame';
 const COPY = {
   title: 'Invite links and partners',
   description:
-    'Sign-ups through workspace invite links, and partner codes for agencies that resell TManage. Workspace names only, never a person.',
+    'Sign-ups through workspace invite links, and partner codes for companies that resell TManage. Workspace names only, never a person.',
   outcome_counted: 'Counted',
   outcome_self: 'Own sign-up',
   outcome_same_domain: 'Same company',
@@ -33,7 +33,7 @@ const COPY = {
   colOutcome: 'Result',
   colDate: 'Date',
   emptyTitle: 'No partners yet',
-  emptyBody: 'Add a partner to give an agency reseller its own link.',
+  emptyBody: 'Add a partner to give a reseller its own link.',
 } as const;
 
 type CopyKey = keyof typeof COPY;

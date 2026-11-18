@@ -71,7 +71,7 @@ describe('InviteAgenciesScreen (57-08 REFERRAL)', () => {
     const { container } = screenFor(client);
     const link = await screen.findByText('https://tmanageapp.com/sign-up?ref=northstar-7q4k2m');
     expect(link.getAttribute('dir')).toBe('ltr');
-    expect(screen.getByText('Agencies signed up')).toBeTruthy();
+    expect(screen.getByText('Companies signed up')).toBeTruthy();
     expect(screen.getByText('Cedar Agency')).toBeTruthy();
     expect(screen.getByText('Blue Dune Studio')).toBeTruthy();
     expect(screen.getAllByText('Signed up')).toHaveLength(2);

@@ -1380,6 +1380,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0375 (57-17 WTP). Tenant-owned: an owner's or admin's pricing answer or skip, once per person.
   // Registered after `memberships` (its tenant-bound FK) so the company erasure empties it first.
   pricing_survey_answers: 'organization_id',
+  // 0376 (57-08 REFERRAL). Tenant-owned: a workspace's invite code and the sign-ups recorded
+  // against it (the inviting workspace's rows). `referral_codes` after `memberships` and
+  // `referral_signups` after `referral_codes` (their tenant-bound FKs), so the company erasure
+  // empties the sign-ups first, then the code.
+  referral_codes: 'organization_id',
+  referral_signups: 'organization_id',
 });
 
 /**
@@ -1522,6 +1528,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // 0373 (EMAILBUILD2). Platform release notes (Feature news card) and the person-mail sweep cursor.
   'platform_feature_news',
   'platform_person_mail_sweep',
+  // 0376 (57-08 REFERRAL). Partner (reseller) codes and the workspaces that signed up through them:
+  // platform records created and read by the TManage team, no organization of their own. Reached
+  // through `identityTransaction` / `identityRead` (partner create audits in the same transaction).
+  'referral_partners',
+  'referral_partner_signups',
   // ---- 52-21 ----
   // 0255. Public abuse telemetry and issued challenges. GLOBAL: the callers are anonymous (no
   // organization yet, or a visitor of one), every key is a hash (submitted values, the challenge

@@ -56,7 +56,8 @@ describe('robots.txt and sitemap.xml (live 307 to /robots.txt/home, 2026-10-26)'
       1 +
       ALTERNATIVE_ENTRIES.length +
       1 +
-      ARABIC_KIT_PATHS.length;
+      ARABIC_KIT_PATHS.length +
+      1;
     expect(urls.length).toBe(2 * withTwin + SINGLE_LOCALE_PATHS.length);
     expect(new Set(urls).size).toBe(urls.length);
   });

@@ -68,6 +68,10 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   'confirm-email',
   // The message catalogs, served per language and page part at /i18n/{catalog} (CATSPLIT).
   'i18n',
+  // The Arabic-first product page and its use cases (/arabic, /arabic/{slug}, 57-07 MENA).
+  'arabic',
+  // The "Invite a company" page (/referral, 57-08 REFERRAL).
+  'referral',
   'sessions',
   'admin',
   'api',

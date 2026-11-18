@@ -14,6 +14,8 @@ import {
   USE_CASE_ENTRIES,
 } from '../content/arabic/arabic-pages';
 import { FACTS_COPY, FACTS_UPDATED_ON } from '../content/facts/facts';
+import { REFERRAL_PAGE_COPY } from '../content/referral/referral';
+import { REFERRAL_PATH } from '../content/referral/referral-slugs';
 import { HELP_ARTICLES } from '../content/help/help-articles';
 import { ARABIC_AUTH_PATHS, PUBLIC_LOCALIZED_PATHS } from './i18n/public-locale-routes';
 import { translate } from './i18n/t';
@@ -219,11 +221,21 @@ function arabicKitPages(): PublicPage[] {
   ];
 }
 
+/** Row 57-08 (REFERRAL) — "Invite a company", with the company pages. */
+const REFERRAL_PAGE: PublicPage = {
+  path: REFERRAL_PATH,
+  title: REFERRAL_PAGE_COPY.en.title,
+  summary: REFERRAL_PAGE_COPY.en.description,
+  section: 'company',
+  lastModified: SITE_BUILD_DATE,
+};
+
 /** Every English public page, in the sitemap's order. */
 export const PUBLIC_PAGES: readonly PublicPage[] = [
   ...PUBLIC_LOCALIZED_PATHS.map(websitePage),
   FACTS_PAGE,
   ...arabicKitPages(),
+  REFERRAL_PAGE,
   ...resourcePages(),
   ...helpPages(),
   ...comparePages(),

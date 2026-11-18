@@ -323,6 +323,7 @@ export const APP_NAMESPACES: readonly string[] = [
   'PlatformPeople',
   'PlatformPersonMail',
   'PlatformPricing',
+  'PlatformReferrals',
   'PlatformSettings',
   'PlatformShared',
   'PlatformShell',

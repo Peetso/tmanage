@@ -2596,3 +2596,14 @@ GRANT INSERT, UPDATE ON `tmanage`.`mail_recipient_bounces` TO 'tmanage_worker'@'
 -- read (the card's "already answered" check and the platform list's bootstrap read). The worker
 -- needs no grant.
 GRANT INSERT ON `tmanage`.`pricing_survey_answers` TO 'tmanage_app'@'%';
+-- 0376 (57-08 REFERRAL). `referral_codes` and `referral_signups` (tenant): a workspace's invite
+-- code (created once by the owner) and the sign-ups recorded against it after a new workspace
+-- commits. `referral_partners` and `referral_partner_signups` (platform): partner codes created by
+-- a Platform admin and the sign-ups through them. INSERT only: a code is never edited or re-issued
+-- and a sign-up row is never changed, so no UPDATE and no DELETE. SELECT rides the database-wide
+-- read (the owner's list, the sign-up's code lookup, the Platform admin totals). The worker needs
+-- no grant.
+GRANT INSERT ON `tmanage`.`referral_codes` TO 'tmanage_app'@'%';
+GRANT INSERT ON `tmanage`.`referral_signups` TO 'tmanage_app'@'%';
+GRANT INSERT ON `tmanage`.`referral_partners` TO 'tmanage_app'@'%';
+GRANT INSERT ON `tmanage`.`referral_partner_signups` TO 'tmanage_app'@'%';

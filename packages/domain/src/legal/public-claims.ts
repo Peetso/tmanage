@@ -266,6 +266,26 @@ export const PUBLIC_CLAIMS: readonly PublicClaim[] = Object.freeze([
     phrases: { en: [/sign-in codes are never delayed/iu], ar: [/رموز الدخول لا تتأخر/u] },
     plannedKeys: [],
   },
+  {
+    id: 'approval_record_public_check',
+    textKey: 'VerifyRecord.title',
+    proofIds: [
+      'apps/api/src/modules/approvals/approval-record-verify.test.ts',
+      'apps/web/tests/verify-record-52-19.test.tsx',
+    ],
+    // Built in 3e4e267e (/verify and /ar/verify: anyone holding the certificate checks the record
+    // ID and fingerprint, POST /v1/public/approval-records/verify). Said on the MENA use case page.
+    status: 'shipped',
+    verifiedAt: '2026-11-18',
+    proofRunRef:
+      'WIRING3 unit run: apps/api/src/modules/approvals/approval-record-verify.test.ts (7), apps/web/tests/verify-record-52-19.test.tsx (3e4e267e)',
+    owner: '52-19',
+    phrases: {
+      en: [/anyone (?:with the certificate )?can check/iu],
+      ar: [/أي شخص لديه الشهادة (?:أن )?(?:يتحقّق|التحقّق)/u],
+    },
+    plannedKeys: [],
+  },
 ] satisfies readonly PublicClaim[]);
 
 /**

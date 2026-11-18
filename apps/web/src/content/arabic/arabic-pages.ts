@@ -27,11 +27,11 @@ export interface KitCard {
 
 export const ARABIC_FIRST_COPY = {
   en: {
-    tabTitle: 'Project management in Arabic for agencies',
+    tabTitle: 'Project management in Arabic for teams',
     description:
-      'TManage keeps tasks, files, client approvals and time in one place, and it works right to left in Arabic. For agencies in the Gulf, Egypt and the Levant. Free during the beta.',
+      'TManage keeps tasks, files, client approvals and time in one place, and it works right to left in Arabic. For companies in the Gulf, Egypt and the Levant. Free during the beta.',
     eyebrow: 'Built for Arabic first',
-    title: 'Run your agency’s projects in Arabic, right to left',
+    title: 'Run your company’s projects in Arabic, right to left',
     lede: 'TManage keeps tasks, files, client approvals and time in one place, and it works right to left in Arabic.',
     primary: 'Start a free workspace',
     secondary: 'See how approvals work',
@@ -90,10 +90,10 @@ export const ARABIC_FIRST_COPY = {
     betaNote: 'TManage is free during the beta.',
   },
   ar: {
-    tabTitle: 'إدارة مشاريع الوكالات بالعربية',
-    description: `${RLM}TManage يجمع المهام والملفات وموافقات العملاء والوقت في مكان واحد، ويعمل بالعربية من اليمين إلى اليسار. للوكالات في الخليج ومصر والشام. مجاني خلال الفترة التجريبية.`,
+    tabTitle: 'إدارة المشاريع بالعربية للفرق',
+    description: `${RLM}TManage يجمع المهام والملفات وموافقات العملاء والوقت في مكان واحد، ويعمل بالعربية من اليمين إلى اليسار. للشركات في الخليج ومصر والشام. مجاني خلال الفترة التجريبية.`,
     eyebrow: 'مصمَّم للعربية أولًا',
-    title: 'أدِر مشاريع وكالتك بالعربية، من اليمين إلى اليسار',
+    title: 'أدِر مشاريع شركتك بالعربية، من اليمين إلى اليسار',
     lede: `${RLM}TManage يجمع المهام والملفات وموافقات العملاء والوقت في مكان واحد، ويعمل بالعربية من اليمين إلى اليسار.`,
     primary: 'ابدأ مساحة عمل مجانية',
     secondary: 'شاهد كيف تعمل الموافقات',
@@ -187,7 +187,8 @@ export const USE_CASE_ENTRIES: readonly UseCaseEntry[] = [
       title: 'Get the client’s approval without a long message thread',
       lede: 'Share one link per version. The client approves or asks for changes, and the decision stays with the file.',
       before: 'Versions in chats, notes in e-mail, and nobody knows which file was approved.',
-      after: 'One link per version, one decision per link, and a record that can be checked later.',
+      after:
+        'One link per version, one decision per link, and a record anyone with the certificate can check.',
       steps: [
         { title: 'Upload the version', body: 'Add the file to the task.' },
         {
@@ -208,7 +209,7 @@ export const USE_CASE_ENTRIES: readonly UseCaseEntry[] = [
       title: 'احصل على موافقة العميل دون سلسلة رسائل طويلة',
       lede: 'شارك رابطًا واحدًا لكل نسخة. يعتمد العميل أو يطلب تعديلات، ويبقى القرار مع الملف.',
       before: 'نسخ في المحادثات، وملاحظات في البريد، ولا أحد يعرف أي ملف اعتُمد.',
-      after: 'رابط لكل نسخة، وقرار لكل رابط، وسجل يمكن التحقّق منه لاحقًا.',
+      after: 'رابط لكل نسخة، وقرار لكل رابط، وسجل يستطيع أي شخص لديه الشهادة التحقّق منه.',
       steps: [
         { title: 'ارفع النسخة', body: 'أضف الملف إلى المهمة.' },
         {
@@ -349,7 +350,7 @@ export const USE_CASE_COPY = {
     help: 'Read the help article',
     more: 'More use cases',
     readMore: 'Read more',
-    tabTitle: (name: string) => `${name} for agencies`,
+    tabTitle: (name: string) => `In Arabic: ${name}`,
   },
   ar: {
     crumb: 'بالعربية',
@@ -362,7 +363,7 @@ export const USE_CASE_COPY = {
     help: 'اقرأ مقالة المساعدة',
     more: 'حالات استخدام أخرى',
     readMore: 'اقرأ المزيد',
-    tabTitle: (name: string) => `${name} للوكالات`,
+    tabTitle: (name: string) => `بالعربية: ${name}`,
   },
 } satisfies Record<CompareLanguage, unknown>;
 

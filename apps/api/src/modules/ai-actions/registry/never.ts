@@ -1329,6 +1329,12 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'pricing_survey',
   },
   { method: 'GET', path: '/v1/platform/pricing-survey/', reason: 'platform_admin' },
+  // 57-08 REFERRAL. The owner's invite link (view, create the code): owner-only, never an AI's to
+  // create or share. The partner codes and totals are platform-only.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/referral/', reason: 'referral' },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/referral/code', reason: 'referral' },
+  { method: 'GET', path: '/v1/platform/referrals/', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/referrals/partners', reason: 'platform_admin' },
   // 55-14. Client portal magic-link sign-in: anonymous request, code, preview, consume, not-you.
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },

@@ -227,7 +227,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // MCPEASE: GET ai/approvals/ (+1 NEVER, mcp_endpoint). PLANWEB: GET public/plan-versions (+1 NEVER,
 // public_site). WTP: pricing-survey read/answer/skip (+3 NEVER, pricing_survey) and the platform
 // answers list (+1 NEVER, platform_admin).
-const EXPECTED_ROUTE_COUNT = 1545;
+// REFERRAL: GET referral/ and POST referral/code (+2 NEVER, referral); GET platform/referrals/ and
+// POST platform/referrals/partners (+2 NEVER, platform_admin).
+const EXPECTED_ROUTE_COUNT = 1549;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

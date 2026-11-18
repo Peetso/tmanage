@@ -66,7 +66,7 @@ export class PlatformReferralsController {
       insertPlatformAudit(tx, {
         actorUserId: actor.account.userId,
         actorEmail: actor.account.email,
-        action: 'referral.partner.create',
+        action: 'platform.referral_partner_created',
         targetType: 'platform',
         targetId: partner.id,
         targetLabel: name,

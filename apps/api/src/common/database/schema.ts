@@ -14549,3 +14549,101 @@ export const pricingSurveyAnswers = mysqlTable(
 export type PricingSurveyAnswerRow = typeof pricingSurveyAnswers.$inferSelect;
 
 Object.assign(TABLES, { pricing_survey_answers: pricingSurveyAnswers });
+
+// ---- 57-08 REFERRAL · invite links and partner codes (0376) ----
+
+/**
+ * 0376 (57-08). One invite code per workspace (`uq_referral_codes_org`), globally unique
+ * (`uq_referral_codes_code`). Created by the owner; never edited or re-issued. TENANT; api
+ * SELECT, INSERT only. `0376_referrals.sql` is the source of truth.
+ */
+export const referralCodes = mysqlTable(
+  'referral_codes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    code: varchar('code', { length: 40 }).notNull(),
+    createdByMembershipId: char('created_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_referral_codes_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_referral_codes_org').on(table.organizationId),
+    uniqueIndex('uq_referral_codes_code').on(table.code),
+  ],
+);
+
+/**
+ * 0376 (57-08). One row per new workspace that signed up through an invite code, owned by the
+ * INVITING workspace (`uq_referral_signups_referred`: a workspace is credited at most once).
+ * `referred_name` is a snapshot of the new workspace's name; `outcome` is 'counted', 'self',
+ * 'same_domain' or 'rate_limited'; `reward_kind` / `reward_state` are set on counted rows only.
+ * TENANT; api SELECT, INSERT only.
+ */
+export const referralSignups = mysqlTable(
+  'referral_signups',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    referralCodeId: char('referral_code_id', { length: 36 }).notNull(),
+    referredOrganizationId: char('referred_organization_id', { length: 36 }).notNull(),
+    referredName: varchar('referred_name', { length: 190 }).notNull(),
+    outcome: varchar('outcome', { length: 16 }).notNull(),
+    rewardKind: varchar('reward_kind', { length: 16 }),
+    rewardState: varchar('reward_state', { length: 16 }),
+    signedUpAt: datetime('signed_up_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_referral_signups_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_referral_signups_referred').on(table.referredOrganizationId),
+    index('ix_referral_signups_org_signed_up').on(table.organizationId, table.signedUpAt),
+  ],
+);
+
+/**
+ * 0376 (57-08). A partner (reseller) code and display name, created by a Platform admin
+ * (audited). PLATFORM, non-tenant; api SELECT, INSERT only.
+ */
+export const referralPartners = mysqlTable(
+  'referral_partners',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    code: varchar('code', { length: 40 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_referral_partners_code').on(table.code)],
+);
+
+/**
+ * 0376 (57-08). One row per new workspace that signed up through a partner code. PLATFORM,
+ * non-tenant; api SELECT, INSERT only.
+ */
+export const referralPartnerSignups = mysqlTable(
+  'referral_partner_signups',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    partnerId: char('partner_id', { length: 36 }).notNull(),
+    referredOrganizationId: char('referred_organization_id', { length: 36 }).notNull(),
+    referredName: varchar('referred_name', { length: 190 }).notNull(),
+    outcome: varchar('outcome', { length: 16 }).notNull(),
+    signedUpAt: datetime('signed_up_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_referral_partner_signups_referred').on(table.referredOrganizationId),
+    index('ix_referral_partner_signups_partner').on(table.partnerId, table.signedUpAt),
+  ],
+);
+
+export type ReferralCodeRow = typeof referralCodes.$inferSelect;
+export type ReferralSignupRow = typeof referralSignups.$inferSelect;
+export type ReferralPartnerRow = typeof referralPartners.$inferSelect;
+export type ReferralPartnerSignupRow = typeof referralPartnerSignups.$inferSelect;
+
+Object.assign(TABLES, {
+  referral_codes: referralCodes,
+  referral_signups: referralSignups,
+  referral_partners: referralPartners,
+  referral_partner_signups: referralPartnerSignups,
+});

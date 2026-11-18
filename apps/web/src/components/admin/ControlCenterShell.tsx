@@ -36,7 +36,7 @@ export type ControlCenterSection =
   | 'roles'
   | 'client-organizations'
   | 'invitations'
-  // 57-08 REFERRAL: the owner's invite link for other agencies (People, under Invitations).
+  // 57-08 REFERRAL: the owner's invite link for other companies (People, under Invitations).
   | 'invite-agencies'
   | 'offboarding'
   | 'templates'
@@ -256,7 +256,7 @@ const GROUPS: readonly SectionGroup[] = [
       {
         id: 'invite-agencies',
         labelKey: 'InviteAgencies.navLabel' as MessageKey,
-        fallback: 'Invite agencies',
+        fallback: 'Invite companies',
         href: '/admin/invite-agencies',
         capability: 'org.manage',
         ownerOnly: true,
