@@ -2,6 +2,7 @@ import type { DynamicModule } from '@nestjs/common';
 import type { Env } from '@tmanage/config';
 import { deriveBounceKey } from '@tmanage/mail';
 import { DatabaseModule } from './common/database/database.module.js';
+import { createGuardEventLog } from './common/database/guard-event-log.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
 import { ScannerModule } from './common/scan/scanner.module.js';
@@ -39,13 +40,13 @@ export function composeAppModule(env: Env): DynamicModule {
           serializeForLog(error),
         );
       },
-      onGuardEvent: (event) => {
-        // ADR-0001 layer 3. The event carries a redacted statement shape and never a bound
-        // value; OBS-001 routes it through the field-level redactor (`serializeForLog`) so any
-        // future field a guard event grows cannot become a secret in the log, and later to the
-        // metric and the alert.
+      // ADR-0001 layer 3. The event carries a redacted statement shape and never a bound
+      // value; OBS-001 routes it through the field-level redactor (`serializeForLog`) so any
+      // future field a guard event grows cannot become a secret in the log, and later to the
+      // metric and the alert. LOGQUIET-b: an audited escape once per fingerprint per start.
+      onGuardEvent: createGuardEventLog((event) => {
         console.warn('[tenant-guard]', serializeForLog(event));
-      },
+      }),
     }),
     mailer: MailerModule.forConfig({
       driver: env.EMAIL_DRIVER,
