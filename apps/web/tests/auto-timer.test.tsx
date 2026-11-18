@@ -310,6 +310,31 @@ describe('automatic timer chip', () => {
     window.history.replaceState(null, '', '/');
   });
 
+  it('57-17: waits for a later visit while Home asks "what would you pay"', async () => {
+    window.localStorage.clear();
+    window.history.replaceState(null, '', '/northstar/home');
+    let surveyShown = true;
+    const { api, calls } = client((call) => {
+      if (call.url.endsWith('/time/auto')) {
+        return { status: 200, body: { ...STATE, enabled: false, ownSwitch: false } };
+      }
+      if (call.url.endsWith('/pricing-survey')) return { status: 200, body: { show: surveyShown } };
+      return { status: 200, body: {} };
+    });
+    const first = wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    await screen.findByRole('button', { name: /Auto timer/ });
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/pricing-survey'))).toBe(true));
+    expect(screen.queryByRole('region', { name: 'Automatic timer' })).toBeNull();
+    first.unmount();
+
+    surveyShown = false;
+    wrap(<AutoTimerStatus organizationSlug="northstar" client={api} />);
+    expect(
+      await screen.findByRole('button', { name: 'Turn on automatic time tracking' }),
+    ).toBeTruthy();
+    window.history.replaceState(null, '', '/');
+  });
+
   it('item 17: reports where tracking runs, so the owner can see it', async () => {
     const { api, calls } = client((call) =>
       call.url.endsWith('/time/auto') ? { status: 200, body: STATE } : { status: 200, body: {} },

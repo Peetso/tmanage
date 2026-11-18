@@ -63,6 +63,9 @@ interface SignUpSent {
   readonly answer: { organizationSlug: string; planId: string | null };
 }
 
+/** The sign-up page in the reader's language: an Arabic page links its Arabic twin. */
+const signUpPath = (lang: Lang): string => (lang === 'ar' ? '/ar/sign-up' : '/sign-up');
+
 /** The public sign-up form, both steps, as a person fills it. Returns what was sent and answered. */
 async function signUp(page: Page, lang: Lang, company: string): Promise<SignUpSent> {
   const stamp = `${lang}${Date.now()}`;
@@ -141,9 +144,10 @@ for (const lang of LANGS) {
         .getByRole('main')
         .getByRole('link', { name: word(lang, 'PricingPage.startFree') })
         .first();
-      await expect(start).toHaveAttribute('href', /\/sign-up$/u);
+      // An Arabic page links the Arabic sign-up, never the English one.
+      await expect(start).toHaveAttribute('href', signUpPath(lang));
 
-      await page.goto(lang === 'ar' ? '/ar/sign-up?plan=studio' : '/sign-up?plan=studio');
+      await page.goto(`${signUpPath(lang)}?plan=studio`);
       await expectLanguage(page, lang);
       const sent = await signUp(page, lang, `Harbor Beta ${lang}`);
       expect(sent.body.plan).toBe('studio');
@@ -166,9 +170,11 @@ for (const lang of LANGS) {
           page.getByRole('heading', { name: word(lang, 'PricingPage.flatTitle'), level: 1 }),
         ).toBeVisible();
         const studio = page.getByRole('link', { name: word(lang, 'PricingPage.planStudioCta') });
-        await expect(studio).toHaveAttribute('href', /\/sign-up\?plan=studio$/u);
+        await expect(studio).toHaveAttribute('href', `${signUpPath(lang)}?plan=studio`);
         await studio.click();
-        await expect(page).toHaveURL(/\/sign-up\?plan=studio$/u);
+        await expect(page).toHaveURL(
+          (url) => `${url.pathname}${url.search}` === `${signUpPath(lang)}?plan=studio`,
+        );
         await expectLanguage(page, lang);
         const sent = await signUp(page, lang, `Harbor Paid ${lang}`);
         expect(sent.body.plan).toBe('studio');
@@ -205,7 +211,7 @@ for (const lang of LANGS) {
       const company = `Harbor Referred ${lang} ${Date.now()}`;
       const visitor = await browser.newContext();
       const page = await visitor.newPage();
-      await page.goto(`${lang === 'ar' ? '/ar' : ''}/sign-up?ref=${code}`);
+      await page.goto(`${signUpPath(lang)}?ref=${code}`);
       await expectLanguage(page, lang);
       const sent = await signUp(page, lang, company);
       expect(sent.body.referral).toBe(code);

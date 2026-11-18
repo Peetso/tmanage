@@ -26,7 +26,7 @@ import {
 import type { AiAccessSwitches } from '../oauth/ai-access.js';
 import { INTERNAL_GRANT_HEADER, internalGrants } from './internal-grant.js';
 import type { InjectCapable } from './mcp-endpoint.controller.js';
-import { PendingAiActionsService } from './pending-actions.service.js';
+import { PENDING_AI_ACTIONS_SERVICE, PendingAiActionsService } from './pending-actions.service.js';
 import type { OpExecutor, PendingAiActionView } from './pending-actions.service.js';
 
 /**
@@ -55,8 +55,6 @@ import type { OpExecutor, PendingAiActionView } from './pending-actions.service.
  * approve answers 403 while the workspace owner has AI apps turned off, so an action frozen before
  * AI was switched off is never run through the `ai_grant` inject afterwards.
  */
-
-const PENDING_AI_ACTIONS_SERVICE = Symbol.for('tmanage.PendingAiActionsService');
 
 const AuthScheme = createParamDecorator(
   (_data: unknown, context: ExecutionContext): string | undefined =>
@@ -176,6 +174,9 @@ export class PendingAiActionsModule {
     };
     return {
       module: PendingAiActionsModule,
+      // Global: the `/mcp` endpoint freezes confirm-class calls, and the bound-token interceptor
+      // PAT ones, through this one service.
+      global: true,
       providers: [service, aiAccessSwitchesProvider, AiPlatformSwitchGuard],
       exports: [service],
       controllers: [PendingAiActionsController],

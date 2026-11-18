@@ -267,7 +267,7 @@ function VerdictCard({ result }: { result: PublicRecordVerdictView }) {
         <p className="tm-web-verify__body">
           {tOr(
             'VerifyRecord.alteredBody',
-            'The record exists, but it no longer matches what was saved when it was approved. Do not rely on it. Ask the agency for a new certificate.',
+            'The record exists, but it no longer matches what was saved when it was approved. Do not rely on it. Ask the company that sent it for a new certificate.',
           )}
         </p>
       </section>
@@ -285,7 +285,7 @@ function VerdictCard({ result }: { result: PublicRecordVerdictView }) {
       <p className="tm-web-verify__body">
         {tOr(
           'VerifyRecord.notFoundBody',
-          'No record matches this ID and fingerprint. Check both for typing errors, or ask the agency that sent you the certificate.',
+          'No record matches this ID and fingerprint. Check both for typing errors, or ask the company that sent you the certificate.',
         )}
       </p>
     </section>

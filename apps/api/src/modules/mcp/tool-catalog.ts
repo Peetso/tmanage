@@ -186,7 +186,8 @@ export function metaTools(): readonly CatalogTool[] {
         approval_id: z.string().min(1).max(120).describe('The approval id.'),
       },
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-      untrusted: false,
+      // An approved action's result may return workspace content, so it is wrapped as untrusted (B4).
+      untrusted: true,
     },
   ];
 }

@@ -309,6 +309,18 @@ export function approvalMessage(title: string, url: string): string {
   return `"${title}" needs your approval before it runs. Open this link in TManage, signed in as yourself, and approve it there: ${url}`;
 }
 
+/** The structured `status: "pending"` answer every approval channel returns. Nothing has run. */
+export function pendingApproval(
+  input: Pick<ApprovalRequiredInput, 'id' | 'url' | 'expiresAt'>,
+): Record<string, string> {
+  return {
+    status: 'pending',
+    approval_id: input.id,
+    approval_url: input.url,
+    expires_at: input.expiresAt.toISOString(),
+  };
+}
+
 /**
  * The answer to an AI client that asked for a confirm-class op (architecture F3). With URL-mode
  * elicitation the server returns an MRTR `input_required` result naming the approve page;
@@ -317,12 +329,7 @@ export function approvalMessage(title: string, url: string): string {
  */
 export function approvalRequiredResult(input: ApprovalRequiredInput): Record<string, unknown> {
   const message = approvalMessage(input.title, input.url);
-  const pending = {
-    status: 'pending',
-    approval_id: input.id,
-    approval_url: input.url,
-    expires_at: input.expiresAt.toISOString(),
-  };
+  const pending = pendingApproval(input);
   if (input.supportsUrlElicitation) {
     return {
       resultType: 'input_required',

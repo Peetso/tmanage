@@ -40,6 +40,9 @@ import type { PendingAiActionWithMember } from './pending-actions.repository.js'
  * or the same person in another org, gets the same 404 as an id that never existed (`T-APR-02`).
  */
 
+/** The DI token {@link PendingAiActionsService} is provided under (`PendingAiActionsModule`). */
+export const PENDING_AI_ACTIONS_SERVICE = Symbol.for('tmanage.PendingAiActionsService');
+
 /** Runs one frozen op in-process as the given principal; returns its status and raw body. */
 export type OpExecutor = (
   request: OpRequest,

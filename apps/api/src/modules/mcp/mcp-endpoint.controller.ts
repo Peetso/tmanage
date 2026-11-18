@@ -48,6 +48,8 @@ import { DatabaseMcpWorkspaceResolver, MCP_WORKSPACE_RESOLVER } from './mcp-work
 import { DatabaseMcpCallAuditor, MCP_CALL_AUDITOR, auditedRuntime } from './mcp-call-audit.js';
 import type { McpCallAuditor } from './mcp-call-audit.js';
 import type { McpWorkspaceResolver } from './mcp-workspace.js';
+import { PENDING_AI_ACTIONS_SERVICE } from './pending-actions.service.js';
+import type { PendingAiActionsService } from './pending-actions.service.js';
 
 /**
  * **Hosted MCP endpoint — `POST /mcp` (Streamable HTTP, stateless).**
@@ -244,6 +246,10 @@ export class McpEndpointController {
     @Optional()
     @Inject(MCP_CALL_AUDITOR)
     private readonly callAudit?: McpCallAuditor,
+    /** S10: where confirm-class calls are frozen for approval. Absent only in unit tests. */
+    @Optional()
+    @Inject(PENDING_AI_ACTIONS_SERVICE)
+    private readonly approvals?: Pick<PendingAiActionsService, 'request' | 'check'>,
   ) {}
 
   @Post()
@@ -312,6 +318,7 @@ export class McpEndpointController {
       scopes,
     };
 
+    const webOrigin = this.config.webPublicUrl;
     const { catalog, runtime } = liveMcpSurface({
       profile: toolsProfile(request.raw),
       scopes,
@@ -335,6 +342,18 @@ export class McpEndpointController {
             }),
           ),
       }),
+      // S10. A confirm-class call is frozen for the member to approve on the website; without an
+      // approve page to link to it is refused instead.
+      ...(this.approvals !== undefined && webOrigin !== undefined && webOrigin !== ''
+        ? {
+            approvals: {
+              service: this.approvals,
+              requester: principal,
+              webOrigin,
+              correlationId: state.correlationId,
+            },
+          }
+        : {}),
     });
     // Plan §4.4. One audit event per tool call, attributed to the token's user and AI client:
     // tool, op, outcome, args hash and latency — never the token or an argument value.

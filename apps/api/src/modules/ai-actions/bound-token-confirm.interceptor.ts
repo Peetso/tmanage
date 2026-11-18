@@ -18,6 +18,7 @@ import { STORED_AUDIENCE_RESOLVER } from './stored-audience.repository.js';
 import type { StoredAudienceResolver } from './stored-audience.repository.js';
 import { mcpBodyShapeRefusal } from '../mcp/mcp-body-shape.js';
 import { approvalUrl } from '../mcp/pending-actions.js';
+import { PENDING_AI_ACTIONS_SERVICE } from '../mcp/pending-actions.service.js';
 import type { PendingAiActionsService } from '../mcp/pending-actions.service.js';
 
 /**
@@ -57,9 +58,6 @@ import type { PendingAiActionsService } from '../mcp/pending-actions.service.js'
  * The route is resolved from the handler's own Nest metadata, never from the request URL, so a
  * crafted path cannot pick a different classification.
  */
-
-/** `Symbol.for` key the pending-actions module provides its service under. */
-const PENDING_AI_ACTIONS_SERVICE = Symbol.for('tmanage.PendingAiActionsService');
 
 const PATH_METADATA = 'path';
 const METHOD_METADATA = 'method';

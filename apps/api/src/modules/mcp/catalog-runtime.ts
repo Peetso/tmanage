@@ -25,7 +25,16 @@ import {
   effectiveScopes,
   toolNameForOp,
 } from './tool-catalog.js';
-import { buildOpRequest, capResult } from './pending-actions.js';
+import {
+  PendingActionRefusedError,
+  approvalMessage,
+  approvalUrl,
+  buildOpRequest,
+  capResult,
+  pendingApproval,
+} from './pending-actions.js';
+import type { PendingActionRequester, PendingAiActionsService } from './pending-actions.service.js';
+import { ApiError } from '../../common/http/errors.js';
 import { redactFinanceResult } from '../ai-actions/registry/finance-time.js';
 
 /**
@@ -109,6 +118,21 @@ export interface CatalogRuntimeOptions {
    * runtime refuses an edit of a client-visible item before any inner write request is made.
    */
   readonly storedField?: StoredFieldLookup;
+  /**
+   * S10 / architecture F3. Where a confirm-class call is frozen for approval. Absent (a unit test,
+   * or no web origin to link the approve page to), such a call is refused and nothing runs.
+   */
+  readonly approvals?: McpApprovals;
+}
+
+/** What the runtime needs to freeze a confirm-class call and to read its outcome back. */
+export interface McpApprovals {
+  readonly service: Pick<PendingAiActionsService, 'request' | 'check'>;
+  /** The member and AI client the outer request proved — never taken from the AI's arguments. */
+  readonly requester: PendingActionRequester;
+  /** The web origin the approve page is served from (`WEB_PUBLIC_URL`). */
+  readonly webOrigin: string;
+  readonly correlationId: string;
 }
 
 /** The default M01 lookup: the stored field as the member's own `work_items.get` returns it. */
@@ -148,12 +172,7 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     }
     // N07: a `write` op whose arguments reach a client (`confirmWhen`) is refused like a confirm op;
     // M01: so is one on a row the client already sees (`confirmWhenStored`, read from storage).
-    if (await callNeedsConfirmWithState(op, args, storedField)) {
-      return {
-        isError: true,
-        data: `${opId} needs your approval in TManage and cannot run over this connection yet.`,
-      };
-    }
+    if (await callNeedsConfirmWithState(op, args, storedField)) return askApproval(opId, args);
     const built = buildOpRequest(op, args, options.orgSlug);
     const response = await options.fetch(`${options.baseUrl}${built.url}`, {
       method: built.method,
@@ -171,6 +190,68 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
         ? redactFinanceResult(raw, options.capabilities.has('finance.manage'))
         : raw;
     return { summary: `${permitted.get(opId)!.title} ran.`, data };
+  }
+
+  /**
+   * A confirm-class call: freeze it as a pending AI action and answer with its approve link, as the
+   * personal-access-token route does. Nothing runs until the member approves it in TManage. A
+   * `write` op that is confirm-class only for this call (N07 / M01) cannot be frozen
+   * (`freezeConfirmAction` takes `confirm` ops), so it stays refused, as on that route.
+   */
+  async function askApproval(opId: string, args: Record<string, unknown>): Promise<RunResult> {
+    const approvals = options.approvals;
+    const refused: RunResult = {
+      isError: true,
+      data: `${opId} needs your approval in TManage and cannot run over this connection yet.`,
+    };
+    if (approvals === undefined) return refused;
+    let created;
+    try {
+      created = await approvals.service.request(
+        approvals.requester,
+        opId,
+        args,
+        approvals.correlationId,
+      );
+    } catch (error) {
+      if (error instanceof PendingActionRefusedError) return refused;
+      throw error;
+    }
+    const url = approvalUrl(approvals.webOrigin, options.orgSlug, created.id);
+    return {
+      summary: approvalMessage(created.title, url),
+      data: pendingApproval({ id: created.id, url, expiresAt: created.expiresAt }),
+    };
+  }
+
+  /** `tmanage_check_approval`: the outcome of one of this member's own pending actions. */
+  async function checkApproval(id: string): Promise<RunResult> {
+    const approvals = options.approvals;
+    if (approvals === undefined) {
+      return { isError: true, data: 'Approvals cannot be checked over this connection yet.' };
+    }
+    try {
+      const outcome = await approvals.service.check(
+        approvals.requester,
+        id,
+        approvals.correlationId,
+      );
+      return {
+        summary: `The approval is ${outcome.status}.`,
+        data: {
+          approval_id: id,
+          status: outcome.status,
+          result_status: outcome.resultStatus,
+          result: outcome.result,
+        },
+      };
+    } catch (error) {
+      // Another member's id answers exactly like one that never existed (T-APR-02).
+      if (error instanceof ApiError && error.status === 404) {
+        return { isError: true, data: `Unknown approval: ${id}` };
+      }
+      throw error;
+    }
   }
 
   function find(args: Record<string, unknown>): RunResult {
@@ -225,8 +306,10 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
           if (!parsed.success) return { isError: true, data: `Invalid arguments for ${id}.` };
           return runOp(id, parsed.data as Record<string, unknown>);
         }
+        case 'tmanage_check_approval':
+          return checkApproval(String(args['approval_id'] ?? ''));
         default:
-          return { isError: true, data: 'Approvals cannot be checked over this connection yet.' };
+          return { isError: true, data: `Unknown or not permitted action: ${tool.name}` };
       }
     },
     async readResource(

@@ -69,7 +69,9 @@ describe('52-19 public verify page', () => {
     render(<VerifyRecordPage client={client} />);
     fill();
     expect(await screen.findByText('We could not find this record')).toBeTruthy();
-    expect(screen.getByRole('status').textContent).not.toContain('Workspace');
+    const text = screen.getByRole('status').textContent ?? '';
+    expect(text).not.toContain('Workspace');
+    expect(text).toContain('ask the company that sent you the certificate.');
   });
 
   it('says altered in plain words, with the workspace but no date', async () => {
@@ -83,7 +85,8 @@ describe('52-19 public verify page', () => {
     fill();
     expect(await screen.findByText('This record has been altered')).toBeTruthy();
     const text = screen.getByRole('status').textContent ?? '';
-    expect(text).toContain('Ask the agency for a new certificate.');
+    // TManage serves every kind of company, not only agencies: the wording names none.
+    expect(text).toContain('Ask the company that sent it for a new certificate.');
     expect(text).not.toContain('chain');
     expect(text).not.toContain('Approved on');
   });

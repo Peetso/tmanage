@@ -11,7 +11,8 @@ afterEach(() => (cleanup(), act(() => activeLocale.set('en-US'))));
 describe('accessibility statement page', () => {
   it.each([
     ['en-US', 'TManage should work for everyone'],
-    ['ar-EG', 'TManage لكل الناس'],
+    // U+200F: the Latin-led Arabic title still lays out right to left.
+    ['ar-EG', '‏TManage لكل الناس'],
   ] as const)('renders %s with WCAG as an unaudited target', (loc, title) => {
     act(() => activeLocale.set(loc));
     const { container } = render(<AccessibilityStatementPage />);

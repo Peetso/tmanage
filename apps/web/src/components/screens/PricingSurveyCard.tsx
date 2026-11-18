@@ -9,12 +9,12 @@ import {
   PRICING_BAND_VALUES,
   PRICING_NOTE_MAX,
   answerPricingSurvey,
-  getPricingSurvey,
   skipPricingSurvey,
 } from '../../lib/api/pricing-survey';
 import type { PricingBand } from '../../lib/api/pricing-survey';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { PRICING_SURVEY_COPY } from './pricing-survey-copy';
+import { pricingSurveyKey, pricingSurveyQuery } from './pricing-survey-query';
 import type { PricingSurveyCopyKey } from './pricing-survey-copy';
 import '../../styles/screens/pricing-survey.css';
 
@@ -45,16 +45,11 @@ export function PricingSurveyCard({
   const [note, setNote] = useState('');
   const [result, setResult] = useState<'answered' | 'skipped' | null>(null);
 
-  const survey = useQuery({
-    queryKey: ['home', 'pricing-survey', organizationSlug],
-    queryFn: () => getPricingSurvey(api, organizationSlug),
-    retry: false,
-    staleTime: Infinity,
-  });
+  const survey = useQuery(pricingSurveyQuery(api, organizationSlug));
 
   const settle = (outcome: 'answered' | 'skipped') => {
     setResult(outcome);
-    queryClient.setQueryData(['home', 'pricing-survey', organizationSlug], { show: false });
+    queryClient.setQueryData(pricingSurveyKey(organizationSlug), { show: false });
   };
   // 409: already answered elsewhere (another tab) — the question is closed, so it just goes.
   const closedElsewhere = (error: unknown) =>
