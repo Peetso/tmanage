@@ -1,4 +1,5 @@
-import { hasCapability } from '../policies/capabilities.js';
+import { principalHoldsCapability } from '../policies/authorize.js';
+import type { PermissionOverrides } from '../policies/authorize.js';
 import type { Capability, PrincipalRole } from '../policies/capabilities.js';
 import { SIGNAL_FINANCE_CAPABILITY, SIGNAL_RULES } from './signal-catalog.js';
 import type { SignalRecipient, SignalRuleKey } from './signal-catalog.js';
@@ -25,6 +26,11 @@ export interface SignalRecipientCandidate {
   readonly membershipId: string;
   /** The resolved principal role; null holds nothing. */
   readonly role: PrincipalRole | null;
+  /**
+   * The member's live allow/deny overrides (PA-01), read with the role: a manager whose
+   * `finance.view` was taken away is no longer finance team, as on every screen.
+   */
+  readonly overrides?: PermissionOverrides;
   readonly hasOrgWideScope: boolean;
   /** Holds a project membership on the subject's project. */
   readonly onProject: boolean;
@@ -42,7 +48,13 @@ type Chooser = (
 ) => readonly SignalRecipientCandidate[];
 
 function holds(candidate: SignalRecipientCandidate, capability: Capability): boolean {
-  return candidate.role !== null && hasCapability(candidate.role, capability);
+  if (candidate.role === null) return false;
+  return principalHoldsCapability(
+    candidate.overrides === undefined
+      ? { role: candidate.role }
+      : { role: candidate.role, overrides: candidate.overrides },
+    capability,
+  );
 }
 
 function pickers(subject: SignalSubjectPeople): Readonly<Record<SignalRecipient, Chooser>> {

@@ -52,7 +52,7 @@ export const workSignalRaisedConsumer: OutboxHandler = async (
     signal.rule,
     setting.recipient,
     await findSubjectPeople(tx, organizationId, signal),
-    await listSignalRecipientCandidates(tx, organizationId, signal.projectId),
+    await listSignalRecipientCandidates(tx, organizationId, signal.projectId, new Date()),
   );
   for (const recipientUserId of recipients) {
     await insertNotification(tx, {

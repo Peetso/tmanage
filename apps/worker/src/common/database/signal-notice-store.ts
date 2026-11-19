@@ -1,5 +1,7 @@
-import { isSignalRuleKey } from '@tmanage/domain';
+import { CAPABILITIES, isSignalRuleKey } from '@tmanage/domain';
 import type {
+  Capability,
+  PermissionOverrides,
   SignalRecipientCandidate,
   SignalRuleKey,
   SignalSubjectPeople,
@@ -13,8 +15,9 @@ import type { WorkerTransaction } from './worker-database.js';
  * 62-27 (B05) — what the `work_signal.raised.v1` consumer reads at delivery, inside the delivery
  * transaction and only within the event's organization (`24-EVENT-CATALOG` §6): the signal row,
  * the rule's current setting, the people around its subject and the current active internal
- * memberships. Grants: SELECT on `work_signals`, `work_signal_settings`, `work_items`,
- * `member_reporting_lines`, `memberships`, `project_memberships`, `custom_roles`.
+ * memberships with their live permission overrides. Grants: SELECT on `work_signals`,
+ * `work_signal_settings`, `work_items`, `member_reporting_lines`, `memberships`,
+ * `project_memberships`, `custom_roles`, `membership_permission_overrides`.
  */
 
 export interface StoredSignal {
@@ -47,6 +50,11 @@ const SQL = {
   FROM memberships m
   ${customRoleJoin('m')}
  WHERE m.organization_id = ? AND m.status = 'active' AND m.role <> 'platform_support'`,
+  // The live overrides of the company's internal members (as `briefing-store.ts`, bound clock).
+  overrides: `SELECT o.membership_id, o.capability, o.effect FROM membership_permission_overrides o
+ WHERE o.organization_id = ? AND o.audience = 'internal' AND o.revoked_at IS NULL
+   AND (o.expires_at IS NULL OR o.expires_at > ?)
+ ORDER BY o.membership_id, o.capability`,
 } as const;
 
 type Row = Readonly<Record<string, unknown>>;
@@ -133,22 +141,54 @@ export async function findSubjectPeople(
   return { projectId: signal.projectId, assigneeUserId: null, managerMembershipId: null };
 }
 
-/** Every active internal membership, with whether it is on the signal's project. */
+const KNOWN_CAPABILITIES: ReadonlySet<string> = new Set(CAPABILITIES);
+
+/** Each membership's live overrides; an unknown capability is dropped (as the API does). */
+async function liveOverrides(
+  tx: WorkerTransaction,
+  organizationId: string,
+  now: Date,
+): Promise<ReadonlyMap<string, PermissionOverrides>> {
+  const rows = await tx.query<readonly Row[]>(SQL.overrides, [organizationId, now]);
+  const byMembership = new Map<string, { allow: Capability[]; deny: Capability[] }>();
+  for (const row of rows) {
+    const capability = String(row['capability']);
+    if (!KNOWN_CAPABILITIES.has(capability)) continue;
+    const membershipId = String(row['membership_id']);
+    const entry = byMembership.get(membershipId) ?? { allow: [], deny: [] };
+    if (row['effect'] === 'allow') entry.allow.push(capability as Capability);
+    else if (row['effect'] === 'deny') entry.deny.push(capability as Capability);
+    byMembership.set(membershipId, entry);
+  }
+  return byMembership;
+}
+
+/**
+ * Every active internal membership, with whether it is on the signal's project and its live
+ * overrides at `now` (the delivery time).
+ */
 export async function listSignalRecipientCandidates(
   tx: WorkerTransaction,
   organizationId: string,
   projectId: string | null,
+  now: Date,
 ): Promise<readonly SignalRecipientCandidate[]> {
   // A projectless signal binds an id no project has, so `on_project` is false for everyone.
   const rows = await tx.query<readonly (Row & CustomRoleColumns)[]>(SQL.candidates, [
     projectId ?? '',
     organizationId,
   ]);
-  return rows.map((row) => ({
-    userId: String(row['user_id']),
-    membershipId: String(row['membership_id']),
-    role: internalPrincipalRole(row['role'] as string, row),
-    hasOrgWideScope: Boolean(Number(row['has_org_wide_scope'])),
-    onProject: Boolean(Number(row['on_project'])),
-  }));
+  const overrides = await liveOverrides(tx, organizationId, now);
+  return rows.map((row) => {
+    const membershipId = String(row['membership_id']);
+    const own = overrides.get(membershipId);
+    return {
+      userId: String(row['user_id']),
+      membershipId,
+      role: internalPrincipalRole(row['role'] as string, row),
+      ...(own === undefined ? {} : { overrides: own }),
+      hasOrgWideScope: Boolean(Number(row['has_org_wide_scope'])),
+      onProject: Boolean(Number(row['on_project'])),
+    };
+  });
 }

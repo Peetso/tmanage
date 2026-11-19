@@ -27,6 +27,7 @@ interface World {
   setting?: { enabled: number; threshold: number; recipient: string };
   owner?: string | null;
   managerOfUser?: string | null;
+  overrides?: readonly { membership_id: string; capability: string; effect: string }[];
   memberships: readonly {
     membership_id: string;
     user_id: string;
@@ -66,6 +67,7 @@ function fakeTx(world: World): { tx: WorkerTransaction; notices: string[]; sql: 
       if (/FROM member_reporting_lines r/.test(text)) {
         return answer(world.managerOfUser ? [{ manager_member_id: world.managerOfUser }] : []);
       }
+      if (/FROM membership_permission_overrides/.test(text)) return answer(world.overrides ?? []);
       if (/FROM memberships m/.test(text)) return answer(world.memberships);
       if (/INSERT INTO notifications/.test(text)) {
         written.add(String(params[0]));
@@ -193,6 +195,22 @@ describe('workSignalRaisedConsumer', () => {
     await workSignalRaisedConsumer(event, tx, noEffects);
     expect(notices).toEqual(['owner', 'lead']);
     expect(notices).not.toContain('doer');
+  });
+
+  it('a live deny of finance.view takes a manager out of the finance team', async () => {
+    const { tx, notices } = fakeTx({
+      flagRow: true,
+      signal: {
+        rule_key: 'approved_time_not_invoiced',
+        subject_type: 'project',
+        subject_id: 'p1',
+        project_id: 'p1',
+      },
+      memberships: PEOPLE,
+      overrides: [{ membership_id: 'm-lead', capability: 'finance.view', effect: 'deny' }],
+    });
+    await workSignalRaisedConsumer(event, tx, noEffects);
+    expect(notices).toEqual(['owner']);
   });
 });
 
