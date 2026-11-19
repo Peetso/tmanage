@@ -295,12 +295,16 @@ function BriefingGroupBlock({
         </ul>
         {expanded && group.more > 0 ? (
           <Link className="tm-brief-group__more" href={href(group.path)}>
-            <Filled
-              text={{
-                template: copy.text('HomeBriefing.more'),
-                values: { count: count(group.more) },
-              }}
-            />
+            {/* One inline run: the link is an inline-flex box, which would make each word and the
+                number separate flex items and drop the spaces between them ("and2more"). */}
+            <span>
+              <Filled
+                text={{
+                  template: copy.text('HomeBriefing.more'),
+                  values: { count: count(group.more) },
+                }}
+              />
+            </span>
           </Link>
         ) : null}
       </div>
