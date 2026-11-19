@@ -58,6 +58,8 @@ export const RUNTIME_STATEMENT_TIMEOUT_MS = 15_000;
 
 const EXTERNAL_URL = process.env['TMANAGE_TEST_DATABASE_URL'];
 const APP_URL = process.env['TMANAGE_TEST_APP_DATABASE_URL'];
+/** The least-privilege `tmanage_worker` credential, for suites that run the worker's stores. */
+const WORKER_URL = process.env['TMANAGE_TEST_WORKER_DATABASE_URL'];
 
 export interface DatabaseEngine {
   /**
@@ -78,6 +80,15 @@ export interface TestDatabase {
   readonly engine: DatabaseEngine;
   /** True when `runtime` holds the DML-only `tmanage_app` credential, not the admin one. */
   readonly leastPrivilege: boolean;
+  /** The URL `runtime` connects with: for a suite that builds a second application pool. */
+  readonly runtimeUrl: string;
+  /**
+   * The URL a suite builds the worker's database with: `tmanage_worker` when
+   * `TMANAGE_TEST_WORKER_DATABASE_URL` names this database, else the admin URL.
+   */
+  readonly workerUrl: string;
+  /** True when `workerUrl` is the least-privilege worker credential. */
+  readonly leastPrivilegeWorker: boolean;
   /** True when this ran against `TMANAGE_TEST_DATABASE_URL` rather than the embedded server. */
   readonly external: boolean;
   /**
@@ -267,9 +278,17 @@ export async function startTestDatabase(options: StartOptions = {}): Promise<Tes
     usingExternalDatabase &&
     databaseOf(APP_URL as string) === databaseOf(url);
 
+  const leastPrivilegeWorker =
+    WORKER_URL !== undefined &&
+    WORKER_URL !== '' &&
+    !options.scratch &&
+    usingExternalDatabase &&
+    databaseOf(WORKER_URL) === databaseOf(url);
+  const runtimeUrl = leastPrivilege ? (APP_URL as string) : url;
+
   const connectionErrors: unknown[] = [];
   const runtime = createTenantPool({
-    url: leastPrivilege ? (APP_URL as string) : url,
+    url: runtimeUrl,
     connectionLimit: 4,
     statementTimeoutMs: RUNTIME_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => connectionErrors.push(error),
@@ -281,6 +300,9 @@ export async function startTestDatabase(options: StartOptions = {}): Promise<Tes
     url,
     engine,
     leastPrivilege,
+    runtimeUrl,
+    workerUrl: leastPrivilegeWorker ? (WORKER_URL as string) : url,
+    leastPrivilegeWorker,
     external: usingExternalDatabase,
     connectionErrors,
     async stop() {

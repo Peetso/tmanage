@@ -154,11 +154,12 @@
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
 --
 -- **`tmanage_worker`** — the outbox relay.
---   · `SELECT` on exactly sixteen tables: outbox_events, client_requests, users,
---     organizations, projects, memberships, project_memberships, client_memberships,
---     project_clients, conversations, conversation_memberships, notifications, work_items,
---     idempotency_records, credential_change_notices, invitations — and on **no** others,
---     which is the whole of D07 (invitations added for TEN-003/ON-04's `--sweep-invitations`)
+--   · `SELECT` on named tables only, each granted below beside the store that reads it (the
+--     first sixteen: outbox_events, client_requests, users, organizations, projects,
+--     memberships, project_memberships, client_memberships, project_clients, conversations,
+--     conversation_memberships, notifications, work_items, idempotency_records,
+--     credential_change_notices, invitations) — and on **no** others, which is the whole of D07.
+--     Never a credential table (passwords, MFA factors, recovery codes, sign-in log)
 --   · `INSERT, UPDATE` on: outbox_events, idempotency_records
 --   · `UPDATE` on: credential_change_notices — x31 drains it; the row is never created or
 --     destroyed by the relay, only claimed, stamped and (on failure) rescheduled
