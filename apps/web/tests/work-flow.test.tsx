@@ -567,6 +567,17 @@ const SUMMARY = {
   delivery: { open: 1, late: 0, done: 0, complete: true },
 };
 
+/** `GET …/me` for a member without `org.manage`: the overview header names the client unlinked. */
+const ME = {
+  membershipId: 'm-1',
+  userId: 'user-1',
+  kind: 'internal',
+  role: 'member',
+  capabilities: ['work.read'],
+  overrides: { allow: [], deny: [] },
+  supportSession: null,
+};
+
 const MEMBERS = {
   members: [
     { userId: 'user-1', displayName: 'Ada Okonkwo', role: 'member', status: 'active' },
@@ -910,6 +921,7 @@ describe('the work surfaces share a cache, and must not share a cache entry', ()
 
   function workAndProjectRoutes(call: Call): Response {
     if (call.url.includes('/work-items')) return json({ workItems: [workItem()] });
+    if (call.url.endsWith('/me')) return json(ME);
     if (call.url.includes('/clients')) return json({ clients: [] });
     if (call.url.includes('/projects/proj-1/summary')) return json(SUMMARY);
     if (call.url.includes('/projects/proj-1')) return json(PROJECTS.projects[0] as unknown);
@@ -994,9 +1006,11 @@ describe('D16 follow-up — the owner reads as a name on all three surfaces (x42
     const { client } = clientOver((call) =>
       call.url.includes('/members')
         ? json(MEMBERS)
-        : call.url.includes('/summary')
-          ? json(SUMMARY)
-          : json(PROJECTS.projects[0] as unknown),
+        : call.url.endsWith('/me')
+          ? json(ME)
+          : call.url.includes('/summary')
+            ? json(SUMMARY)
+            : json(PROJECTS.projects[0] as unknown),
     );
     render(
       withQuery(
@@ -1010,7 +1024,9 @@ describe('D16 follow-up — the owner reads as a name on all three surfaces (x42
       ),
     );
 
-    expect(await screen.findByText(/Led by Ada Okonkwo/)).toBeInTheDocument();
+    // T5 D10: the name sits in its own <bdi>, so the sentence is read off the line that holds it.
+    const owner = await screen.findByText('Ada Okonkwo', { selector: 'bdi' });
+    expect(owner.parentElement).toHaveTextContent(/Led by Ada Okonkwo/);
     expect(screen.queryByText(/user-1/)).not.toBeInTheDocument();
   });
 
