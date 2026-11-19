@@ -26,11 +26,13 @@ import { API_URL, WEB_URL } from '../setup/stack.js';
  *
  * **"Health" here is arithmetic over `work_items.state`, not WORK-003's health signal.**
  * `work-items.controller.ts` exposes `GET :id/blockers` and `GET :id/health`, and
- * `docs/implementation-status.md` records that neither has a web surface yet. The project
- * screen's "How it is going" panel counts states client-side, so this journey proves the
- * screens agree with each other and with the state machine — it does not exercise
- * `findActiveBlocker` or `resolveActiveBlocker`. When WORK-003 gains a screen, this journey
- * should assert against it instead of alongside it.
+ * `docs/implementation-status.md` records that neither has a web surface yet. Since ONEPAGE
+ * (B04, 2026-11-19) the project screen is one page of blocks with no blockers panel: its
+ * Delivery block counts the item among the open work, and its "Open work" link leads to the
+ * list, where the state filter says "blocked". So this journey proves the screens agree with
+ * each other and with the state machine — it does not exercise `findActiveBlocker` or
+ * `resolveActiveBlocker`. When WORK-003 gains a screen, this journey should assert against it
+ * instead of alongside it.
  *
  * **"Inbox" here is the work list filtered by state.** `navigation.ts` reserves an `inbox`
  * destination and no route implements it; the state-filtered work list is the surface a person
@@ -141,23 +143,17 @@ test.describe.serial('the work-delivery journeys', () => {
     // A different person, a different screen, the same fact. The manager reads the project.
     const manager = await openAs(browser, world().northstar.manager.id);
     await manager.page.goto(`/northstar-studio/projects/${world().northstar.projectId}`);
-    // The sentence, not the count: `healthSentence` says "One item is blocked" for one and
-    // "2 items are blocked" for two, and another journey in this suite may block something in
-    // this project tomorrow. The claim is that the panel reports a blockage at all.
-    await expect(
-      manager.page.getByRole('region', { name: 'How it is going', exact: true }),
-    ).toContainText(/(One item is blocked|\d+ items are blocked)/u);
-    // Which item, named. This is the count-free half of the claim.
-    await expect(manager.page.getByRole('region', { name: 'Blockers', exact: true })).toContainText(
-      world().northstar.workItemTitle,
-    );
+    // The one-page Delivery block: blocked work is still open work, so the block counts it there
+    // (a figure, not a list — the frames carry no blockers panel).
+    const delivery = manager.page.getByRole('region', { name: 'Delivery', exact: true });
+    await expect(delivery.getByText('Open', { exact: true })).toBeVisible();
 
-    // And the inbox — the work list filtered to one state. Reached by the screen's own
-    // "Update work" action rather than by a fresh navigation, because that is the client-side
+    // And the inbox — the work list filtered to one state. Reached by the block's own
+    // "Open work" link rather than by a fresh navigation, because that is the client-side
     // hop between these two screens: they share one `QueryClient`, and a shared cache entry
-    // between the list's paged shape and the overview's array shape crashed both of them
-    // until `workItemKeys` gave each its own key. A `page.goto` here would never see it.
-    await manager.page.getByRole('link', { name: 'Update work' }).click();
+    // between the list's paged shape and the overview's shape crashed both of them until
+    // `workItemKeys` gave each its own key. A `page.goto` here would never see it.
+    await delivery.getByRole('link', { name: 'Open work' }).click();
     await expect(manager.page).toHaveURL(/\/northstar-studio\/work\?project=/u);
     const table = manager.page.getByRole('table');
     await expect(
@@ -198,15 +194,9 @@ test.describe.serial('the work-delivery journeys', () => {
     await maker.page.getByRole('button', { name: 'Move to Internal review' }).click();
     await expect(header).toContainText(/internal review/i);
 
-    // The manager's two screens follow, and the blockers panel is empty again.
+    // The manager's list follows. The inbox, both ways round.
     const manager = await openAs(browser, world().northstar.manager.id);
-    await manager.page.goto(`/northstar-studio/projects/${world().northstar.projectId}`);
-    const blockers = manager.page.getByRole('region', { name: 'Blockers', exact: true });
-    await expect(blockers).toContainText('Nothing is blocked.');
-    await expect(blockers).not.toContainText(world().northstar.workItemTitle);
-
-    // The inbox, both ways round. Asserted about *this* item rather than about the whole
-    // filtered list: another journey's work item being blocked is not this journey's business.
+    // Asserted about *this* item rather than about the whole filtered list: another journey's work item being blocked is not this journey's business.
     await manager.page.goto('/northstar-studio/work');
     const filters = manager.page.getByRole('region', { name: 'Filters', exact: true });
     await filters.getByLabel('Blocked').check();

@@ -66,9 +66,19 @@ test.describe.serial('the project-updates journeys', () => {
     try {
       await page.goto(`/northstar-studio/projects/${world().northstar.projectId}`);
 
-      // Scope to the composer region: the project overview now also carries a "Milestones" panel
-      // with its own "Title" field and "Publish to the client now" checkbox, so the page-global
-      // labels are no longer unique. The region name is the composer's "Post an update" heading.
+      // ONEPAGE (B04): the composer is not on the page until the header's "Post update" opens
+      // it (the button says so with aria-expanded). Its own submit button has the same name, so
+      // the header one is picked by its expanded state and the rest is scoped to the composer
+      // region, named by its "Post an update" heading.
+      const open = page.getByRole('button', { name: 'Post update', expanded: false });
+      const opened = page.getByRole('button', { name: 'Post update', expanded: true });
+      await expect(open).toBeEnabled();
+      // The server-drawn button is enabled before React attaches its handler, so a click that
+      // lands first does nothing: click again until the composer says it is open.
+      await expect(async () => {
+        if (await open.isVisible()) await open.click();
+        await expect(opened).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 15_000 });
       const composer = page.getByRole('region', { name: 'Post an update' });
 
       // Hydration barrier: wait for the compose field before filling, so the first fill does not
@@ -96,34 +106,38 @@ test.describe.serial('the project-updates journeys', () => {
     }
   });
 
-  test('the milestone banner reports a draft as a draft', async ({ browser }) => {
+  test('a milestone shown to the client is marked so, a draft is not', async ({ browser }) => {
     const { context, page } = await openAs(browser, world().northstar.owner.id);
     try {
       await page.goto(`/northstar-studio/projects/${world().northstar.projectId}`);
 
-      // The milestone composer resets "Publish to the client now" to checked on success, so a
-      // banner derived from the live checkbox would call a draft "live". Scope to the panel: the
-      // update composer above carries the same draft copy.
+      // ONEPAGE (B04): milestones moved off the overview to their own tab, where "Add milestone"
+      // opens a dialog with a "Show on the client timeline" switch (on for a client project).
+      await page
+        .getByRole('navigation', { name: 'Sections' })
+        .getByRole('link', { name: 'Milestones', exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/projects\/[^/]+\/milestones$/u);
       const milestones = page.getByRole('region', { name: 'Milestones' });
-      await expect(milestones.getByRole('heading', { name: 'Milestones' })).toBeVisible();
-      // The controls ship disabled until React hydrates (useHydrated).
-      await expect(milestones.getByLabel('Title')).toBeEnabled();
+      const row = (name: string) =>
+        milestones.getByRole('listitem').filter({ hasText: name }).first();
 
-      await milestones.getByLabel('Title').fill('Launch review');
-      await milestones.getByRole('button', { name: 'Add milestone' }).click();
-      await expect(
-        milestones.getByText('Your milestone is live in the client portal.'),
-      ).toBeVisible();
+      const add = async (name: string, shown: boolean): Promise<void> => {
+        await milestones.getByRole('button', { name: 'Add milestone' }).click();
+        const dialog = page.getByRole('dialog', { name: 'Add milestone' });
+        await dialog.getByLabel('Name').fill(name);
+        const toggle = dialog.getByRole('switch', { name: 'Show on the client timeline' });
+        await expect(toggle).toBeChecked();
+        if (!shown) await toggle.uncheck();
+        await dialog.getByRole('button', { name: 'Save' }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(row(name)).toBeVisible();
+      };
 
-      await milestones.getByLabel('Title').fill('Internal milestone draft');
-      await milestones.getByLabel('Publish to the client now').uncheck();
-      await milestones.getByRole('button', { name: 'Add milestone' }).click();
-      await expect(
-        milestones.getByText('Your draft is saved. It is not visible to the client.'),
-      ).toBeVisible();
-      await expect(
-        milestones.getByText('Your milestone is live in the client portal.'),
-      ).toHaveCount(0);
+      await add('Launch review', true);
+      await expect(row('Launch review')).toContainText('Client can see');
+      await add('Internal milestone draft', false);
+      await expect(row('Internal milestone draft')).not.toContainText('Client can see');
     } finally {
       await context.close();
     }

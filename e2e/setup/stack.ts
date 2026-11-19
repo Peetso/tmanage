@@ -390,6 +390,27 @@ export async function forgeApprovalRecord(
   return JSON.parse(line) as { recordId: string; fingerprint: string };
 }
 
+/**
+ * Run the worker's activity projector (62-A2), its signals sweep (62-27) or its growth rollup
+ * (62-A3) once, to the end — the business-view journeys' step between an act and the Activity
+ * tab, the Home briefing or Growth showing it. The stack runs no worker (see {@link drainOutbox}),
+ * so the journey runs the job, through the API package's own CLI
+ * (`test/business-view-sweeps-cli.ts`), which calls the same functions the deployed jobs call.
+ * The CLI exits non-zero when an organization failed.
+ */
+export async function runBusinessViewJob(
+  databaseUrl: string,
+  job: 'project-activity' | 'sweep-signals' | 'growth-rollup',
+): Promise<Readonly<Record<string, unknown>>> {
+  const { stdout } = await run(
+    'pnpm',
+    ['--filter', '@tmanage/api', 'exec', 'tsx', 'test/business-view-sweeps-cli.ts', job],
+    { cwd: REPO_ROOT, env: { ...process.env, TMANAGE_SEED_DATABASE_URL: databaseUrl } },
+  );
+  const line = stdout.trim().split('\n').pop() as string;
+  return JSON.parse(line) as Readonly<Record<string, unknown>>;
+}
+
 /** The two governed version ids E2E-05's deep-link decide journey opens against. */
 export interface ApprovalFixture {
   readonly deliverableVersionId: string;
