@@ -89,7 +89,11 @@ describe('the six overview blocks', () => {
     const risks = card('Risks');
     expect(within(risks).getByText('3 items are past their due date')).toBeInTheDocument();
     expect(within(risks).getByText('82 % of the budget used')).toBeInTheDocument();
-    expect(within(risks).getByText('Oldest: Label artwork v3')).toBeInTheDocument();
+    // D10: the title sits in its own isolate inside the sentence.
+    expect(within(risks).getByText('Label artwork v3').tagName).toBe('BDI');
+    expect(within(risks).getByText('Label artwork v3').parentElement).toHaveTextContent(
+      'Oldest: Label artwork v3',
+    );
     expect(within(risks).getAllByText('Late')).toHaveLength(1);
 
     const time = card('Time');
@@ -135,7 +139,21 @@ describe('the six overview blocks', () => {
     expect(
       within(card('Risks')).getByRole('link', { name: 'See projects at risk' }),
     ).toHaveAttribute('href', '/northstar/clients/co-cedar?view=projects&health=at-risk');
-    expect(within(card('Risks')).getByText('Ramadan campaign 2027 is behind')).toBeInTheDocument();
+    // D7: the line says why (the heaviest health signal), never "Project health is red".
+    const behind = within(card('Risks')).getByRole('link', {
+      name: 'Ramadan campaign 2027 is behind',
+    });
+    expect(behind.closest('li')).toHaveTextContent('2 milestones are overdue');
+    expect(within(card('Risks')).getByText('One high risk is open')).toBeInTheDocument();
+    expect(card('Risks')).not.toHaveTextContent(/health is/);
+    // D7: Time shows the three figures and one line per project.
+    const time = card('Time');
+    for (const label of ['Logged', 'Billable', 'Not invoiced yet']) {
+      expect(within(time).getByText(label)).toBeInTheDocument();
+    }
+    expect(
+      within(time).getByRole('link', { name: 'Cedar Foods brand refresh' }).closest('li'),
+    ).toHaveTextContent('120 h');
     expect(within(card('Money')).getByText('Overdue · AED').nextElementSibling).toHaveAttribute(
       'data-tone',
       'danger',

@@ -95,6 +95,16 @@ export function usePortalNames(
 }
 
 /**
+ * Which side of this organization the caller is on (`client` for a portal member), from the same
+ * session read; `undefined` until the list has the row, or with no `QueryClientProvider`.
+ */
+export function useOrganizationAudience(
+  organizationSlug: string,
+): OrganizationSummary['audience'] | undefined {
+  return useOrganizationSummary(organizationSlug).summary?.audience;
+}
+
+/**
  * The caller's role in this organization, from the same session read (CQ-06).
  *
  * `known` is false while the list is being read, and also when no `QueryClientProvider` is mounted

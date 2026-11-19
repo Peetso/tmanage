@@ -15,7 +15,12 @@ import type {
   ActivitySourceFacts,
   FactSource,
 } from './activity.repository.js';
-import { ActivityService, decodeActivityCursor, encodeActivityCursor } from './activity.service.js';
+import {
+  ActivityService,
+  TOTAL_SCAN_CAP,
+  decodeActivityCursor,
+  encodeActivityCursor,
+} from './activity.service.js';
 import {
   ClientActivityController,
   ProjectActivityController,
@@ -135,11 +140,13 @@ const fact = (
   id: string,
   projectId: string | null,
   audience: ActivitySourceFacts['audience'] = 'internal',
+  subject: string | null = null,
 ): ActivitySourceFacts => ({
   id,
   projectId,
   clientOrganizationId: null,
   audience,
+  subject,
 });
 
 async function status(promise: Promise<unknown>): Promise<number> {
@@ -227,6 +234,59 @@ describe('activity service (62-A2)', () => {
     expect(reads.scopes).toEqual([
       { kind: 'client', clientOrganizationId: CLIENT, projectIds: [P1] },
     ]);
+  });
+
+  it('D2: an entry names its record as it is now; a finance entry the member may not read takes its name with it', async () => {
+    const task = row('work_item.transitioned', 'w1');
+    const invoice = row('client_invoice.sent', 'inv1');
+    const facts = {
+      work_item: { w1: fact('w1', P1, 'internal', 'Packaging artwork') },
+      client_invoice: { inv1: fact('inv1', P1, 'internal', 'INV-0042') },
+    };
+    const page = await build([task, invoice], facts).service.projectActivity(
+      context,
+      memberOnP1,
+      P1,
+    );
+    expect(page.entries).toHaveLength(1);
+    expect(page.entries[0]).toMatchObject({
+      phraseKey: 'activity.subject.work_item.transitioned',
+      summary: 'Changed the status of “Packaging artwork”',
+      subject: 'Packaging artwork',
+    });
+    expect(JSON.stringify(page)).not.toContain('INV-0042');
+  });
+
+  it('D3: the first page counts every entry the viewer may read, never one they may not', async () => {
+    const rows = Array.from({ length: 6 }, (_, i) => row('work_item.created', `t${i}`));
+    const visible = Object.fromEntries(
+      rows.filter((_, i) => i !== 1).map((r) => [r.objectId, fact(r.objectId, P1)]),
+    );
+    const { service } = build(rows, { work_item: visible });
+    const first = await service.projectActivity(context, owner, P1, { limit: 2 });
+    expect(first.entries).toHaveLength(2);
+    expect(first.total).toEqual({ count: 5, atLeast: false });
+    const next = await service.projectActivity(context, owner, P1, {
+      limit: 2,
+      cursor: first.nextCursor!,
+    });
+    expect(next.total).toBeNull();
+    const whole = await service.projectActivity(context, owner, P1, { limit: 50 });
+    expect(whole.total).toEqual({ count: 5, atLeast: false });
+  });
+
+  it('D3: past the scan cap the total is a lower bound', async () => {
+    const rows = Array.from({ length: TOTAL_SCAN_CAP + 1 }, (_, i) =>
+      row('work_item.created', `c${i}`),
+    );
+    const visible = Object.fromEntries(rows.map((r) => [r.objectId, fact(r.objectId, P1)]));
+    const page = await build(rows, { work_item: visible }).service.projectActivity(
+      context,
+      owner,
+      P1,
+      { limit: 5 },
+    );
+    expect(page.total).toEqual({ count: TOTAL_SCAN_CAP, atLeast: true });
   });
 
   it('a cursor round-trips, and a forged one is a 400', () => {

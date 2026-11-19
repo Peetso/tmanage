@@ -77,7 +77,17 @@ function sources(
     health: {
       get: async (_c, _p, projectId) => {
         if (projectId === P2) throw notFound();
-        return { band: 'green' } as never;
+        return {
+          band: 'green',
+          signals: {
+            overdueMilestones: 0,
+            openRisks: 1,
+            highRisks: 0,
+            objectivesTotal: 0,
+            objectivesMet: 0,
+            objectivesMissed: 0,
+          },
+        } as never;
       },
     },
     work: {
@@ -116,7 +126,16 @@ function sources(
           },
         ] as never,
     },
-    burn: { burn: async () => ({}) as never },
+    burn: {
+      burn: async (_c, _p, projectId) =>
+        ({
+          from: '2026-11-01',
+          to: '2026-11-30',
+          buckets: [
+            { minutes: projectId === P1 ? 600 : 900, billableMinutes: projectId === P1 ? 480 : 0 },
+          ],
+        }) as never,
+    },
     budget: { get: async () => ({}) as never },
     financeReports: {
       profitability: async () => ({}) as never,
@@ -153,6 +172,7 @@ function sources(
     flags: async () => flags as never,
     // B10: the flag is off unless a case turns signals on.
     signals: { forProject: async () => undefined, forClient: async () => undefined },
+    projectClient: async () => null,
     ...overrides,
   };
 }
@@ -168,10 +188,27 @@ describe('ClientSummaryService (ONEPAGE B01)', () => {
     expect(view.client).toEqual({ id: CLIENT, name: 'Acme', archivedAt: null });
     expect(view.projects).toEqual({
       items: [
-        { id: P1, name: 'Project 1', status: 'active', band: 'green' },
+        {
+          id: P1,
+          name: 'Project 1',
+          status: 'active',
+          band: 'green',
+          reason: { kind: 'openRisks', count: 1 },
+        },
         { id: P2, name: 'Project 2', status: 'active' },
       ],
       truncated: false,
+    });
+    // D7: the project page's Time figures summed over the projects, then per project, most first.
+    expect(view.time).toEqual({
+      from: '2026-11-01',
+      to: '2026-11-30',
+      loggedMinutes: 1500,
+      billableMinutes: 480,
+      projects: [
+        { projectId: P2, loggedMinutes: 900 },
+        { projectId: P1, loggedMinutes: 600 },
+      ],
     });
     expect(view.delivery).toEqual({ open: 2, late: 1, done: 1, complete: true });
     expect(view.approvals?.waitingOnClient).toBe(1);

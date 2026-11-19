@@ -51,7 +51,13 @@ import { activityPhrase } from './activity-phrases.js';
  * {@link SCAN_ROUNDS} batches; `nextCursor` is the position of the last row looked at, so a dropped
  * row is never looked at twice. Filters: kind, person, date range.
  *
- * Entries are phrases built from the action (`activity-phrases.ts`), never content.
+ * The first page also says how many entries the viewer may read in all (`total`, "Showing 25 of
+ * 46"), counted by the same per-entry rule over at most {@link TOTAL_SCAN_CAP} rows, so the count
+ * never includes an entry the viewer could not open; past the cap it is a lower bound (`atLeast`).
+ *
+ * Entries are phrases built from the action (`activity-phrases.ts`) and, where the row has one,
+ * its current name (`subject`, D2) — read with the facts that gate it, so a name only ever reaches a
+ * viewer who may read its row. Never a body or an amount.
  */
 
 export const ACTIVITY_SERVICE = Symbol.for('tmanage.ActivityService');
@@ -59,6 +65,8 @@ export const ACTIVITY_SERVICE = Symbol.for('tmanage.ActivityService');
 export const DEFAULT_ACTIVITY_PAGE = 50;
 export const MAX_ACTIVITY_PAGE = 100;
 const SCAN_ROUNDS = 4;
+/** The most rows the first page's `total` looks at; beyond it the total is "at least". */
+export const TOTAL_SCAN_CAP = 1_000;
 /** The most shared projects a client feed spans (page size of `ProjectClientsRepository`). */
 const CLIENT_PROJECT_PAGE = 200;
 const CLIENT_PROJECT_CAP = 1_000;
@@ -73,6 +81,8 @@ export interface ActivityEntryView {
   readonly action: ActivityAction;
   readonly phraseKey: string;
   readonly summary: string;
+  /** The record's name now (task title, file name, invoice number); `null` when it has none. */
+  readonly subject: string | null;
   readonly actorUserId: string | null;
   readonly objectType: ActivitySource;
   readonly objectId: string;
@@ -81,10 +91,18 @@ export interface ActivityEntryView {
   readonly occurredAt: string;
 }
 
+/** How many entries the viewer may read under the filters; `atLeast` past the scan cap. */
+export interface ActivityTotalView {
+  readonly count: number;
+  readonly atLeast: boolean;
+}
+
 export interface ActivityPageView {
   readonly entries: readonly ActivityEntryView[];
   /** Pass back as `cursor` for older entries; `null` when there are none. */
   readonly nextCursor: string | null;
+  /** On the first page only (no `cursor`); `null` on the pages after it. */
+  readonly total: ActivityTotalView | null;
 }
 
 export interface ActivityQuery extends ActivityFilter {
@@ -187,10 +205,35 @@ export class ActivityService {
         }
       }
     }
-    return {
-      entries,
-      nextCursor: more && position !== null ? encodeActivityCursor(position) : null,
-    };
+    const nextCursor = more && position !== null ? encodeActivityCursor(position) : null;
+    const total =
+      query.cursor !== undefined
+        ? null
+        : nextCursor === null
+          ? { count: entries.length, atLeast: false }
+          : await this.total(runner, context, principal, scope, filter);
+    return { entries, nextCursor, total };
+  }
+
+  /** The readable entries under `filter`, by the same rule as the page, over the newest rows. */
+  private async total(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    scope: ActivityScope,
+    filter: ActivityFilter,
+  ): Promise<ActivityTotalView> {
+    const rows = await this.activity.listEntries(
+      runner,
+      context,
+      scope,
+      filter,
+      null,
+      TOTAL_SCAN_CAP + 1,
+    );
+    const looked = rows.slice(0, TOTAL_SCAN_CAP);
+    const readable = await this.readable(runner, context, principal, looked);
+    return { count: readable.size, atLeast: rows.length > TOTAL_SCAN_CAP };
   }
 
   /** The views of the rows this principal may read now, by entry id. */
@@ -220,7 +263,7 @@ export class ActivityService {
       if (found === undefined) continue;
       const { source, finance } = definition;
       if (!mayReadEntry(principal, context.organizationId, source, finance, found)) continue;
-      views.set(row.id, toView(row, action, definition));
+      views.set(row.id, toView(row, action, definition, found.subject));
     }
     return views;
   }
@@ -248,12 +291,13 @@ function toView(
   row: ActivityEntryRow,
   action: ActivityAction,
   definition: ActivityActionDefinition,
+  subject: string | null,
 ): ActivityEntryView {
   return {
     id: row.id,
     kind: definition.kind,
     action,
-    ...activityPhrase(action),
+    ...activityPhrase(action, subject),
     actorUserId: row.actorUserId,
     objectType: definition.source,
     objectId: row.objectId,

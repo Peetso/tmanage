@@ -93,10 +93,16 @@ function base(organizationSlug: string): string {
 export async function listClientInvoices(
   client: ApiClient,
   organizationSlug: string,
-  filter: { readonly state?: string | null; readonly cursor?: string | null } = {},
+  filter: {
+    readonly state?: string | null;
+    /** D6: one client company's invoices (the client page's Invoices tab). */
+    readonly clientOrganizationId?: string | null;
+    readonly cursor?: string | null;
+  } = {},
 ): Promise<ClientInvoicePage> {
   const query = new URLSearchParams();
   if (filter.state) query.set('state', filter.state);
+  if (filter.clientOrganizationId) query.set('clientOrganizationId', filter.clientOrganizationId);
   if (filter.cursor) query.set('cursor', filter.cursor);
   const suffix = query.toString();
   const { data } = await client.request<ClientInvoicePage>({

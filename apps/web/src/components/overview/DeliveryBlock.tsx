@@ -84,7 +84,7 @@ function DeliveryRowItem({
         meta={
           row.dueOn === null
             ? copy.text('Overview.nextMilestoneUndated')
-            : copy.fill('Overview.nextMilestoneDue', { date: format.day(row.dueOn) })
+            : copy.isolated('Overview.nextMilestoneDue', { date: format.day(row.dueOn) })
         }
         leading={<OverviewIconOrb icon="calendar" />}
         end={end}

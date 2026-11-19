@@ -14,7 +14,14 @@ import { ActivityTab } from '../overview/ActivityTab';
 import { OverviewBlocks } from '../overview/OverviewBlocks';
 import { OverviewTabs } from '../overview/OverviewTabs';
 import { clientOverviewModel } from '../overview/client-overview-model';
-import { clientViewHref, clientsHref, type ClientView } from '../overview/overview-links';
+import {
+  clientFilesHref,
+  clientInvoicesHref,
+  clientViewHref,
+  clientsHref,
+  type ClientView,
+} from '../overview/overview-links';
+import { readOrganizationMe } from '../../lib/api/permission-matrix';
 import { useOverviewCopy } from '../overview/use-overview-copy';
 import { useOverviewFormat } from '../overview/use-overview-format';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -60,7 +67,9 @@ const STATUS_KEY = {
  * organizations/:id/summary`, B01): delivery across its projects, approvals waiting and on whom,
  * risks, latest files, time not invoiced and money, each block opening its full screen. The
  * Projects tab lists the projects shared with the company (with health), People its people and
- * invitations (with Resend, Rename and Archive), Activity what happened across its projects (B09). Behind `org.manage`, like before.
+ * invitations (with Resend, Rename and Archive), Activity what happened across its projects (B09).
+ * Files and Invoices open those hubs narrowed to this company (D6); Invoices only for a holder of
+ * `finance.view` (absent, not empty; the invoice list refuses anyone else). Behind `org.manage`.
  */
 export function ClientCompanyScreen({
   organizationSlug,
@@ -106,6 +115,12 @@ export function ClientCompanyScreen({
     queryKey: [...key, 'summary'],
     queryFn: () => getClientSummary(api, organizationSlug, clientOrganizationId),
   });
+  // The same key the Activity tab reads.
+  const me = useQuery({
+    queryKey: ['organization-me', organizationSlug],
+    queryFn: () => readOrganizationMe(api, organizationSlug),
+  });
+  const mayViewFinance = me.data?.capabilities.includes('finance.view') ?? false;
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['clients', organizationSlug] });
 
@@ -188,6 +203,20 @@ export function ClientCompanyScreen({
               href: clientViewHref(organizationSlug, clientOrganizationId, 'people'),
               ...(people.data ? { count: format.count(members.length) } : {}),
             },
+            {
+              id: 'files',
+              label: copy.text('Overview.tabFiles'),
+              href: clientFilesHref(organizationSlug, clientOrganizationId),
+            },
+            ...(mayViewFinance
+              ? [
+                  {
+                    id: 'invoices',
+                    label: copy.text('Overview.tabInvoices'),
+                    href: clientInvoicesHref(organizationSlug, clientOrganizationId),
+                  },
+                ]
+              : []),
             {
               id: 'activity',
               label: tOr('ActivityTab.tab', 'Activity'),

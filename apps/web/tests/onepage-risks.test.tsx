@@ -83,7 +83,7 @@ describe('ONEPAGE risks with signals (B10)', () => {
     const risks = screen.getByRole('region', { name: 'Risks' });
     expect(within(risks).getByText('2 tasks have not moved')).toBeInTheDocument();
     expect(within(risks).getByText('No change for 14 days')).toBeInTheDocument();
-    expect(within(risks).getByText('One task may miss its deadline')).toBeInTheDocument();
+    expect(within(risks).getByText('One task is late or at risk')).toBeInTheDocument();
   });
 
   it('on the client page the groups add lines, kept to the summary’s paths', () => {

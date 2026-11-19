@@ -186,6 +186,7 @@ function sources(overrides: Partial<SummarySources> = {}, financeReports = true)
     flags: async () => ({ finance_reports: financeReports }) as never,
     // B10: the flag is off unless a case turns signals on.
     signals: { forProject: async () => undefined, forClient: async () => undefined },
+    projectClient: async () => ({ id: 'client-1', name: 'Cedar Foods' }),
     ...overrides,
   };
 }
@@ -205,6 +206,8 @@ describe('ProjectSummaryService (ONEPAGE B01)', () => {
       committedAt: '2026-12-01',
       forecastAt: null,
       archivedAt: null,
+      // D4: the header names the client company, as the portfolio does.
+      client: { id: 'client-1', name: 'Cedar Foods' },
     });
     expect(view.delivery).toEqual({ open: 2, late: 1, done: 1, complete: true });
     expect(view.milestone).toEqual({

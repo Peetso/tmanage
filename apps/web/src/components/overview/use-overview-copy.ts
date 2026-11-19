@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { withIsolates } from '../../lib/i18n/with-isolates';
 import type { OverviewLinkKind } from './overview-model';
 
 /**
@@ -18,6 +19,10 @@ export const OVERVIEW_COPY = {
   'Overview.tabFiles': 'Files',
   'Overview.tabProjects': 'Projects',
   'Overview.tabPeople': 'People',
+  'Overview.tabTime': 'Time',
+  'Overview.tabInvoices': 'Invoices',
+  'Overview.tabMore': 'More',
+  'Overview.tabMoreCurrent': 'More: {name}',
   'Overview.backToProjects': 'All projects',
   'Overview.backToClients': 'All clients',
   'Overview.projectsOne': 'One project',
@@ -69,16 +74,17 @@ export const OVERVIEW_COPY = {
   'Overview.riskStaleMany': '{count} approvals over {days} days old',
   'Overview.riskStaleMeta': 'Oldest: {title}',
   'Overview.riskProjectBehind': '{name} is behind',
-  'Overview.riskProjectBehindMeta': 'Project health is red',
   'Overview.riskProjectAtRisk': '{name} needs attention',
-  'Overview.riskProjectAtRiskMeta': 'Project health is amber',
+  'Overview.reasonObjectivesOne': 'One objective was missed',
+  'Overview.reasonObjectivesMany': '{count} objectives were missed',
   'Overview.riskInvoicesOne': 'One invoice overdue',
   'Overview.riskInvoicesMany': '{count} invoices overdue',
 
   // B10: one line per briefing group of signals; the meta line says the threshold crossed.
-  'Overview.signal.projects_at_riskOne': 'One task may miss its deadline',
-  'Overview.signal.projects_at_riskMany': '{count} tasks may miss their deadline',
-  'Overview.signal.projects_at_riskMeta': 'Due within {threshold} days, too little time left',
+  'Overview.signal.projects_at_riskOne': 'One task is late or at risk',
+  'Overview.signal.projects_at_riskMany': '{count} tasks are late or at risk',
+  'Overview.signal.projects_at_riskMeta':
+    'Past due, or due within {threshold} days without time to finish',
   'Overview.signal.people_overloadedOne': 'One person is over capacity',
   'Overview.signal.people_overloadedMany': '{count} people are over capacity',
   'Overview.signal.people_overloadedMeta': 'Above {threshold}% of their time',
@@ -141,6 +147,8 @@ export interface OverviewCopy {
   readonly text: (key: OverviewCopyKey) => string;
   /** The word for a key with its `{holes}` filled. */
   readonly fill: (key: OverviewCopyKey, values: Readonly<Record<string, string>>) => string;
+  /** D10: the same, each value in a `<bdi>` so a Latin name or a figure stays whole in Arabic. */
+  readonly isolated: (key: OverviewCopyKey, values: Readonly<Record<string, string>>) => ReactNode;
   /** The one or many form of a counted sentence. */
   readonly count: (
     one: OverviewCopyKey,
@@ -164,6 +172,7 @@ export function useOverviewCopy(): OverviewCopy {
     return {
       text,
       fill,
+      isolated: (key, values) => withIsolates(text(key), values),
       count: (one, many, value, shown) => (value === 1 ? text(one) : fill(many, { count: shown })),
       link: (kind) => text(`Overview.link.${kind}`),
     };

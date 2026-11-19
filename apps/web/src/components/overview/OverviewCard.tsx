@@ -64,9 +64,10 @@ export function OverviewFigures({ figures }: { readonly figures: readonly Overvi
 }
 
 export interface OverviewRowProps {
-  readonly title: string;
+  /** Plain text, or a sentence whose names sit in `<bdi>` (`OverviewCopy.isolated`, D10). */
+  readonly title: ReactNode;
   readonly href: string;
-  readonly meta?: string;
+  readonly meta?: ReactNode;
   /** The 40 px leading disc (a line icon); risk rows have none. */
   readonly leading?: ReactNode;
   /** The trailing capsule or badge. */
@@ -91,6 +92,21 @@ export function OverviewRow({ title, href, meta, leading, end }: OverviewRowProp
       {end ? <span className="tm-ov-row__end">{end}</span> : null}
     </li>
   );
+}
+
+/**
+ * D10: a meta line of separate facts ("Cedar Foods brand refresh · 2 days ago"), each in its own
+ * `<bdi>` so a Latin project name and an Arabic age keep their order. Empty parts are dropped.
+ */
+export function isolatedParts(parts: readonly (string | undefined)[]): ReactNode {
+  return parts
+    .filter((part): part is string => part !== undefined && part !== '')
+    .map((part, index) => (
+      <span key={index}>
+        {index > 0 ? ' · ' : null}
+        <bdi>{part}</bdi>
+      </span>
+    ));
 }
 
 export function OverviewRows({ children }: { readonly children: ReactNode }) {

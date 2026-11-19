@@ -9,6 +9,7 @@ import {
   OverviewIconOrb,
   OverviewRow,
   OverviewRows,
+  isolatedParts,
 } from './OverviewCard';
 
 /** ONEPAGE Latest files (Figma 739:40704): the newest files, each opening in the viewer. */
@@ -35,7 +36,7 @@ export function FilesBlock({
               key={file.id}
               title={file.name}
               href={file.href}
-              meta={[file.context, format.age(file.updatedAt)].filter(Boolean).join(' · ')}
+              meta={isolatedParts([file.context, format.age(file.updatedAt)])}
               leading={<OverviewIconOrb icon="file" />}
             />
           ))}

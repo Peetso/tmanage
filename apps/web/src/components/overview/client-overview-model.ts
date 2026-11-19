@@ -14,11 +14,11 @@ import {
 } from './overview-model';
 import {
   approvalsInboxHref,
+  clientFilesHref,
+  clientInvoicesHref,
   clientViewHref,
   deliverableHref,
   fileHref,
-  filesHref,
-  invoicesHref,
   projectHref,
   timesheetsHref,
 } from './overview-links';
@@ -29,8 +29,9 @@ import { groupsSaidElsewhere, signalRiskLines } from './signal-risk-lines';
  *
  * Pure, and it keeps the server's absence like the project mapper. Money lines (overdue invoices,
  * "not invoiced yet") come only from the finance-gated `money` / `unbilled` blocks (review fix 1).
- * The summary carries no logged time per client, so the Time card holds only the finance figure and
- * is absent without it.
+ * Time (D7) has the project page's three figures summed over the client's projects (not invoiced
+ * only with finance) and one line per project; Files and money links open the hubs narrowed to
+ * this client (D6), never the unfiltered ones.
  */
 export function clientOverviewModel(
   summary: ClientSummary,
@@ -43,7 +44,7 @@ export function clientOverviewModel(
   const approvals = approvalsBlock(summary, org, names);
   const risks = risksBlock(summary, org, now);
   const files = filesBlock(summary, org, names);
-  const time = timeBlock(summary, org);
+  const time = timeBlock(summary, org, names);
   const money = moneyBlock(summary, org);
   return {
     ...(delivery ? { delivery } : {}),
@@ -115,11 +116,17 @@ function risksBlock(summary: ClientSummary, org: string, now: Date): RisksModel 
 
   for (const project of summary.projects.items) {
     const href = projectHref(org, project.id);
-    if (project.band === 'red') lines.push({ kind: 'projectBehind', name: project.name, href });
+    const reason = project.reason ? { reason: project.reason } : {};
+    if (project.band === 'red') {
+      lines.push({ kind: 'projectBehind', name: project.name, href, ...reason });
+    }
   }
   for (const project of summary.projects.items) {
     const href = projectHref(org, project.id);
-    if (project.band === 'amber') lines.push({ kind: 'projectAtRisk', name: project.name, href });
+    const reason = project.reason ? { reason: project.reason } : {};
+    if (project.band === 'amber') {
+      lines.push({ kind: 'projectAtRisk', name: project.name, href, ...reason });
+    }
   }
   if (money) {
     for (const totals of money.totals) {
@@ -129,7 +136,7 @@ function risksBlock(summary: ClientSummary, org: string, now: Date): RisksModel 
           count: totals.overdueCount,
           currency: totals.currency,
           amountMinor: totals.overdueMinor,
-          href: invoicesHref(org),
+          href: clientInvoicesHref(org, summary.client.id),
         });
       }
     }
@@ -169,7 +176,7 @@ function filesBlock(
   const { files } = summary;
   if (!files) return undefined;
   return {
-    link: { kind: 'openFiles', href: filesHref(org) },
+    link: { kind: 'openFiles', href: clientFilesHref(org, summary.client.id) },
     items: files.items.slice(0, OVERVIEW_ROW_LIMIT).map((file) => {
       const context = names.get(file.projectId);
       return {
@@ -183,12 +190,38 @@ function filesBlock(
   };
 }
 
-function timeBlock(summary: ClientSummary, org: string): TimeModel | undefined {
-  const { unbilled } = summary;
-  if (!unbilled) return undefined;
+function timeBlock(
+  summary: ClientSummary,
+  org: string,
+  names: ReadonlyMap<string, string>,
+): TimeModel | undefined {
+  const { time, unbilled } = summary;
+  if (!time && !unbilled) return undefined;
   return {
     link: { kind: 'openTimesheets', href: timesheetsHref(org) },
-    unbilledMinutes: unbilled.minutes,
+    ...(time
+      ? {
+          loggedMinutes: time.loggedMinutes,
+          billableMinutes: time.billableMinutes,
+          // Only projects the page names (the folded ones), so no line is drawn without a name.
+          projects: time.projects
+            .flatMap((project) => {
+              const name = names.get(project.projectId);
+              return name === undefined
+                ? []
+                : [
+                    {
+                      id: project.projectId,
+                      name,
+                      href: projectHref(org, project.projectId),
+                      loggedMinutes: project.loggedMinutes,
+                    },
+                  ];
+            })
+            .slice(0, OVERVIEW_ROW_LIMIT),
+        }
+      : {}),
+    ...(unbilled ? { unbilledMinutes: unbilled.minutes } : {}),
   };
 }
 
@@ -203,7 +236,7 @@ function moneyBlock(summary: ClientSummary, org: string): MoneyModel | undefined
   const { money } = summary;
   if (!money) return undefined;
   const lead = leadingTotals(money.totals);
-  const link = { kind: 'openInvoices' as const, href: invoicesHref(org) };
+  const link = { kind: 'openInvoices' as const, href: clientInvoicesHref(org, summary.client.id) };
   if (!lead) return { link, currency: null, invoicedMinor: 0, moreCurrencies: 0 };
   return {
     link,

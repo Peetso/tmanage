@@ -135,7 +135,15 @@
   font-weight: 500;
 }
 
-.tm-brief-line:hover .tm-brief-line__title {
+/* Each name (task, project) is one isolated block that wraps whole: a Latin project name never
+   splits around the separator in a right-to-left line (T4 F4). */
+.tm-brief-line__title > bdi {
+  display: inline-block;
+  max-inline-size: 100%;
+}
+
+.tm-brief-line:hover .tm-brief-line__title,
+.tm-brief-line:hover .tm-brief-line__title > bdi {
   text-decoration: underline;
 }
 

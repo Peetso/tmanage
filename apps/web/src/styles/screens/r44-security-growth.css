@@ -121,3 +121,14 @@
   margin: 0;
   color: var(--ink-650);
 }
+
+/* T5 D1: the tile meter is the 4 px SM bar (fix 34). Both parts are spans, so they are made
+   blocks here; an inline fill ignores its inline-size and the bar would always read empty. */
+.tm-growth-tile .tm-cc-bar {
+  display: block;
+  block-size: 4px;
+}
+
+.tm-growth-tile .tm-cc-bar__fill {
+  display: block;
+}

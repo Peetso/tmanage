@@ -36,6 +36,4 @@ export const Empty: Story = { args: { client: briefingClient({ briefing: BRIEFIN
 export const Failed: Story = { args: { client: briefingClient({ briefing: 'fail' }) } };
 
 /** Phone: each group shows its header and first line and opens on tap. */
-export const Phone: Story = {
-  parameters: { viewport: { defaultViewport: 'mobile1' } },
-};
+export const Phone: Story = { globals: { viewport: { value: 'phone' } } };

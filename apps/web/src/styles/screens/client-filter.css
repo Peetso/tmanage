@@ -1,0 +1,11 @@
+/*
+ * D6 — "Only Cedar Foods · Show all", the line a hub shows when the client page opened it narrowed
+ * to one company. TManage tokens only.
+ */
+
+.tm-client-filter {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}

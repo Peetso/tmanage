@@ -67,6 +67,51 @@ function dropFiles(target: Element, files: readonly File[]) {
 }
 
 describe('Files hub (FIX3 item 11)', () => {
+  it('D6: `?client=` narrows the hub to the projects shared with that company, with the way back', async () => {
+    const asked: string[] = [];
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL) => {
+        const url = String(input);
+        asked.push(url);
+        if (url.includes('/client-organizations/co-1/projects')) {
+          return Promise.resolve(json({ projects: [{ id: 'p2', name: 'Borealis' }] }));
+        }
+        if (url.includes('/client-organizations/co-1')) {
+          return Promise.resolve(json({ id: 'co-1', name: 'Cedar Foods' }));
+        }
+        if (url.includes('/files')) return Promise.resolve(json({ files: [] }));
+        return Promise.resolve(
+          json({
+            projects: [
+              { id: 'p1', name: 'Atlas' },
+              { id: 'p2', name: 'Borealis' },
+            ],
+          }),
+        );
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FilesHubScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          clientOrganizationId="co-1"
+          client={client}
+        />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('button', { name: 'Borealis' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Atlas' })).toBeNull();
+    expect((await screen.findByText('Cedar Foods')).tagName).toBe('BDI');
+    expect(screen.getByRole('link', { name: 'Show all' }).getAttribute('href')).toBe('/acme/files');
+    await waitFor(() => expect(asked.some((url) => url.includes('/projects/p2/'))).toBe(true));
+    expect(asked.some((url) => url.includes('/projects/p1/'))).toBe(false);
+  });
+
   it('FIX6 item 7: dropped files upload into the chosen project; with several projects it asks for one first', async () => {
     uploadProjectFile.mockClear();
     render(

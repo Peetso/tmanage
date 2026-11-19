@@ -274,7 +274,6 @@ export async function assembleBriefing(
 /** Which sentence says a line's reason; the card and the mail each hold the words. */
 export type BriefingReasonKey =
   | 'dueLate'
-  | 'dueLateOne'
   | 'dueToday'
   | 'dueTomorrow'
   | 'dueIn'
@@ -294,6 +293,12 @@ export type BriefingFigure = 'days' | 'percent' | 'times';
 export interface BriefingReason {
   readonly key: BriefingReasonKey;
   readonly figures: Readonly<Partial<Record<BriefingFigure, number>>>;
+  /**
+   * The figure the sentence's noun agrees with ("2 days", Arabic «يومين», «11 يومًا»): the words
+   * pick their plural form (zero, one, two, few, many, other) from it. Null when nothing is
+   * counted (a per cent, "today", "tomorrow").
+   */
+  readonly count: number | null;
   /** Set only for the sentences that say an amount (`overdueAmount`, `unusualExpenseAmount`). */
   readonly amount: BriefingAmount | null;
 }
@@ -307,11 +312,15 @@ export function briefingReasonOf(
     key: BriefingReasonKey,
     figures: BriefingReason['figures'] = {},
     amount: BriefingAmount | null = null,
-  ): BriefingReason => ({ key, figures, amount });
+  ): BriefingReason => ({
+    key,
+    figures,
+    amount,
+    count: figures.days ?? figures.times ?? null,
+  });
   switch (line.rule) {
     case 'deadline_at_risk':
-      if (line.measure < -1) return say('dueLate', { days });
-      if (line.measure === -1) return say('dueLateOne');
+      if (line.measure < 0) return say('dueLate', { days });
       if (line.measure === 0) return say('dueToday');
       if (line.measure === 1) return say('dueTomorrow');
       return say('dueIn', { days });

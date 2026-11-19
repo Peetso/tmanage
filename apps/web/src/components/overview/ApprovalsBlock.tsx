@@ -10,6 +10,7 @@ import {
   OverviewIconOrb,
   OverviewRow,
   OverviewRows,
+  isolatedParts,
 } from './OverviewCard';
 
 /**
@@ -39,7 +40,7 @@ export function ApprovalsBlock({
               key={item.id}
               title={item.title}
               href={item.href}
-              meta={[item.context, format.age(item.since)].filter(Boolean).join(' · ')}
+              meta={isolatedParts([item.context, format.age(item.since)])}
               leading={<OverviewIconOrb icon="badgeCheck" />}
               end={
                 item.waitingOn === 'client' ? (

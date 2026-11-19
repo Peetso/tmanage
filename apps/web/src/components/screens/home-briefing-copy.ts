@@ -1,4 +1,5 @@
 import { briefingReasonOf } from '@tmanage/domain';
+import type { BriefingReason } from '@tmanage/domain';
 import type { BriefingGroupKey, BriefingLine } from '../../lib/api/home-briefing';
 
 /**
@@ -27,7 +28,7 @@ export const BRIEFING_COPY = {
   'HomeBriefing.more': 'and {count} more',
   'HomeBriefing.countLabel': '{count} in {group}',
 
-  'HomeBriefing.group.projects_at_risk': 'Projects at risk',
+  'HomeBriefing.group.projects_at_risk': 'Late or at-risk tasks',
   'HomeBriefing.group.money_to_collect': 'Money to collect',
   'HomeBriefing.group.money_to_invoice': 'Money to invoice',
   'HomeBriefing.group.people_overloaded': 'People overloaded',
@@ -36,20 +37,31 @@ export const BRIEFING_COPY = {
   'HomeBriefing.group.stale_work': 'Stale work',
   'HomeBriefing.group.unusual_expenses': 'Unusual expenses',
 
-  'HomeBriefing.reason.dueLate': '{days} days past due, work still open',
-  'HomeBriefing.reason.dueLateOne': 'One day past due, work still open',
-  'HomeBriefing.reason.dueToday': 'Due today, the work left does not fit',
+  // A counted reason keeps one key per CLDR plural form in the catalogs (`.zero` … `.other`,
+  // Arabic uses all six); the English here is the `.one` / `.other` pair (see `reasonKey`).
+  'HomeBriefing.reason.dueLate.one': 'One day past due, work still open',
+  'HomeBriefing.reason.dueLate.other': '{days} days past due, work still open',
+  'HomeBriefing.reason.dueToday': 'Due today, work still open',
   'HomeBriefing.reason.dueTomorrow': 'Due tomorrow, the work left does not fit',
-  'HomeBriefing.reason.dueIn': 'Due in {days} days, the work left does not fit',
+  'HomeBriefing.reason.dueIn.one': 'Due in one day, the work left does not fit',
+  'HomeBriefing.reason.dueIn.other': 'Due in {days} days, the work left does not fit',
   'HomeBriefing.reason.overloaded': '{percent}% of their capacity planned this week',
-  'HomeBriefing.reason.overdue': '{days} days overdue',
-  'HomeBriefing.reason.overdueAmount': '{amount}, {days} days overdue',
+  'HomeBriefing.reason.overdue.one': 'One day overdue',
+  'HomeBriefing.reason.overdue.other': '{days} days overdue',
+  'HomeBriefing.reason.overdueAmount.one': '{amount}, one day overdue',
+  'HomeBriefing.reason.overdueAmount.other': '{amount}, {days} days overdue',
   'HomeBriefing.reason.overBudget': '{percent}% of the budget used',
-  'HomeBriefing.reason.stale': 'No change for {days} days',
-  'HomeBriefing.reason.unusualExpense': '{times}× the usual for this category',
-  'HomeBriefing.reason.unusualExpenseAmount': '{amount}, {times}× the usual for this category',
-  'HomeBriefing.reason.waitingOnClient': 'Waiting on the client for {days} days',
-  'HomeBriefing.reason.notInvoiced': 'Approved time not invoiced for {days} days',
+  'HomeBriefing.reason.stale.one': 'No change for one day',
+  'HomeBriefing.reason.stale.other': 'No change for {days} days',
+  'HomeBriefing.reason.unusualExpense.one': '{times}× the usual for this category',
+  'HomeBriefing.reason.unusualExpense.other': '{times}× the usual for this category',
+  'HomeBriefing.reason.unusualExpenseAmount.one': '{amount}, {times}× the usual for this category',
+  'HomeBriefing.reason.unusualExpenseAmount.other':
+    '{amount}, {times}× the usual for this category',
+  'HomeBriefing.reason.waitingOnClient.one': 'Waiting on the client for one day',
+  'HomeBriefing.reason.waitingOnClient.other': 'Waiting on the client for {days} days',
+  'HomeBriefing.reason.notInvoiced.one': 'Approved time not invoiced for one day',
+  'HomeBriefing.reason.notInvoiced.other': 'Approved time not invoiced for {days} days',
 
   'HomeBriefing.untitled.work_item': 'A task',
   'HomeBriefing.untitled.membership': 'A person',
@@ -71,7 +83,10 @@ export function fillHoles(template: string, values: Readonly<Record<string, stri
 
 /** What the reason needs to say a figure in the reader's locale. */
 export interface ReasonFormat {
-  readonly text: (key: BriefingCopyKey) => string;
+  /** The catalog word for a key; `english` until the key reaches the catalogs. */
+  readonly text: (key: string, english: string) => string;
+  /** The reader's plural form of a count (`Intl.PluralRules` of the active locale). */
+  readonly plural: (count: number) => Intl.LDMLPluralRule;
   readonly number: (value: number) => string;
   readonly money: (minor: number, currency: string) => string;
 }
@@ -98,6 +113,27 @@ export function filledParts(
     });
 }
 
+/**
+ * The catalog key of a reason and its English: a counted reason (`count` set) in the reader's
+ * plural form — «يومين», «3 أيام», «11 يومًا» (T4 F5) — the English taking `.one` or `.other`.
+ */
+export function reasonKey(
+  reason: BriefingReason,
+  plural: ReasonFormat['plural'],
+): { readonly key: string; readonly english: string } {
+  const base = `HomeBriefing.reason.${reason.key}`;
+  if (reason.count === null) return { key: base, english: copyOf(base) };
+  const category = plural(reason.count);
+  return {
+    key: `${base}.${category}`,
+    english: copyOf(`${base}.${category === 'one' ? 'one' : 'other'}`),
+  };
+}
+
+function copyOf(key: string): string {
+  return (BRIEFING_COPY as Readonly<Record<string, string>>)[key] ?? key;
+}
+
 /** A line's reason in words, from the figures the sweep stored (domain `briefingReasonOf`). */
 export function briefingReason(line: BriefingLine, format: ReasonFormat): FilledText {
   const reason = briefingReasonOf(line);
@@ -106,7 +142,8 @@ export function briefingReason(line: BriefingLine, format: ReasonFormat): Filled
   if (reason.amount !== null) {
     values['amount'] = format.money(reason.amount.minor, reason.amount.currency);
   }
-  return { template: format.text(`HomeBriefing.reason.${reason.key}`), values };
+  const { key, english } = reasonKey(reason, format.plural);
+  return { template: format.text(key, english), values };
 }
 
 /** A line's name: its record's title, else a plain word for its kind. */

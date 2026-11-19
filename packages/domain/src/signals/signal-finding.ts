@@ -21,9 +21,13 @@ export const MS_PER_DAY = 86_400_000;
 /** At most one signal per subject per rule in this window (plan 62 §4.7). */
 export const SIGNAL_DEDUPE_WINDOW_MS = MS_PER_DAY;
 
-/** Whole days from `from` to `to`, rounded down; negative when `to` is earlier. */
+/**
+ * Whole days from `from` to `to`, counted toward zero: negative when `to` is earlier, and a part
+ * day never adds one either way (45 days and 3 hours earlier is -45, one hour earlier is 0).
+ */
 export function wholeDaysBetween(from: Date, to: Date): number {
-  return Math.floor((to.getTime() - from.getTime()) / MS_PER_DAY);
+  const days = Math.trunc((to.getTime() - from.getTime()) / MS_PER_DAY);
+  return days === 0 ? 0 : days; // never -0
 }
 
 /**

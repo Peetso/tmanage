@@ -49,6 +49,7 @@ const facts = (
   projectId: string | null,
   audience: ActivitySourceFacts['audience'] = 'internal',
 ): ActivitySourceFacts => ({
+  subject: null,
   id: 'row-1',
   projectId,
   clientOrganizationId: null,
@@ -70,7 +71,12 @@ describe('activity resolver (62-A2)', () => {
     for (const source of ACTIVITY_SOURCES) {
       const sql = SOURCE_FACTS_SQL[factSourceOf(source)](2);
       expect(sql, source).toMatch(/organization_id = \? and \w+\.id in \(\?, \?\)/);
-      expect(sql, source).not.toMatch(/title|name|body|feedback|amount/i);
+      // D2: the row's name comes back as `subject` and nothing else of its content does.
+      const selected = sql.split(/\sfrom\s/)[0]!.trimEnd();
+      expect(selected, source).toMatch(/ as subject$/);
+      expect(sql.replace(/\w+\.(title|name|number) as subject/, ''), source).not.toMatch(
+        /title|name|body|feedback|amount|note|description/i,
+      );
     }
   });
 

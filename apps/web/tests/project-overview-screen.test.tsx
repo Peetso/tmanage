@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ProjectOverviewScreen } from '../src/components/screens/ProjectOverviewScreen';
+import { OverviewTabs } from '../src/components/overview/OverviewTabs';
 import { activeLocale } from '../src/lib/i18n/locale-store';
 import {
   OVERVIEW_NOW,
@@ -48,7 +49,12 @@ describe('ONEPAGE project overview', () => {
 
   it('names the owner and the committed date in the header, with the way back first', async () => {
     mount();
-    expect(await screen.findByText(/Led by Omar Adel · Due/)).toBeInTheDocument();
+    // D4: the client company first, a link to its page, then the lead and the date.
+    const company = await screen.findByRole('link', { name: 'Cedar Foods' });
+    expect(company).toHaveAttribute('href', '/northstar/clients/co-cedar');
+    await waitFor(() =>
+      expect(company.parentElement).toHaveTextContent(/^Cedar Foods · Led by Omar Adel · Due/),
+    );
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Cedar Foods brand refresh',
     );
@@ -67,7 +73,54 @@ describe('ONEPAGE project overview', () => {
     );
     const work = await within(tabs).findByRole('link', { name: 'Work 18' });
     expect(work).toHaveAttribute('href', '/northstar/work?project=proj-1');
-    expect(within(tabs).getByRole('link', { name: 'Milestones' })).toBeInTheDocument();
+    // D5: the frame's five tabs, then the other sections behind one "More" menu.
+    expect(
+      within(tabs)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['Overview', 'Work 18', 'Files', 'Time', 'Activity']);
+    expect(within(tabs).getByRole('link', { name: 'Time' })).toHaveAttribute(
+      'href',
+      '/northstar/finance/timesheets',
+    );
+    const more = within(tabs).getByRole('button', { name: 'More' });
+    expect(more).toHaveAttribute('aria-haspopup', 'menu');
+    fireEvent.click(more);
+    const menu = await within(tabs).findByRole('menu', { name: 'More' });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(menu).getByRole('menuitem', { name: 'Milestones' }),
+      ),
+    );
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Milestones', 'Plan', 'Iterations', 'Team', 'Risks', 'Objectives']);
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(document.activeElement).toHaveTextContent('Plan');
+    fireEvent.keyDown(menu, { key: 'Escape' });
+    expect(within(tabs).queryByRole('menu')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(more);
+  });
+
+  it('D5: while a section behind More is the current page, More carries the indicator and names it', () => {
+    render(
+      <OverviewTabs
+        label="Sections"
+        current="risks"
+        tabs={[{ id: 'overview', label: 'Overview', href: '/o' }]}
+        more={{
+          label: 'More',
+          currentLabel: (name) => `More: ${name}`,
+          tabs: [{ id: 'risks', label: 'Risks', href: '/o/risks' }],
+        }}
+      />,
+    );
+    const more = screen.getByRole('button', { name: 'More: Risks' });
+    expect(more).toHaveAttribute('data-current', 'true');
+    fireEvent.click(more);
+    expect(screen.getByRole('menuitem', { name: 'Risks' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('leaves out the Money card and every money figure without finance access', async () => {

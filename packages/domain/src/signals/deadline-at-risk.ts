@@ -1,4 +1,4 @@
-import { MS_PER_DAY } from './signal-finding.js';
+import { MS_PER_DAY, wholeDaysBetween } from './signal-finding.js';
 import type { SignalFinding } from './signal-finding.js';
 import { isOpenWorkState } from './work-states.js';
 
@@ -73,7 +73,7 @@ export function evaluateDeadlineAtRisk(
     subjectType: 'work_item',
     subjectId: facts.workItemId,
     projectId: facts.projectId,
-    measure: Math.floor(untilDue / MS_PER_DAY),
+    measure: wholeDaysBetween(now, facts.dueAt),
     threshold: thresholdDays,
   };
 }

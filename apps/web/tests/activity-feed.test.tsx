@@ -119,6 +119,29 @@ describe('ActivityFeed', () => {
     expect(button).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByText('Showing 1')).toBeInTheDocument();
   });
+
+  it('D3: says the total, and draws the system orb for a row with no person', () => {
+    const { container } = render(
+      <ActivityFeed
+        title="Activity"
+        now={NOW}
+        empty={null}
+        state={{
+          status: 'ready',
+          rows: [{ ...row('a', at(19, 10)), actor: null, sentence: 'TManage created the project' }],
+        }}
+        more={{
+          hasMore: true,
+          busy: false,
+          failed: false,
+          onMore: () => undefined,
+          total: { count: 1000, atLeast: true },
+        }}
+      />,
+    );
+    expect(screen.getByText('Showing 1 of 1,000+')).toBeInTheDocument();
+    expect(container.querySelector('.tm-act__system svg')).not.toBeNull();
+  });
 });
 
 describe('Activity tab model', () => {
@@ -184,28 +207,37 @@ describe('Activity tab on the project page', () => {
       'page',
     );
     const line = await screen.findByRole('link', {
-      name: /Omar Adel — Changed the status of a task/,
+      name: /Omar Adel changed the status of “Packaging artwork”/,
     });
     expect(line).toHaveAttribute('href', '/northstar/work/wi-7');
     expect(line).toHaveTextContent('· Work');
-    expect(screen.getByRole('link', { name: /Lina Saeed — Uploaded a file/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Sent an invoice/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /Lina Saeed uploaded “Packaging_dieline_v4.pdf”/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /sent invoice INV-0042/ })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Money' })).toBeInTheDocument();
+    // D3: a row with no person is by TManage, with the system orb, never an empty disc.
+    const system = screen.getByRole('link', {
+      name: /TManage created the project “Cedar Foods brand refresh”/,
+    });
+    expect(system.querySelector('.tm-act__system svg')).not.toBeNull();
+    // D10: the subject sits in its own isolate.
+    expect(within(line).getByText('Packaging artwork').tagName).toBe('BDI');
   });
 
   it('has no Money chip and no money line without finance access', async () => {
     mountProject({ activity: ACTIVITY_PAGE_NO_FINANCE, capabilities: ['work.read'] });
-    await screen.findByRole('link', { name: /Changed the status of a task/ });
+    await screen.findByRole('link', { name: /changed the status of “Packaging artwork”/ });
     await waitFor(() => expect(screen.getByRole('radio', { name: 'Work' })).toBeInTheDocument());
     expect(screen.queryByRole('radio', { name: 'Money' })).not.toBeInTheDocument();
     const feed = screen.getByRole('region', { name: 'Activity' });
     expect(within(feed).queryByText(/invoice/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Showing 4')).toBeInTheDocument();
+    expect(screen.getByText('Showing 4 of 5')).toBeInTheDocument();
   });
 
   it('asks for one kind when a chip is chosen, as a single choice with a check', async () => {
     const { requests } = mountProject();
-    await screen.findByRole('link', { name: /Changed the status of a task/ });
+    await screen.findByRole('link', { name: /changed the status of “Packaging artwork”/ });
     const files = screen.getByRole('radio', { name: 'Files' });
     fireEvent.click(files);
     await waitFor(() =>
@@ -218,7 +250,7 @@ describe('Activity tab on the project page', () => {
 
   it('filters by person from the Person menu', async () => {
     const { requests } = mountProject();
-    await screen.findByRole('link', { name: /Changed the status of a task/ });
+    await screen.findByRole('link', { name: /changed the status of “Packaging artwork”/ });
     const chip = screen.getByRole('button', { name: 'Person: Anyone' });
     expect(chip).toHaveAttribute('aria-haspopup', 'menu');
     fireEvent.click(chip);
@@ -233,13 +265,13 @@ describe('Activity tab on the project page', () => {
     const { requests } = mountProject({
       activity: (search) => (search.get('kind') ? ACTIVITY_EMPTY : ACTIVITY_PAGE),
     });
-    await screen.findByRole('link', { name: /Changed the status of a task/ });
+    await screen.findByRole('link', { name: /changed the status of “Packaging artwork”/ });
     fireEvent.click(screen.getByRole('radio', { name: 'Approvals' }));
     expect(await screen.findByText('Nothing matches these filters.')).toBeInTheDocument();
     expect(screen.queryByText('No activity yet')).not.toBeInTheDocument();
     const clear = screen.getAllByRole('button', { name: 'Clear filters' });
     fireEvent.click(clear[clear.length - 1]!);
-    await screen.findByRole('link', { name: /Changed the status of a task/ });
+    await screen.findByRole('link', { name: /changed the status of “Packaging artwork”/ });
     expect(screen.getByRole('radio', { name: 'All' })).toHaveAttribute('aria-checked', 'true');
     expect(activityReads(requests).length).toBeGreaterThanOrEqual(2);
   });
@@ -255,11 +287,15 @@ describe('Activity tab on the project page', () => {
 
   it('loads the next page behind "Load more" and keeps the rows already shown', async () => {
     const { requests } = mountProject();
-    await screen.findByText('Showing 5');
+    await screen.findByText('Showing 5 of 6');
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
-    expect(await screen.findByRole('link', { name: /Approved a version/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Changed the status of a task/ })).toBeInTheDocument();
-    expect(screen.getByText('Showing 6')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('link', { name: /approved a version of “Label artwork v3”/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /changed the status of “Packaging artwork”/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Showing 6 of 6')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
     expect(activityReads(requests).some((path) => path.includes('cursor=cursor-2'))).toBe(true);
   });
@@ -272,7 +308,7 @@ describe('Activity tab on the project page', () => {
 
   it('has no axe violations', async () => {
     const { container } = mountProject();
-    await screen.findByRole('link', { name: /Changed the status of a task/ });
+    await screen.findByRole('link', { name: /changed the status of “Packaging artwork”/ });
     await expectNoAxeViolations(container);
   });
 
@@ -317,7 +353,7 @@ describe('Activity tab on the client page', () => {
 
   it("names each line's project in the meta line", async () => {
     mountClient();
-    const line = await screen.findByRole('link', { name: /Sent an invoice/ });
+    const line = await screen.findByRole('link', { name: /sent invoice INV-0042/ });
     await waitFor(() => expect(line).toHaveTextContent('· Ramadan campaign 2027 · Money'));
   });
 
@@ -347,7 +383,7 @@ describe('Activity tab on the client page', () => {
         />
       </QueryClientProvider>,
     );
-    await screen.findByRole('link', { name: /Approved a version/ });
+    await screen.findByRole('link', { name: /approved a version of “Label artwork v3”/ });
     expect(
       requests.some((path) => path.startsWith('/client-organizations/co-cedar/activity')),
     ).toBe(true);

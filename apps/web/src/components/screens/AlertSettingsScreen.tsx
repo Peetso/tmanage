@@ -43,6 +43,9 @@ import {
 import { fillHoles } from './home-briefing-copy';
 import '../../styles/screens/alert-settings.css';
 
+/** Icon/info: the mark of the neutral notes on this page (FIGMA-C fix 14, FIGMA-D fix 28). */
+const INFO_ICON = <NavIcon name="info" size={16} />;
+
 /**
  * **Settings → Alerts** (62-27, B12; FIGMA-D group c, fixes 23–32). The owner's eight signal rules:
  * on or off, the threshold, who is told. Everything the rows offer — units, limits, recipient
@@ -131,14 +134,14 @@ export function AlertSettingsScreen({
         </LoadingRegion>
       ) : settings.isError ? (
         settings.error instanceof ApiRequestError && settings.error.status === 403 ? (
-          <InlineAlert>{text('AlertSettings.ownerOnly')}</InlineAlert>
+          <InlineAlert icon={INFO_ICON}>{text('AlertSettings.ownerOnly')}</InlineAlert>
         ) : (
           <InlineAlert tone="danger" title={text('AlertSettings.loadFailed')}>
             {errorMessage(settings.error)}
           </InlineAlert>
         )
       ) : settings.data === null ? (
-        <InlineAlert>{text('AlertSettings.off')}</InlineAlert>
+        <InlineAlert icon={INFO_ICON}>{text('AlertSettings.off')}</InlineAlert>
       ) : (
         <AlertRulesForm
           organizationSlug={organizationSlug}
@@ -245,7 +248,7 @@ function AlertRulesForm({
         </ul>
       </div>
 
-      <InlineAlert>{text('AlertSettings.offMeans')}</InlineAlert>
+      <InlineAlert icon={INFO_ICON}>{text('AlertSettings.offMeans')}</InlineAlert>
 
       {save.isError ? (
         <InlineAlert tone="danger" title={text('AlertSettings.saveFailed')} live>

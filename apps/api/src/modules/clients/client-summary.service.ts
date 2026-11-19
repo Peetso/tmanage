@@ -1,6 +1,10 @@
 import type { Capability, Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { ProjectHealthView } from '../projects/health.service.js';
+import {
+  healthReasonOf,
+  type ProjectHealthReason,
+  type ProjectHealthView,
+} from '../projects/health.service.js';
 import { holds, presentOnly, readBlock, requireInternal } from '../projects/summary-access.js';
 import {
   approvalsOf,
@@ -8,12 +12,14 @@ import {
   deliveryOf,
   filesOf,
   sumDelivery,
+  timeOf,
 } from '../projects/summary-blocks.js';
 import type {
   ApprovalsBlock,
   ClientMoneyBlock,
   DeliveryBlock,
   FilesBlock,
+  TimeBlock,
   UnbilledBlock,
 } from '../projects/summary-blocks.js';
 import { clientInvoices, readableWork } from '../projects/summary-reads.js';
@@ -41,6 +47,21 @@ export interface ClientSummaryProject {
   readonly name: string;
   readonly status: string;
   readonly band?: ProjectHealthView['band'];
+  /** D7: why the band is what it is (the heaviest health signal); absent with no penalty. */
+  readonly reason?: ProjectHealthReason;
+}
+
+/** D7: hours across the folded projects (the project page's Time figures), and per project. */
+export interface ClientTimeBlock {
+  readonly from: string;
+  readonly to: string;
+  readonly loggedMinutes: number;
+  readonly billableMinutes: number;
+  /** Projects with logged time, most first. */
+  readonly projects: readonly {
+    readonly projectId: string;
+    readonly loggedMinutes: number;
+  }[];
 }
 
 export interface ClientProjectsBlock {
@@ -56,6 +77,7 @@ export interface ClientSummaryView {
   readonly delivery?: DeliveryBlock;
   readonly approvals?: ApprovalsBlock;
   readonly files?: FilesBlock;
+  readonly time?: ClientTimeBlock;
   readonly money?: ClientMoneyBlock;
   readonly unbilled?: UnbilledBlock;
   /** B10: open signals of the folded projects and the client's invoices (`business_briefing`). */
@@ -69,7 +91,9 @@ export interface ClientSummaryView {
  * 404 for a foreign company), and its projects come from `listOrganizationProjects`. A client-level
  * block is present only when the viewer holds its capability across the organization; each
  * project's part is then read through the owning service, which applies its own relation rule, and
- * a project that service refuses contributes nothing. Money comes from the client's invoices
+ * a project that service refuses contributes nothing. Time sums each project's burn report (the
+ * project page's Time block, `work.read`) and lists it per project (D7); each project carries the
+ * health signal that cost it most (`reason`), so the page says why, never the band's colour. Money comes from the client's invoices
  * (`finance.view`, `client_invoicing` flag) and not-yet-invoiced work from the finance unbilled
  * report (`finance.view`, `finance_reports` flag). Signals come through `summary-signals.ts` (the Home
  * briefing narrowed to the folded projects and the client's own invoices).
@@ -97,15 +121,18 @@ export class ClientSummaryService {
     const deliveries: DeliveryBlock[] = [];
     const deliverables: DeliverableView[] = [];
     const files: ProjectFileView[] = [];
+    const times: { readonly projectId: string; readonly time: TimeBlock }[] = [];
     for (const project of folded) {
       const health = orgWide('work.read')
         ? await readBlock(() => sources.health.get(context, principal, project.id))
         : undefined;
+      const reason = health === undefined ? null : healthReasonOf(health.signals);
       projects.push({
         id: project.id,
         name: project.name,
         status: project.status,
         ...(health === undefined ? {} : { band: health.band }),
+        ...(reason === null ? {} : { reason }),
       });
       if (orgWide('work.read')) {
         const walked = await readBlock(() =>
@@ -116,6 +143,8 @@ export class ClientSummaryService {
           sources.deliverables.list(context, principal, project.id),
         );
         if (rows) deliverables.push(...rows);
+        const burn = await readBlock(() => sources.burn.burn(context, principal, project.id, {}));
+        if (burn) times.push({ projectId: project.id, time: timeOf(burn) });
       }
       if (orgWide('file.download')) {
         const rows = await readBlock(() =>
@@ -132,6 +161,7 @@ export class ClientSummaryService {
         delivery: orgWide('work.read') ? sumDelivery(deliveries) : undefined,
         approvals: orgWide('work.read') ? approvalsOf(deliverables) : undefined,
         files: orgWide('file.download') ? filesOf(files) : undefined,
+        time: orgWide('work.read') ? clientTimeOf(times) : undefined,
         ...(await this.finance(context, principal, client.id)),
         signals: await readBlock(() =>
           sources.signals.forClient(
@@ -204,4 +234,22 @@ export class ClientSummaryService {
       };
     });
   }
+}
+
+/** D7: the folded projects' time summed, and each project with time, most first. */
+export function clientTimeOf(
+  times: readonly { readonly projectId: string; readonly time: TimeBlock }[],
+): ClientTimeBlock | undefined {
+  const first = times[0];
+  if (first === undefined) return undefined;
+  return {
+    from: first.time.from,
+    to: first.time.to,
+    loggedMinutes: times.reduce((sum, entry) => sum + entry.time.loggedMinutes, 0),
+    billableMinutes: times.reduce((sum, entry) => sum + entry.time.billableMinutes, 0),
+    projects: times
+      .filter((entry) => entry.time.loggedMinutes > 0)
+      .map((entry) => ({ projectId: entry.projectId, loggedMinutes: entry.time.loggedMinutes }))
+      .sort((left, right) => right.loggedMinutes - left.loggedMinutes),
+  };
 }

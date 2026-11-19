@@ -118,6 +118,8 @@ export interface ProjectSummary {
     readonly committedAt: string | null;
     readonly forecastAt: string | null;
     readonly archivedAt: string | null;
+    /** D4: the client company the project is for; `null` for none. */
+    readonly client: { readonly id: string; readonly name: string } | null;
   };
   readonly delivery?: SummaryDelivery;
   readonly milestone?: SummaryMilestone;

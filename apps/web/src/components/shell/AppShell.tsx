@@ -24,6 +24,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { PlatformAdminLink } from '../platform/PlatformAdminLink';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { MembershipGoneGate } from './MembershipGoneGate';
+import { ClientPortalGate } from './ClientPortalGate';
 // ---- platform-admin v2 · PA-05 ----
 import { ShellBanners } from './ShellBanners';
 import { GettingStartedLauncher } from '../onboarding/GettingStartedCard';
@@ -386,11 +387,16 @@ export function AppShell({
     </LiveAnnouncer>
   );
   // A removed member sees one no-access page instead of the sample-company header and raw errors
-  // (ACC-14); a company the platform operator suspended shows its members one page instead of the app.
+  // (ACC-14); a client member is sent to the portal before any staff UI draws (T5 F7); a company
+  // the platform operator suspended shows its members one page instead of the app.
   return queryClient ? (
     <SupportSessionEndedGate organizationSlug={organizationSlug}>
       <MembershipGoneGate organizationSlug={organizationSlug}>
-        <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+        <ClientPortalGate organizationSlug={organizationSlug}>
+          <WorkspaceSuspendedGate organizationSlug={organizationSlug}>
+            {shell}
+          </WorkspaceSuspendedGate>
+        </ClientPortalGate>
       </MembershipGoneGate>
     </SupportSessionEndedGate>
   ) : (

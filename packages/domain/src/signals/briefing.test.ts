@@ -261,21 +261,26 @@ describe('assembleBriefing', () => {
 describe('briefingReasonOf (the sentence the card and the mail each say in words)', () => {
   const amount = { minor: 420_000, currency: 'USD' };
   it.each([
-    ['deadline_at_risk', -3, null, 'dueLate', { days: 3 }],
-    ['deadline_at_risk', -1, null, 'dueLateOne', {}],
-    ['deadline_at_risk', 0, null, 'dueToday', {}],
-    ['deadline_at_risk', 1, null, 'dueTomorrow', {}],
-    ['deadline_at_risk', 4, null, 'dueIn', { days: 4 }],
-    ['overloaded_person', 115, null, 'overloaded', { percent: 115 }],
-    ['overdue_invoice', 12, null, 'overdue', { days: 12 }],
-    ['overdue_invoice', 12, amount, 'overdueAmount', { days: 12 }],
-    ['project_over_budget', 112, null, 'overBudget', { percent: 112 }],
-    ['stale_task', 16, null, 'stale', { days: 16 }],
-    ['unusual_expense', 4, amount, 'unusualExpenseAmount', { times: 4 }],
-    ['approval_waiting_on_client', 5, null, 'waitingOnClient', { days: 5 }],
-    ['approved_time_not_invoiced', 14, null, 'notInvoiced', { days: 14 }],
-  ] as const)('%s %d', (rule, measure, money, key, figures) => {
+    ['deadline_at_risk', -3, null, 'dueLate', { days: 3 }, 3],
+    ['deadline_at_risk', -1, null, 'dueLate', { days: 1 }, 1],
+    ['deadline_at_risk', 0, null, 'dueToday', {}, null],
+    ['deadline_at_risk', 1, null, 'dueTomorrow', {}, null],
+    ['deadline_at_risk', 4, null, 'dueIn', { days: 4 }, 4],
+    ['overloaded_person', 115, null, 'overloaded', { percent: 115 }, null],
+    ['overdue_invoice', 12, null, 'overdue', { days: 12 }, 12],
+    ['overdue_invoice', 12, amount, 'overdueAmount', { days: 12 }, 12],
+    ['project_over_budget', 112, null, 'overBudget', { percent: 112 }, null],
+    ['stale_task', 16, null, 'stale', { days: 16 }, 16],
+    ['unusual_expense', 4, amount, 'unusualExpenseAmount', { times: 4 }, 4],
+    ['approval_waiting_on_client', 5, null, 'waitingOnClient', { days: 5 }, 5],
+    ['approved_time_not_invoiced', 14, null, 'notInvoiced', { days: 14 }, 14],
+  ] as const)('%s %d', (rule, measure, money, key, figures, count) => {
     const reason = briefingReasonOf({ rule, measure, amount: money });
-    expect(reason).toEqual({ key, figures, amount: key.endsWith('Amount') ? amount : null });
+    expect(reason).toEqual({
+      key,
+      figures,
+      amount: key.endsWith('Amount') ? amount : null,
+      count,
+    });
   });
 });

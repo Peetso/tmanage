@@ -50,6 +50,14 @@ describe('deadline at risk', () => {
     expect(evaluateDeadlineAtRisk({ ...base, dueAt: later }, 5, NOW)).toBeNull();
   });
 
+  it('counts whole days late toward zero: 2 days late is -2, one hour late is 0 (T4 F1)', () => {
+    const late = (ms: number) => ({ ...base, dueAt: new Date(NOW.getTime() - ms) });
+    expect(evaluateDeadlineAtRisk(late(2 * DAY), 5, NOW)?.measure).toBe(-2);
+    expect(evaluateDeadlineAtRisk(late(2 * DAY + 3_600_000), 5, NOW)?.measure).toBe(-2);
+    expect(evaluateDeadlineAtRisk(late(45 * DAY + 5 * 3_600_000), 5, NOW)?.measure).toBe(-45);
+    expect(evaluateDeadlineAtRisk(late(3_600_000), 5, NOW)?.measure).toBe(0);
+  });
+
   it('a late open item fires without an estimate; an unassigned item with work left fires', () => {
     const late = { ...base, dueAt: daysFromNow(-1), remainingMinutes: 0, queuedMinutes: 0 };
     expect(evaluateDeadlineAtRisk(late, 5, NOW)?.measure).toBe(-1);

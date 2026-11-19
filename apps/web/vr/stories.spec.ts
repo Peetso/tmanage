@@ -75,6 +75,18 @@ for (const entry of stories) {
       // Playwright but is exactly the state a `vr-fullpage` story shoots.
       await expect(root.locator(':scope > *').first()).toBeAttached();
 
+      // A story that names its own viewport (`globals: { viewport: { value: 'phone' } }`, T5 D9)
+      // is shot at that size, not the config's 1024 × 768. The preview's `withVrViewport`
+      // decorator resolves the name and marks the document with "<width>x<height>" before the
+      // story renders; the page is resized before any wait below, so the waits cover the reflow.
+      const viewport = await page.evaluate(
+        () => document.documentElement.dataset['vrViewport'] ?? null,
+      );
+      const size = viewport === null ? null : /^(\d+)x(\d+)$/u.exec(viewport);
+      if (size !== null) {
+        await page.setViewportSize({ width: Number(size[1]), height: Number(size[2]) });
+      }
+
       // The packaged font must have painted; the fallback face has different metrics and would
       // diff every text node against a baseline shot after the swap.
       await page.evaluate(() => document.fonts.ready);

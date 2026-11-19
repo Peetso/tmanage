@@ -16,11 +16,14 @@ import type { AgingBucketKey } from './InvoiceApi';
 import { AGING_WORDS, INVOICE_FILTERS, invoiceCapsule, invoiceStateKey } from './InvoiceRules';
 import type { InvoiceFilter } from './InvoiceRules';
 import { InvoiceStateWord, useClientNames } from './InvoiceStateWord';
+import { ClientFilterNote } from '../../clients/ClientFilterNote';
 import '../../../styles/screens/finance-ledger.css';
 
 export interface InvoiceListScreenProps {
   organizationSlug: string;
   organizationName: string;
+  /** D6: `?client=` — only this client company's invoices (the client page's Invoices tab). */
+  clientOrganizationId?: string;
   /** Injected in tests. Defaults to the browser client. */
   client?: ApiClient;
 }
@@ -43,6 +46,7 @@ const FILTER_WORDS: Record<InvoiceFilter, readonly [string, string]> = {
 export function InvoiceListScreen({
   organizationSlug,
   organizationName,
+  clientOrganizationId,
   client,
 }: InvoiceListScreenProps) {
   const api = client ?? browserApiClient();
@@ -52,10 +56,11 @@ export function InvoiceListScreen({
   const [filter, setFilter] = useState<InvoiceFilter>('all');
 
   const invoices = useInfiniteQuery({
-    queryKey: ['client-invoices', organizationSlug, filter],
+    queryKey: ['client-invoices', organizationSlug, filter, clientOrganizationId ?? null],
     queryFn: ({ pageParam }) =>
       listClientInvoices(api, organizationSlug, {
         state: filter === 'all' ? null : filter,
+        clientOrganizationId: clientOrganizationId ?? null,
         cursor: pageParam,
       }),
     initialPageParam: null as string | null,
@@ -95,6 +100,12 @@ export function InvoiceListScreen({
     >
       <div className="tm-stack">
         <FinanceReportSectionTabs organizationSlug={organizationSlug} current="invoices" />
+        {clientOrganizationId === undefined ? null : (
+          <ClientFilterNote
+            name={clientNames.get(clientOrganizationId)}
+            showAllHref={`/${organizationSlug}/finance/invoices`}
+          />
+        )}
 
         <div
           className="tm-chip-row"

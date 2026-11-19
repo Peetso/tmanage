@@ -1,4 +1,5 @@
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { readResolvedFlags } from '../admin/feature-gate.js';
@@ -27,6 +28,7 @@ import { BudgetBurnService } from './budget-burn.service.js';
 import { ProjectBudgetRepository } from './budget.repository.js';
 import { ProjectBudgetService } from './budget.service.js';
 import { ProjectHealthService } from './health.service.js';
+import { ProjectPortfolioPlanningRepository } from './portfolio.repository.js';
 import { ProjectsRepository } from './projects.repository.js';
 import type { FlagReader } from './summary-access.js';
 import { SummarySignalsReader } from './summary-signals.js';
@@ -37,6 +39,12 @@ import { SummarySignalsReader } from './summary-signals.js';
  * figure comes through the service that owns it, with that service's tenant filter and relation
  * rule.
  */
+/** D4: the client company a project is shared with (the first by name), as the portfolio names it. */
+export type ProjectClientReader = (
+  context: TenantContext,
+  projectId: string,
+) => Promise<{ readonly id: string; readonly name: string } | null>;
+
 export interface SummarySources {
   readonly health: Pick<ProjectHealthService, 'get'>;
   readonly work: Pick<WorkItemsService, 'list'>;
@@ -49,6 +57,8 @@ export interface SummarySources {
   readonly invoices: Pick<ClientInvoicesService, 'list'>;
   /** B10: the open signals the Risks block lists, behind `business_briefing` (its own gate). */
   readonly signals: Pick<SummarySignalsReader, 'forProject' | 'forClient'>;
+  /** D4: called only after the project itself was authorised (the portfolio's own rule). */
+  readonly projectClient: ProjectClientReader;
   readonly flags: FlagReader;
 }
 
@@ -113,6 +123,17 @@ export function buildSummarySources(deps: SummarySourceDependencies): SummarySou
       audit,
     }),
     signals: new SummarySignalsReader(database, flags),
+    projectClient: projectClientReader(database),
     flags,
+  };
+}
+
+function projectClientReader(database: TenantDatabase): ProjectClientReader {
+  const planning = new ProjectPortfolioPlanningRepository();
+  return async (context, projectId) => {
+    const [row] = await database.read(context, (runner) =>
+      planning.clients(runner, context, [projectId]),
+    );
+    return row === undefined ? null : { id: row.clientOrganizationId, name: row.clientName };
   };
 }

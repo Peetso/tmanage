@@ -1,5 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HomeBriefingCard } from '../src/components/screens/HomeBriefingCard';
 import { briefingReason } from '../src/components/screens/home-briefing-copy';
@@ -22,6 +25,11 @@ import { expectNoAxeViolations } from './axe';
  * lead, empty, failed, absent), the lines as links, "and N more", the phone collapse, Hide with
  * Undo, and the Arabic mount with every name and amount isolated.
  */
+
+const BRIEFING_CSS = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../src/styles/screens/home-briefing.css'),
+  'utf8',
+);
 
 const windowWithMatchMedia = window as unknown as { matchMedia?: typeof window.matchMedia };
 const originalMatchMedia = windowWithMatchMedia.matchMedia;
@@ -72,7 +80,8 @@ describe('HomeBriefingCard', () => {
     const card = await loadedCard();
     const groups = within(card).getAllByRole('heading', { level: 3 });
     expect(groups.map((heading) => heading.textContent?.replace(/\d+.*$/u, ''))).toEqual([
-      'Projects at risk',
+      // T4 F3: the group lists tasks, late or at risk, so it is named for them.
+      'Late or at-risk tasks',
       'Money to collect',
       'People overloaded',
       'Waiting on clients',
@@ -84,7 +93,7 @@ describe('HomeBriefingCard', () => {
     expect(
       within(card).getByText('What needs you across the company. We check every hour.'),
     ).toBeInTheDocument();
-    expect(within(card).getByText('5 in Projects at risk')).toBeInTheDocument();
+    expect(within(card).getByText('5 in Late or at-risk tasks')).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
@@ -172,7 +181,7 @@ describe('HomeBriefingCard', () => {
     phone();
     mount();
     const card = await loadedCard();
-    const toggle = within(card).getByRole('button', { name: /Projects at risk/u });
+    const toggle = within(card).getByRole('button', { name: /Late or at-risk tasks/u });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(within(card).getByRole('link', { name: /Launch kit/u })).toBeInTheDocument();
     expect(within(card).queryByRole('link', { name: /Beta build/u })).toBeNull();
@@ -196,33 +205,90 @@ describe('HomeBriefingCard', () => {
 });
 
 describe('briefingReason', () => {
+  const english = new Intl.PluralRules('en');
   const format = {
     text: (key: string) => key,
+    plural: (count: number) => english.select(count),
     number: (value: number) => String(value),
     money: (minor: number, currency: string) => `${currency} ${String(minor / 100)}`,
   };
   const base = BRIEFING_OWNER.groups[0]!.lines[0]!;
-  const reason = (patch: Partial<BriefingLine>) =>
-    briefingReason({ ...base, ...patch }, format as never);
+  const reason = (patch: Partial<BriefingLine>, using = format) =>
+    briefingReason({ ...base, ...patch }, using);
 
   it('a deadline says how near or how late, never a negative number', () => {
     expect(reason({ measure: -3 })).toEqual({
-      template: 'HomeBriefing.reason.dueLate',
+      template: 'HomeBriefing.reason.dueLate.other',
       values: { days: '3' },
     });
-    expect(reason({ measure: -1 }).template).toBe('HomeBriefing.reason.dueLateOne');
+    expect(reason({ measure: -1 }).template).toBe('HomeBriefing.reason.dueLate.one');
     expect(reason({ measure: 0 }).template).toBe('HomeBriefing.reason.dueToday');
     expect(reason({ measure: 1 }).template).toBe('HomeBriefing.reason.dueTomorrow');
     expect(reason({ measure: 4 })).toEqual({
-      template: 'HomeBriefing.reason.dueIn',
+      template: 'HomeBriefing.reason.dueIn.other',
       values: { days: '4' },
     });
   });
 
   it('an invoice without an amount says the days only', () => {
     expect(reason({ rule: 'overdue_invoice', amount: null, measure: 9 })).toEqual({
-      template: 'HomeBriefing.reason.overdue',
+      template: 'HomeBriefing.reason.overdue.other',
       values: { days: '9' },
     });
+  });
+
+  it('Arabic: a counted reason takes its plural form (T4 F5: «يومين», «3 أيام», «13 يومًا»)', () => {
+    const arabic = new Intl.PluralRules('ar');
+    const keyOf = (measure: number) =>
+      reason({ measure }, { ...format, plural: (count) => arabic.select(count) }).template;
+    expect([-1, -2, -3, -10, -13, -46, -100].map(keyOf)).toEqual([
+      'HomeBriefing.reason.dueLate.one',
+      'HomeBriefing.reason.dueLate.two',
+      'HomeBriefing.reason.dueLate.few',
+      'HomeBriefing.reason.dueLate.few',
+      'HomeBriefing.reason.dueLate.many',
+      'HomeBriefing.reason.dueLate.many',
+      'HomeBriefing.reason.dueLate.other',
+    ]);
+  });
+});
+
+describe('Arabic briefing words (T4 F4, F5)', () => {
+  it('says the days in Arabic number agreement on the card', async () => {
+    activeLocale.set('ar-EG');
+    const late = (measure: number, id: string) => ({
+      ...BRIEFING_OWNER.groups[0]!.lines[0]!,
+      signalId: id,
+      measure,
+    });
+    const projects = BRIEFING_OWNER.groups[0]!;
+    const { container } = mount({
+      briefing: {
+        ...BRIEFING_OWNER,
+        groups: [
+          {
+            ...projects,
+            count: 3,
+            more: 0,
+            lines: [late(-46, 's-46'), late(-13, 's-13'), late(-2, 's-2')],
+          },
+        ],
+      },
+    });
+    await waitFor(() => expect(container.querySelector('.tm-brief-line__reason')).not.toBeNull());
+    const reasons = [...container.querySelectorAll('.tm-brief-line__reason')].map((node) =>
+      (node.textContent ?? '').replace(/[٠-٩]/gu, (digit) => String(digit.charCodeAt(0) - 0x660)),
+    );
+    expect(reasons).toEqual([
+      'تجاوز موعده بـ46 يومًا، والعمل ما زال مفتوحًا',
+      'تجاوز موعده بـ13 يومًا، والعمل ما زال مفتوحًا',
+      'تجاوز موعده بيومين، والعمل ما زال مفتوحًا',
+    ]);
+  });
+
+  it('draws each name as one isolated block, so a Latin project name never splits', () => {
+    expect(BRIEFING_CSS).toMatch(
+      /\.tm-brief-line__title > bdi \{[^}]*display: inline-block;[^}]*max-inline-size: 100%;[^}]*\}/u,
+    );
   });
 });

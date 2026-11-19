@@ -1,6 +1,7 @@
 import type { SignalBriefingGroup } from '@tmanage/domain';
 import type { ProjectHealthBand } from '../../lib/api/project-health';
 import type { SummaryWaitingOn } from '../../lib/api/project-summary';
+import type { ProjectHealthReason } from '../../lib/api/client-summary';
 
 /**
  * ONEPAGE — the view model both one-page screens (project overview, client company) draw.
@@ -101,8 +102,19 @@ export type RiskLine =
       readonly oldestTitle: string;
       readonly href: string;
     }
-  | { readonly kind: 'projectBehind'; readonly name: string; readonly href: string }
-  | { readonly kind: 'projectAtRisk'; readonly name: string; readonly href: string }
+  /** D7: `reason` says why (the heaviest health signal), never the band's colour. */
+  | {
+      readonly kind: 'projectBehind';
+      readonly name: string;
+      readonly href: string;
+      readonly reason?: ProjectHealthReason;
+    }
+  | {
+      readonly kind: 'projectAtRisk';
+      readonly name: string;
+      readonly href: string;
+      readonly reason?: ProjectHealthReason;
+    }
   | {
       readonly kind: 'overdueInvoices';
       readonly count: number;
@@ -139,12 +151,22 @@ export interface FilesModel {
   readonly items: readonly FileItem[];
 }
 
+/** D7: one project's hours on the client page's Time card. */
+export interface TimeProjectRow {
+  readonly id: string;
+  readonly name: string;
+  readonly href: string;
+  readonly loggedMinutes: number;
+}
+
 /** Each figure is present only when the viewer may read it; money-derived ones need finance. */
 export interface TimeModel {
   readonly link: OverviewLink;
   readonly loggedMinutes?: number;
   readonly billableMinutes?: number;
   readonly unbilledMinutes?: number;
+  /** The client page's per-project lines, most hours first; the project page has none. */
+  readonly projects?: readonly TimeProjectRow[];
 }
 
 export interface MoneyModel {

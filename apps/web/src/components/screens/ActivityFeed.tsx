@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useId, useMemo, type ReactNode } from 'react';
 import { Avatar, Button, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { NavIcon } from '../icons/phone';
 import { useDisplayFormatters, type DisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/activity.css';
@@ -21,6 +22,8 @@ export const ACTIVITY_FEED_COPY = {
   'ActivityFeed.loadingMore': 'Loading…',
   'ActivityFeed.loadMoreFailed': 'Could not load more. Try again.',
   'ActivityFeed.showing': 'Showing {count}',
+  'ActivityFeed.showingOf': 'Showing {count} of {total}',
+  'ActivityFeed.showingOfAtLeast': 'Showing {count} of {total}+',
 } as const;
 
 type FeedCopyKey = keyof typeof ACTIVITY_FEED_COPY;
@@ -36,7 +39,7 @@ export interface ActivityFeedRow {
   readonly id: string;
   /** ISO-8601 instant; the row sits under its day and shows its time. */
   readonly occurredAt: string;
-  /** `null` for a system action: a quiet dot instead of an avatar. */
+  /** `null` for a system action: the system orb (Icon/settings) instead of a person (D3). */
   readonly actor: ActivityFeedActor | null;
   /** The whole sentence, the person's name included. Holds no link when `href` is set. */
   readonly sentence: ReactNode;
@@ -59,6 +62,8 @@ export interface ActivityFeedMore {
   readonly busy: boolean;
   readonly failed: boolean;
   readonly onMore: () => void;
+  /** D3: how many rows there are in all ("Showing 8 of 46"); `atLeast` draws "46+". */
+  readonly total?: { readonly count: number; readonly atLeast: boolean };
 }
 
 export interface ActivityFeedProps {
@@ -128,14 +133,19 @@ function FeedRow({ row, time }: { readonly row: ActivityFeedRow; readonly time: 
           className="tm-act__avatar"
         />
       ) : (
-        <span className="tm-act__system" aria-hidden="true" />
+        <span className="tm-act__system" aria-hidden="true">
+          <NavIcon name="settings" size={16} />
+        </span>
       )}
       <span className="tm-act__text">
         <span className="tm-act__sentence">{row.sentence}</span>
         <span className="tm-act__meta">
           <time dateTime={row.occurredAt}>{time}</time>
           {(row.meta ?? []).map((part) => (
-            <span key={part}> · {part}</span>
+            <span key={part}>
+              {' · '}
+              <bdi>{part}</bdi>
+            </span>
           ))}
         </span>
         {row.href === undefined && row.attachment ? (
@@ -155,6 +165,24 @@ function FeedRow({ row, time }: { readonly row: ActivityFeedRow; readonly time: 
       )}
     </li>
   );
+}
+
+/** "Showing 8 of 46" (D3), "Showing 8" when the source gives no total. */
+function showing(
+  count: number,
+  total: ActivityFeedMore['total'],
+  text: (key: FeedCopyKey) => string,
+  display: DisplayFormatters,
+): string {
+  const key =
+    total === undefined
+      ? 'ActivityFeed.showing'
+      : total.atLeast
+        ? 'ActivityFeed.showingOfAtLeast'
+        : 'ActivityFeed.showingOf';
+  return text(key)
+    .replace('{count}', display.number(count))
+    .replace('{total}', display.number(Math.max(total?.count ?? 0, count)));
 }
 
 /**
@@ -235,12 +263,7 @@ export function ActivityFeed({ title, description, state, empty, now, more }: Ac
 
       {more && state.status === 'ready' && state.rows.length > 0 ? (
         <div className="tm-act__foot">
-          <p className="tm-act__count">
-            {tOr('ActivityFeed.showing', ACTIVITY_FEED_COPY['ActivityFeed.showing']).replace(
-              '{count}',
-              display.number(state.rows.length),
-            )}
-          </p>
+          <p className="tm-act__count">{showing(state.rows.length, more.total, text, display)}</p>
           {more.failed ? (
             <p className="tm-act__more-failed" role="alert">
               {text('ActivityFeed.loadMoreFailed')}

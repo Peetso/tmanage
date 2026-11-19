@@ -51,7 +51,7 @@ type Story = StoryObj<typeof meta>;
 export const Owner: Story = {};
 
 /** Phone: each rule a stacked block, Save sticks to the bottom (fix 32). */
-export const Phone: Story = { parameters: { viewport: { defaultViewport: 'mobile1' } } };
+export const Phone: Story = { globals: { viewport: { value: 'phone' } } };
 
 /** Anyone but the owner (the route's 403). */
 export const NotOwner: Story = { args: { client: alertsClient({ settings: 403 }) } };

@@ -37,6 +37,11 @@ export function filesHref(org: string): string {
   return `/${org}/files`;
 }
 
+/** D6: the Files hub narrowed to the projects shared with one client company. */
+export function clientFilesHref(org: string, clientOrganizationId: string): string {
+  return `${filesHref(org)}?client=${segment(clientOrganizationId)}`;
+}
+
 export function fileHref(org: string, fileId: string): string {
   return `/${org}/files/${segment(fileId)}`;
 }
@@ -47,6 +52,11 @@ export function timesheetsHref(org: string): string {
 
 export function invoicesHref(org: string): string {
   return `/${org}/finance/invoices`;
+}
+
+/** D6: the invoice list narrowed to one client company. */
+export function clientInvoicesHref(org: string, clientOrganizationId: string): string {
+  return `${invoicesHref(org)}?client=${segment(clientOrganizationId)}`;
 }
 
 /** Files & approvals across projects (the More sheet's entry). */

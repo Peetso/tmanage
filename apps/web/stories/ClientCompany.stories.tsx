@@ -6,6 +6,7 @@ import {
   OVERVIEW_NOW,
   overviewClient,
 } from './support/overview-fixtures';
+import { ARABIC_STORY } from './support/arabic';
 
 /**
  * **ONEPAGE client company** (B04; Figma 740:40765, AR 740:41300 with `direction: rtl`, phone
@@ -30,6 +31,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Overview: Story = {};
+
+/** T5 D10 — the overview in real Arabic (the catalogue, not only the direction). */
+export const OverviewArabic: Story = { ...ARABIC_STORY };
 
 /** Without finance access: no Money card, no Time card, no overdue-invoice risk. */
 export const OverviewWithoutFinance: Story = {

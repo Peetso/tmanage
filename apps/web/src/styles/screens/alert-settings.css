@@ -17,11 +17,12 @@
   background: var(--paper-0);
 }
 
-/* Rule · Threshold · Who is told: the same three columns for the header and every row. */
+/* Rule · Threshold · Who is told: the same three columns for the header and every row. The
+   threshold column is fixed, so the rule's name and meaning get the rest (D8). */
 .tm-alerts__head,
 .tm-alerts__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(12rem, 14rem) minmax(12rem, 14rem);
+  grid-template-columns: minmax(0, 1fr) 200px minmax(12rem, 14rem);
   gap: var(--s4);
   align-items: start;
 }
@@ -48,9 +49,29 @@
   border-block-start: var(--b-quiet) solid var(--line-300);
 }
 
-/* The switch's row is its label: a 44 px hit area (fix 29). */
-.tm-alerts__rule .tm-choice__row {
+/* The rule cell: switch | name with its meaning directly under it, never under the switch (D8).
+   The switch's row is flattened into this grid; the cell keeps the 44 px hit height (fix 29). */
+.tm-alerts__rule {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--s3);
+  row-gap: 0;
+  align-items: center;
   min-block-size: 44px;
+}
+
+.tm-alerts__rule .tm-choice__row {
+  display: contents;
+}
+
+.tm-alerts__rule .tm-switch {
+  grid-row: 1 / span 2;
+}
+
+.tm-alerts__rule .tm-choice__label,
+.tm-alerts__rule .tm-choice__hint {
+  grid-column: 2;
+  min-inline-size: 0;
 }
 
 .tm-alerts__finance {

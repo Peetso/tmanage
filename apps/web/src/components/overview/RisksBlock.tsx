@@ -1,6 +1,8 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { StateCapsule } from '@tmanage/ui';
+import type { ProjectHealthReason } from '../../lib/api/client-summary';
 import {
   STALE_APPROVAL_DAYS,
   riskSeverity,
@@ -72,7 +74,7 @@ function riskWords(
   line: RiskLine,
   copy: OverviewCopy,
   format: OverviewFormat,
-): { title: string; meta?: string } {
+): { title: ReactNode; meta?: ReactNode } {
   switch (line.kind) {
     case 'lateWork':
       return {
@@ -117,7 +119,7 @@ function riskWords(
     case 'budget':
       return {
         title: copy.fill('Overview.riskBudget', { percent: format.count(line.percent) }),
-        meta: copy.fill('Overview.riskBudgetMeta', {
+        meta: copy.isolated('Overview.riskBudgetMeta', {
           tracked: format.count(Math.round(line.trackedHours)),
           budget: format.count(Math.round(line.budgetHours)),
         }),
@@ -129,18 +131,19 @@ function riskWords(
           line.count === 1
             ? copy.fill('Overview.riskStaleOne', { days })
             : copy.fill('Overview.riskStaleMany', { count: format.count(line.count), days }),
-        meta: copy.fill('Overview.riskStaleMeta', { title: line.oldestTitle }),
+        meta: copy.isolated('Overview.riskStaleMeta', { title: line.oldestTitle }),
       };
     }
     case 'projectBehind':
-      return {
-        title: copy.fill('Overview.riskProjectBehind', { name: line.name }),
-        meta: copy.text('Overview.riskProjectBehindMeta'),
-      };
     case 'projectAtRisk':
       return {
-        title: copy.fill('Overview.riskProjectAtRisk', { name: line.name }),
-        meta: copy.text('Overview.riskProjectAtRiskMeta'),
+        title: copy.isolated(
+          line.kind === 'projectBehind'
+            ? 'Overview.riskProjectBehind'
+            : 'Overview.riskProjectAtRisk',
+          { name: line.name },
+        ),
+        ...(line.reason ? { meta: reasonWords(line.reason, copy, format) } : {}),
       };
     case 'signal':
       return {
@@ -162,7 +165,20 @@ function riskWords(
           line.count,
           format.count(line.count),
         ),
-        meta: format.money(line.amountMinor, line.currency),
+        meta: <bdi>{format.money(line.amountMinor, line.currency)}</bdi>,
       };
   }
+}
+
+/** D7: why a project is behind or needs attention, as the health signal that cost it most. */
+const REASON_KEYS = {
+  overdueMilestones: ['Overview.riskMilestonesOne', 'Overview.riskMilestonesMany'],
+  highRisks: ['Overview.riskHighOne', 'Overview.riskHighMany'],
+  openRisks: ['Overview.riskOpenOne', 'Overview.riskOpenMany'],
+  missedObjectives: ['Overview.reasonObjectivesOne', 'Overview.reasonObjectivesMany'],
+} as const satisfies Record<ProjectHealthReason['kind'], readonly [string, string]>;
+
+function reasonWords(reason: ProjectHealthReason, copy: OverviewCopy, format: OverviewFormat) {
+  const [one, many] = REASON_KEYS[reason.kind];
+  return copy.count(one, many, reason.count, format.count(reason.count));
 }

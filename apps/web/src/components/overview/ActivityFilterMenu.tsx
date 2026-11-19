@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { NavIcon } from '../icons/phone';
+import { useMenuPopup } from './use-menu-popup';
 
 export interface ActivityFilterOption {
   readonly value: string;
@@ -24,7 +24,7 @@ export interface ActivityFilterMenuProps {
  * 62-A2 (B09) — the Person and date chips of the Activity tab (review FIGMA-D fix 4): a chip with a
  * chevron that opens a one-choice menu (`menuitemradio`, the current one checked with an icon, not
  * tint alone). Escape and a pick return focus to the chip; arrows move inside; a click outside
- * closes it. Same keyboard model as the project Export menu.
+ * closes it (`use-menu-popup.ts`).
  */
 export function ActivityFilterMenu({
   label,
@@ -34,46 +34,7 @@ export function ActivityFilterMenu({
   active,
   onChange,
 }: ActivityFilterMenuProps) {
-  const menuId = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onPointer = (event: MouseEvent) => {
-      if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onPointer);
-    const items = root.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]');
-    const checked = root.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]');
-    (checked ?? items?.[0])?.focus();
-    return () => document.removeEventListener('mousedown', onPointer);
-  }, [open]);
-
-  function close() {
-    setOpen(false);
-    trigger.current?.focus();
-  }
-
-  function onMenuKey(event: KeyboardEvent<HTMLDivElement>) {
-    const items = [
-      ...(root.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? []),
-    ];
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      close();
-    } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      items[(at + 1) % items.length]?.focus();
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      items[(at - 1 + items.length) % items.length]?.focus();
-    } else if (event.key === 'Tab') {
-      setOpen(false);
-    }
-  }
+  const { menuId, root, trigger, open, toggle, close, onMenuKey } = useMenuPopup('menuitemradio');
 
   return (
     <div ref={root} className="tm-act-menu">
@@ -84,7 +45,7 @@ export function ActivityFilterMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggle}
       >
         <span className="tm-chip__label">{label}</span>
         <NavIcon name="chevronDown" size={16} />

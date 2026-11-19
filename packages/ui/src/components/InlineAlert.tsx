@@ -23,6 +23,11 @@ export interface InlineAlertProps {
    * for something that arrives in response to an action.
    */
   live?: boolean;
+  /**
+   * The tone mark as an icon (the app's Icon/info line icon, decorative), in place of the drawn
+   * glyph; the surface passes it because the icon set lives in the app.
+   */
+  icon?: ReactNode;
   className?: string;
 }
 
@@ -31,6 +36,7 @@ export function InlineAlert({
   title,
   children,
   live = false,
+  icon,
   className,
 }: InlineAlertProps) {
   const classes = ['tm-inline-alert', `tm-inline-alert--${tone}`, className]
@@ -45,7 +51,13 @@ export function InlineAlert({
     <div className={classes} role={role}>
       {/* The tone mark is drawn by CSS from `data-glyph`, so it is not a bare "i" or "✕" in the
           page text that a reader or copy-paste picks up. */}
-      <span className="tm-inline-alert__glyph" aria-hidden="true" data-glyph={GLYPH[tone]} />
+      {icon === undefined ? (
+        <span className="tm-inline-alert__glyph" aria-hidden="true" data-glyph={GLYPH[tone]} />
+      ) : (
+        <span className="tm-inline-alert__icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
       <div>
         {title ? <div className="tm-inline-alert__title">{title}</div> : null}
         <div>{children}</div>

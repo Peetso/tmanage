@@ -143,10 +143,54 @@ describe('clientOverviewModel', () => {
     });
   });
 
-  it('without finance: no Money, no Time, no overdue invoice line', () => {
+  it('without finance: no Money, no "not invoiced yet", no overdue invoice line', () => {
     const model = clientOverviewModel(CLIENT_SUMMARY_NO_FINANCE, 'northstar', OVERVIEW_NOW);
     expect(model.money).toBeUndefined();
-    expect(model.time).toBeUndefined();
+    expect(model.time).toBeDefined();
+    expect(model.time).not.toHaveProperty('unbilledMinutes');
     expect(model.risks?.lines.some((line) => line.kind === 'overdueInvoices')).toBe(false);
+  });
+
+  it('D7: Time has the three figures and a line per project, most hours first', () => {
+    expect(clientOverviewModel(CLIENT_SUMMARY, 'northstar', OVERVIEW_NOW).time).toEqual({
+      link: { kind: 'openTimesheets', href: '/northstar/finance/timesheets' },
+      loggedMinutes: 214 * 60,
+      billableMinutes: 190 * 60,
+      unbilledMinutes: 52 * 60,
+      projects: [
+        {
+          id: 'proj-1',
+          name: 'Cedar Foods brand refresh',
+          href: '/northstar/projects/proj-1',
+          loggedMinutes: 120 * 60,
+        },
+        {
+          id: 'proj-2',
+          name: 'Ramadan campaign 2027',
+          href: '/northstar/projects/proj-2',
+          loggedMinutes: 94 * 60,
+        },
+      ],
+    });
+  });
+
+  it('D7: a project at risk carries why, never its colour', () => {
+    const lines = clientOverviewModel(CLIENT_SUMMARY, 'northstar', OVERVIEW_NOW).risks?.lines;
+    expect(lines?.slice(0, 2)).toEqual([
+      expect.objectContaining({
+        kind: 'projectBehind',
+        reason: { kind: 'overdueMilestones', count: 2 },
+      }),
+      expect.objectContaining({ kind: 'projectAtRisk', reason: { kind: 'highRisks', count: 1 } }),
+    ]);
+  });
+
+  it('D6: files, money and overdue invoices open the hubs narrowed to this client', () => {
+    const model = clientOverviewModel(CLIENT_SUMMARY, 'northstar', OVERVIEW_NOW);
+    expect(model.files?.link.href).toBe('/northstar/files?client=co-cedar');
+    expect(model.money?.link.href).toBe('/northstar/finance/invoices?client=co-cedar');
+    expect(model.risks?.lines.find((line) => line.kind === 'overdueInvoices')?.href).toBe(
+      '/northstar/finance/invoices?client=co-cedar',
+    );
   });
 });

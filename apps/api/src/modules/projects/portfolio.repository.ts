@@ -61,6 +61,7 @@ export interface PortfolioMilestoneRow {
 /** The client organization a project is shared with (the first by name when several). */
 export interface PortfolioClientRow {
   readonly projectId: string;
+  readonly clientOrganizationId: string;
   readonly clientName: string;
 }
 
@@ -200,7 +201,11 @@ export class ProjectPortfolioPlanningRepository {
   ): Promise<readonly PortfolioClientRow[]> {
     if (projectIds.length === 0) return [];
     const rows = await tenantDrizzle(runner)
-      .select({ projectId: projectClients.projectId, clientName: clientOrganizations.name })
+      .select({
+        projectId: projectClients.projectId,
+        clientOrganizationId: clientOrganizations.id,
+        clientName: clientOrganizations.name,
+      })
       .from(projectClients)
       .innerJoin(
         clientOrganizations,
@@ -216,9 +221,9 @@ export class ProjectPortfolioPlanningRepository {
         ),
       )
       .orderBy(asc(projectClients.projectId), asc(clientOrganizations.name));
-    const first = new Map<string, string>();
-    for (const row of rows) if (!first.has(row.projectId)) first.set(row.projectId, row.clientName);
-    return [...first].map(([projectId, clientName]) => ({ projectId, clientName }));
+    const first = new Map<string, PortfolioClientRow>();
+    for (const row of rows) if (!first.has(row.projectId)) first.set(row.projectId, row);
+    return [...first.values()];
   }
 
   /** Per project, when its oldest still-pending approval was requested. */

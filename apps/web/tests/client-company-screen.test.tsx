@@ -32,7 +32,11 @@ interface Call {
   body: unknown;
 }
 
-function mount(view: ClientView = 'overview', atRisk = false) {
+function mount(
+  view: ClientView = 'overview',
+  atRisk = false,
+  capabilities: readonly string[] = ['org.manage', 'work.read', 'finance.view'],
+) {
   const calls: Call[] = [];
   const reply = (body: unknown, status = 200) =>
     Promise.resolve(
@@ -49,6 +53,9 @@ function mount(view: ClientView = 'overview', atRisk = false) {
     calls.push({ method, path: `${path}${url.search}`, body });
 
     if (method === 'GET' && path === '/client-organizations/co-atlas') return reply(ATLAS);
+    if (method === 'GET' && path === '/me') {
+      return reply({ userId: 'user-1', kind: 'internal', role: 'owner', capabilities });
+    }
     if (method === 'GET' && path === '/client-memberships') {
       return reply({
         clientMemberships: [
@@ -196,6 +203,33 @@ describe('ONEPAGE client company overview (B04)', () => {
       '/northstar/clients/co-atlas?view=projects',
     );
     expect(screen.queryByRole('list', { name: label('Clients.peopleTitle') })).toBeNull();
+  });
+
+  it('D6: Files and Invoices tabs open the hubs narrowed to this client; Invoices needs finance', async () => {
+    mount();
+    const tabs = screen.getByRole('navigation', { name: 'Sections' });
+    expect(within(tabs).getByRole('link', { name: 'Files' })).toHaveAttribute(
+      'href',
+      '/northstar/files?client=co-atlas',
+    );
+    expect(await within(tabs).findByRole('link', { name: 'Invoices' })).toHaveAttribute(
+      'href',
+      '/northstar/finance/invoices?client=co-atlas',
+    );
+    expect(
+      within(tabs)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['Overview', 'Projects 1', 'People 1', 'Files', 'Invoices', 'Activity']);
+  });
+
+  it('D6: without finance access the Invoices tab is absent, not empty', async () => {
+    const calls = mount('overview', false, ['org.manage', 'work.read']);
+    await waitFor(() => expect(calls.some((call) => call.path === '/me')).toBe(true));
+    await screen.findByRole('region', { name: 'Delivery' });
+    const tabs = screen.getByRole('navigation', { name: 'Sections' });
+    expect(within(tabs).getByRole('link', { name: 'Files' })).toBeInTheDocument();
+    expect(within(tabs).queryByRole('link', { name: 'Invoices' })).toBeNull();
   });
 
   it('narrows the Projects tab to the projects at risk, with the way back to all', async () => {

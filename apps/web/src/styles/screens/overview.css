@@ -50,8 +50,29 @@
   gap: var(--s6);
 }
 
+/* D5: the five tabs scroll, "More" stays after them (outside the scroller, so its menu is not clipped). */
+.tm-ov-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s6);
+}
+
+.tm-ov-tabs__more {
+  position: relative;
+  flex: none;
+}
+
+button.tm-ov-tabs__item {
+  border-block-start: 0;
+  border-inline: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 /* Tabs/Item 169:162: 14/20 text, 12 px top, 8 px to the 3 px indicator, 24 px between tabs. */
 .tm-ov-tabs__list {
+  min-inline-size: 0;
   display: flex;
   gap: var(--s6);
   margin: 0;
@@ -87,7 +108,8 @@
   color: var(--ink-950);
 }
 
-.tm-ov-tabs__item[aria-current='page'] {
+.tm-ov-tabs__item[aria-current='page'],
+.tm-ov-tabs__item[data-current='true'] {
   border-block-end-color: var(--lime-500);
   color: var(--ink-950);
 }

@@ -3,6 +3,12 @@ import type { Decorator, Preview } from '@storybook/react-vite';
 import { ThemeProvider } from '@tmanage/ui';
 import '@tmanage/ui/styles.css';
 import '../src/app/globals.css';
+import {
+  SCREEN_VIEWPORTS,
+  VR_VIEWPORT_DATASET_KEY,
+  storyViewportSize,
+  type ViewportParameter,
+} from './vr-viewport';
 
 /**
  * The preview for the application's screens.
@@ -64,10 +70,26 @@ const withQuery: Decorator = (Story) => {
   );
 };
 
+/**
+ * T5 D9: marks the document with the size the story's own `viewport` global names (see
+ * `vr-viewport.ts`), before the story renders, so the VR harness can set the page to it before the
+ * shot. A story without one clears the mark, so a previous story's size never carries over.
+ */
+const withVrViewport: Decorator = (Story, context) => {
+  const size = storyViewportSize(
+    context.globals['viewport'],
+    (context.parameters['viewport'] as ViewportParameter | undefined)?.options,
+  );
+  const dataset = document.documentElement.dataset;
+  if (size === undefined) delete dataset[VR_VIEWPORT_DATASET_KEY];
+  else dataset[VR_VIEWPORT_DATASET_KEY] = `${String(size.width)}x${String(size.height)}`;
+  return <Story />;
+};
+
 const preview: Preview = {
-  // Order is not load-bearing: neither decorator reads the other's context, so whichever
-  // Storybook nests outermost, the screen underneath sees both.
-  decorators: [withTheme, withQuery],
+  // Order is not load-bearing: no decorator reads another's context, so whichever Storybook
+  // nests outermost, the screen underneath sees them all.
+  decorators: [withTheme, withQuery, withVrViewport],
   initialGlobals: {
     theme: 'light',
     contrast: 'normal',
@@ -121,6 +143,9 @@ const preview: Preview = {
     // A screen is a whole page, not a component on a card.
     layout: 'fullscreen',
     controls: { expanded: true },
+    // The toolbar's sizes plus the design's phone frame; a story picks one with
+    // `globals: { viewport: { value: 'phone' } }`, and the VR harness honours it (T5 D9).
+    viewport: { options: SCREEN_VIEWPORTS },
   },
 };
 

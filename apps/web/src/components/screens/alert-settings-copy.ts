@@ -31,7 +31,7 @@ export const ALERTS_COPY = {
   'AlertSettings.leaveBody': 'You changed {count} alert rules. They are not saved yet.',
   'AlertSettings.leaveBodyOne': 'You changed one alert rule. It is not saved yet.',
 
-  'AlertSettings.rule.deadline_at_risk': 'Deadline at risk',
+  'AlertSettings.rule.deadline_at_risk': 'Task late or at risk',
   'AlertSettings.rule.overloaded_person': 'Overloaded person',
   'AlertSettings.rule.overdue_invoice': 'Overdue invoice',
   'AlertSettings.rule.project_over_budget': 'Project over budget',
@@ -40,7 +40,8 @@ export const ALERTS_COPY = {
   'AlertSettings.rule.approval_waiting_on_client': 'Approval waiting on the client',
   'AlertSettings.rule.approved_time_not_invoiced': 'Approved time not invoiced',
 
-  'AlertSettings.meaning.deadline_at_risk': 'A milestone is close and work on it is late',
+  'AlertSettings.meaning.deadline_at_risk':
+    'A task is past due, or due soon with more work left than time',
   'AlertSettings.meaning.overloaded_person': 'Planned hours go over the person’s capacity',
   'AlertSettings.meaning.overdue_invoice': 'An invoice is still unpaid after its due date',
   'AlertSettings.meaning.project_over_budget': 'Spending goes over the project budget',

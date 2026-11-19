@@ -1330,6 +1330,14 @@
   content: attr(data-glyph);
 }
 
+/* An icon in place of the glyph: centred on the first text line. */
+.tm-inline-alert__icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  block-size: var(--t-ui-sm-line);
+}
+
 .tm-inline-alert__title {
   font-weight: 600;
   color: var(--ink-950);

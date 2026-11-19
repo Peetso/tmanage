@@ -280,6 +280,47 @@ export function scoreFor(signals: ProjectHealthSignals): number {
   return Math.min(Math.max(HEALTH_MAX_SCORE - penalty, 0), HEALTH_MAX_SCORE);
 }
 
+/** D7: the signal that cost a project the most score — why its band is what it is, in facts. */
+export interface ProjectHealthReason {
+  readonly kind: 'overdueMilestones' | 'highRisks' | 'openRisks' | 'missedObjectives';
+  readonly count: number;
+}
+
+/**
+ * The heaviest penalty of {@link scoreFor}, or `null` for a project that lost nothing. Ties go to
+ * the order below (milestones, high risks, other risks, objectives). `openRisks` counts the
+ * open risks that are not high, as the score does.
+ */
+export function healthReasonOf(signals: ProjectHealthSignals): ProjectHealthReason | null {
+  const candidates: readonly (ProjectHealthReason & { readonly penalty: number })[] = [
+    {
+      kind: 'overdueMilestones',
+      count: signals.overdueMilestones,
+      penalty: signals.overdueMilestones * HEALTH_WEIGHTS.overdueMilestone,
+    },
+    {
+      kind: 'highRisks',
+      count: signals.highRisks,
+      penalty: signals.highRisks * HEALTH_WEIGHTS.highRisk,
+    },
+    {
+      kind: 'openRisks',
+      count: Math.max(signals.openRisks - signals.highRisks, 0),
+      penalty: Math.max(signals.openRisks - signals.highRisks, 0) * HEALTH_WEIGHTS.otherOpenRisk,
+    },
+    {
+      kind: 'missedObjectives',
+      count: signals.objectivesMissed,
+      penalty: signals.objectivesMissed * HEALTH_WEIGHTS.missedObjective,
+    },
+  ];
+  let heaviest: (typeof candidates)[number] | null = null;
+  for (const candidate of candidates) {
+    if (candidate.penalty > (heaviest?.penalty ?? 0)) heaviest = candidate;
+  }
+  return heaviest === null ? null : { kind: heaviest.kind, count: heaviest.count };
+}
+
 /**
  * The band for a score. A project with no signals at all is `neutral` — there is nothing to assess,
  * and a full-marks green would imply a clean bill of health the data does not support.

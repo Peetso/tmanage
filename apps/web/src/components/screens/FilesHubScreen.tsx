@@ -10,6 +10,9 @@ import '../../styles/screens/docs.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { listProjects } from '../../lib/api/projects';
+import { getClientOrganization, listClientProjects } from '../../lib/api/clients';
+import { ClientFilterNote } from '../clients/ClientFilterNote';
+import { clientCompanyKey } from '../clients/ClientPeoplePanel';
 import { listProjectFiles } from '../../lib/api/file-folders';
 import type { ProjectFile } from '../../lib/api/file-folders';
 import { formatBytes, uploadProjectFile } from '../../lib/api/uploads';
@@ -30,6 +33,8 @@ export interface FilesHubScreenProps {
   readonly organizationName: string;
   /** Preselect a project (`?project=`); none is "All projects". */
   readonly initialProjectId?: string;
+  /** D6: `?client=` — only the projects shared with this client company (its Files tab). */
+  readonly clientOrganizationId?: string;
   readonly client?: ApiClient;
 }
 
@@ -46,6 +51,7 @@ export function FilesHubScreen({
   organizationSlug,
   organizationName,
   initialProjectId,
+  clientOrganizationId,
   client,
 }: FilesHubScreenProps) {
   const api = client ?? browserApiClient();
@@ -79,7 +85,24 @@ export function FilesHubScreen({
     queryKey: ['projects', organizationSlug],
     queryFn: () => listProjects(api, organizationSlug),
   });
-  const available = useMemo(() => projects.data ?? [], [projects.data]);
+  // D6: the client page's own reads (same keys), so its Files tab costs no extra request there.
+  const companyKey = clientCompanyKey(organizationSlug, clientOrganizationId ?? '');
+  const company = useQuery({
+    queryKey: [...companyKey, 'organization'],
+    queryFn: () => getClientOrganization(api, organizationSlug, clientOrganizationId ?? ''),
+    enabled: clientOrganizationId !== undefined,
+  });
+  const shared = useQuery({
+    queryKey: [...companyKey, 'projects'],
+    queryFn: () => listClientProjects(api, organizationSlug, clientOrganizationId ?? ''),
+    enabled: clientOrganizationId !== undefined,
+  });
+  const available = useMemo(() => {
+    const all = projects.data ?? [];
+    if (clientOrganizationId === undefined) return all;
+    const ids = new Set((shared.data ?? []).map((project) => project.id));
+    return all.filter((project) => ids.has(project.id));
+  }, [projects.data, shared.data, clientOrganizationId]);
   const scope = useMemo(
     () => (projectId === '' ? available.map((project) => project.id) : [projectId]),
     [available, projectId],
@@ -232,6 +255,9 @@ export function FilesHubScreen({
             ))}
           </ul>
         ) : null}
+        {clientOrganizationId === undefined ? null : (
+          <ClientFilterNote name={company.data?.name} showAllHref={`/${organizationSlug}/files`} />
+        )}
         <div
           className="tm-dx-chips"
           role="group"

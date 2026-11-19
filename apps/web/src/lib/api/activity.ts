@@ -8,10 +8,12 @@ import type { ApiClient } from './client';
  *   **`GET …/client-organizations/:clientOrganizationId/activity`** (`org.manage`) return one page,
  *   newest first. The API authorises the project or client first (404 otherwise) and leaves out
  *   every entry the viewer could not open on its own screen; money entries need finance access.
- * - An entry is a phrase built from the action, never content: show the person's name, the
- *   phrase (`phraseKey` in the catalogue, `summary` as the English fallback) and a link to the
- *   record (`objectType` + `objectId`).
- * - Paging: pass `nextCursor` back as `cursor`; `null` means there is nothing older.
+ * - An entry is a phrase built from the action and, where the record has one, its name now
+ *   (`subject`, D2; only for an entry the viewer may read): the phrase (`phraseKey` in the
+ *   catalogue, with `{actor}` and `{subject}` holes; `summary` the English fallback) and a link
+ *   to the record (`objectType` + `objectId`). Never a body or an amount.
+ * - Paging: pass `nextCursor` back as `cursor`; `null` means there is nothing older. The first
+ *   page carries `total` (D3, "Showing 25 of 46"), `null` on the pages after it.
  */
 
 export type { ActivityAction, ActivityKind, ActivitySource } from '@tmanage/domain';
@@ -22,6 +24,8 @@ export interface ActivityEntry {
   readonly action: ActivityAction;
   readonly phraseKey: string;
   readonly summary: string;
+  /** The record's name now (task title, file name, invoice number); `null` when it has none. */
+  readonly subject: string | null;
   /** The user who acted; `null` for a system action. */
   readonly actorUserId: string | null;
   readonly objectType: ActivitySource;
@@ -32,9 +36,17 @@ export interface ActivityEntry {
   readonly occurredAt: string;
 }
 
+/** How many entries the viewer may read under the filters; `atLeast` past the API's scan cap. */
+export interface ActivityTotal {
+  readonly count: number;
+  readonly atLeast: boolean;
+}
+
 export interface ActivityPage {
   readonly entries: readonly ActivityEntry[];
   readonly nextCursor: string | null;
+  /** On the first page only; `null` on the pages after it. */
+  readonly total: ActivityTotal | null;
 }
 
 export interface ActivityQuery {

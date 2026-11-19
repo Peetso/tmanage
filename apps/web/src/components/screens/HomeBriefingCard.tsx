@@ -17,6 +17,7 @@ import type {
 import { getHomeWidgetPrefs, updateHomeWidgetPrefs } from '../../lib/api/home-widget-prefs';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useUndo } from '../../lib/undo/use-undo';
 import {
@@ -56,14 +57,19 @@ export interface HomeBriefingCardProps {
 
 function useCopy() {
   const tOr = useTOr();
+  const locale = useActiveLocale();
   return useMemo(() => {
     const text = (key: BriefingCopyKey) => tOr(key, BRIEFING_COPY[key]);
+    const rules = new Intl.PluralRules(locale);
     return {
       text,
       fill: (key: BriefingCopyKey, values: Readonly<Record<string, string>>) =>
         fillHoles(text(key), values),
+      /** A key the copy picks at run time (a reason's plural form), with its English. */
+      lookup: tOr,
+      plural: (count: number) => rules.select(count),
     };
-  }, [tOr]);
+  }, [tOr, locale]);
 }
 
 /** Words with each value isolated, so a Latin name or an amount never reorders Arabic (fix 20). */
@@ -202,7 +208,8 @@ export function HomeBriefingCard({
                 count={(value) => format.number(value)}
                 reasonOf={(line) =>
                   briefingReason(line, {
-                    text: copy.text,
+                    text: copy.lookup,
+                    plural: copy.plural,
                     number: (value) => format.number(value),
                     money: (minor, currency) => format.money(minor, currency),
                   })

@@ -35,12 +35,14 @@ import { readOrganizationMe } from '../../lib/api/permission-matrix';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { withIsolates } from '../../lib/i18n/with-isolates';
 
 /**
  * Every word the Activity tab draws (the feed's own words are in `ActivityFeed`). The keys reach
  * the catalogues through the wiring step (B09-REPORT, WIRING); until then `tOr` returns the
- * English given here. An entry's phrase is `activity.phrase.<action>` (B02), its English the
- * API's `summary`.
+ * English given here. An entry's sentence is the API's `phraseKey` (`activity.phrase.<action>`, or
+ * `activity.subject.<action>` when it names its record, D2) with `{actor}` and `{subject}` filled,
+ * each in a `<bdi>` (D10); its English fallback the API's `summary`.
  */
 export const ACTIVITY_TAB_COPY = {
   'ActivityTab.tab': 'Activity',
@@ -69,8 +71,9 @@ export const ACTIVITY_TAB_COPY = {
   'ActivityTab.period.30': 'Last 30 days',
   'ActivityTab.period.90': 'Last 90 days',
   'ActivityTab.clearFilters': 'Clear filters',
-  'ActivityTab.sentence': '{name} — {phrase}',
   'ActivityTab.clientActor': '{name} (client)',
+  /** D3: who a row with no person is by (an automation); drawn with the system orb. */
+  'ActivityTab.system': 'TManage',
   'ActivityTab.noMatch': 'Nothing matches these filters.',
   'ActivityTab.emptyTitle': 'No activity yet',
   'ActivityTab.emptyProject':
@@ -167,8 +170,13 @@ export function ActivityTab({ api, organizationSlug, scope, now }: ActivityTabPr
   const kindLabel = (kind: ActivityKind) => text(`ActivityTab.kind.${kind}`);
 
   const row = (entry: ActivityEntry): ActivityFeedRow => {
-    const phrase = tOr(entry.phraseKey, entry.summary);
     const actor = entry.actorUserId === null ? null : person(entry.actorUserId);
+    const actorName =
+      actor === null
+        ? text('ActivityTab.system')
+        : actor.client
+          ? fill('ActivityTab.clientActor', { name: actor.name })
+          : actor.name;
     const projectName =
       scope.kind === 'client' && entry.projectId !== null
         ? scope.projectNames.get(entry.projectId)
@@ -177,15 +185,11 @@ export function ActivityTab({ api, organizationSlug, scope, now }: ActivityTabPr
       id: entry.id,
       occurredAt: entry.occurredAt,
       actor,
-      sentence:
-        actor === null
-          ? phrase
-          : fill('ActivityTab.sentence', {
-              name: actor.client
-                ? fill('ActivityTab.clientActor', { name: actor.name })
-                : actor.name,
-              phrase,
-            }),
+      // One sentence (D2): "Omar Adel changed the status of “Packaging artwork”".
+      sentence: withIsolates(tOr(entry.phraseKey, entry.summary), {
+        actor: actorName,
+        ...(entry.subject === null ? {} : { subject: entry.subject }),
+      }),
       meta: [...(projectName === undefined ? [] : [projectName]), kindLabel(entry.kind)],
       href: activityEntryHref(organizationSlug, entry),
     };
@@ -282,6 +286,7 @@ export function ActivityTab({ api, organizationSlug, scope, now }: ActivityTabPr
           busy: activity.isFetchingNextPage,
           failed: activity.isFetchNextPageError,
           onMore: () => void activity.fetchNextPage(),
+          ...(pages[0]?.total ? { total: pages[0].total } : {}),
         }}
         empty={
           filtered ? (

@@ -92,12 +92,17 @@
   flex: none;
 }
 
+/* D3: a row with no person shows the system orb (Icon/settings), never an empty disc. */
 .tm-act__system {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
   inline-size: var(--orb-default);
   block-size: var(--orb-default);
   border-radius: var(--r-capsule);
   background: var(--paper-150);
+  color: var(--ink-650);
 }
 
 .tm-act__text {

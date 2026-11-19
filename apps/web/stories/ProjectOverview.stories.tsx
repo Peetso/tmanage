@@ -9,6 +9,8 @@ import {
   PROJECT_SUMMARY_WITH_SIGNALS,
   overviewClient,
 } from './support/overview-fixtures';
+import { ARABIC_STORY } from './support/arabic';
+import { PHONE_VIEWPORT } from '../.storybook/vr-viewport';
 
 /**
  * **ONEPAGE project overview** (B04; Figma 739:40334, AR 739:40873 with `direction: rtl`, phone
@@ -35,6 +37,14 @@ type Story = StoryObj<typeof meta>;
 
 /** Every block filled, as the owner sees it. */
 export const Filled: Story = {};
+
+/** T5 D10 — the same page in real Arabic (the catalogue, not only the direction). */
+export const FilledArabic: Story = { ...ARABIC_STORY };
+
+/** T5 D9 — the phone frame (739:42354), shot at 390 × 844. */
+export const Phone: Story = {
+  globals: { viewport: { value: PHONE_VIEWPORT } },
+};
 
 /** A member without finance access: no Money card, no money figure in Time or Risks. */
 export const WithoutFinance: Story = {
@@ -64,6 +74,18 @@ export const LoadFailed: Story = {
 /** B09 — the Activity tab (FIGMA-D 753:41712): day groups, kind chips, Person and date menus. */
 export const Activity: Story = {
   args: { view: 'activity' },
+};
+
+/** T5 D10 — the Activity tab in real Arabic: «عمر عادل غيّر حالة «…»», names isolated. */
+export const ActivityArabic: Story = {
+  ...ARABIC_STORY,
+  args: { view: 'activity' },
+};
+
+/** T5 D9 — the Activity tab on a phone: the tab row and the Filter button, at 390 × 844. */
+export const ActivityPhone: Story = {
+  args: { view: 'activity' },
+  globals: { viewport: { value: PHONE_VIEWPORT } },
 };
 
 /** B09 — without finance access: no Money chip and no money line (review FIGMA-D fix 1). */

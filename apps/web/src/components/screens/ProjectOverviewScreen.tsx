@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -10,19 +10,22 @@ import { ProjectExportButton } from '../projects/ProjectExportButton';
 import { ProjectUpdateComposer } from '../projects/ProjectUpdateComposer';
 import { ActivityTab } from '../overview/ActivityTab';
 import { OverviewBlocks } from '../overview/OverviewBlocks';
-import { OverviewTabs, type OverviewTab } from '../overview/OverviewTabs';
+import { OverviewTabs, type OverviewMoreTabs, type OverviewTab } from '../overview/OverviewTabs';
 import { projectOverviewModel } from '../overview/project-overview-model';
 import { useOverviewCopy, type OverviewCopy } from '../overview/use-overview-copy';
 import { useOverviewFormat } from '../overview/use-overview-format';
 import {
+  clientViewHref,
   portfolioHref,
   projectFilesHref,
   projectHref,
   projectMilestonesHref,
   projectViewHref,
   projectWorkHref,
+  timesheetsHref,
   type ProjectView,
 } from '../overview/overview-links';
+import { readOrganizationMe } from '../../lib/api/permission-matrix';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
 import { getProjectSummary, type ProjectSummary } from '../../lib/api/project-summary';
@@ -59,8 +62,9 @@ const COMPOSER_HEADING_ID = 'tm-project-update-composer';
  * screen. It is one read (`GET …/projects/:id/summary`, B01); a block the viewer may not read is
  * absent from that read and from the page, with no gap left behind.
  *
- * The header keeps the project's own facts: owner, and committed and forecast as two dates
- * (PROJ-001), never collapsed into one "due". "Post update" opens the update composer under the
+ * The header keeps the project's own facts: the client company first (D4; a link to its page for a
+ * viewer who may open it), owner, and committed and forecast as two dates (PROJ-001), never
+ * collapsed into one "due"; each name and date in its own `<bdi>` (D10). "Post update" opens the update composer under the
  * blocks and moves focus to it.
  */
 export function ProjectOverviewScreen({
@@ -89,6 +93,12 @@ export function ProjectOverviewScreen({
     queryFn: () => getProjectSummary(api, organizationSlug, projectId),
   });
   const directory = useMembers(api, organizationSlug);
+  // The same key the Activity tab reads, so the client link costs no extra request.
+  const me = useQuery({
+    queryKey: ['organization-me', organizationSlug],
+    queryFn: () => readOrganizationMe(api, organizationSlug),
+  });
+  const mayOpenClient = me.data?.capabilities.includes('org.manage') ?? false;
 
   useRecordRecentItem({
     organizationSlug,
@@ -103,15 +113,23 @@ export function ProjectOverviewScreen({
     ? memberDisplayName(project.data.ownerUserId, directory.members, directory.isPending)
     : null;
   const facts = summary.data?.project ?? project.data;
-  const meta = [
-    owner === null ? null : copy.fill('Overview.ledBy', { name: owner }),
+  const company = summary.data?.project.client ?? null;
+  const meta: readonly ReactNode[] = [
+    company === null ? null : mayOpenClient ? (
+      <Link href={clientViewHref(organizationSlug, company.id, 'overview')}>
+        <bdi>{company.name}</bdi>
+      </Link>
+    ) : (
+      <bdi>{company.name}</bdi>
+    ),
+    owner === null ? null : copy.isolated('Overview.ledBy', { name: owner }),
     facts?.committedAt
-      ? copy.fill('Overview.dueOn', { date: format.day(facts.committedAt) })
+      ? copy.isolated('Overview.dueOn', { date: format.day(facts.committedAt) })
       : null,
     facts?.forecastAt && facts.forecastAt !== facts.committedAt
-      ? copy.fill('Overview.forecastOn', { date: format.day(facts.forecastAt) })
+      ? copy.isolated('Overview.forecastOn', { date: format.day(facts.forecastAt) })
       : null,
-  ].filter((part): part is string => part !== null);
+  ].filter((part) => part !== null);
 
   const openComposer = () => {
     setComposing(true);
@@ -131,7 +149,16 @@ export function ProjectOverviewScreen({
           {copy.text('Overview.backToProjects')}
         </Link>
       }
-      description={meta.length > 0 ? meta.join(' · ') : undefined}
+      description={
+        meta.length > 0
+          ? meta.map((part, index) => (
+              <Fragment key={index}>
+                {index > 0 ? ' · ' : null}
+                {part}
+              </Fragment>
+            ))
+          : undefined
+      }
       actions={
         <div className="tm-ov-actions">
           <PreviewAsClientLink
@@ -161,6 +188,7 @@ export function ProjectOverviewScreen({
           label={copy.text('Overview.tabsLabel')}
           current={view}
           tabs={projectTabs(organizationSlug, projectId, summary.data, copy, tOr, format.count)}
+          more={projectMoreTabs(organizationSlug, projectId, copy, tOr)}
         />
         {view === 'activity' ? (
           <ActivityTab
@@ -196,10 +224,7 @@ export function ProjectOverviewScreen({
   );
 }
 
-/**
- * The frame's tabs (Overview, Work with its count, Files, Activity) and then the project's other
- * sections, so nothing the old segmented switch reached is lost; every tab is a real route.
- */
+/** The frame's five tabs (D5): Overview, Work with its count, Files, Time, Activity. */
 function projectTabs(
   org: string,
   projectId: string,
@@ -208,10 +233,9 @@ function projectTabs(
   tOr: (key: string, english: string) => string,
   count: (value: number) => string,
 ): readonly OverviewTab[] {
-  const base = projectHref(org, projectId);
   const open = summary?.delivery?.open;
   return [
-    { id: 'overview', label: copy.text('Overview.tabOverview'), href: base },
+    { id: 'overview', label: copy.text('Overview.tabOverview'), href: projectHref(org, projectId) },
     {
       id: 'work',
       label: copy.text('Overview.tabWork'),
@@ -219,28 +243,46 @@ function projectTabs(
       ...(open === undefined ? {} : { count: count(open) }),
     },
     { id: 'files', label: copy.text('Overview.tabFiles'), href: projectFilesHref(org, projectId) },
+    // The Time block's "Open timesheets" target: one screen for time, not a second one.
+    { id: 'time', label: copy.text('Overview.tabTime'), href: timesheetsHref(org) },
     {
       id: 'activity',
       label: tOr('ActivityTab.tab', 'Activity'),
       href: projectViewHref(org, projectId, 'activity'),
     },
-    {
-      id: 'milestones',
-      label: tOr('ProjectTabs.milestones', 'Milestones'),
-      href: projectMilestonesHref(org, projectId),
-    },
-    { id: 'plan', label: tOr('ProjectTabs.plan', 'Plan'), href: `${base}/baselines` },
-    {
-      id: 'iterations',
-      label: tOr('ProjectTabs.iterations', 'Iterations'),
-      href: `${base}/iterations`,
-    },
-    { id: 'team', label: tOr('ProjectTabs.team', 'Team'), href: `${base}/members` },
-    { id: 'risks', label: tOr('ProjectTabs.risks', 'Risks'), href: `${base}/risks` },
-    {
-      id: 'objectives',
-      label: tOr('ProjectTabs.objectives', 'Objectives'),
-      href: `${base}/objectives`,
-    },
   ];
+}
+
+/** The project's other sections behind "More", so nothing the old switch reached is lost (D5). */
+function projectMoreTabs(
+  org: string,
+  projectId: string,
+  copy: OverviewCopy,
+  tOr: (key: string, english: string) => string,
+): OverviewMoreTabs {
+  const base = projectHref(org, projectId);
+  return {
+    label: copy.text('Overview.tabMore'),
+    currentLabel: (name) => copy.fill('Overview.tabMoreCurrent', { name }),
+    tabs: [
+      {
+        id: 'milestones',
+        label: tOr('ProjectTabs.milestones', 'Milestones'),
+        href: projectMilestonesHref(org, projectId),
+      },
+      { id: 'plan', label: tOr('ProjectTabs.plan', 'Plan'), href: `${base}/baselines` },
+      {
+        id: 'iterations',
+        label: tOr('ProjectTabs.iterations', 'Iterations'),
+        href: `${base}/iterations`,
+      },
+      { id: 'team', label: tOr('ProjectTabs.team', 'Team'), href: `${base}/members` },
+      { id: 'risks', label: tOr('ProjectTabs.risks', 'Risks'), href: `${base}/risks` },
+      {
+        id: 'objectives',
+        label: tOr('ProjectTabs.objectives', 'Objectives'),
+        href: `${base}/objectives`,
+      },
+    ],
+  };
 }

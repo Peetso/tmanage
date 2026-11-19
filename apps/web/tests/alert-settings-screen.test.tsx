@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -18,6 +21,11 @@ vi.mock('next/navigation', () => ({
  * a change, then busy, then the saved toast.
  */
 
+const ALERTS_CSS = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../src/styles/screens/alert-settings.css'),
+  'utf8',
+);
+
 function mount(routes: AlertRoutes = {}) {
   const writes: { path: string; body: unknown }[] = [];
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -34,7 +42,7 @@ function mount(routes: AlertRoutes = {}) {
 }
 
 const rows = async () => {
-  await screen.findByRole('switch', { name: 'Deadline at risk' });
+  await screen.findByRole('switch', { name: 'Task late or at risk' });
   return screen.getAllByRole('listitem').filter((li) => li.classList.contains('tm-alerts__row'));
 };
 
@@ -46,7 +54,7 @@ describe('Settings → Alerts', () => {
     expect(
       drawn.map((row) => within(row).getByRole('switch').closest('.tm-choice')?.textContent),
     ).toEqual([
-      expect.stringContaining('A milestone is close and work on it is late'),
+      expect.stringContaining('A task is past due, or due soon with more work left than time'),
       expect.stringContaining('Planned hours go over the person’s capacity'),
       expect.stringContaining('An invoice is still unpaid after its due date'),
       expect.stringContaining('Spending goes over the project budget'),
@@ -90,7 +98,7 @@ describe('Settings → Alerts', () => {
       within(r).queryByRole('switch', { name: 'Project over budget' }),
     )!;
     expect(budget.textContent).toContain('Owner and finance team');
-    const select = screen.getByRole('combobox', { name: 'Deadline at risk, Who is told' });
+    const select = screen.getByRole('combobox', { name: 'Task late or at risk, Who is told' });
     expect(
       within(select)
         .getAllByRole('option')
@@ -177,5 +185,29 @@ describe('Settings → Alerts', () => {
       await screen.findByText('Alerts are not turned on for this company.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('switch')).toBeNull();
+  });
+
+  it('D8: the neutral notes carry Icon/info, not a drawn letter', async () => {
+    const { container } = mount();
+    await rows();
+    const note = screen
+      .getByText(/A rule that is off sends no notices/u)
+      .closest('.tm-inline-alert');
+    expect(note?.querySelector('svg[data-icon="info"]')).not.toBeNull();
+    expect(note?.querySelector('[data-glyph]')).toBeNull();
+    expect(container.querySelectorAll('.tm-inline-alert [data-glyph="i"]')).toHaveLength(0);
+  });
+
+  it('D8: the meaning sits under the name, beside the switch; the threshold column is fixed', () => {
+    expect(ALERTS_CSS).toMatch(
+      /\.tm-alerts__rule \{[^}]*display: grid;[^}]*grid-template-columns: auto minmax\(0, 1fr\);/u,
+    );
+    expect(ALERTS_CSS).toMatch(/\.tm-alerts__rule \.tm-choice__row \{[^}]*display: contents;/u);
+    expect(ALERTS_CSS).toMatch(
+      /\.tm-alerts__rule \.tm-choice__label,\s*\.tm-alerts__rule \.tm-choice__hint \{[^}]*grid-column: 2;/u,
+    );
+    expect(ALERTS_CSS).toMatch(
+      /grid-template-columns: minmax\(0, 1fr\) 200px minmax\(12rem, 14rem\);/u,
+    );
   });
 });

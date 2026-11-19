@@ -36,6 +36,8 @@ export interface ProjectSummaryHeader {
   readonly committedAt: string | null;
   readonly forecastAt: string | null;
   readonly archivedAt: string | null;
+  /** D4: the client company the project is for, as the portfolio names it; `null` for none. */
+  readonly client: { readonly id: string; readonly name: string } | null;
 }
 
 /** ONEPAGE: one project on one page. A block the viewer may not read is absent, not empty. */
@@ -124,9 +126,10 @@ export class ProjectSummaryService {
     const signals = await readBlock(() =>
       sources.signals.forProject(context, principal, project.id),
     );
+    const client = await sources.projectClient(context, project.id);
 
     return {
-      project: headerOf(project),
+      project: headerOf(project, client),
       ...presentOnly({
         delivery,
         milestone,
@@ -168,7 +171,10 @@ export class ProjectSummaryService {
   }
 }
 
-function headerOf(project: ProjectView): ProjectSummaryHeader {
+function headerOf(
+  project: ProjectView,
+  client: ProjectSummaryHeader['client'],
+): ProjectSummaryHeader {
   return {
     id: project.id,
     name: project.name,
@@ -176,5 +182,6 @@ function headerOf(project: ProjectView): ProjectSummaryHeader {
     committedAt: project.committedAt,
     forecastAt: project.forecastAt,
     archivedAt: project.archivedAt,
+    client,
   };
 }

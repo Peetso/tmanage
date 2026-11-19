@@ -20,6 +20,7 @@ export const PROJECT_SUMMARY: ProjectSummary = {
     committedAt: '2026-12-12T00:00:00.000Z',
     forecastAt: '2026-12-12T00:00:00.000Z',
     archivedAt: null,
+    client: { id: 'co-cedar', name: 'Cedar Foods' },
   },
   delivery: { open: 18, late: 3, done: 41, complete: true },
   milestone: {
@@ -141,8 +142,20 @@ export const CLIENT_SUMMARY: ClientSummary = {
   client: { id: 'co-cedar', name: 'Cedar Foods', archivedAt: null },
   projects: {
     items: [
-      { id: 'proj-2', name: 'Ramadan campaign 2027', status: 'active', band: 'red' },
-      { id: 'proj-1', name: 'Cedar Foods brand refresh', status: 'active', band: 'amber' },
+      {
+        id: 'proj-2',
+        name: 'Ramadan campaign 2027',
+        status: 'active',
+        band: 'red',
+        reason: { kind: 'overdueMilestones', count: 2 },
+      },
+      {
+        id: 'proj-1',
+        name: 'Cedar Foods brand refresh',
+        status: 'active',
+        band: 'amber',
+        reason: { kind: 'highRisks', count: 1 },
+      },
     ],
     truncated: false,
   },
@@ -204,6 +217,16 @@ export const CLIENT_SUMMARY: ClientSummary = {
       },
     ],
     complete: true,
+  },
+  time: {
+    from: '2026-09-01',
+    to: '2026-11-19',
+    loggedMinutes: 214 * 60,
+    billableMinutes: 190 * 60,
+    projects: [
+      { projectId: 'proj-1', loggedMinutes: 120 * 60 },
+      { projectId: 'proj-2', loggedMinutes: 94 * 60 },
+    ],
   },
   unbilled: {
     from: '2026-09-01',
@@ -288,6 +311,8 @@ function minutesBefore(minutes: number): string {
 function activityEntry(
   id: string,
   fields: Pick<ActivityEntry, 'kind' | 'action' | 'summary' | 'objectType' | 'objectId'> & {
+    /** D2: the record's name; the entry then carries the naming phrase, as the API sends it. */
+    readonly subject?: string;
     readonly actorUserId?: string | null;
     readonly projectId?: string;
     readonly minutes: number;
@@ -297,8 +322,12 @@ function activityEntry(
     id,
     kind: fields.kind,
     action: fields.action,
-    phraseKey: `activity.phrase.${fields.action}`,
+    phraseKey:
+      fields.subject === undefined
+        ? `activity.phrase.${fields.action}`
+        : `activity.subject.${fields.action}`,
     summary: fields.summary,
+    subject: fields.subject ?? null,
     actorUserId: fields.actorUserId === undefined ? 'user-1' : fields.actorUserId,
     objectType: fields.objectType,
     objectId: fields.objectId,
@@ -317,7 +346,8 @@ export const ACTIVITY_PAGE: ActivityPage = {
     activityEntry('act-1', {
       kind: 'work',
       action: 'work_item.transitioned',
-      summary: 'Changed the status of a task',
+      summary: 'Changed the status of “Packaging artwork”',
+      subject: 'Packaging artwork',
       objectType: 'work_item',
       objectId: 'wi-7',
       minutes: 5,
@@ -325,7 +355,8 @@ export const ACTIVITY_PAGE: ActivityPage = {
     activityEntry('act-2', {
       kind: 'files',
       action: 'file_asset.uploaded',
-      summary: 'Uploaded a file',
+      summary: 'Uploaded “Packaging_dieline_v4.pdf”',
+      subject: 'Packaging_dieline_v4.pdf',
       objectType: 'file_asset',
       objectId: 'file-3',
       actorUserId: 'user-2',
@@ -334,7 +365,8 @@ export const ACTIVITY_PAGE: ActivityPage = {
     activityEntry('act-3', {
       kind: 'time',
       action: 'time_log.created',
-      summary: 'Logged time',
+      summary: 'Logged time on “Packaging artwork”',
+      subject: 'Packaging artwork',
       objectType: 'time_log',
       objectId: 'tl-4',
       minutes: 60 * 24 + 30,
@@ -342,7 +374,8 @@ export const ACTIVITY_PAGE: ActivityPage = {
     activityEntry('act-4', {
       kind: 'money',
       action: 'client_invoice.sent',
-      summary: 'Sent an invoice',
+      summary: 'Sent invoice INV-0042',
+      subject: 'INV-0042',
       objectType: 'client_invoice',
       objectId: 'inv-42',
       projectId: 'proj-2',
@@ -351,7 +384,8 @@ export const ACTIVITY_PAGE: ActivityPage = {
     activityEntry('act-5', {
       kind: 'project',
       action: 'project.created',
-      summary: 'Created the project',
+      summary: 'Created the project “Cedar Foods brand refresh”',
+      subject: 'Cedar Foods brand refresh',
       objectType: 'project',
       objectId: 'proj-1',
       actorUserId: null,
@@ -359,6 +393,8 @@ export const ACTIVITY_PAGE: ActivityPage = {
     }),
   ],
   nextCursor: 'cursor-2',
+  // D3: these five and the one behind "Load more".
+  total: { count: 6, atLeast: false },
 };
 
 /** B09 — the page behind "Load more". */
@@ -367,7 +403,8 @@ export const ACTIVITY_PAGE_2: ActivityPage = {
     activityEntry('act-6', {
       kind: 'approvals',
       action: 'approval.approved',
-      summary: 'Approved a version',
+      summary: 'Approved a version of “Label artwork v3”',
+      subject: 'Label artwork v3',
       objectType: 'approval',
       objectId: 'ap-1',
       actorUserId: 'user-2',
@@ -375,15 +412,21 @@ export const ACTIVITY_PAGE_2: ActivityPage = {
     }),
   ],
   nextCursor: null,
+  total: null,
 };
 
 /** The same first page as someone without finance access is given it: no money line at all. */
 export const ACTIVITY_PAGE_NO_FINANCE: ActivityPage = {
   entries: ACTIVITY_PAGE.entries.filter((entry) => entry.kind !== 'money'),
   nextCursor: 'cursor-2',
+  total: { count: 5, atLeast: false },
 };
 
-export const ACTIVITY_EMPTY: ActivityPage = { entries: [], nextCursor: null };
+export const ACTIVITY_EMPTY: ActivityPage = {
+  entries: [],
+  nextCursor: null,
+  total: { count: 0, atLeast: false },
+};
 
 function reply(body: unknown, status = 200): Promise<Response> {
   return Promise.resolve(
