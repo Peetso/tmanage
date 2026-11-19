@@ -10,12 +10,14 @@ import { InviteClientDialog, IssuedLinkNotice, useClientsT } from '../clients/In
 import { ArchiveCompanyDialog, RenameCompanyDialog } from '../clients/ClientCompanyDialogs';
 import { ClientPeoplePanel, clientCompanyKey, isExpired } from '../clients/ClientPeoplePanel';
 import { ClientProjectsPanel } from '../clients/ClientProjectsPanel';
+import { ActivityTab } from '../overview/ActivityTab';
 import { OverviewBlocks } from '../overview/OverviewBlocks';
 import { OverviewTabs } from '../overview/OverviewTabs';
 import { clientOverviewModel } from '../overview/client-overview-model';
 import { clientViewHref, clientsHref, type ClientView } from '../overview/overview-links';
 import { useOverviewCopy } from '../overview/use-overview-copy';
 import { useOverviewFormat } from '../overview/use-overview-format';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getClientOrganization,
@@ -58,7 +60,7 @@ const STATUS_KEY = {
  * organizations/:id/summary`, B01): delivery across its projects, approvals waiting and on whom,
  * risks, latest files, time not invoiced and money, each block opening its full screen. The
  * Projects tab lists the projects shared with the company (with health), People its people and
- * invitations (with Resend, Rename and Archive). Behind `org.manage`, like before.
+ * invitations (with Resend, Rename and Archive), Activity what happened across its projects (B09). Behind `org.manage`, like before.
  */
 export function ClientCompanyScreen({
   organizationSlug,
@@ -72,6 +74,7 @@ export function ClientCompanyScreen({
   const api = client ?? browserApiClient();
   const t = useClientsT();
   const copy = useOverviewCopy();
+  const tOr = useTOr();
   const queryClient = useQueryClient();
   const [today] = useState(() => new Date(now()));
   const format = useOverviewFormat(today);
@@ -185,6 +188,11 @@ export function ClientCompanyScreen({
               href: clientViewHref(organizationSlug, clientOrganizationId, 'people'),
               ...(people.data ? { count: format.count(members.length) } : {}),
             },
+            {
+              id: 'activity',
+              label: tOr('ActivityTab.tab', 'Activity'),
+              href: clientViewHref(organizationSlug, clientOrganizationId, 'activity'),
+            },
           ]}
         />
 
@@ -210,6 +218,24 @@ export function ClientCompanyScreen({
               model={clientOverviewModel(summary.data, organizationSlug, today)}
             />
           )
+        ) : view === 'activity' ? (
+          <ActivityTab
+            api={api}
+            organizationSlug={organizationSlug}
+            scope={{
+              kind: 'client',
+              clientOrganizationId,
+              projectNames: new Map(shared.map((project) => [project.id, project.name])),
+              // Until the list answers, assume there are projects: "Start a project" is only for none.
+              hasProjects: projects.isPending || shared.length > 0,
+              people: members.flatMap((member) =>
+                member.displayName
+                  ? [{ userId: member.userId, name: member.displayName, client: true }]
+                  : [],
+              ),
+            }}
+            now={today}
+          />
         ) : view === 'projects' ? (
           <ClientProjectsPanel
             organizationSlug={organizationSlug}

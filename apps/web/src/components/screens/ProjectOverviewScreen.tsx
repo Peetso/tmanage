@@ -8,6 +8,7 @@ import { AppShell } from '../shell/AppShell';
 import { NavIcon } from '../icons/phone';
 import { ProjectExportButton } from '../projects/ProjectExportButton';
 import { ProjectUpdateComposer } from '../projects/ProjectUpdateComposer';
+import { ActivityTab } from '../overview/ActivityTab';
 import { OverviewBlocks } from '../overview/OverviewBlocks';
 import { OverviewTabs, type OverviewTab } from '../overview/OverviewTabs';
 import { projectOverviewModel } from '../overview/project-overview-model';
@@ -18,7 +19,9 @@ import {
   projectFilesHref,
   projectHref,
   projectMilestonesHref,
+  projectViewHref,
   projectWorkHref,
+  type ProjectView,
 } from '../overview/overview-links';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
@@ -35,6 +38,8 @@ export interface ProjectOverviewScreenProps {
   organizationSlug: string;
   organizationName: string;
   projectId: string;
+  /** The tab from `?view=`; Overview when absent. */
+  view?: ProjectView;
   client?: ApiClient;
   /** Injected in tests and stories so "2 days ago" and stale approvals are stable. */
   now?: Date;
@@ -62,6 +67,7 @@ export function ProjectOverviewScreen({
   organizationSlug,
   organizationName,
   projectId,
+  view = 'overview',
   client,
   now: injectedNow,
 }: ProjectOverviewScreenProps) {
@@ -153,10 +159,17 @@ export function ProjectOverviewScreen({
       <div className="tm-ov">
         <OverviewTabs
           label={copy.text('Overview.tabsLabel')}
-          current="overview"
+          current={view}
           tabs={projectTabs(organizationSlug, projectId, summary.data, copy, tOr, format.count)}
         />
-        {summary.isPending ? (
+        {view === 'activity' ? (
+          <ActivityTab
+            api={api}
+            organizationSlug={organizationSlug}
+            scope={{ kind: 'project', projectId }}
+            now={now}
+          />
+        ) : summary.isPending ? (
           <OverviewBlocks state="loading" />
         ) : summary.isError ? (
           <OverviewBlocks state="error" onRetry={() => void summary.refetch()} />
@@ -184,9 +197,8 @@ export function ProjectOverviewScreen({
 }
 
 /**
- * The frame's tabs (Overview, Work with its count, Files) and then the project's other sections,
- * so nothing the old segmented switch reached is lost; every tab is a real route. The Activity tab
- * arrives with B09.
+ * The frame's tabs (Overview, Work with its count, Files, Activity) and then the project's other
+ * sections, so nothing the old segmented switch reached is lost; every tab is a real route.
  */
 function projectTabs(
   org: string,
@@ -207,6 +219,11 @@ function projectTabs(
       ...(open === undefined ? {} : { count: count(open) }),
     },
     { id: 'files', label: copy.text('Overview.tabFiles'), href: projectFilesHref(org, projectId) },
+    {
+      id: 'activity',
+      label: tOr('ActivityTab.tab', 'Activity'),
+      href: projectViewHref(org, projectId, 'activity'),
+    },
     {
       id: 'milestones',
       label: tOr('ProjectTabs.milestones', 'Milestones'),

@@ -1,40 +1,31 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { isClientRole } from '@tmanage/domain';
 import Link from 'next/link';
 import { AppShell } from '../shell/AppShell';
 import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listWorkActivity, type WorkActivityEntry } from '../../lib/api/work-activity';
 import type { ApiClient } from '../../lib/api/client';
+import type { MemberSummary } from '../../lib/api/members';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { connectorSentence } from '../../lib/work-activity-presentation';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { appLocale } from '../../lib/i18n/app-locale';
 import { getUnfurlCard, unfurlSiteName } from '../../lib/api/unfurl';
 import { firstLink, splitLinks } from '../../lib/linkify';
 import { LinkPreviewCardView } from '../chat/media/LinkPreviewCard';
+import { ActivityFeed, type ActivityFeedRow } from './ActivityFeed';
 
 export interface WorkItemActivityFeedProps {
   organizationSlug: string;
   organizationName: string;
   workItemId: string;
   client?: ApiClient;
-}
-
-function formatWhen(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleString(appLocale());
-}
-
-/** A small glyph per entry kind — a spoken label goes on the row, this is decoration only. */
-function icon(kind: WorkActivityEntry['kind']): string {
-  return kind === 'comment' ? '◌' : '●';
 }
 
 /** A comment body with its http(s) links clickable; everything else stays plain text. */
@@ -85,24 +76,48 @@ function CommentLinkCard({
   );
 }
 
-function CommentBody({
-  api,
-  organizationSlug,
-  text,
-}: {
-  api: ApiClient;
-  organizationSlug: string;
-  text: string;
-}) {
-  const link = firstLink(text);
-  return (
-    <>
-      <LinkifiedText text={text} />
-      {link === null ? null : (
-        <CommentLinkCard api={api} organizationSlug={organizationSlug} url={link} />
-      )}
-    </>
-  );
+type MessageT = ReturnType<typeof useT>;
+
+/**
+ * One timeline entry as a feed row. An AI-app move names the person and the app in one sentence;
+ * a comment keeps its links clickable and shows the first link's preview card under it. The rows
+ * are not links themselves: the item is already open, and a comment carries its own links.
+ */
+export function workActivityRow(
+  entry: WorkActivityEntry,
+  t: MessageT,
+  directory: { readonly members: readonly MemberSummary[]; readonly isPending: boolean },
+  preview: (url: string) => ActivityFeedRow['attachment'],
+): ActivityFeedRow {
+  const name =
+    entry.actorId === null
+      ? null
+      : memberDisplayName(entry.actorId, directory.members, directory.isPending);
+  const member = directory.members.find((candidate) => candidate.userId === entry.actorId);
+  const comment = entry.kind === 'comment' ? <LinkifiedText text={entry.summary} /> : null;
+  const link = entry.kind === 'comment' ? firstLink(entry.summary) : null;
+  const sentence =
+    entry.via === 'ai_assistant' && name !== null ? (
+      <>
+        <span className="tm-wk-story__via">
+          {connectorSentence(t, entry.action, name, entry.viaApp)}
+        </span>
+        {comment ? <> {comment}</> : null}
+      </>
+    ) : (
+      <>
+        {name === null ? t('WorkItemActivityFeed.system') : `${name} — `}
+        {comment ?? entry.summary}
+      </>
+    );
+  return {
+    id: `${entry.kind}:${entry.id}`,
+    occurredAt: entry.occurredAt,
+    actor:
+      name === null ? null : { name, client: member !== undefined && isClientRole(member.role) },
+    sentence,
+    ...(link === null ? {} : { attachment: preview(link) }),
+  };
 }
 
 /**
@@ -114,6 +129,9 @@ function CommentBody({
  * Behind `work.read`: anyone who may read the item may read its history, and the API answers 404
  * for an item in another tenant exactly as for one that does not exist. There is no write here;
  * the comment box and the status controls live on their own screens.
+ *
+ * The timeline itself is the one {@link ActivityFeed} (62-A2, B09); this screen keeps the item's
+ * shell and sub-navigation and turns its read into rows.
  */
 export function WorkItemActivityFeed({
   organizationSlug,
@@ -125,6 +143,7 @@ export function WorkItemActivityFeed({
   const api = client ?? browserApiClient();
   const t = useT();
   const tr = useTOr();
+  const [now] = useState(() => new Date());
 
   const activity = useQuery({
     queryKey: ['work-item-activity', organizationSlug, workItemId],
@@ -134,7 +153,9 @@ export function WorkItemActivityFeed({
   // Who did it, by name: the same directory the work item screens resolve owners through.
   const directory = useMembers(api, organizationSlug);
 
-  const entries: readonly WorkActivityEntry[] = activity.data ?? [];
+  const preview = (url: string) => (
+    <CommentLinkCard api={api} organizationSlug={organizationSlug} url={url} />
+  );
 
   return (
     <AppShell
@@ -166,87 +187,27 @@ export function WorkItemActivityFeed({
             {t('WorkItemActivityFeed.estimate')}
           </Link>
         </nav>
-        <section className="tm-panel tm-stack" aria-labelledby="tm-work-activity">
-          <h2 id="tm-work-activity" className="tm-eyebrow">
-            {t('WorkItemActivityFeed.activity')}
-          </h2>
-
-          {activity.isPending ? (
-            <LoadingRegion label={t('WorkItemActivityFeed.loading')}>
-              <Skeleton height="var(--row)" />
-              <Skeleton height="var(--row)" />
-            </LoadingRegion>
-          ) : null}
-
-          {activity.isError ? (
-            <InlineAlert tone="danger" title={t('WorkItemActivityFeed.loadError')} live>
-              {describe(activity.error)}
-            </InlineAlert>
-          ) : null}
-
-          {activity.data ? (
-            entries.length === 0 ? (
-              <p className="tm-prose">{t('WorkItemActivityFeed.empty')}</p>
-            ) : (
-              <ol className="tm-wk-story" aria-label={t('WorkItemActivityFeed.timelineLabel')}>
-                {entries.map((entry, index) => (
-                  <li
-                    key={`${entry.kind}:${entry.id}`}
-                    {...(index === 0 ? { 'data-state': 'now' } : {})}
-                  >
-                    <time className="tm-wk-story__when" dateTime={entry.occurredAt}>
-                      <span aria-hidden="true">{icon(entry.kind)}</span>{' '}
-                      {formatWhen(entry.occurredAt)}
-                    </time>
-                    <span className="tm-wk-story__what">
-                      {entry.via === 'ai_assistant' && entry.actorId ? (
-                        <>
-                          <span className="tm-wk-story__via">
-                            {connectorSentence(
-                              t,
-                              entry.action,
-                              memberDisplayName(
-                                entry.actorId,
-                                directory.members,
-                                directory.isPending,
-                              ),
-                              entry.viaApp,
-                            )}
-                          </span>
-                          {entry.kind === 'comment' ? (
-                            <>
-                              {' '}
-                              <CommentBody
-                                api={api}
-                                organizationSlug={organizationSlug}
-                                text={entry.summary}
-                              />
-                            </>
-                          ) : null}
-                        </>
-                      ) : (
-                        <>
-                          {entry.actorId
-                            ? `${memberDisplayName(entry.actorId, directory.members, directory.isPending)} — `
-                            : t('WorkItemActivityFeed.system')}
-                          {entry.kind === 'comment' ? (
-                            <CommentBody
-                              api={api}
-                              organizationSlug={organizationSlug}
-                              text={entry.summary}
-                            />
-                          ) : (
-                            entry.summary
-                          )}
-                        </>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )
-          ) : null}
-        </section>
+        <ActivityFeed
+          title={t('WorkItemActivityFeed.activity')}
+          now={now}
+          state={
+            activity.isPending
+              ? { status: 'loading' }
+              : activity.isError
+                ? {
+                    status: 'error',
+                    onRetry: () => void activity.refetch(),
+                    detail: describe(activity.error),
+                  }
+                : {
+                    status: 'ready',
+                    rows: activity.data.map((entry) =>
+                      workActivityRow(entry, t, directory, preview),
+                    ),
+                  }
+          }
+          empty={<p className="tm-prose">{t('WorkItemActivityFeed.empty')}</p>}
+        />
       </div>
     </AppShell>
   );

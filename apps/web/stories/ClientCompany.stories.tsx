@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ClientCompanyScreen } from '../src/components/screens/ClientCompanyScreen';
 import {
+  ACTIVITY_EMPTY,
   CLIENT_SUMMARY_NO_FINANCE,
   OVERVIEW_NOW,
   overviewClient,
@@ -39,4 +40,14 @@ export const ProjectsAtRisk: Story = {
 
 export const People: Story = {
   args: { view: 'people' },
+};
+
+/** B09 — the Activity tab across the client's projects (FIGMA-D 754:42228). */
+export const Activity: Story = {
+  args: { view: 'activity' },
+};
+
+/** B09 — no activity yet (754:43001): the client has projects, so "Open projects". */
+export const ActivityEmpty: Story = {
+  args: { view: 'activity', client: overviewClient({ activity: ACTIVITY_EMPTY }) },
 };

@@ -1,0 +1,315 @@
+/*
+ * 62-A2 (B09) — the one activity feed (FIGMA-D 753:41712 project, 754:42228 client) and the
+ * Activity tab's filter row (753:42457). TManage tokens only; logical properties only, so the
+ * Arabic frames mirror without a second rule. Prefix `tm-act-`.
+ */
+
+.tm-act {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+/* "Activity  Every change on this project, newest first", then the hairline. */
+.tm-act__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+  padding-block-end: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-act__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-act__description {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-act__day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-act__day-label {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-act__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One row: avatar, then the sentence over its meta line. A link row is one 44 px+ target. */
+.tm-act__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  min-block-size: 44px;
+  padding-block: var(--s2);
+  padding-inline: var(--s2);
+  margin-inline: calc(-1 * var(--s2));
+  border-radius: var(--r-control);
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-act__row--link:hover {
+  background: var(--tm-hover-surface);
+}
+
+.tm-act__row--link:hover .tm-act__sentence {
+  text-decoration: underline;
+}
+
+.tm-act__row--link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-act__avatar {
+  flex: none;
+}
+
+.tm-act__system {
+  flex: none;
+  inline-size: var(--orb-default);
+  block-size: var(--orb-default);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+}
+
+.tm-act__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-act__sentence {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+.tm-act__meta {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-act__attachment {
+  display: block;
+  margin-block-start: var(--s2);
+}
+
+.tm-act__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-act__notice,
+.tm-act__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.tm-act__notice p,
+.tm-act__empty p {
+  margin: 0;
+}
+
+.tm-act__notice-detail {
+  color: var(--ink-650);
+}
+
+/* "Showing 8" at the start, "Load more" at the end, under a hairline. */
+.tm-act__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  padding-block-start: var(--s4);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-act__count {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-act__more-failed {
+  margin: 0;
+  color: var(--danger-600);
+}
+
+/* The centred empty state of the Activity tab (753:43120). */
+.tm-act-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  inline-size: 100%;
+  padding-block: var(--s10);
+  text-align: center;
+}
+
+.tm-act-empty__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-act-empty__body {
+  max-inline-size: 420px;
+  margin: 0;
+  color: var(--ink-650);
+}
+
+/* ── The Activity tab's filters (753:42457) ───────────────────────────────────── */
+
+.tm-act-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-act-filters__kinds,
+.tm-act-filters__more {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-act-filters .tm-chip {
+  min-block-size: 44px;
+}
+
+/* A chosen filter is tinted lime with a lime edge, as drawn; the check icon says it too. */
+.tm-act-filters .tm-chip:is([aria-checked='true'], .tm-chip--active),
+.tm-act-filters :is(button, a).tm-chip:is([aria-checked='true'], .tm-chip--active):hover {
+  border-color: var(--lime-600);
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-act-filters__toggle {
+  display: none;
+}
+
+.tm-act-menu {
+  position: relative;
+}
+
+.tm-act-menu__list {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--s1));
+  inset-inline-end: 0;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 220px;
+  max-block-size: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+  list-style: none;
+}
+
+.tm-act-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding-inline: var(--s3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-act-menu__item:hover,
+.tm-act-menu__item:focus-visible {
+  background: var(--tm-hover-surface);
+}
+
+.tm-act-menu__check {
+  inline-size: 16px;
+  flex: none;
+}
+
+/* Phone (review fix 8): kinds in one sideways row; person and date behind one "Filter" button. */
+@media (max-width: 719px) {
+  .tm-act {
+    padding: var(--s4);
+  }
+
+  .tm-act-filters__kinds {
+    flex-wrap: nowrap;
+    inline-size: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tm-act-filters__toggle {
+    display: inline-flex;
+  }
+
+  .tm-act-filters__more:not([data-open='true']) {
+    display: none;
+  }
+
+  .tm-act-filters__more {
+    inline-size: 100%;
+  }
+
+  .tm-act-menu__list {
+    inset-inline: 0 auto;
+  }
+
+  .tm-act__foot .tm-button {
+    inline-size: 100%;
+  }
+}

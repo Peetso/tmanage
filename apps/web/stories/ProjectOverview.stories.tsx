@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ProjectOverviewScreen } from '../src/components/screens/ProjectOverviewScreen';
 import {
+  ACTIVITY_EMPTY,
+  ACTIVITY_PAGE_NO_FINANCE,
   OVERVIEW_NOW,
   PROJECT_SUMMARY_EMPTY,
   PROJECT_SUMMARY_NO_FINANCE,
@@ -47,4 +49,22 @@ export const Loading: Story = {
 
 export const LoadFailed: Story = {
   args: { client: overviewClient({ projectSummary: 'fail' }) },
+};
+
+/** B09 — the Activity tab (FIGMA-D 753:41712): day groups, kind chips, Person and date menus. */
+export const Activity: Story = {
+  args: { view: 'activity' },
+};
+
+/** B09 — without finance access: no Money chip and no money line (review FIGMA-D fix 1). */
+export const ActivityWithoutFinance: Story = {
+  args: {
+    view: 'activity',
+    client: overviewClient({ activity: ACTIVITY_PAGE_NO_FINANCE, capabilities: ['work.read'] }),
+  },
+};
+
+/** B09 — nothing happened yet (753:43120): "No activity yet" and "Go to work". */
+export const ActivityEmpty: Story = {
+  args: { view: 'activity', client: overviewClient({ activity: ACTIVITY_EMPTY }) },
 };

@@ -244,6 +244,8 @@ const PATHS = {
     'M16 9a5 5 0 0 1 0 6',
     'M19.364 18.364a9 9 0 0 0 0-12.728',
   ],
+  // Icon/chevron-down: a chip that opens a menu (FIGMA-D review fix 4).
+  chevronDown: ['m6 9 6 6 6-6'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PhoneIconName = keyof typeof PATHS;

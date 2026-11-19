@@ -1,4 +1,5 @@
 import { ApiClient } from '../../src/lib/api/client';
+import type { ActivityEntry, ActivityPage } from '../../src/lib/api/activity';
 import type { ClientSummary } from '../../src/lib/api/client-summary';
 import type { ProjectSummary } from '../../src/lib/api/project-summary';
 
@@ -250,8 +251,120 @@ const MEMBERS = {
       role: 'manager',
       status: 'active',
     },
+    {
+      userId: 'user-2',
+      displayName: 'Lina Saeed',
+      email: 'lina@northstar.studio',
+      role: 'member',
+      status: 'active',
+    },
   ],
 };
+
+/** B09 — minutes before {@link OVERVIEW_NOW}, as an ISO instant. */
+function minutesBefore(minutes: number): string {
+  return new Date(OVERVIEW_NOW.getTime() - minutes * 60_000).toISOString();
+}
+
+function activityEntry(
+  id: string,
+  fields: Pick<ActivityEntry, 'kind' | 'action' | 'summary' | 'objectType' | 'objectId'> & {
+    readonly actorUserId?: string | null;
+    readonly projectId?: string;
+    readonly minutes: number;
+  },
+): ActivityEntry {
+  return {
+    id,
+    kind: fields.kind,
+    action: fields.action,
+    phraseKey: `activity.phrase.${fields.action}`,
+    summary: fields.summary,
+    actorUserId: fields.actorUserId === undefined ? 'user-1' : fields.actorUserId,
+    objectType: fields.objectType,
+    objectId: fields.objectId,
+    projectId: fields.projectId ?? 'proj-1',
+    clientOrganizationId: 'co-cedar',
+    occurredAt: minutesBefore(fields.minutes),
+  };
+}
+
+/**
+ * B09 — the Activity tab's first page as a holder of `finance.view` reads it (FIGMA-D 753:41712):
+ * today, yesterday and an older day; one money line; more behind "Load more".
+ */
+export const ACTIVITY_PAGE: ActivityPage = {
+  entries: [
+    activityEntry('act-1', {
+      kind: 'work',
+      action: 'work_item.transitioned',
+      summary: 'Changed the status of a task',
+      objectType: 'work_item',
+      objectId: 'wi-7',
+      minutes: 5,
+    }),
+    activityEntry('act-2', {
+      kind: 'files',
+      action: 'file_asset.uploaded',
+      summary: 'Uploaded a file',
+      objectType: 'file_asset',
+      objectId: 'file-3',
+      actorUserId: 'user-2',
+      minutes: 40,
+    }),
+    activityEntry('act-3', {
+      kind: 'time',
+      action: 'time_log.created',
+      summary: 'Logged time',
+      objectType: 'time_log',
+      objectId: 'tl-4',
+      minutes: 60 * 24 + 30,
+    }),
+    activityEntry('act-4', {
+      kind: 'money',
+      action: 'client_invoice.sent',
+      summary: 'Sent an invoice',
+      objectType: 'client_invoice',
+      objectId: 'inv-42',
+      projectId: 'proj-2',
+      minutes: 60 * 24 + 90,
+    }),
+    activityEntry('act-5', {
+      kind: 'project',
+      action: 'project.created',
+      summary: 'Created the project',
+      objectType: 'project',
+      objectId: 'proj-1',
+      actorUserId: null,
+      minutes: 60 * 24 * 5,
+    }),
+  ],
+  nextCursor: 'cursor-2',
+};
+
+/** B09 — the page behind "Load more". */
+export const ACTIVITY_PAGE_2: ActivityPage = {
+  entries: [
+    activityEntry('act-6', {
+      kind: 'approvals',
+      action: 'approval.approved',
+      summary: 'Approved a version',
+      objectType: 'approval',
+      objectId: 'ap-1',
+      actorUserId: 'user-2',
+      minutes: 60 * 24 * 9,
+    }),
+  ],
+  nextCursor: null,
+};
+
+/** The same first page as someone without finance access is given it: no money line at all. */
+export const ACTIVITY_PAGE_NO_FINANCE: ActivityPage = {
+  entries: ACTIVITY_PAGE.entries.filter((entry) => entry.kind !== 'money'),
+  nextCursor: 'cursor-2',
+};
+
+export const ACTIVITY_EMPTY: ActivityPage = { entries: [], nextCursor: null };
 
 function reply(body: unknown, status = 200): Promise<Response> {
   return Promise.resolve(
@@ -265,10 +378,18 @@ function reply(body: unknown, status = 200): Promise<Response> {
 export interface OverviewRoutes {
   readonly projectSummary?: ProjectSummary | 'fail' | 'pending';
   readonly clientSummary?: ClientSummary | 'fail' | 'pending';
+  /**
+   * B09 — the Activity read of the project and of the client: the first page, or a function of the
+   * query string (so a test can answer filters and "Load more").
+   */
+  readonly activity?:
+    ActivityPage | 'fail' | 'pending' | ((search: URLSearchParams) => ActivityPage);
+  /** B09 — the caller's capabilities from `…/me`; finance access by default. */
+  readonly capabilities?: readonly string[];
 }
 
 function summaryReply(
-  value: ProjectSummary | ClientSummary | 'fail' | 'pending',
+  value: ProjectSummary | ClientSummary | ActivityPage | 'fail' | 'pending',
 ): Promise<Response> {
   if (value === 'pending') return new Promise<Response>(() => undefined);
   if (value === 'fail') {
@@ -294,6 +415,25 @@ export function overviewClient(routes: OverviewRoutes, requests: string[] = []):
     }
     if (path === '/client-organizations/co-cedar/summary') {
       return summaryReply(routes.clientSummary ?? CLIENT_SUMMARY);
+    }
+    if (
+      path === '/projects/proj-1/activity' ||
+      path === '/client-organizations/co-cedar/activity'
+    ) {
+      const activity =
+        routes.activity ?? ((search) => (search.get('cursor') ? ACTIVITY_PAGE_2 : ACTIVITY_PAGE));
+      return summaryReply(typeof activity === 'function' ? activity(url.searchParams) : activity);
+    }
+    if (path === '/me') {
+      return reply({
+        membershipId: 'm-1',
+        userId: 'user-1',
+        kind: 'internal',
+        role: 'owner',
+        capabilities: routes.capabilities ?? ['work.read', 'finance.view', 'org.manage'],
+        overrides: {},
+        supportSession: null,
+      });
     }
     if (path === '/projects/proj-1') return reply(PROJECT);
     if (path === '/members') return reply(MEMBERS);

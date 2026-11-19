@@ -62,8 +62,20 @@ export function portfolioHref(org: string): string {
   return `/${org}/projects/portfolio`;
 }
 
+/** The project page's own tabs live in `?view=` (its other sections are routes of their own). */
+export type ProjectView = 'overview' | 'activity';
+
+export function projectViewHref(org: string, projectId: string, view: ProjectView): string {
+  const base = projectHref(org, projectId);
+  return view === 'overview' ? base : `${base}?view=${view}`;
+}
+
+export function parseProjectView(value: string | null | undefined): ProjectView {
+  return value === 'activity' ? value : 'overview';
+}
+
 /** The client page's tabs live in `?view=`; `at-risk` narrows the Projects tab. */
-export type ClientView = 'overview' | 'projects' | 'people';
+export type ClientView = 'overview' | 'projects' | 'people' | 'activity';
 
 export function clientViewHref(
   org: string,
@@ -77,5 +89,5 @@ export function clientViewHref(
 }
 
 export function parseClientView(value: string | null | undefined): ClientView {
-  return value === 'projects' || value === 'people' ? value : 'overview';
+  return value === 'projects' || value === 'people' || value === 'activity' ? value : 'overview';
 }

@@ -1,9 +1,10 @@
 'use client';
 
 import { use } from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ProjectOverviewScreen } from '../../../../components/screens/ProjectOverviewScreen';
+import { parseProjectView } from '../../../../components/overview/overview-links';
 import { browserApiClient } from '../../../../lib/api/browser-client';
 import { isApiNotFound } from '../../../../lib/api/not-found';
 import { getProject } from '../../../../lib/api/projects';
@@ -19,6 +20,8 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
  * B15: an unknown project id renders the 404 page, not the full overview around a project that
  * is not there. The query shares the screen's key, so it is one request, not two; a 404 is not
  * retried because asking again cannot make the project exist.
+ *
+ * `?view=activity` opens the Activity tab (62-A2, B09) under the same header and tabs.
  */
 export default function ProjectPage({
   params,
@@ -26,6 +29,7 @@ export default function ProjectPage({
   params: Promise<{ orgSlug: string; projectId: string }>;
 }) {
   const { orgSlug, projectId } = use(params);
+  const search = useSearchParams();
   const project = useQuery({
     queryKey: ['project', orgSlug, projectId],
     queryFn: () => getProject(browserApiClient(), orgSlug, projectId),
@@ -39,6 +43,7 @@ export default function ProjectPage({
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       projectId={projectId}
+      view={parseProjectView(search.get('view'))}
     />
   );
 }
