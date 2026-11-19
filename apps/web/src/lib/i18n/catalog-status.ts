@@ -71,6 +71,7 @@ export const PARTIAL_CORE_NAMESPACES: readonly string[] = [
   'AuthRefusal',
   // My Day
   'MyDayScreen',
+  'HomeBriefing',
   // Projects
   'ProjectOverviewScreen',
   'ProjectTabs',
@@ -108,6 +109,7 @@ export const PARTIAL_CORE_NAMESPACES: readonly string[] = [
   'displayPrefs',
   'orgSettings',
   'OrgSettings',
+  'AlertSettings',
 ];
 
 /** Each language named in itself, as every picker shows it (Figma "Languages (R2)" 501:29247). */

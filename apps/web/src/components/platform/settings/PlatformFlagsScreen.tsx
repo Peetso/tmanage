@@ -55,6 +55,7 @@ export const FLAG_LABELS: Record<PlatformFlagKey, MessageKey> = {
   billing: 'PlatformSettings.flagBilling',
   copilot: 'PlatformSettings.flagCopilot',
   ...PLAN_52_FLAG_LABELS,
+  business_briefing: 'FeatureFlags.businessBriefing',
 };
 
 type Filter = 'all' | 'on' | 'off' | 'locked';
