@@ -625,6 +625,34 @@ const WEB_EXEMPT = new Map([
     'SummaryUnbilled',
     'ONEPAGE — one block of the client summary; the API inlines it inside `ClientSummaryView`, which is paired Exact with `ClientSummary`, so the block is covered there.',
   ],
+  [
+    'SummarySignalGroup',
+    'B10 — one group of the project summary’s signals block; covered by `ProjectSummaryView` paired Exact with `ProjectSummary`.',
+  ],
+  [
+    'SummarySignals',
+    'B10 — the project summary’s signals block; covered by `ProjectSummaryView` paired Exact with `ProjectSummary`.',
+  ],
+  [
+    'BriefingAmount',
+    '62-A1b — the money figure of a briefing line; covered by `HomeBriefingView` paired Exact with `HomeBriefing`.',
+  ],
+  [
+    'BriefingLine',
+    '62-A1b — one line of the Home briefing; covered by `HomeBriefingView` paired Exact with `HomeBriefing`.',
+  ],
+  [
+    'BriefingGroup',
+    '62-A1b — one group of the Home briefing; covered by `HomeBriefingView` paired Exact with `HomeBriefing`.',
+  ],
+  [
+    'UnitCosts',
+    '62-A3 — the costs inside the unit-costs read; covered by `UnitCostsView` paired Exact on both sides.',
+  ],
+  [
+    'GrowthFigures',
+    '62-A3 — the success and cost figures inside `GrowthView`; covered by the `GrowthView` Narrows pairing.',
+  ],
 ]);
 
 // ── 1. Enumerate the API's response projections ─────────────────────────────

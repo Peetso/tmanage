@@ -1,4 +1,4 @@
-import type { SignalBriefingGroup } from '@tmanage/domain';
+import type { BurnStatus, SignalBriefingGroup } from '@tmanage/domain';
 import type { ApiClient } from './client';
 import type { ProjectHealthBand } from './project-health';
 
@@ -79,7 +79,7 @@ export interface SummaryBudget {
   readonly trackedHours: number;
   readonly remainingHours: number | null;
   readonly percentBp: number | null;
-  readonly status: string | null;
+  readonly status: BurnStatus | null;
 }
 
 export interface SummaryProjectMoney {

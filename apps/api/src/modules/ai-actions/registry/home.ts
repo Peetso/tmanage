@@ -127,6 +127,15 @@ export const homeDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'List home saved context', args: {} }],
   }),
   det({
+    id: 'home.briefing.get',
+    title: 'Get home business briefing',
+    description:
+      'Get what needs the reader across the company or their projects, from the hourly check.',
+    input: listArgs(),
+    redact: 'billing',
+    examples: [{ summary: 'Get home business briefing', args: {} }],
+  }),
+  det({
     id: 'home.summary.list',
     title: 'List home summary',
     description: 'List home summary.',

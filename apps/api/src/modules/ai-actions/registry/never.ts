@@ -1335,6 +1335,9 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/organizations/:orgSlug/referral/code', reason: 'referral' },
   { method: 'GET', path: '/v1/platform/referrals/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/referrals/partners', reason: 'platform_admin' },
+  // 62-A3 (B14). The platform's monthly hosting and mail unit costs (platform.settings.edit).
+  { method: 'GET', path: '/v1/platform/settings/unit-costs/', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/settings/unit-costs/', reason: 'platform_admin' },
   // 55-14. Client portal magic-link sign-in: anonymous request, code, preview, consume, not-you.
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },

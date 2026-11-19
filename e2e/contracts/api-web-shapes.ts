@@ -5010,3 +5010,25 @@ import type {
 } from '../../apps/web/src/lib/api/activity.js';
 type _activityEntry = Assert<Exact<ApiActivityEntryView, WebActivityEntry>>;
 type _activityPage = Assert<Exact<ApiActivityPageView, WebActivityPage>>;
+
+// ---- 62-A1b HOME BRIEFING (B11) · the business briefing card on Home ----
+import type { HomeBriefingView as ApiHomeBriefingView } from '../../apps/api/src/modules/home/home-briefing.service.js';
+import type { HomeBriefing as WebHomeBriefing } from '../../apps/web/src/lib/api/home-briefing.js';
+type _homeBriefing = Assert<Exact<ApiHomeBriefingView, WebHomeBriefing>>;
+
+// ---- 62-27 ALERT RULES (B05/B12) · Settings > Alerts ----
+import type {
+  SignalSettingView as ApiSignalSettingView,
+  SignalSettingsView as ApiSignalSettingsView,
+} from '../../apps/api/src/modules/insights/signals.service.js';
+import type {
+  SignalSettingView as WebSignalSettingView,
+  SignalSettingsView as WebSignalSettingsView,
+} from '../../apps/web/src/lib/api/signals.js';
+type _signalSetting = Assert<Exact<ApiSignalSettingView, WebSignalSettingView>>;
+type _signalSettings = Assert<Exact<ApiSignalSettingsView, WebSignalSettingsView>>;
+
+// ---- 62-A3 UNIT COSTS (B14) · Platform settings > Unit costs ----
+import type { UnitCostsView as ApiUnitCostsView } from '../../apps/api/src/modules/platform-admin/settings/unit-costs.service.js';
+import type { UnitCostsView as WebUnitCostsView } from '../../apps/web/src/lib/api/platform-unit-costs.js';
+type _unitCosts = Assert<Exact<ApiUnitCostsView, WebUnitCostsView>>;

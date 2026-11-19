@@ -2433,6 +2433,16 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // 62-A1b (B11): the business briefing card, behind `business_briefing`; the service answers
+  // clients and guests with a 404 and scopes each line to the reader.
+  {
+    id: 'home.briefing.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/home/briefing/',
+    capability: 'approval.read',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'home.summary.list',
     method: 'GET',
