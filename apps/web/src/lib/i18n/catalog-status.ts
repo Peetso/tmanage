@@ -75,6 +75,9 @@ export const PARTIAL_CORE_NAMESPACES: readonly string[] = [
   'ProjectOverviewScreen',
   'ProjectTabs',
   'ProjectMilestones',
+  'Overview',
+  'ActivityFeed',
+  'ActivityTab',
   // Work
   'WorkListScreen',
   'WorkActions',
