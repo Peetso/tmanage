@@ -12,8 +12,10 @@ import {
   createSweepScheduler,
   lockedPass,
   reconcileIntervalMs,
+  startActivityProjector,
   startBudgetBurn,
   startRetainerRoll,
+  startSignalsSweep,
   startChannelPosts,
   startWebhookDeliveries,
   storageRootJob,
@@ -462,6 +464,46 @@ test('R17-d: the retainer roll runs one pass on start and stops; absent roll is 
   assert.deepEqual(stores, [{ database: 'pool' }]);
   assert.equal(
     startRetainerRoll({}, 'pool', {}, () => {}),
+    null,
+  );
+});
+
+test('62-A2: the activity projector runs one pass on start and stops; absent projector is null', async () => {
+  const passes = [];
+  const worker = {
+    createActivityProjectorStore: (database) => ({ database }),
+    runActivityProjection: async (deps) => {
+      passes.push(deps);
+      return { organizations: 1, events: 2, filed: 2 };
+    },
+  };
+  const stop = startActivityProjector(worker, 'pool', {}, () => {});
+  await stop();
+  assert.equal(passes.length, 1);
+  assert.deepEqual(passes[0].store, { database: 'pool' });
+  assert.ok(passes[0].now instanceof Date);
+  assert.equal(
+    startActivityProjector({}, 'pool', {}, () => {}),
+    null,
+  );
+});
+
+test('62-27: the signals sweep runs one pass on start and stops; absent sweep is null', async () => {
+  const passes = [];
+  const worker = {
+    createSignalsStore: (database) => ({ database }),
+    runSignalsSweep: async (deps) => {
+      passes.push(deps);
+      return { organizations: 1, filed: 0, failed: 0 };
+    },
+  };
+  const stop = startSignalsSweep(worker, 'pool', {}, () => {});
+  await stop();
+  assert.equal(passes.length, 1);
+  assert.deepEqual(passes[0].store, { database: 'pool' });
+  assert.ok(passes[0].now instanceof Date);
+  assert.equal(
+    startSignalsSweep({}, 'pool', {}, () => {}),
     null,
   );
 });

@@ -30,6 +30,7 @@
  */
 
 import type { Audience } from '../policies/audience.js';
+import type { SignalRuleKey } from '../signals/signal-catalog.js';
 
 export interface OutboxEventDefinition {
   /** The aggregate the event describes — §4's "Aggregate" column, fixed per type. */
@@ -352,6 +353,15 @@ export const OUTBOX_EVENT_CATALOG = {
   'storage_connection.root_at_risk.v1': {
     aggregateType: 'storage_connection',
     catalog: '51-17 company storage root at risk — workspace owner alert',
+  },
+  /**
+   * 62-27 (0380): the signals sweeper raised a signal whose rule is on — "this task is stale",
+   * "this invoice is 9 days overdue". The consumer tells the people the owner chose for the rule,
+   * resolved at delivery; only while the organization's `business_briefing` flag is on.
+   */
+  'work_signal.raised.v1': {
+    aggregateType: 'work_signal',
+    catalog: '62-27 work signal raised — responsible manager notification',
   },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
@@ -878,6 +888,7 @@ export interface OutboxEventPayloads {
   readonly 'support.reply_posted.v1': SupportReplyPostedV1;
   readonly 'approval.chain_broken.v1': ApprovalChainBrokenV1;
   readonly 'storage_connection.root_at_risk.v1': StorageRootAtRiskV1;
+  readonly 'work_signal.raised.v1': WorkSignalRaisedV1;
 }
 
 /** 51-17. Why the company storage root is at risk (closed list). */
@@ -936,6 +947,12 @@ export interface InboundAttachmentBlockedV1 {
   readonly attachmentId: string;
   readonly inboundEmailId: string;
   readonly scanner: string;
+}
+
+/** 62-27 (0380). The signal id and its rule only — the figures are read from `work_signals`. */
+export interface WorkSignalRaisedV1 {
+  readonly signalId: string;
+  readonly rule: SignalRuleKey;
 }
 
 /** 53-07 (R19-c). Ids only — the client copy is read from `milestone_client_projections`. */

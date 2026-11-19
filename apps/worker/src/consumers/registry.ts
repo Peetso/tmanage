@@ -5,6 +5,7 @@ import {
 } from './client-request-notifications.js';
 import { workItemBlockedConsumer } from './work-blocked-notification.js';
 import { usageThresholdReachedConsumer } from './usage-threshold-notice.js';
+import { workSignalRaisedConsumer } from './work-signal-notice.js';
 import { createStorageRootAtRisk, createStorageRootMailResume } from './storage-root-at-risk.js';
 import type { StorageRootMailer } from '../notifications/storage-root-mailer.js';
 import {
@@ -275,6 +276,9 @@ export function createWorkerOutboxHandlers(
         : both(usageThresholdReachedConsumer, createUsageThresholdMail(usageMails)),
     // 51-17 — the company's storage root is at risk: owner notice, and mail when wired.
     'storage_connection.root_at_risk.v1': createStorageRootAtRisk(rootMails),
+    // 62-27 — a signal on a rule that is on: the in-app notice to the people the owner chose,
+    // only while the organization's `business_briefing` flag is on.
+    'work_signal.raised.v1': workSignalRaisedConsumer,
     // INBOX-001 — a quiet-hours-deferred email resumes on its own internal type, handled only by
     // the resume path(s), never by the notification consumer. Registered only when at least one
     // interrupting producer that defers is wired, since only they produce a resume row.

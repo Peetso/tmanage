@@ -391,6 +391,105 @@ export function startRetainerRoll(
   return () => scheduler.stop();
 }
 
+/** 62-A2 — the activity projector's cadence: every minute (as the worker's own loop). */
+export const ACTIVITY_PROJECTOR_INTERVAL_MS = 60_000;
+
+/**
+ * 62-A2 — the activity projector, beside {@link startRetainerRoll} and in the same style: its own
+ * scheduler (one pass now), paced by the job itself (at most 2 000 audit events a run, back-filling
+ * from the start). Idempotent across instances: entries are `INSERT IGNORE` on the source audit id
+ * and the cursor moves in the same transaction, and the job runs under the `activity-projector`
+ * named lock the standalone worker's loop takes too. Returns `stop`, or `null` when the worker
+ * module does not offer the projector.
+ */
+export function startActivityProjector(
+  worker,
+  database,
+  env,
+  log,
+  describeError = String,
+  lock = undefined,
+) {
+  if (
+    typeof worker.runActivityProjection !== 'function' ||
+    typeof worker.createActivityProjectorStore !== 'function'
+  ) {
+    return null;
+  }
+  const scheduler = createSweepScheduler({
+    jobs: [
+      {
+        name: 'activity-projector',
+        run: () =>
+          worker.runActivityProjection({
+            store: worker.createActivityProjectorStore(database),
+            now: new Date(),
+          }),
+        describe: (result) =>
+          `activity: ${String(result.organizations)} organization(s), ${String(result.events)} event(s), ${String(result.filed)} filed`,
+        changed: (result) => result.filed > 0,
+      },
+    ],
+    intervalMs: ACTIVITY_PROJECTOR_INTERVAL_MS,
+    log,
+    describeError,
+    lock,
+  });
+  scheduler.start();
+  return () => scheduler.stop();
+}
+
+/** 62-27 — the signals sweep's cadence: hourly. */
+export const SIGNALS_SWEEP_INTERVAL_MS = 60 * 60_000;
+
+/**
+ * 62-27 — the signals sweeper (eight pure rules, no model call), beside
+ * {@link startActivityProjector}: its own hourly scheduler (one pass now), only over organizations
+ * whose `business_briefing` flag is on. Idempotent across instances: a signal is `INSERT IGNORE` on
+ * its (rule, subject, day) key, and the job runs under the `signals-sweeper` named lock the
+ * standalone worker's loop takes too. Returns `stop`, or `null` when the worker module does not
+ * offer the sweep.
+ */
+export function startSignalsSweep(
+  worker,
+  database,
+  env,
+  log,
+  describeError = String,
+  lock = undefined,
+) {
+  if (
+    typeof worker.runSignalsSweep !== 'function' ||
+    typeof worker.createSignalsStore !== 'function'
+  ) {
+    return null;
+  }
+  const scheduler = createSweepScheduler({
+    jobs: [
+      {
+        name: 'signals-sweeper',
+        run: () =>
+          worker.runSignalsSweep({
+            // The flag chain reads its server locks (`TMANAGE_FLAG_LOCKS`) from process.env.
+            store: worker.createSignalsStore(database),
+            now: new Date(),
+            onError: (error) =>
+              log(`sweep signals-sweeper organization failed: ${describeError(error)}`),
+          }),
+        describe: (result) =>
+          `signals: ${String(result.organizations)} organization(s), ${String(result.filed)} filed, ${String(result.failed)} failed`,
+        changed: (result) => result.filed > 0 || result.failed > 0,
+      },
+    ],
+    intervalMs: SIGNALS_SWEEP_INTERVAL_MS,
+    log,
+    describeError,
+    lock,
+  });
+  scheduler.start();
+  return () => scheduler.stop();
+}
+
 /**
  * A small interval scheduler over a list of jobs. Each tick runs every job in order; one job's
  * failure is logged and does not stop the others. A tick that fires while the previous one is

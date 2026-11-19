@@ -93,8 +93,10 @@ import {
   reconcileIntervalMs,
   sweepIntervalMs,
   startWebhookDeliveries,
+  startActivityProjector,
   startBudgetBurn,
   startRetainerRoll,
+  startSignalsSweep,
   sweepsEnabled,
   workerSweepJobs,
 } from './scheduled-sweeps.mjs';
@@ -521,6 +523,10 @@ async function startScheduledSweeps(env, app) {
   const stopBudgetBurn = startBudgetBurn(worker, database, env, log, serializeForLog, lock);
   // R17-d: the hourly retainer period roll (52-06).
   const stopRetainerRoll = startRetainerRoll(worker, database, env, log, serializeForLog, lock);
+  // 62-A2: the activity projector, every minute (audit events -> activity_entries).
+  const stopActivity = startActivityProjector(worker, database, env, log, serializeForLog, lock);
+  // 62-27: the hourly signals sweep, only where `business_briefing` is on.
+  const stopSignals = startSignalsSweep(worker, database, env, log, serializeForLog, lock);
   return async () => {
     await Promise.all([
       scheduler.stop(),
@@ -528,6 +534,8 @@ async function startScheduledSweeps(env, app) {
       stopWebhooks?.(),
       stopBudgetBurn?.(),
       stopRetainerRoll?.(),
+      stopActivity?.(),
+      stopSignals?.(),
     ]);
     await Promise.all([database.end(), lock.end()]);
   };

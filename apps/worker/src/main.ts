@@ -102,6 +102,11 @@ import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js'
 import { createPersonMailStore } from './common/database/person-mail-store.js';
 import { createSweepLockDatabase } from './common/database/sweep-lock.js';
 import { runPersonMailLoop } from './jobs/person-mail-sweep.js';
+// ---- 62-A2 / 62-27 ---- the activity projector and the signals sweep (no model call).
+import { createActivityProjectorStore } from './common/database/activity-projector-store.js';
+import { runActivityProjectorLoop } from './jobs/activity-projector.js';
+import { createSignalsStore } from './common/database/signals-store.js';
+import { runSignalsSweepLoop } from './jobs/signals-sweeper.js';
 // ---- 52-01 ---- forgotten-timer auto-stop.
 import { createTimerAutostopStore } from './common/database/timer-autostop-store.js';
 import { runTimerAutostopLoop } from './jobs/timer-autostop.js';
@@ -746,6 +751,19 @@ async function main(): Promise<void> {
     },
     controller.signal,
   );
+  // ---- 62-A2 ---- the activity projector every minute: audit events filed under their project and
+  // client (`activity_entries`), back-filled from the start by cursor. Same `activity-projector`
+  // named lock as the single app's sweep, so the two never run at once.
+  const activityProjector = runActivityProjectorLoop(
+    { store: createActivityProjectorStore(database), lock: sweepLock },
+    controller.signal,
+  );
+  // ---- 62-27 ---- the hourly signals sweep (eight pure rules, only where `business_briefing` is
+  // on), under the same `signals-sweeper` lock as the single app's sweep.
+  const signalsSweep = runSignalsSweepLoop(
+    { store: createSignalsStore(database), lock: sweepLock },
+    controller.signal,
+  );
   // ---- 56-23 ---- security detector every 5 minutes; at most one digest per 15 minutes to
   // ALERT_EMAILS (and own-org high signals to owners), through the same transport (mail_queue
   // when MAIL_QUEUE=on). No transport → signals are still recorded, nothing is mailed.
@@ -963,6 +981,9 @@ async function main(): Promise<void> {
     await auditAnchors;
     // ---- EMAILBUILD2 ----
     await personMail;
+    // ---- 62-A2 / 62-27 ----
+    await activityProjector;
+    await signalsSweep;
     // ---- 56-23 ----
     await securityDetector;
     // ---- 56-31 ----

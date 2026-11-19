@@ -122,6 +122,8 @@ export const NOTIFICATION_ROUTES: Readonly<Record<string, NotificationRoute>> = 
   'expense.rejected': route('work_item', IN_APP),
   'budget.threshold': route('work_item', IN_APP),
   'retainer.period_closed': route('work_item', IN_APP),
+  // 62-27: a signal raised on a rule that is on — told to the people the owner chose (in-app).
+  'work_signal.raised.v1': route('work_item', IN_APP),
   // Messages & comments
   'message.created.v1': route('message', IN_APP),
   'direct_message.created.v1': route('message', IN_APP),
@@ -165,6 +167,7 @@ const PREFIX_GROUPS: Readonly<Record<string, RouteGroup>> = {
   expense: 'work_item',
   budget: 'work_item',
   retainer: 'work_item',
+  work_signal: 'work_item',
   message: 'message',
   direct_message: 'message',
   document: 'message',

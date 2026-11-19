@@ -45,6 +45,8 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module.js';
 import { GettingStartedModule } from './modules/getting-started/getting-started.module.js';
 import { PricingSurveyModule } from './modules/pricing-survey/pricing-survey.module.js';
 import { ReferralsModule } from './modules/billing/referrals.module.js';
+import { ActivityModule } from './modules/activity/activity.module.js';
+import { SignalSettingsModule } from './modules/insights/signals.controller.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { OrgWorkloadModule } from './modules/work-views/org-workload.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
@@ -431,6 +433,11 @@ export class AppModule {
         PricingSurveyModule.register(),
         // 57-08 REFERRAL: the owner's invite link and the agencies that signed up (0376).
         ReferralsModule.register(),
+        // 62-A2: the Activity tab of a project and of a client — reads of the worker-projected
+        // `activity_entries` (0379), each entry re-checked through its source's own read rule.
+        ActivityModule.register(),
+        // 62-27: the owner's alert rules (Settings → Alerts, 0380), behind `business_briefing`.
+        SignalSettingsModule.register(),
         // WK-04. The Work views read layer — a read-only composition of the work + work-graph
         // reads (timeline). After `WorkModule` by subject, though it depends only on the
         // database and never on the work service, so it does not couple to that module's wiring.

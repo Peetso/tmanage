@@ -283,3 +283,24 @@ export {
 } from './jobs/retainer-period-roll.js';
 export type { RetainerRollResult, RetainerStore } from './jobs/retainer-period-roll.js';
 export { createRetainerStore } from './common/database/retainer-store.js';
+// 62-A2 — the activity projector (audit events -> activity_entries), exported so the single
+// Hostinger app (`apps/server`) runs it in-process under the same `activity-projector` lock.
+export {
+  ACTIVITY_PROJECTOR_INTERVAL_MS,
+  runActivityProjection,
+  runActivityProjectorLoop,
+} from './jobs/activity-projector.js';
+export type {
+  ActivityProjectionResult,
+  ActivityProjectorStore,
+} from './jobs/activity-projector.js';
+export { createActivityProjectorStore } from './common/database/activity-projector-store.js';
+// 62-27 — the hourly signals sweep (eight pure rules, no model call), exported for the same host
+// under the same `signals-sweeper` lock.
+export {
+  SIGNALS_SWEEP_INTERVAL_MS,
+  runSignalsSweep,
+  runSignalsSweepLoop,
+} from './jobs/signals-sweeper.js';
+export type { SignalsSweepResult, SignalsSweepStore } from './jobs/signals-sweeper.js';
+export { createSignalsStore } from './common/database/signals-store.js';
