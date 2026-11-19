@@ -1,3 +1,4 @@
+import type { SignalBriefingGroup } from '@tmanage/domain';
 import type { ProjectHealthBand } from '../../lib/api/project-health';
 import type { SummaryWaitingOn } from '../../lib/api/project-summary';
 
@@ -108,6 +109,14 @@ export type RiskLine =
       readonly currency: string;
       readonly amountMinor: number;
       readonly href: string;
+    }
+  /** B10: one briefing group of open signals; `count` is how many signals stand behind it. */
+  | {
+      readonly kind: 'signal';
+      readonly group: SignalBriefingGroup;
+      readonly count: number;
+      readonly threshold: number;
+      readonly href: string;
     };
 
 export type RiskSeverity = 'late' | 'watch';
@@ -178,6 +187,8 @@ export function riskSeverity(line: RiskLine): RiskSeverity {
       return 'late';
     case 'budget':
       return line.percent * 100 >= BUDGET_OVER_BP ? 'late' : 'watch';
+    case 'signal':
+      return line.group === 'money_to_collect' || line.group === 'over_budget' ? 'late' : 'watch';
     default:
       return 'watch';
   }

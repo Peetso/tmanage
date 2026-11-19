@@ -1,7 +1,7 @@
 import { ApiClient } from '../../src/lib/api/client';
 import type { ActivityEntry, ActivityPage } from '../../src/lib/api/activity';
 import type { ClientSummary } from '../../src/lib/api/client-summary';
-import type { ProjectSummary } from '../../src/lib/api/project-summary';
+import type { ProjectSummary, SummarySignals } from '../../src/lib/api/project-summary';
 
 /**
  * ONEPAGE (B04) — the summaries the project overview and client company stories mount with, and
@@ -219,6 +219,25 @@ export const CLIENT_SUMMARY_NO_FINANCE: ClientSummary = (() => {
   const { money: _money, unbilled: _unbilled, ...rest } = CLIENT_SUMMARY;
   return rest;
 })();
+
+/**
+ * B10 — the open signals a lead with finance access is given where `business_briefing` is on, as
+ * the summary sends them (the Home briefing narrowed to the project): one task at risk, an
+ * over-budget signal the budget line already says, and two stale tasks.
+ */
+export const PROJECT_SIGNALS: SummarySignals = {
+  asOf: '2026-11-19T09:00:00.000Z',
+  groups: [
+    { group: 'projects_at_risk', count: 1, threshold: 5, path: '/work/wi-9' },
+    { group: 'over_budget', count: 1, threshold: 100, path: '/projects/proj-1' },
+    { group: 'stale_work', count: 2, threshold: 14, path: '/work' },
+  ],
+};
+
+export const PROJECT_SUMMARY_WITH_SIGNALS: ProjectSummary = {
+  ...PROJECT_SUMMARY,
+  signals: PROJECT_SIGNALS,
+};
 
 export const CLIENT_ORGANIZATION = {
   id: 'co-cedar',

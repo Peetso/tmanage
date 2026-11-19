@@ -17,6 +17,7 @@ import type {
   UnbilledBlock,
 } from '../projects/summary-blocks.js';
 import { clientInvoices, readableWork } from '../projects/summary-reads.js';
+import type { SummarySignalsBlock } from '../projects/summary-signals.js';
 import type { SummarySources } from '../projects/summary-sources.js';
 import type { ClientsService } from './clients.service.js';
 import type { DeliverableView } from '../approvals/deliverables.service.js';
@@ -57,6 +58,8 @@ export interface ClientSummaryView {
   readonly files?: FilesBlock;
   readonly money?: ClientMoneyBlock;
   readonly unbilled?: UnbilledBlock;
+  /** B10: open signals of the folded projects and the client's invoices (`business_briefing`). */
+  readonly signals?: SummarySignalsBlock;
 }
 
 /**
@@ -68,7 +71,8 @@ export interface ClientSummaryView {
  * project's part is then read through the owning service, which applies its own relation rule, and
  * a project that service refuses contributes nothing. Money comes from the client's invoices
  * (`finance.view`, `client_invoicing` flag) and not-yet-invoiced work from the finance unbilled
- * report (`finance.view`, `finance_reports` flag).
+ * report (`finance.view`, `finance_reports` flag). Signals come through `summary-signals.ts` (the Home
+ * briefing narrowed to the folded projects and the client's own invoices).
  */
 export class ClientSummaryService {
   constructor(
@@ -129,6 +133,14 @@ export class ClientSummaryService {
         approvals: orgWide('work.read') ? approvalsOf(deliverables) : undefined,
         files: orgWide('file.download') ? filesOf(files) : undefined,
         ...(await this.finance(context, principal, client.id)),
+        signals: await readBlock(() =>
+          sources.signals.forClient(
+            context,
+            principal,
+            client.id,
+            folded.map((project) => project.id),
+          ),
+        ),
       }),
     };
   }

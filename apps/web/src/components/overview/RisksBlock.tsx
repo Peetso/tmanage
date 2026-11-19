@@ -14,7 +14,8 @@ import { OverviewCard, OverviewEmpty, OverviewRow, OverviewRows } from './Overvi
 /**
  * ONEPAGE Risks (Figma 739:40646): one line per fact that needs a look, each saying what and why,
  * with Blocked "Late" or Waiting "Watch" (review fix 10). Read from project health, the risk
- * register and the summary today; B10 adds the open signals as more lines of the same kind.
+ * register and the summary; where `business_briefing` is on, the open signals the viewer may see
+ * are more lines of the same kind, one per briefing group (B10, `signal-risk-lines.ts`).
  */
 export function RisksBlock({
   model,
@@ -63,6 +64,7 @@ function riskKey(line: RiskLine): string {
     return `${line.kind}:${line.href}`;
   }
   if (line.kind === 'overdueInvoices') return `${line.kind}:${line.currency}`;
+  if (line.kind === 'signal') return `${line.kind}:${line.group}`;
   return line.kind;
 }
 
@@ -139,6 +141,18 @@ function riskWords(
       return {
         title: copy.fill('Overview.riskProjectAtRisk', { name: line.name }),
         meta: copy.text('Overview.riskProjectAtRiskMeta'),
+      };
+    case 'signal':
+      return {
+        title: copy.count(
+          `Overview.signal.${line.group}One`,
+          `Overview.signal.${line.group}Many`,
+          line.count,
+          format.count(line.count),
+        ),
+        meta: copy.fill(`Overview.signal.${line.group}Meta`, {
+          threshold: format.count(line.threshold),
+        }),
       };
     case 'overdueInvoices':
       return {

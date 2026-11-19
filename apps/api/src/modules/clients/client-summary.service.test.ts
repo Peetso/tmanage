@@ -151,6 +151,8 @@ function sources(
             },
     },
     flags: async () => flags as never,
+    // B10: the flag is off unless a case turns signals on.
+    signals: { forProject: async () => undefined, forClient: async () => undefined },
     ...overrides,
   };
 }
@@ -271,6 +273,26 @@ describe('ClientSummaryService (ONEPAGE B01)', () => {
     await expect(
       service().get(context, principal('client_admin', 'client'), CLIENT),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('B10: flag off leaves the payload as today; on, the signals of the folded projects come through', async () => {
+    expect(await service().get(context, principal('owner'), CLIENT)).not.toHaveProperty('signals');
+
+    const asked: { client: string; projects: readonly string[] }[] = [];
+    const signals = { asOf: '2026-11-19T11:00:00.000Z', groups: [] };
+    const view = await service(
+      sources({
+        signals: {
+          forProject: async () => undefined,
+          forClient: async (_context, _principal, client, projects) => {
+            asked.push({ client, projects });
+            return signals;
+          },
+        },
+      }),
+    ).get(context, principal('owner'), CLIENT);
+    expect(view.signals).toEqual(signals);
+    expect(asked).toEqual([{ client: CLIENT, projects: [P1, P2] }]);
   });
 
   it('the route ceiling is org.manage', () => {

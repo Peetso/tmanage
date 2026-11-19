@@ -24,6 +24,7 @@ import {
   projectWorkHref,
   timesheetsHref,
 } from './overview-links';
+import { groupsSaidElsewhere, signalRiskLines } from './signal-risk-lines';
 
 /**
  * ONEPAGE — the project summary read as the six blocks of the project overview.
@@ -99,12 +100,12 @@ function approvalsBlock(summary: ProjectSummary, org: string): ApprovalsModel | 
 }
 
 /**
- * Risks today read project health (milestones, the risk register) and the summary's own facts;
- * B10 adds the open signals here. Present whenever one of its work-level sources is.
+ * Risks read project health (milestones, the risk register), the summary's own facts and, where
+ * `business_briefing` is on, the open signals (B10). Present whenever one of its sources is.
  */
 function risksBlock(summary: ProjectSummary, org: string, now: Date): RisksModel | undefined {
-  const { health, delivery, approvals, budget, money } = summary;
-  if (!health && !delivery && !approvals) return undefined;
+  const { health, delivery, approvals, budget, money, signals } = summary;
+  if (!health && !delivery && !approvals && !signals) return undefined;
   const projectId = summary.project.id;
   const register = projectRiskRegisterHref(org, projectId);
   const lines: RiskLine[] = [];
@@ -154,6 +155,8 @@ function risksBlock(summary: ProjectSummary, org: string, now: Date): RisksModel
       });
     }
   }
+
+  lines.push(...signalRiskLines(signals, { org, projectId }, groupsSaidElsewhere(lines)));
 
   return { link: { kind: 'openHealth', href: register }, lines };
 }

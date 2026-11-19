@@ -1,6 +1,11 @@
 import type { ApiClient } from './client';
 import type { ProjectHealthBand } from './project-health';
-import type { SummaryApprovals, SummaryDelivery, SummaryFiles } from './project-summary';
+import type {
+  SummaryApprovals,
+  SummaryDelivery,
+  SummaryFiles,
+  SummarySignals,
+} from './project-summary';
 
 /**
  * ONEPAGE — `GET …/client-organizations/:clientOrganizationId/summary`, the client page's one read
@@ -56,6 +61,7 @@ export interface ClientSummary {
   readonly files?: SummaryFiles;
   readonly money?: SummaryClientMoney;
   readonly unbilled?: SummaryUnbilled;
+  readonly signals?: SummarySignals;
 }
 
 export async function getClientSummary(

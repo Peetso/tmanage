@@ -6,6 +6,7 @@ import {
   OVERVIEW_NOW,
   PROJECT_SUMMARY_EMPTY,
   PROJECT_SUMMARY_NO_FINANCE,
+  PROJECT_SUMMARY_WITH_SIGNALS,
   overviewClient,
 } from './support/overview-fixtures';
 
@@ -41,6 +42,11 @@ export const WithoutFinance: Story = {
 /** A new project: every card stays, each with its one calm line. */
 export const Empty: Story = {
   args: { client: overviewClient({ projectSummary: PROJECT_SUMMARY_EMPTY }) },
+};
+
+/** B10 — `business_briefing` on: the open signals are more Risks lines, one per rule. */
+export const WithSignals: Story = {
+  args: { client: overviewClient({ projectSummary: PROJECT_SUMMARY_WITH_SIGNALS }) },
 };
 
 export const Loading: Story = {

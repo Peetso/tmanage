@@ -184,6 +184,8 @@ function sources(overrides: Partial<SummarySources> = {}, financeReports = true)
     },
     invoices: { list: async () => ({ invoices: [], nextCursor: null }) },
     flags: async () => ({ finance_reports: financeReports }) as never,
+    // B10: the flag is off unless a case turns signals on.
+    signals: { forProject: async () => undefined, forClient: async () => undefined },
     ...overrides,
   };
 }
@@ -336,6 +338,30 @@ describe('ProjectSummaryService (ONEPAGE B01)', () => {
     await expect(
       service().get(context, principal('client_admin', false, 'client'), PROJECT),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('B10: flag off leaves the payload as today; on, the open signals come through the one reader', async () => {
+    const off = await service().get(context, principal('owner', true), PROJECT);
+    expect(off).not.toHaveProperty('signals');
+
+    const asked: string[] = [];
+    const signals = {
+      asOf: '2026-11-19T11:00:00.000Z',
+      groups: [{ group: 'stale_work' as const, count: 2, threshold: 14, path: '/work' }],
+    };
+    const on = await service(
+      sources({
+        signals: {
+          forProject: async (_context, _principal, projectId) => {
+            asked.push(projectId);
+            return signals;
+          },
+          forClient: async () => undefined,
+        },
+      }),
+    ).get(context, principal('owner', true), PROJECT);
+    expect(on.signals).toEqual(signals);
+    expect(asked).toEqual([PROJECT]);
   });
 
   it('the route ceiling is work.read', () => {

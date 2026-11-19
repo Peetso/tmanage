@@ -22,6 +22,7 @@ import {
   projectHref,
   timesheetsHref,
 } from './overview-links';
+import { groupsSaidElsewhere, signalRiskLines } from './signal-risk-lines';
 
 /**
  * ONEPAGE — the client summary read as the six blocks of the client company page.
@@ -108,8 +109,8 @@ function approvalsBlock(
 
 function risksBlock(summary: ClientSummary, org: string, now: Date): RisksModel | undefined {
   const banded = summary.projects.items.some((project) => project.band !== undefined);
-  const { approvals, money } = summary;
-  if (!banded && !approvals && !money) return undefined;
+  const { approvals, money, signals } = summary;
+  if (!banded && !approvals && !money && !signals) return undefined;
   const lines: RiskLine[] = [];
 
   for (const project of summary.projects.items) {
@@ -147,6 +148,8 @@ function risksBlock(summary: ClientSummary, org: string, now: Date): RisksModel 
       });
     }
   }
+
+  lines.push(...signalRiskLines(signals, { org, projectId: null }, groupsSaidElsewhere(lines)));
 
   return {
     // Review fix 9: there is no client-level health screen; this opens the projects at risk.

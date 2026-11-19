@@ -1,3 +1,4 @@
+import type { SignalBriefingGroup } from '@tmanage/domain';
 import type { ApiClient } from './client';
 import type { ProjectHealthBand } from './project-health';
 
@@ -91,6 +92,24 @@ export interface SummaryProjectMoney {
   readonly truncated: boolean;
 }
 
+/**
+ * B10 — one group of open signals on this page: the Home briefing's group (same visibility: owner
+ * and admin see the workspace, a lead their projects, money groups need finance access), counted
+ * on this project or client only. `path` is workspace-relative: the one record, or the full list.
+ */
+export interface SummarySignalGroup {
+  readonly group: SignalBriefingGroup;
+  readonly count: number;
+  readonly threshold: number;
+  readonly path: string;
+}
+
+/** B10 — present only where `business_briefing` is on and the viewer has a briefing. */
+export interface SummarySignals {
+  readonly asOf: string;
+  readonly groups: readonly SummarySignalGroup[];
+}
+
 export interface ProjectSummary {
   readonly project: {
     readonly id: string;
@@ -108,6 +127,7 @@ export interface ProjectSummary {
   readonly time?: SummaryTime;
   readonly budget?: SummaryBudget;
   readonly money?: SummaryProjectMoney;
+  readonly signals?: SummarySignals;
 }
 
 export async function getProjectSummary(

@@ -22,6 +22,7 @@ import type {
   TimeBlock,
 } from './summary-blocks.js';
 import { readableWork } from './summary-reads.js';
+import type { SummarySignalsBlock } from './summary-signals.js';
 import type { SummarySources } from './summary-sources.js';
 
 /** The DI token the projects module provides {@link ProjectSummaryService} under. */
@@ -48,6 +49,8 @@ export interface ProjectSummaryView {
   readonly time?: TimeBlock;
   readonly budget?: BudgetBlock;
   readonly money?: ProjectMoneyBlock;
+  /** B10: the project's open signals as briefing groups, only where `business_briefing` is on. */
+  readonly signals?: SummarySignalsBlock;
 }
 
 /**
@@ -58,7 +61,8 @@ export interface ProjectSummaryView {
  * is the same 404 as a missing one and no block is read for it. Each block is then gated on the
  * capability its own full screen asks for (`summary-access.ts`), and its source applies its relation
  * rule again: work, health, approvals and time on `work.read`; files on `file.download`; milestones
- * and budget on `project.manage`; money on `finance.view` with the `finance_reports` flag on.
+ * and budget on `project.manage`; money on `finance.view` with the `finance_reports` flag on;
+ * signals through `summary-signals.ts` (the Home briefing narrowed to the project).
  *
  * Reads run one after another on purpose: one page view holds at most one pooled connection.
  */
@@ -117,10 +121,23 @@ export class ProjectSummaryService {
         )
       : undefined;
     const money = await this.money(context, principal, project.id);
+    const signals = await readBlock(() =>
+      sources.signals.forProject(context, principal, project.id),
+    );
 
     return {
       project: headerOf(project),
-      ...presentOnly({ delivery, milestone, health, approvals, files, time, budget, money }),
+      ...presentOnly({
+        delivery,
+        milestone,
+        health,
+        approvals,
+        files,
+        time,
+        budget,
+        money,
+        signals,
+      }),
     };
   }
 

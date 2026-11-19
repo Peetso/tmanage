@@ -29,6 +29,7 @@ import { ProjectBudgetService } from './budget.service.js';
 import { ProjectHealthService } from './health.service.js';
 import { ProjectsRepository } from './projects.repository.js';
 import type { FlagReader } from './summary-access.js';
+import { SummarySignalsReader } from './summary-signals.js';
 
 /**
  * ONEPAGE (B01). The existing read services the one-page summaries compose, each narrowed to the
@@ -46,6 +47,8 @@ export interface SummarySources {
   readonly budget: Pick<ProjectBudgetService, 'get'>;
   readonly financeReports: Pick<FinanceReportsService, 'profitability' | 'unbilled'>;
   readonly invoices: Pick<ClientInvoicesService, 'list'>;
+  /** B10: the open signals the Risks block lists, behind `business_briefing` (its own gate). */
+  readonly signals: Pick<SummarySignalsReader, 'forProject' | 'forClient'>;
   readonly flags: FlagReader;
 }
 
@@ -67,6 +70,7 @@ export function buildSummarySources(deps: SummarySourceDependencies): SummarySou
   const { database, audit, outbox, scanner } = deps;
   const projects = new ProjectsRepository();
   const finance = new FinanceRepository();
+  const flags: FlagReader = (context) => readResolvedFlags(database, context);
   return {
     health: new ProjectHealthService(database),
     work: new WorkItemsService(database, new WorkItemsRepository(), audit, projects, outbox),
@@ -108,6 +112,7 @@ export function buildSummarySources(deps: SummarySourceDependencies): SummarySou
       notifications: new NotificationsRepository(),
       audit,
     }),
-    flags: (context) => readResolvedFlags(database, context),
+    signals: new SummarySignalsReader(database, flags),
+    flags,
   };
 }
