@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
-import { capabilitiesFor } from '@tmanage/domain';
+import { assertSafeAuditMetadata, capabilitiesFor, SIGNAL_RULE_KEYS } from '@tmanage/domain';
 import type { Principal, SignalRuleSetting, StoredSignalSetting } from '@tmanage/domain';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import type { ApiError } from '../../common/http/errors.js';
@@ -50,7 +50,14 @@ function build(stored: StoredSignalSetting[] = []) {
       stored = [...stored.filter((row) => row.rule !== setting.rule), setting];
     },
   } as unknown as SignalSettingsRepository;
-  const audit = { record: async (_r: unknown, _c: unknown, input: unknown) => audits.push(input) };
+  // The real write boundary's metadata check (`audit-events.repository.ts`), so a payload the
+  // database layer would refuse fails here too instead of passing a fake.
+  const audit = {
+    record: async (_r: unknown, _c: unknown, input: { metadata: Record<string, unknown> }) => {
+      assertSafeAuditMetadata(input.metadata);
+      audits.push(input);
+    },
+  };
   const service = new SignalSettingsService({
     database,
     audit: audit as never,
@@ -141,7 +148,7 @@ describe('SignalSettingsService', () => {
       expect.objectContaining({
         action: SIGNAL_SETTINGS_AUDIT_ACTION,
         result: 'allowed',
-        metadata: { rule_count: 2, rules: 'stale_task,overdue_invoice' },
+        metadata: { rule_count: 2, rules: ['stale_task', 'overdue_invoice'] },
       }),
     ]);
     expect(view.rules.find((rule) => rule.rule === 'stale_task')).toMatchObject({
@@ -149,6 +156,24 @@ describe('SignalSettingsService', () => {
       threshold: 30,
       recipient: 'their_manager',
     });
+  });
+  it('saving every rule at once, as the Alerts screen does, is audited without a refusal', async () => {
+    const { service, saves, audits } = build();
+    const { rules } = await service.read(contextWith(), principal('owner'));
+    await service.update(contextWith(), principal('owner'), {
+      rules: rules.map(({ rule, enabled, threshold, recipient }) => ({
+        rule,
+        enabled,
+        threshold,
+        recipient,
+      })),
+    });
+    expect(saves).toHaveLength(SIGNAL_RULE_KEYS.length);
+    expect(audits).toEqual([
+      expect.objectContaining({
+        metadata: { rule_count: SIGNAL_RULE_KEYS.length, rules: [...SIGNAL_RULE_KEYS] },
+      }),
+    ]);
   });
 });
 

@@ -104,9 +104,11 @@ export class SignalSettingsService {
         result: 'allowed',
         objectId: context.organizationId,
         actorUserId: context.userId,
+        // A list, not one joined string: audit values are capped at 64 characters
+        // (`assertSafeAuditMetadata`), and the Alerts screen saves every rule at once.
         metadata: {
           rule_count: parsed.settings.length,
-          rules: parsed.settings.map((setting) => setting.rule).join(','),
+          rules: parsed.settings.map((setting) => setting.rule),
         },
       });
       return this.options.repository.list(tx, context);
