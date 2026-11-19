@@ -2,6 +2,13 @@ import type { RowDataPacket } from 'mysql2';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
 import { ApiError } from '../../../common/http/errors.js';
 import { escapeCsvCell } from '../../audit/audit-export-csv.js';
+import type { BillingMode } from '../../billing/billing-mode.js';
+import {
+  UNIT_COSTS_SETTING,
+  monthlyUnitCostCents,
+  parseStoredUnitCosts,
+  type UnitCosts,
+} from '../settings/unit-costs.js';
 
 /**
  * 57-14 Growth — the read side of `platform_growth_rollups` (0284), written nightly by the
@@ -10,6 +17,12 @@ import { escapeCsvCell } from '../../audit/audit-export-csv.js';
  *
  * The pure half (query parsing, the view, the CSV) is exported for the unit test. Numbers that
  * need billing events (57-03) or referrals (57-08) come back `available: false` — never invented.
+ *
+ * 62-A3 (B14) adds `figures`: the success and cost tiles. They name their own period ("this week",
+ * "this month", "within 30 days") and do not move with the page's week / month switch, which sets
+ * the period of the sign-up figures only. An AI figure with no rollup row is `null` ("no data
+ * yet"); the cost per active company needs the unit costs typed in Platform settings ("not set",
+ * never 0); the margin is not available while billing is `beta_free`.
  */
 
 export type GrowthPeriod = 'week' | 'month';
@@ -89,7 +102,76 @@ export interface GrowthView {
   readonly checkoutConversionByCountry: NotAvailable;
   readonly foundingCounter: NotAvailable;
   readonly referrals: NotAvailable;
+  readonly figures: GrowthFigures;
 }
+
+/** 62-A3: a figure that cannot be shown, and why (the screen words each reason). */
+export interface FigureNotAvailable<Reason extends string> {
+  readonly available: false;
+  readonly reason: Reason;
+}
+
+export type CostPerActiveCompany =
+  | { readonly available: true; readonly month: string; readonly cents: number }
+  | FigureNotAvailable<'not_set' | 'no_active_companies'>;
+
+export type GrowthMargin =
+  | { readonly available: true; readonly month: string; readonly rate: number }
+  | FigureNotAvailable<'beta_free' | 'not_set' | 'no_revenue'>;
+
+export interface GrowthFigures {
+  /** The newest week's companies with 2+ internal people active, of those that existed then. */
+  readonly weeklyActiveCompanies: {
+    readonly weekStart: string;
+    readonly active: number;
+    readonly companies: number;
+  } | null;
+  /** Sample-weighted over the window's sign-up months; 0–1 fractions. */
+  readonly firstProjectFinished: {
+    readonly within30d: number | null;
+    readonly within60d: number | null;
+  };
+  readonly timeToFirstOutcomeP50Hours: number | null;
+  /** This month's AI counters; `null` = no data yet. */
+  readonly ai: {
+    readonly month: string;
+    readonly tasksRun: number | null;
+    readonly tasksCompleted: number | null;
+    readonly creditsUsed: number | null;
+    /** The platform ceiling in credits (1 credit = 0.001 USD). */
+    readonly creditsCap: number;
+  };
+  readonly costPerActiveCompany: CostPerActiveCompany;
+  readonly margin: GrowthMargin;
+}
+
+/** One rollup row of either period kind, for the fixed-period figures. */
+export interface GrowthFigureRow extends GrowthRollup {
+  readonly periodKind: GrowthPeriod;
+}
+
+export interface GrowthFigureInputs {
+  readonly rows: readonly GrowthFigureRow[];
+  readonly unitCosts: UnitCosts | null;
+}
+
+export interface GrowthFigureContext {
+  readonly billingMode: BillingMode;
+  readonly platformCapMicroUsd: number;
+  readonly now: Date;
+}
+
+/** The metrics the figures read, both period kinds. */
+export const FIGURE_METRICS = [
+  'active_companies',
+  'first_project_finished_rate',
+  'time_to_first_outcome_hours',
+  'ai_tasks_run',
+  'ai_tasks_completed',
+  'ai_cost_micro_usd',
+  'ai_credits_used',
+  'mrr_cents',
+] as const;
 
 export const ACTIVATION_STEPS = [
   'org',
@@ -155,12 +237,90 @@ function weighted(rows: readonly GrowthRollup[]): number | null {
 
 const NA = (reason: string): NotAvailable => ({ available: false, reason });
 
+const MICRO_USD_PER_CENT = 10_000;
+const MICRO_USD_PER_CREDIT = 1_000;
+
+const monthOf = (at: Date): string =>
+  isoDay(new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)));
+
+/** 62-A3: the success and cost tiles from their own periods (see the file header). */
+export function buildGrowthFigures(
+  inputs: GrowthFigureInputs,
+  context: GrowthFigureContext,
+): GrowthFigures {
+  const month = monthOf(context.now);
+  const rows = (kind: GrowthPeriod, metric: string, dimension = '') =>
+    inputs.rows.filter(
+      (r) => r.periodKind === kind && r.metric === metric && r.dimension === dimension,
+    );
+  const thisMonth = (metric: string): number | null =>
+    rows('month', metric).find((r) => r.periodStart === month)?.value ?? null;
+
+  const weeks = rows('week', 'active_companies').sort((a, b) =>
+    a.periodStart.localeCompare(b.periodStart),
+  );
+  const newestWeek = weeks[weeks.length - 1];
+
+  const active = thisMonth('active_companies');
+  const aiCostMicroUsd = thisMonth('ai_cost_micro_usd') ?? 0;
+  const monthCostCents =
+    inputs.unitCosts === null
+      ? null
+      : Math.ceil(aiCostMicroUsd / MICRO_USD_PER_CENT) + monthlyUnitCostCents(inputs.unitCosts);
+
+  const costPerActiveCompany: CostPerActiveCompany =
+    monthCostCents === null
+      ? { available: false, reason: 'not_set' }
+      : active === null || active === 0
+        ? { available: false, reason: 'no_active_companies' }
+        : { available: true, month, cents: Math.ceil(monthCostCents / active) };
+
+  const mrr = thisMonth('mrr_cents');
+  const margin: GrowthMargin =
+    context.billingMode === 'beta_free'
+      ? { available: false, reason: 'beta_free' }
+      : monthCostCents === null
+        ? { available: false, reason: 'not_set' }
+        : mrr === null || mrr === 0
+          ? { available: false, reason: 'no_revenue' }
+          : { available: true, month, rate: round4((mrr - monthCostCents) / mrr) };
+
+  return {
+    weeklyActiveCompanies:
+      newestWeek === undefined
+        ? null
+        : {
+            weekStart: newestWeek.periodStart,
+            active: newestWeek.value,
+            companies: newestWeek.sampleCount,
+          },
+    firstProjectFinished: {
+      within30d: weighted(rows('month', 'first_project_finished_rate', '30d')),
+      within60d: weighted(rows('month', 'first_project_finished_rate', '60d')),
+    },
+    timeToFirstOutcomeP50Hours: weighted(rows('month', 'time_to_first_outcome_hours', 'p50')),
+    ai: {
+      month,
+      tasksRun: thisMonth('ai_tasks_run'),
+      tasksCompleted: thisMonth('ai_tasks_completed'),
+      creditsUsed: thisMonth('ai_credits_used'),
+      creditsCap: Math.floor(context.platformCapMicroUsd / MICRO_USD_PER_CREDIT),
+    },
+    costPerActiveCompany,
+    margin,
+  };
+}
+
 /**
  * The Growth view over one period kind's rows in range. Counts add up across periods; rates and
  * medians are sample-weighted means of the periods (an approximation of the range's median, and
  * the per-period values sit in `tables.series`). MRR is the newest month's snapshot.
  */
-export function buildGrowthView(query: GrowthQuery, all: readonly GrowthRollup[]): GrowthView {
+export function buildGrowthView(
+  query: GrowthQuery,
+  all: readonly GrowthRollup[],
+  figures: GrowthFigures,
+): GrowthView {
   const rows = all.filter((r) => !HIDDEN_METRICS.includes(r.metric));
   const of = (metric: string, dimension?: string) =>
     rows.filter(
@@ -263,6 +423,7 @@ export function buildGrowthView(query: GrowthQuery, all: readonly GrowthRollup[]
     checkoutConversionByCountry: NA(BILLING_EVENTS),
     foundingCounter: NA(BILLING_EVENTS),
     referrals: NA(REFERRALS),
+    figures,
   };
 }
 
@@ -311,6 +472,18 @@ export const GROWTH_READ_SQL = `select period_start, metric, dimension, value_nu
 
 const TABLES = ['platform_growth_rollups'] as const;
 
+/** 62-A3: the figures' rows (both kinds, the window) and the unit-cost setting. */
+export const GROWTH_FIGURES_SQL = {
+  rows: `select period_kind, period_start, metric, dimension, value_num, sample_count, computed_at
+    from platform_growth_rollups
+    where period_start >= ? and metric in (${FIGURE_METRICS.map(() => '?').join(', ')})
+    order by period_kind, period_start, metric, dimension
+    limit 5000`,
+  unitCosts: `select setting_value from platform_settings where setting_key = ? limit 1`,
+} as const;
+
+const FIGURE_TABLES = ['platform_growth_rollups', 'platform_settings'] as const;
+
 function dayText(value: unknown): string {
   if (value instanceof Date) return isoDay(value);
   return String(value ?? '').slice(0, 10);
@@ -337,6 +510,29 @@ export function toGrowthRollup(row: Record<string, unknown>): GrowthRollup {
 
 export class GrowthRepository {
   constructor(private readonly database: TenantDatabase) {}
+
+  /** 62-A3: the inputs of {@link buildGrowthFigures}, from 13 months back. */
+  async figureInputs(correlationId: string, now: Date): Promise<GrowthFigureInputs> {
+    const since = isoDay(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 13, 1)));
+    return this.database.identityRead(
+      { correlationId, tables: [...FIGURE_TABLES] },
+      async (runner) => {
+        const rows = await runner.query<Row[]>(GROWTH_FIGURES_SQL.rows, [since, ...FIGURE_METRICS]);
+        const [setting] = await runner.query<Row[]>(GROWTH_FIGURES_SQL.unitCosts, [
+          UNIT_COSTS_SETTING,
+        ]);
+        return {
+          rows: rows.map((row) => ({
+            ...toGrowthRollup(row),
+            periodKind: row['period_kind'] === 'week' ? 'week' : 'month',
+          })),
+          unitCosts: parseStoredUnitCosts(
+            setting === undefined ? null : String(setting['setting_value'] ?? ''),
+          ),
+        };
+      },
+    );
+  }
 
   async rollups(query: GrowthQuery, correlationId: string): Promise<readonly GrowthRollup[]> {
     return this.database.identityRead({ correlationId, tables: [...TABLES] }, async (runner) => {

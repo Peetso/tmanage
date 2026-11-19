@@ -1,3 +1,6 @@
+import { useCallback } from 'react';
+import { useTOr } from '../../../lib/i18n/use-t-or';
+
 /**
  * 57-09 Growth copy — the English each `PlatformGrowth.*` key falls back to until the R44 L2 i18n
  * fragment is merged into the catalogs (see `useTOr`).
@@ -35,6 +38,52 @@ export const GROWTH_COPY = {
   weekShort: 'W',
   emptyTitle: 'No growth figures yet',
   emptyBody: 'The nightly job has not produced figures for this period yet.',
+  // ── 62-A3 (B14) · Figma 758:43241 EN / 758:43432 AR ──
+  periodHint: 'Sets the period of the sign-up figures below.',
+  sectionActivation: 'Activation',
+  sectionAi: 'AI',
+  sectionMoney: 'Money',
+  weeklyActive: 'Weekly active companies',
+  weeklyActiveSub: 'with 2 or more internal people active this week',
+  weeklyActiveSubWeekOf: 'with 2 or more internal people active in the week of {week}',
+  weeklyActiveOf: '{active} of {total} companies',
+  firstProjectFinished: 'First project finished',
+  firstProjectSub: 'of sign-ups finished a first project within 30 days',
+  within60: '{percent} % within 60 days',
+  timeToOutcome: 'Time to first outcome',
+  timeToOutcomeSub: 'median, from sign-up to the first approval or invoice',
+  days: 'days',
+  aiTasksRun: 'AI tasks run',
+  aiTasksFinished: 'AI tasks finished',
+  aiCreditsUsed: 'AI credits used',
+  aiNoDataSub: 'Counted once a company turns AI on',
+  aiThisMonth: 'this month',
+  aiCreditsOf: '{used} of {cap} credits this month',
+  costPerCompany: 'Cost per active company',
+  costPerCompanySub: 'this month: AI plus hosting and mail',
+  notSet: 'Not set',
+  notSetSub: 'Enter the unit costs in Platform settings to see this.',
+  setUnitCosts: 'Set unit costs',
+  noActiveCompanies: 'No active companies this month yet.',
+  margin: 'Margin',
+  marginBeta: 'Not available in the free beta',
+  marginBetaSub: 'Shown once paid plans start.',
+  marginNotSetSub: 'Needs the unit costs from Platform settings.',
+  marginNoRevenue: 'No revenue this month yet.',
+  marginSub: 'this month: revenue less running costs',
 } as const;
 
 export type GrowthCopyKey = keyof typeof GROWTH_COPY;
+
+export type GrowthCopy = (key: GrowthCopyKey) => string;
+
+/** The Growth page's copy in the active locale, English until the catalogs carry the key. */
+export function useGrowthCopy(): GrowthCopy {
+  const tOr = useTOr();
+  return useCallback((key: GrowthCopyKey) => tOr(`PlatformGrowth.${key}`, GROWTH_COPY[key]), [tOr]);
+}
+
+/** `{name}` placeholders filled in, for copy that carries a figure. */
+export function fillCopy(template: string, values: Readonly<Record<string, string>>): string {
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => values[name] ?? match);
+}

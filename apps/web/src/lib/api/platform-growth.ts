@@ -38,6 +38,42 @@ export interface GrowthView {
       readonly weeks: readonly (number | null)[];
     }[];
   };
+  readonly figures: GrowthFigures;
+}
+
+/**
+ * 62-A3 (B14) — the success and cost tiles. Each names its own period and ignores the page's
+ * week / month switch. `null` AI counters = no data yet; a figure that cannot be shown says why.
+ */
+export interface GrowthFigures {
+  readonly weeklyActiveCompanies: {
+    readonly weekStart: string;
+    readonly active: number;
+    readonly companies: number;
+  } | null;
+  readonly firstProjectFinished: {
+    readonly within30d: number | null;
+    readonly within60d: number | null;
+  };
+  readonly timeToFirstOutcomeP50Hours: number | null;
+  readonly ai: {
+    readonly month: string;
+    readonly tasksRun: number | null;
+    readonly tasksCompleted: number | null;
+    readonly creditsUsed: number | null;
+    readonly creditsCap: number;
+  };
+  readonly costPerActiveCompany:
+    | { readonly available: true; readonly month: string; readonly cents: number }
+    | { readonly available: false; readonly reason: 'not_set' | 'no_active_companies' };
+  readonly margin:
+    | { readonly available: true; readonly month: string; readonly rate: number }
+    | { readonly available: false; readonly reason: 'beta_free' | 'not_set' | 'no_revenue' };
+}
+
+/** A count as a 0–100 share of its whole, for a meter; 0 when the whole is 0. */
+export function shareOf(part: number, whole: number): number {
+  return whole <= 0 ? 0 : Math.min(100, Math.round((part / whole) * 100));
 }
 
 export function growthPath(period: GrowthPeriod): string {

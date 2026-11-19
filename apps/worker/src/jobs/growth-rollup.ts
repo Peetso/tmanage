@@ -18,6 +18,14 @@
  *   `subscriptions` × the catalog's monthly price — 0 while the billing mode is `beta_free`.
  *   Expansion and churn need billing events (57-03) and are not written.
  * - `approval_turnaround_hours` p50/p75/p90 by decision period.
+ * - 62-A3 (B14): `active_companies` — companies with 2 or more internal people active in the period
+ *   (sample = companies that existed by its end); `first_project_finished_rate` (30d / 60d) — the
+ *   share of sign-ups whose first project was finished (completed or archived) within 30 / 60 days,
+ *   over the sign-ups whose window has fully passed; `time_to_first_outcome_hours` p50 — sign-up to
+ *   the first approval decided or client invoice issued, whichever came first; the AI counters
+ *   `ai_tasks_run` / `ai_tasks_completed` / `ai_tasks_undone` (from `ai_tasks`) and
+ *   `ai_cost_micro_usd` / `ai_credits_used` (real spend from `ai_usage_ledger`; 1 credit = 1000
+ *   micro-USD). A period with no AI row writes no AI figure ("no data yet", never 0).
  *
  * Ids, hashes and timestamps are read; only counts, rates and durations are written (PRIV-06).
  * Rows older than 13 months are deleted. On the 1st (UTC) the job mails the previous month's
@@ -40,6 +48,10 @@ export interface OrgGrowthFacts {
   readonly completedWork7d: number;
   readonly clientLinkedAt: Date | null;
   readonly approvalDecidedAt: Date | null;
+  /** 62-A3: when the first project was completed or archived. */
+  readonly firstProjectFinishedAt: Date | null;
+  /** 62-A3: the first client invoice issued (its issue date). */
+  readonly firstInvoiceIssuedAt: Date | null;
   /** Opaque key grouping the actor rows of the same organization; never written. */
   readonly key: string;
 }
@@ -49,6 +61,27 @@ export interface ActorWeek {
   readonly key: string;
   readonly actorHash: string;
   readonly weekStart: string;
+}
+
+/** One internal actor hash active in one period (week: Monday start; month: the 1st). */
+export interface ActorPeriod {
+  readonly key: string;
+  readonly actorHash: string;
+  readonly periodStart: string;
+}
+
+/** One UTC day of AI tasks, counted in SQL (no id leaves the store). */
+export interface AiTaskDay {
+  readonly day: string;
+  readonly run: number;
+  readonly completed: number;
+  readonly undone: number;
+}
+
+/** One UTC day of settled AI spend in micro-USD, summed in SQL. */
+export interface AiCostDay {
+  readonly day: string;
+  readonly costMicroUsd: number;
 }
 
 export interface SubscriptionFact {
@@ -74,6 +107,12 @@ export interface GrowthRollupStore {
   lastComputedAt(): Promise<Date | null>;
   organizations(since: Date): Promise<readonly OrgGrowthFacts[]>;
   actorWeeks(since: Date): Promise<readonly ActorWeek[]>;
+  /** 62-A3: as {@link actorWeeks}, by calendar month. */
+  actorMonths(since: Date): Promise<readonly ActorPeriod[]>;
+  /** 62-A3: every company that exists now. */
+  companiesTotal(): Promise<number>;
+  aiTaskDays(since: Date): Promise<readonly AiTaskDay[]>;
+  aiCostDays(since: Date): Promise<readonly AiCostDay[]>;
   subscriptions(): Promise<readonly SubscriptionFact[]>;
   approvals(since: Date): Promise<readonly ApprovalFact[]>;
   /** `platform_settings.billing_mode` when set; `null` falls back to the environment. */
@@ -114,6 +153,12 @@ export const ACTIVATION_STEPS = [
   'completed_work',
 ] as const;
 export const SERVICE_STEPS = ['client_linked', 'approval_decided'] as const;
+/** 62-A3: a company is active in a period when at least this many internal people were. */
+export const ACTIVE_COMPANY_MIN_PEOPLE = 2;
+/** 62-A3: the windows of "first project finished within N days". */
+export const FIRST_PROJECT_WINDOWS_DAYS = [30, 60] as const;
+/** 1 credit = 0.001 USD of real cost (plan 62 §5). */
+export const MICRO_USD_PER_CREDIT = 1_000;
 
 const DAY_MS = 86_400_000;
 
@@ -233,6 +278,146 @@ export function organizationRollups(
       .filter((h) => h >= 0);
     const p50 = percentile(ttfp, 0.5);
     if (p50 !== null) rows.push(row('time_to_first_project_hours', 'p50', p50, ttfp.length));
+    const ttfo = members
+      .map((org) => {
+        const outcome = firstOutcomeAt(org);
+        return outcome === null ? null : (outcome.getTime() - org.createdAt.getTime()) / 3_600_000;
+      })
+      .filter((h): h is number => h !== null && h >= 0);
+    const outcomeP50 = percentile(ttfo, 0.5);
+    if (outcomeP50 !== null) {
+      rows.push(row('time_to_first_outcome_hours', 'p50', outcomeP50, ttfo.length));
+    }
+  }
+  return rows;
+}
+
+/** 62-A3: the first outcome — the first approval decided or client invoice issued, whichever first. */
+export function firstOutcomeAt(org: OrgGrowthFacts): Date | null {
+  const times = [org.approvalDecidedAt, org.firstInvoiceIssuedAt].filter(
+    (at): at is Date => at !== null,
+  );
+  return times.length === 0 ? null : new Date(Math.min(...times.map((at) => at.getTime())));
+}
+
+/** The first day after the period that starts on `start`. */
+function periodEnd(kind: GrowthPeriodKind, start: string): number {
+  const at = new Date(`${start}T00:00:00Z`);
+  return kind === 'week'
+    ? at.getTime() + 7 * DAY_MS
+    : Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1);
+}
+
+/**
+ * 62-A3: companies with {@link ACTIVE_COMPANY_MIN_PEOPLE}+ internal people active in each period.
+ * The sample is the companies that existed by the period's end: every company now, less those
+ * created after it (`orgs` holds every sign-up of the window the periods are drawn from).
+ */
+export function activeCompanyRollups(
+  kind: GrowthPeriodKind,
+  actors: readonly ActorPeriod[],
+  orgs: readonly OrgGrowthFacts[],
+  companiesTotal: number,
+): RollupRow[] {
+  const people = new Map<string, Map<string, Set<string>>>(); // period → company → hashes
+  for (const actor of actors) {
+    const companies = people.get(actor.periodStart) ?? new Map<string, Set<string>>();
+    const hashes = companies.get(actor.key) ?? new Set<string>();
+    hashes.add(actor.actorHash);
+    companies.set(actor.key, hashes);
+    people.set(actor.periodStart, companies);
+  }
+  return [...people].map(([start, companies]) => {
+    const end = periodEnd(kind, start);
+    const createdLater = orgs.filter((org) => org.createdAt.getTime() >= end).length;
+    return {
+      periodKind: kind,
+      periodStart: start,
+      metric: 'active_companies',
+      dimension: '',
+      value: [...companies.values()].filter((h) => h.size >= ACTIVE_COMPANY_MIN_PEOPLE).length,
+      sampleCount: Math.max(0, companiesTotal - createdLater),
+    };
+  });
+}
+
+/**
+ * 62-A3: per sign-up period, the share of sign-ups whose first project was finished within 30 and
+ * 60 days. Only sign-ups whose window has fully passed count (a younger one would read as a miss).
+ */
+export function firstProjectFinishedRollups(
+  kind: GrowthPeriodKind,
+  orgs: readonly OrgGrowthFacts[],
+  now: Date,
+): RollupRow[] {
+  const rows: RollupRow[] = [];
+  for (const [start, members] of group(orgs, (org) => periodStart(kind, org.createdAt))) {
+    for (const days of FIRST_PROJECT_WINDOWS_DAYS) {
+      const eligible = members.filter(
+        (org) => org.createdAt.getTime() + days * DAY_MS <= now.getTime(),
+      );
+      if (eligible.length === 0) continue;
+      const finished = eligible.filter((org) =>
+        within(org.createdAt, org.firstProjectFinishedAt, days),
+      ).length;
+      rows.push({
+        periodKind: kind,
+        periodStart: start,
+        metric: 'first_project_finished_rate',
+        dimension: `${String(days)}d`,
+        value: round4(finished / eligible.length),
+        sampleCount: eligible.length,
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * 62-A3: the AI counters per period, from day aggregates. A period with no task and no spend gets
+ * no row, so the page says "no data yet" rather than 0.
+ */
+export function aiRollups(
+  kind: GrowthPeriodKind,
+  tasks: readonly AiTaskDay[],
+  costs: readonly AiCostDay[],
+): RollupRow[] {
+  const at = (day: string) => periodStart(kind, new Date(`${day}T00:00:00Z`));
+  const rows: RollupRow[] = [];
+  // The sample is the tasks run (task counters) or the days with spend (cost figures).
+  const row = (start: string, metric: string, value: number, sampleCount: number): RollupRow => ({
+    periodKind: kind,
+    periodStart: start,
+    metric,
+    dimension: '',
+    value,
+    sampleCount,
+  });
+  for (const [start, list] of group(tasks, (task) => at(task.day))) {
+    const total = (pick: (task: AiTaskDay) => number) => list.reduce((n, t) => n + pick(t), 0);
+    const run = total((t) => t.run);
+    rows.push(
+      row(start, 'ai_tasks_run', run, run),
+      row(
+        start,
+        'ai_tasks_completed',
+        total((t) => t.completed),
+        run,
+      ),
+      row(
+        start,
+        'ai_tasks_undone',
+        total((t) => t.undone),
+        run,
+      ),
+    );
+  }
+  for (const [start, list] of group(costs, (cost) => at(cost.day))) {
+    const micro = list.reduce((n, c) => n + c.costMicroUsd, 0);
+    rows.push(
+      row(start, 'ai_cost_micro_usd', micro, list.length),
+      row(start, 'ai_credits_used', Math.ceil(micro / MICRO_USD_PER_CREDIT), list.length),
+    );
   }
   return rows;
 }
@@ -454,10 +639,26 @@ export async function runGrowthRollup(deps: GrowthRunDeps): Promise<GrowthRunRes
     deps.store.approvals(since),
     deps.store.billingModeSetting(),
   ]);
+  const [actorMonths, companiesTotal, aiTasks, aiCosts] = await Promise.all([
+    deps.store.actorMonths(since),
+    deps.store.companiesTotal(),
+    deps.store.aiTaskDays(actorsSince),
+    deps.store.aiCostDays(actorsSince),
+  ]);
+  const actorPeriods: Record<GrowthPeriodKind, readonly ActorPeriod[]> = {
+    week: actors.map((a) => ({ key: a.key, actorHash: a.actorHash, periodStart: a.weekStart })),
+    month: actorMonths,
+  };
   const mode = parseBillingModeName(setting ?? (deps.env ?? process.env)['BILLING_MODE']);
   const rows: RollupRow[] = [];
   for (const kind of ['week', 'month'] as const) {
-    rows.push(...organizationRollups(kind, orgs), ...approvalRollups(kind, approvals));
+    rows.push(
+      ...organizationRollups(kind, orgs),
+      ...approvalRollups(kind, approvals),
+      ...activeCompanyRollups(kind, actorPeriods[kind], orgs, companiesTotal),
+      ...firstProjectFinishedRollups(kind, orgs, now),
+      ...aiRollups(kind, aiTasks, aiCosts),
+    );
   }
   rows.push(...retentionRollups(orgs, actors, now), ...mrrRollups(subscriptions, mode, now));
   const written = await deps.store.upsert(rows, now);

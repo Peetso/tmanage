@@ -302,6 +302,37 @@ describe('D1 · Platform settings — General', () => {
     );
   });
 
+  it('62-A3: the Unit costs card reads not set, refuses a bad amount and saves both lines in cents', async () => {
+    const calls = mount(
+      (client) => <PlatformGeneralSettingsScreen client={client} />,
+      (method, path, body) => {
+        if (path === '/v1/platform/settings/unit-costs') {
+          return method === 'PUT'
+            ? json({ costs: body, updatedAt: '2026-11-19T10:00:00.000Z', updatedBy: 'Peter' })
+            : json({ costs: null, updatedAt: null, updatedBy: null });
+        }
+        return route(method, path, body);
+      },
+    );
+    expect(await screen.findByText(/Not set yet/u)).toBeTruthy();
+    expect(document.getElementById('unit-costs')).not.toBeNull();
+    const card = within(document.getElementById('unit-costs') as HTMLElement);
+    fireEvent.change(card.getByLabelText(/Hosting and storage/u), { target: { value: '29.9' } });
+    fireEvent.change(card.getByLabelText(/^Mail/u), { target: { value: 'ten' } });
+    fireEvent.click(card.getByRole('button', { name: 'Save unit costs' }));
+    expect(await card.findByText('Enter an amount such as 29.99.')).toBeTruthy();
+    expect(calls.some((call) => call.method === 'PUT')).toBe(false);
+    fireEvent.change(card.getByLabelText(/^Mail/u), { target: { value: '10' } });
+    fireEvent.click(card.getByRole('button', { name: 'Save unit costs' }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.method === 'PUT')).toMatchObject({
+        path: '/v1/platform/settings/unit-costs',
+        body: { hostingCentsPerMonth: 2990, mailCentsPerMonth: 1000 },
+      }),
+    );
+    await waitFor(() => expect(card.queryByText(/Not set yet/u)).toBeNull());
+  });
+
   it('EMAILBUILD2: the Tips switch turns off and a feature note is sent once', async () => {
     const note = {
       id: '01960000-0000-7000-8000-0000000000aa',

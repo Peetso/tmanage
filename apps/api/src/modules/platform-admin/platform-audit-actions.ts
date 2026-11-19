@@ -132,6 +132,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.plan_version_created',
   // ---- 57-08 REFERRAL ----
   'platform.referral_partner_created',
+  // ---- 62-A3 GROWTH (B14) ----
+  'platform.unit_costs_updated',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

@@ -38,6 +38,11 @@ import { PlatformKeysService } from './keys.service.js';
 import { PLATFORM_SETTINGS_SERVICE, PlatformSettingsController } from './settings.controller.js';
 import { PlatformSettingsRepository } from './settings.repository.js';
 import { PlatformSettingsService } from './settings.service.js';
+import {
+  PLATFORM_UNIT_COSTS_SERVICE,
+  PlatformUnitCostsController,
+} from './unit-costs.controller.js';
+import { UnitCostsService } from './unit-costs.service.js';
 
 /**
  * Platform admin · Settings (listed in `platform-admin.areas.ts`): D1 General + integrations,
@@ -108,6 +113,13 @@ export class PlatformSettingsModule {
               sessionOverlap: (process.env['SESSION_SECRET_PREVIOUS'] ?? '').trim() !== '',
             }),
         },
+        // ---- 62-A3 GROWTH (B14) ---- the monthly unit costs behind "cost per active company".
+        {
+          provide: PLATFORM_UNIT_COSTS_SERVICE,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new UnitCostsService(new PlatformSettingsRepository(database)),
+        },
       ],
       controllers: [
         PlatformSettingsController,
@@ -116,6 +128,7 @@ export class PlatformSettingsModule {
         PlatformKeysController,
         PlatformMailPeopleController,
         PlatformPersonMailController,
+        PlatformUnitCostsController,
       ],
     };
   }

@@ -56,6 +56,7 @@ import { PLATFORM_ME_QUERY_KEY, missingPlatformPermission } from '../shared/useP
 import { FeatureNewsCard } from './FeatureNewsCard';
 import { MailPeopleCard } from './MailPeopleCard';
 import { SettingsSubNav, changedLine, fill } from './settings-kit';
+import { UnitCostsCard } from './UnitCostsCard';
 
 /**
  * D1 · Platform settings — General (`/platform/settings`, frames 434:15722, 435:14933 billing
@@ -137,6 +138,7 @@ function GeneralBody({ api, me }: { api: ApiClient; me: PlatformMeView }) {
           <AiAccessCard api={api} view={view} canEdit={canEdit} />
           <RetentionCard api={api} view={view} canEdit={canEdit} />
           <SupportCard api={api} view={view} canEdit={canEdit} />
+          <UnitCostsCard api={api} canEdit={canEdit} />
         </div>
       </div>
       <IntegrationsSection api={api} canEdit={canEdit} />

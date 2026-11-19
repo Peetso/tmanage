@@ -105,3 +105,19 @@
   background: var(--lime-500);
   color: var(--tm-on-lime);
 }
+
+/* 62-A3 (B14) Growth tiles (Figma 758:43241): smaller figures, muted when there is nothing to show. */
+.tm-growth-tile .tm-cc-metric__value {
+  margin: 0;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.tm-growth-tile .tm-growth-tile__muted {
+  color: var(--ink-650);
+}
+
+.tm-growth-tile__sub {
+  margin: 0;
+  color: var(--ink-650);
+}

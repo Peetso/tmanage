@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { WorkerDatabase } from './worker-database.js';
 import type {
+  ActorPeriod,
   ActorWeek,
+  AiCostDay,
+  AiTaskDay,
   ApprovalFact,
   GrowthRollupStore,
   OrgGrowthFacts,
@@ -19,6 +22,10 @@ import { REPORT_SENT_METRIC } from '../../jobs/growth-rollup.js';
  * readable. Only ids, hashes, plan ids and timestamps are selected — never a title, a body, an
  * e-mail or a property other than the sign-up `source` slug (PRIV-06). Every bound is a bound JS
  * Date (the worker's clock), every read is capped.
+ *
+ * 62-A3 (B14) adds `client_invoices.issue_date` / `state` (already readable, 0301 worker block),
+ * `projects.archived_at` / `status`, and two day aggregates: `ai_tasks` (counts by status) and
+ * `ai_usage_ledger` (summed settled cost) — grouped in SQL, so no AI row id leaves the database.
  */
 
 type Rows = readonly Record<string, unknown>[];
@@ -27,6 +34,8 @@ const ORG_CAP = 50_000;
 const ACTOR_CAP = 500_000;
 const SUBSCRIPTION_CAP = 100_000;
 const APPROVAL_CAP = 200_000;
+/** Days in the 13-month window plus the leading week, with room. */
+const DAY_CAP = 500;
 const UPSERT_CHUNK = 200;
 
 export const SIGNUP_EVENT = 'signup_completed_v1';
@@ -52,7 +61,13 @@ export const GROWTH_SQL = {
       (select min(pc.created_at) from project_clients pc
         where pc.organization_id = o.id) as client_linked_at,
       (select min(a.decided_at) from approvals a
-        where a.organization_id = o.id and a.decided_at is not null) as approval_decided_at
+        where a.organization_id = o.id and a.decided_at is not null) as approval_decided_at,
+      (select min(coalesce(p.archived_at, p.updated_at)) from projects p
+        where p.organization_id = o.id
+          and (p.archived_at is not null or p.status = 'completed')) as first_project_finished_at,
+      (select min(ci.issue_date) from client_invoices ci
+        where ci.organization_id = o.id and ci.issue_date is not null
+          and ci.state not in ('draft', 'void')) as first_invoice_issued_at
     from organizations o where o.created_at >= ? order by o.created_at limit ${String(ORG_CAP)}`,
   actorWeeks: `select e.organization_id as organization_id, e.actor_hash as actor_hash,
       date_format(date_sub(date(e.occurred_at), interval weekday(e.occurred_at) day), '%Y-%m-%d')
@@ -61,6 +76,22 @@ export const GROWTH_SQL = {
     where e.occurred_at >= ? and e.actor_hash is not null and e.principal_kind = 'internal'
     group by e.organization_id, e.actor_hash, week_start
     limit ${String(ACTOR_CAP)}`,
+  actorMonths: `select e.organization_id as organization_id, e.actor_hash as actor_hash,
+      date_format(e.occurred_at, '%Y-%m-01') as month_start
+    from product_events e
+    where e.occurred_at >= ? and e.actor_hash is not null and e.principal_kind = 'internal'
+    group by e.organization_id, e.actor_hash, month_start
+    limit ${String(ACTOR_CAP)}`,
+  companiesTotal: `select count(*) as total from organizations`,
+  aiTaskDays: `select date_format(t.started_at, '%Y-%m-%d') as day, count(*) as run,
+      sum(case when t.status = 'completed' then 1 else 0 end) as completed,
+      sum(case when t.status = 'undone' then 1 else 0 end) as undone
+    from ai_tasks t where t.started_at >= ?
+    group by day order by day limit ${String(DAY_CAP)}`,
+  aiCostDays: `select date_format(l.settled_at, '%Y-%m-%d') as day,
+      sum(l.cost_micro_usd) as cost_micro_usd
+    from ai_usage_ledger l where l.status = 'settled' and l.settled_at >= ?
+    group by day order by day limit ${String(DAY_CAP)}`,
   subscriptions: `select plan_id, created_at from subscriptions
     where status in ('active', 'pending_change') limit ${String(SUBSCRIPTION_CAP)}`,
   approvals: `select created_at, decided_at from approvals
@@ -102,6 +133,8 @@ export function toOrgFacts(row: Record<string, unknown>): OrgGrowthFacts {
     completedWork7d: num(row['completed_7d']),
     clientLinkedAt: date(row['client_linked_at']),
     approvalDecidedAt: date(row['approval_decided_at']),
+    firstProjectFinishedAt: date(row['first_project_finished_at']),
+    firstInvoiceIssuedAt: date(row['first_invoice_issued_at']),
   };
 }
 
@@ -120,6 +153,30 @@ export function createGrowthRollupStore(database: WorkerDatabase): GrowthRollupS
         key: String(r['organization_id']),
         actorHash: String(r['actor_hash']),
         weekStart: String(r['week_start']),
+      }));
+    },
+    async actorMonths(since): Promise<readonly ActorPeriod[]> {
+      return (await read(GROWTH_SQL.actorMonths, [since])).map((r) => ({
+        key: String(r['organization_id']),
+        actorHash: String(r['actor_hash']),
+        periodStart: String(r['month_start']),
+      }));
+    },
+    async companiesTotal() {
+      return num((await read(GROWTH_SQL.companiesTotal))[0]?.['total']);
+    },
+    async aiTaskDays(since): Promise<readonly AiTaskDay[]> {
+      return (await read(GROWTH_SQL.aiTaskDays, [since])).map((r) => ({
+        day: String(r['day']),
+        run: num(r['run']),
+        completed: num(r['completed']),
+        undone: num(r['undone']),
+      }));
+    },
+    async aiCostDays(since): Promise<readonly AiCostDay[]> {
+      return (await read(GROWTH_SQL.aiCostDays, [since])).map((r) => ({
+        day: String(r['day']),
+        costMicroUsd: num(r['cost_micro_usd']),
       }));
     },
     async subscriptions(): Promise<readonly SubscriptionFact[]> {

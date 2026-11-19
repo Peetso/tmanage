@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiBaseUrl, browserApiClient } from '../../../lib/api/browser-client';
 import type { ApiClient } from '../../../lib/api/client';
@@ -14,34 +14,30 @@ import {
 import type { GrowthPeriod, GrowthView } from '../../../lib/api/platform-growth';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useT } from '../../../lib/i18n/use-t';
-import { useTOr } from '../../../lib/i18n/use-t-or';
 import type { ScreenProps } from '../shared/platform-kit';
 import { PlatformGate } from '../shared/platform-kit';
 import { PlatformPageState } from '../shared/PlatformPageState';
 import { ACTIVITY_KEY } from './ActivityFrame';
-import { GROWTH_COPY } from './growth-copy';
+import { GrowthFigures } from './GrowthFigures';
+import { useGrowthCopy } from './growth-copy';
 import { PricingAnswersCard } from './PricingAnswersCard';
 import { ReferralPartnersCard } from './ReferralPartnersCard';
 import type { GrowthCopyKey } from './growth-copy';
 import '../../../styles/screens/r44-security-growth.css';
-
-type Copy = (key: GrowthCopyKey) => string;
-
-function useCopy(): Copy {
-  const tOr = useTOr();
-  return useCallback((key: GrowthCopyKey) => tOr(`PlatformGrowth.${key}`, GROWTH_COPY[key]), [tOr]);
-}
 
 /**
  * 57-09 · Platform admin "Growth" (Figma 578:32859 "Growth · platform · EN/AR"): sign-ups,
  * activation, client activation and time to first project, a sign-ups bar chart, the activation
  * steps and the weekly retention cohorts — all from `GET /v1/platform/activity/growth`
  * (`platform.activity.view`), platform-wide aggregates only.
+ *
+ * 62-A3 (B14, Figma 758:43241): the Activation / AI / Money tiles sit first and name their own
+ * period; the Month / Week switch sets the period of the sign-up figures below them only.
  */
 export function GrowthScreen({ client }: ScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
-  const copy = useCopy();
+  const copy = useGrowthCopy();
   const [period, setPeriod] = useState<GrowthPeriod>('month');
   return (
     <PlatformGate
@@ -52,7 +48,15 @@ export function GrowthScreen({ client }: ScreenProps) {
       description={copy('description')}
       actions={() => (
         <>
-          <div className="tm-r44-chips" role="group" aria-label={copy('periodLabel')}>
+          <p id="tm-growth-period-hint" className="tm-r44-sub">
+            {copy('periodHint')}
+          </p>
+          <div
+            className="tm-r44-chips"
+            role="group"
+            aria-label={copy('periodLabel')}
+            aria-describedby="tm-growth-period-hint"
+          >
             {(['month', 'week'] as const).map((id) => (
               <button
                 key={id}
@@ -66,7 +70,7 @@ export function GrowthScreen({ client }: ScreenProps) {
             ))}
           </div>
           <a
-            className="tm-button tm-button--ink tm-button--default"
+            className="tm-button tm-button--outline tm-button--compact"
             href={`${apiBaseUrl()}${growthCsvPath(period)}`}
             download
           >
@@ -89,7 +93,7 @@ export function GrowthScreen({ client }: ScreenProps) {
 }
 
 function GrowthBody({ api, period }: { api: ApiClient; period: GrowthPeriod }) {
-  const copy = useCopy();
+  const copy = useGrowthCopy();
   const growth = useQuery({
     queryKey: [...ACTIVITY_KEY, 'growth', period],
     queryFn: () => fetchGrowth(api, period),
@@ -107,7 +111,7 @@ function GrowthBody({ api, period }: { api: ApiClient; period: GrowthPeriod }) {
 }
 
 function Growth({ view }: { view: GrowthView }) {
-  const copy = useCopy();
+  const copy = useGrowthCopy();
   const format = useDisplayFormatters();
   const pct = (rate: number | null) => {
     const value = percent(rate);
@@ -152,6 +156,7 @@ function Growth({ view }: { view: GrowthView }) {
       : format.day(`${start}T00:00:00Z`, { day: 'numeric', month: 'short' });
   return (
     <div className="tm-stack">
+      <GrowthFigures figures={view.figures} />
       <ul className="tm-cc-metrics tm-r44-kpis" aria-label={copy('kpiLabel')}>
         {tiles.map((tile) => (
           <li key={tile.id} className="tm-cc-metric">

@@ -9,6 +9,8 @@ import { blockReason, filterBlocked } from '../src/lib/api/admin-blocked-files';
 import type { BlockedFileView } from '../src/lib/api/admin-blocked-files';
 import { signalQuery } from '../src/lib/api/admin-security-signals';
 import { barHeights, funnelPercents, growthPath, percent } from '../src/lib/api/platform-growth';
+import type { GrowthFigures as Figures } from '../src/lib/api/platform-growth';
+import { GrowthFigures } from '../src/components/platform/activity/GrowthFigures';
 
 /** R44 L2: 56-06 Blocked files, 56-23 Security signals (owner), 57-09 Growth helpers. */
 
@@ -141,5 +143,62 @@ describe('57-09 Growth', () => {
     expect(percent(0.384)).toBe(38);
     expect(percent(null)).toBeNull();
     expect(growthPath('week')).toBe('/v1/platform/activity/growth?period=week');
+  });
+});
+
+describe('62-A3 Growth figures (B14)', () => {
+  const now = new Date('2026-11-19T10:00:00Z');
+  const FILLED: Figures = {
+    weeklyActiveCompanies: { weekStart: '2026-11-16', active: 142, companies: 384 },
+    firstProjectFinished: { within30d: 0.35, within60d: 0.44 },
+    timeToFirstOutcomeP50Hours: 76.8,
+    ai: {
+      month: '2026-11-01',
+      tasksRun: 40,
+      tasksCompleted: 31,
+      creditsUsed: 2500,
+      creditsCap: 100_000,
+    },
+    costPerActiveCompany: { available: true, month: '2026-11-01', cents: 2700 },
+    margin: { available: false, reason: 'beta_free' },
+  };
+  const EMPTY: Figures = {
+    weeklyActiveCompanies: null,
+    firstProjectFinished: { within30d: null, within60d: null },
+    timeToFirstOutcomeP50Hours: null,
+    ai: {
+      month: '2026-11-01',
+      tasksRun: null,
+      tasksCompleted: null,
+      creditsUsed: null,
+      creditsCap: 100_000,
+    },
+    costPerActiveCompany: { available: false, reason: 'not_set' },
+    margin: { available: false, reason: 'beta_free' },
+  };
+
+  it('shows each value with its own period, and the meter value under the bar', () => {
+    render(<GrowthFigures figures={FILLED} now={now} />);
+    expect(screen.getByText('142')).toBeInTheDocument();
+    expect(screen.getByText('this week', { exact: false })).toBeInTheDocument();
+    const meters = screen.getAllByRole('meter');
+    expect(meters.length).toBe(4);
+    for (const meter of meters) expect(meter.textContent).toBe('');
+    expect(meters[0]?.getAttribute('aria-valuenow')).toBe('37');
+    expect(screen.getByText('35 %')).toBeInTheDocument();
+    expect(screen.getByText(/3\.2/u)).toBeInTheDocument();
+    expect(screen.getByText('$27.00')).toBeInTheDocument();
+    expect(screen.getByText('Not available in the free beta')).toBeInTheDocument();
+  });
+
+  it('says no data yet for AI (no meter), not set with a button for unit costs, never 0', () => {
+    render(<GrowthFigures figures={EMPTY} now={now} />);
+    expect(screen.queryAllByRole('meter')).toHaveLength(0);
+    expect(screen.queryByText('0')).toBeNull();
+    expect(screen.getAllByText('No data yet').length).toBeGreaterThanOrEqual(6);
+    expect(screen.getByText('Not set')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Set unit costs' }).getAttribute('href')).toBe(
+      '/platform/settings#unit-costs',
+    );
   });
 });
