@@ -9,8 +9,9 @@ import type { WorkerTransaction } from './worker-database.js';
  * 2026-11-15 nudge-flood guard. mysql2 connects with `CLIENT_FOUND_ROWS`, so the affected-rows of
  * an `INSERT … ON DUPLICATE KEY UPDATE` is 1 both for a fresh row and for a collision that changed
  * nothing: it can never say "this call created the row". The rule: no source file in the API or
- * the worker reads `affectedRows` from an upsert. A claim reads its own generated id back, as
- * `insertNotification` does. (`INSERT IGNORE` is fine: an ignored duplicate reports 0.)
+ * the worker reads `affectedRows` from an upsert. A claim reads its own generated id back, or
+ * (as `insertNotification` does) uses a plain INSERT and reads the duplicate-key refusal.
+ * (`INSERT IGNORE` is fine: an ignored duplicate reports 0.)
  */
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
@@ -128,20 +129,19 @@ describe('upsert affected-rows guard (2026-11-15)', () => {
     // Reads every API and worker source file (~6-9 s while the other suites run in parallel).
   }, 60_000);
 
-  it('insertNotification says "fresh" once when the driver reports found rows', async () => {
+  it('insertNotification says "fresh" once: the replay collides on the dedupe key', async () => {
     const ids = new Map<string, string>();
     const tx: WorkerTransaction = {
       query: <T>(sql: string, params: readonly unknown[] = []): Promise<T> => {
-        if (/^INSERT INTO notifications/.test(sql.trim())) {
-          const [id, org, user, , , , key] = params.map(String);
-          const identity = `${String(org)}|${String(user)}|${String(key)}`;
-          if (!ids.has(identity)) ids.set(identity, String(id));
-          return Promise.resolve({ affectedRows: 1 } as T); // CLIENT_FOUND_ROWS: 1 either way
+        if (!/^INSERT INTO notifications/.test(sql.trim())) {
+          return Promise.reject(new Error(`unexpected statement: ${sql}`));
         }
-        const wanted = params[1];
-        return Promise.resolve(
-          [...ids.values()].filter((v) => v === wanted).map((v) => ({ id: v })) as T,
-        );
+        const [id, org, user, , , , key] = params.map(String);
+        const identity = `${String(org)}|${String(user)}|${String(key)}`;
+        if (ids.has(identity))
+          return Promise.reject(Object.assign(new Error('Duplicate entry'), { errno: 1062 }));
+        ids.set(identity, String(id));
+        return Promise.resolve({ affectedRows: 1 } as T);
       },
     };
     const input = {

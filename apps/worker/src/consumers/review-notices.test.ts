@@ -319,7 +319,6 @@ describe('planReviewCommentNotices', () => {
     expect(new Set(inserts.map((write) => String(write.params[6])))).toEqual(
       new Set(['review:thread-1:comment-9']),
     );
-    expect(inserts[0]?.sql).toContain('ON DUPLICATE KEY');
   });
 });
 

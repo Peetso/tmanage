@@ -48,7 +48,6 @@ interface Run {
 function fakeDb(options: { owner?: string | null; itemGone?: boolean } = {}) {
   const runs: Run[] = [];
   const notices = new Map<string, string>();
-  const written = new Set<string>(); // ids this fake inserted: insertNotification reads them back
   const windows: unknown[] = [];
   const tx: WorkerTransaction = {
     query: async <T>(sql: string, params: readonly unknown[] = []): Promise<T> => {
@@ -84,13 +83,9 @@ function fakeDb(options: { owner?: string | null; itemGone?: boolean } = {}) {
       }
       if (/INSERT INTO notifications/.test(sql)) {
         const key = `${String(params[2])}|${String(params[6])}`;
-        if (notices.has(key)) return { affectedRows: 0 } as T;
+        if (notices.has(key)) throw Object.assign(new Error('Duplicate entry'), { errno: 1062 });
         notices.set(key, String(params[5]));
-        written.add(String(params[0]));
         return { affectedRows: 1 } as T;
-      }
-      if (/SELECT id FROM notifications/.test(sql)) {
-        return (written.has(String(params[1])) ? [{ id: params[1] }] : []) as T;
       }
       throw new Error(`unexpected statement: ${sql}`);
     },

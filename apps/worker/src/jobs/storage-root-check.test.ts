@@ -98,7 +98,6 @@ describe('the owners are told, once', () => {
 
   function fakeTx(seen: Set<string>) {
     const notices: unknown[][] = [];
-    let lastInserted = false;
     const tx = {
       async query(sql: string, params: readonly unknown[] = []): Promise<unknown> {
         if (/FROM memberships/.test(sql)) {
@@ -109,12 +108,11 @@ describe('the owners are told, once', () => {
         }
         if (/INSERT INTO notifications/.test(sql)) {
           const key = `${String(params[2])}:${String(params[6])}`;
-          lastInserted = !seen.has(key);
-          seen.add(key);
           notices.push([...params]);
+          if (seen.has(key)) throw Object.assign(new Error('Duplicate entry'), { errno: 1062 });
+          seen.add(key);
           return {};
         }
-        if (/SELECT id FROM notifications/.test(sql)) return lastInserted ? [{ id: 'n' }] : [];
         if (/FROM users u/.test(sql)) {
           return [
             {

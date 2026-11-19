@@ -430,8 +430,8 @@ describe('the runtime user is actually least-privilege', () => {
   it('can read every table the worker is allowed to write', () => {
     // The failure mode the narrowing above introduces, and the reason the worker's SELECT
     // list is not simply the tables its SELECTs name. MySQL reads to write: an
-    // `UPDATE … WHERE` needs SELECT on the columns it filters by, and the notification
-    // insert's `ON DUPLICATE KEY UPDATE id = id` reads the row it collided with. A write
+    // `UPDATE … WHERE` needs SELECT on the columns it filters by, and an upsert's
+    // `ON DUPLICATE KEY UPDATE` reads the row it collided with (and needs UPDATE). A write
     // grant without the matching read is a grant that cannot be used, and the statement
     // that discovers it fails in the relay rather than here.
     const appendOnlyForTheWorker: Record<string, string> = {

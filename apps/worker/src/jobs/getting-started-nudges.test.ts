@@ -139,10 +139,9 @@ const ROW: NudgeRow = {
 };
 
 /**
- * A database that behaves like live: `uq_notifications_dedupe` holds, and — as mysql2's default
- * `CLIENT_FOUND_ROWS` makes MariaDB do — a collision on `ON DUPLICATE KEY UPDATE id = id` still
- * reports one affected row. The candidate read always says "nothing sent today", the view a second
- * process has when it reads before the first one commits.
+ * A database that behaves like live: `uq_notifications_dedupe` holds, so a second insert of the same
+ * notice is refused with `ER_DUP_ENTRY` (1062). The candidate read always says "nothing sent
+ * today", the view a second process has when it reads before the first one commits.
  */
 function liveLikeDatabase(): { database: WorkerDatabase; rows: Map<string, string> } {
   const rows = new Map<string, string>(); // dedupe identity -> id
@@ -152,14 +151,11 @@ function liveLikeDatabase(): { database: WorkerDatabase; rows: Map<string, strin
       if (/^INSERT INTO notifications/.test(sql)) {
         const [id, org, user, , , , key] = params.map(String);
         const identity = `${String(org)}|${String(user)}|${String(key)}`;
-        if (!rows.has(identity)) rows.set(identity, String(id));
+        if (rows.has(identity)) {
+          return Promise.reject(Object.assign(new Error('Duplicate entry'), { errno: 1062 }));
+        }
+        rows.set(identity, String(id));
         return Promise.resolve({ affectedRows: 1 } as T);
-      }
-      if (/^SELECT id FROM notifications/.test(sql)) {
-        const id = params[1];
-        return Promise.resolve(
-          [...rows.values()].filter((r) => r === id).map((r) => ({ id: r })) as T,
-        );
       }
       throw new Error(`unexpected statement: ${sql}`);
     },

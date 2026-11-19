@@ -425,43 +425,45 @@ export interface NotificationInput {
   readonly dedupeKey: string;
 }
 
+/** MariaDB's duplicate-key refusal. */
+const ER_DUP_ENTRY = 1062;
+
 /**
- * Write one notification, idempotently. `uq_notifications_dedupe` absorbs the
- * at-least-once replay: `ON DUPLICATE KEY UPDATE id = id` turns the collision into a
- * no-op instead of an error. Returns true only when this call wrote the row — the claim
- * callers (the digest e-mail, the first-week nudge) send on that answer.
+ * Write one notification, idempotently. `uq_notifications_dedupe` absorbs the at-least-once
+ * replay: a collision is refused with `ER_DUP_ENTRY`, which InnoDB rolls back as that one
+ * statement only, and is answered `false`. Returns true only when this call wrote the row — the
+ * claim callers (the digest e-mail, the first-week nudge) send on that answer. Two workers
+ * racing: the loser's insert waits on the winner's key lock, then collides.
  *
- * The answer is NOT `affectedRows`: mysql2 connects with `CLIENT_FOUND_ROWS` by default, and
- * under that flag MySQL and MariaDB report a collision that changed nothing as one affected
- * row — exactly what a fresh insert reports. So the row is read back by the id this call
- * generated: only the transaction that inserted it can see a row with that id, under any
- * isolation level and with two workers racing (the loser's insert waits on the winner's
- * key lock, then collides).
+ * A plain INSERT, not `ON DUPLICATE KEY UPDATE id = id`: the upsert needs UPDATE on
+ * `notifications`, which `tmanage_worker` does not hold (only INSERT), so under the
+ * least-privilege credential every notice was refused (T1 2026-11-19). The id is a fresh
+ * uuidv7, so the only key that can collide is the dedupe key. Not `INSERT IGNORE` either: that
+ * would also turn a foreign-key or strict-mode refusal into a silent "already sent".
  */
 export async function insertNotification(
   tx: WorkerTransaction,
   input: NotificationInput,
 ): Promise<boolean> {
-  const id = uuidv7();
-  await tx.query(
-    `INSERT INTO notifications
-       (id, organization_id, recipient_user_id, type, object_type, object_id,
-        dedupe_key, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, NOW(3))
-     ON DUPLICATE KEY UPDATE id = id`,
-    [
-      id,
-      input.organizationId,
-      input.recipientUserId,
-      input.type,
-      input.objectType,
-      input.objectId,
-      input.dedupeKey,
-    ],
-  );
-  const mine = await tx.query<readonly { readonly id: string }[]>(
-    'SELECT id FROM notifications WHERE organization_id = ? AND id = ?',
-    [input.organizationId, id],
-  );
-  return mine.length === 1;
+  try {
+    await tx.query(
+      `INSERT INTO notifications
+         (id, organization_id, recipient_user_id, type, object_type, object_id,
+          dedupe_key, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(3))`,
+      [
+        uuidv7(),
+        input.organizationId,
+        input.recipientUserId,
+        input.type,
+        input.objectType,
+        input.objectId,
+        input.dedupeKey,
+      ],
+    );
+    return true;
+  } catch (error) {
+    if ((error as { errno?: unknown } | null)?.errno === ER_DUP_ENTRY) return false;
+    throw error;
+  }
 }
