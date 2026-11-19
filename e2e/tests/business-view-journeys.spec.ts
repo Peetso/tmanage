@@ -144,7 +144,9 @@ const kindRadio = (page: Page, lang: Lang, kind: string): Locator =>
     .getByRole('radiogroup', { name: word(lang, 'ActivityTab.kindLabel') })
     .getByRole('radio', { name: word(lang, kind), exact: true });
 
-const phrase = (lang: Lang, action: string): string => word(lang, `activity.phrase.${action}`);
+/** An activity line that names its record (T5 D2): "{actor} changed the budget of “{subject}”". */
+const subjectPhrase = (lang: Lang, action: string, actor: string, subject: string): string =>
+  word(lang, `activity.subject.${action}`, { actor, subject });
 
 /** The kind filter, then the Person and Date menus, then Clear filters — on whichever page. */
 async function exerciseFilters(
@@ -155,7 +157,9 @@ async function exerciseFilters(
 ): Promise<void> {
   const feed = feedOf(page, lang);
   const taskRow = feed.locator(`a[href$="/work/${taskId}"]`);
-  const budgetRow = feed.getByText(phrase(lang, 'budget.updated'));
+  const budgetRow = feed.getByText(
+    subjectPhrase(lang, 'budget.updated', ownerName, world().northstar.projectName),
+  );
   await expect(taskRow).toBeVisible();
   await expect(budgetRow.first()).toBeVisible();
 
@@ -308,7 +312,16 @@ for (const lang of LANGS) {
       await expect(feed.locator(`a[href$="/work/${taskId}"]`)).toBeVisible();
       await expect(kindRadio(page, lang, 'ActivityTab.kind.work')).toBeVisible();
       await expect(kindRadio(page, lang, 'ActivityTab.kind.money')).toHaveCount(0);
-      await expect(feed.getByText(phrase(lang, 'budget.updated'))).toHaveCount(0);
+      await expect(
+        feed.getByText(
+          subjectPhrase(
+            lang,
+            'budget.updated',
+            world().northstar.owner.displayName,
+            world().northstar.projectName,
+          ),
+        ),
+      ).toHaveCount(0);
     });
 
     test(`BV-04 [${lang}]: alerts on, the sweep runs, Home groups the line, it opens, Hide`, async ({
@@ -495,6 +508,30 @@ for (const lang of LANGS) {
         ).toHaveCount(0);
       } finally {
         await undo(() => setBriefing(owner, false));
+      }
+    });
+
+    test(`BV-06b [${lang}]: a client who opens a staff address lands in the portal`, async ({
+      signIn,
+    }) => {
+      test.setTimeout(240_000);
+      const { projectId } = world().northstar;
+      const { page } = await signIn(world().atlas.admin.id);
+      const portal = new RegExp(`/${NORTHSTAR}/portal(?:[?#].*)?$`, 'u');
+      // A copied project link and a typed Home address: the shell's client gate sends both to the
+      // portal home (T5 F7), with nothing of the staff shell left on screen.
+      for (const staffPath of [`/${NORTHSTAR}/projects/${projectId}`, `/${NORTHSTAR}/home`]) {
+        await page.goto(inLang(staffPath, lang));
+        await expect(page, staffPath).toHaveURL(portal);
+        await expectLanguage(page, lang);
+        await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+        // The portal has its own "Primary" navigation; the staff shell's rail is what must be gone.
+        await expect(page.locator('nav.tm-rail')).toHaveCount(0);
+        await expect(
+          page.getByRole('navigation', { name: word(lang, 'Overview.tabsLabel') }),
+        ).toHaveCount(0);
+        // No "try again" error in the page (Next's route announcer is an alert outside <main>).
+        await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
       }
     });
 

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
+import { asReturningPerson } from '../setup/journey-kit.js';
 import { API_URL } from '../setup/stack.js';
 
 /**
@@ -13,7 +14,7 @@ import { API_URL } from '../setup/stack.js';
  *    and sees one card per project they can see — the seeded project, its Active capsule, its
  *    open-work count and its objective tallies — and the card links through to the project.
  * 2. **A milestone an internal manager publishes reaches the client's timeline.** The manager adds
- *    a published milestone and a private draft on the project overview; the client sees the
+ *    a published milestone and a private draft on the project's Milestones tab; the client sees the
  *    published one on `/{slug}/portal/timeline` with its committed date and state, and never the
  *    draft. `published` is the visibility gate, exactly as it is for project updates.
  *
@@ -62,6 +63,7 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
     userId: string,
   ): Promise<{ context: BrowserContext; page: Page }> {
     const context = await browser.newContext();
+    await asReturningPerson(context);
     await signIn(context, userId);
     const page = await context.newPage();
     return { context, page };
@@ -105,7 +107,8 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
       await expect(page).toHaveURL(
         new RegExp(`/northstar-studio/projects/${world().northstar.projectId}$`),
       );
-      await expect(page.getByRole('region', { name: 'Milestones' })).toBeVisible();
+      // ONEPAGE (B04): the overview opens on its Delivery block; milestones have their own tab.
+      await expect(page.getByRole('region', { name: 'Delivery', exact: true })).toBeVisible();
     } finally {
       await context.close();
     }
@@ -114,38 +117,31 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
   test('a manager publishes a milestone and keeps a draft private', async ({ browser }) => {
     const { context, page } = await openAs(browser, world().northstar.owner.id);
     try {
-      await page.goto(`/northstar-studio/projects/${world().northstar.projectId}`);
-
-      // The overview carries an update composer and a milestone composer, each with its own "Title"
-      // field, so the milestone work is scoped to the Milestones region throughout.
+      // ONEPAGE (B04): milestones live on the project's Milestones tab, where "Add milestone" opens
+      // a dialog whose "Show on the client timeline" switch is on for a client project.
+      await page.goto(`/northstar-studio/projects/${world().northstar.projectId}/milestones`);
       const milestones = page.getByRole('region', { name: 'Milestones' });
-      await expect(milestones.getByRole('heading', { name: 'Milestones' })).toBeVisible();
-      // The controls ship disabled until React hydrates (useHydrated).
-      await expect(milestones.getByLabel('Title')).toBeEnabled();
+      const row = (name: string) =>
+        milestones.getByRole('listitem').filter({ hasText: name }).first();
 
-      // Published — the checkbox defaults to "Publish to the client now".
-      await milestones.getByLabel('Title').fill(PUBLISHED_MILESTONE);
-      await milestones.getByLabel('Target date').fill(TARGET_DATE);
-      await milestones.getByRole('button', { name: 'Add milestone' }).click();
-      await expect(
-        milestones.getByText('Your milestone is live in the client portal.'),
-      ).toBeVisible();
+      const add = async (name: string, shown: boolean): Promise<void> => {
+        await milestones.getByRole('button', { name: 'Add milestone' }).click();
+        const dialog = page.getByRole('dialog', { name: 'Add milestone' });
+        await dialog.getByLabel('Name').fill(name);
+        await dialog.getByLabel('Due').fill(TARGET_DATE);
+        const toggle = dialog.getByRole('switch', { name: 'Show on the client timeline' });
+        await expect(toggle).toBeChecked();
+        if (!shown) await toggle.uncheck();
+        await dialog.getByRole('button', { name: 'Save' }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(row(name)).toBeVisible();
+      };
 
-      // A draft — unchecked, so it stays visible only to the studio.
-      await milestones.getByLabel('Title').fill(DRAFT_MILESTONE);
-      await milestones.getByLabel('Publish to the client now').uncheck();
-      await milestones.getByRole('button', { name: 'Add milestone' }).click();
-      await expect(
-        milestones.getByText('Your draft is saved. It is not visible to the client.'),
-      ).toBeVisible();
-
-      // The internal list marks exactly the draft as a draft.
-      const publishedRow = milestones
-        .getByRole('listitem')
-        .filter({ hasText: PUBLISHED_MILESTONE });
-      const draftRow = milestones.getByRole('listitem').filter({ hasText: DRAFT_MILESTONE });
-      await expect(publishedRow.getByText('Draft')).toHaveCount(0);
-      await expect(draftRow.getByText('Draft')).toBeVisible();
+      // Published, then a draft kept to the studio: the list marks exactly the published one.
+      await add(PUBLISHED_MILESTONE, true);
+      await expect(row(PUBLISHED_MILESTONE)).toContainText('Client can see');
+      await add(DRAFT_MILESTONE, false);
+      await expect(row(DRAFT_MILESTONE)).not.toContainText('Client can see');
     } finally {
       await context.close();
     }
@@ -168,8 +164,9 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
       const dates = page.getByRole('region', { name: 'Every date, in order' });
       const publishedRow = dates.getByRole('listitem').filter({ hasText: PUBLISHED_MILESTONE });
       await expect(publishedRow).toBeVisible();
-      await expect(publishedRow.getByText('Planned', { exact: true })).toBeVisible();
-      await expect(publishedRow).toContainText(`Committed for ${TARGET_DATE_TEXT}`);
+      // The Milestones-tab dialog saves its Due as the date agreed with the client.
+      await expect(publishedRow.getByText('Date agreed', { exact: true })).toBeVisible();
+      await expect(publishedRow).toContainText(`Agreed for ${TARGET_DATE_TEXT}`);
 
       // The gate: the unpublished draft is nowhere on the client's page.
       await expect(page.getByText(DRAFT_MILESTONE)).toHaveCount(0);
@@ -210,7 +207,11 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
     const client = await openAs(browser, world().atlas.reviewer.id);
     try {
       await client.page.goto('/northstar-studio/portal/timeline');
-      await expect(client.page.getByRole('region', { name: 'Every date, in order' })).toBeVisible();
+      // The timeline has loaded: its date list, or its empty state when no other file's milestone
+      // is shown to the client either.
+      await expect(
+        client.page.getByRole('region', { name: /^(Every date, in order|No milestones yet)$/u }),
+      ).toBeVisible();
       await expect(client.page.getByText(PUBLISHED_MILESTONE)).toHaveCount(0);
     } finally {
       await client.context.close();

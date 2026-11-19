@@ -113,9 +113,18 @@ test.describe.serial('the project-updates journeys', () => {
 
       // ONEPAGE (B04): milestones moved off the overview to their own tab, where "Add milestone"
       // opens a dialog with a "Show on the client timeline" switch (on for a client project).
-      await page
+      // T5 D5: the tab sits in the row's "More" menu. The button can be clicked before hydration,
+      // so click until it says the menu is open.
+      const more = page
         .getByRole('navigation', { name: 'Sections' })
-        .getByRole('link', { name: 'Milestones', exact: true })
+        .getByRole('button', { name: 'More', exact: true });
+      await expect(async () => {
+        if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+        await expect(more).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+      }).toPass();
+      await page
+        .getByRole('menu', { name: 'More' })
+        .getByRole('menuitem', { name: 'Milestones', exact: true })
         .click();
       await expect(page).toHaveURL(/\/projects\/[^/]+\/milestones$/u);
       const milestones = page.getByRole('region', { name: 'Milestones' });

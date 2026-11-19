@@ -88,6 +88,20 @@ export interface SignInOptions {
 /** The seeded workspaces; coach-mark tours are dismissed on the device for each. */
 const SEEDED_SLUGS = ['northstar-studio', 'northstar-studios', 'brightops-consulting'] as const;
 
+/**
+ * The device of a returning person: product tours dismissed ("Don't show tours again") and the
+ * automatic-timer panel, which opens by itself once on a first home visit, already asked. A
+ * tour's scrim would sit over the controls a journey is about. Call before the first page opens.
+ */
+export async function asReturningPerson(context: BrowserContext): Promise<void> {
+  await context.addInitScript((slugs: readonly string[]) => {
+    for (const slug of slugs) {
+      window.localStorage.setItem(`tm-coach:${slug}:never`, 'true');
+      window.localStorage.setItem(`tm.autotimer.asked.${slug}`, '1');
+    }
+  }, SEEDED_SLUGS);
+}
+
 const SAVED_LOCALE: Readonly<Record<Lang, string>> = { en: 'en-US', ar: 'ar-EG' };
 
 /** The stored display settings a PUT carries (`toDisplayPreferencesUpdate` in the web app). */
@@ -190,13 +204,7 @@ export const test = base.extend<JourneyFixtures>({
         phone ? { viewport: phone, hasTouch: true, isMobile: true } : {},
       );
       open.add(context);
-      await context.addInitScript((slugs: readonly string[]) => {
-        for (const slug of slugs) {
-          window.localStorage.setItem(`tm-coach:${slug}:never`, 'true');
-          // The automatic-timer panel opens by itself once on a first home visit; mark it asked.
-          window.localStorage.setItem(`tm.autotimer.asked.${slug}`, '1');
-        }
-      }, SEEDED_SLUGS);
+      await asReturningPerson(context);
       const headers = await startSession(context, userId);
       return {
         context,
