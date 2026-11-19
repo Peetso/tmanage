@@ -58,8 +58,12 @@ import {
  * says so (`overSettled`), so the caller can notify the platform admins.
  *
  * Each operation is one transaction. Locks are always taken in the order task → member →
- * workspace → call → pool, so two operations can never wait on each other in a cycle. Not wired to
- * any route yet (62-09 is the orchestrator that calls it). No model is called here.
+ * workspace → call → pool, so two operations can never wait on each other in a cycle. Every
+ * transaction runs at READ COMMITTED: each counter move is a conditional UPDATE the engine
+ * re-checks on the latest row, so a snapshot adds nothing but MariaDB 11.8's `ER_CHECKREAD`
+ * refusals on the contended counter rows (proven by the 200-racer suite,
+ * `test/t1-1119-ai-budget.db.test.ts`). Not wired to any route yet (62-09 is the orchestrator that
+ * calls it). No model is called here.
  */
 
 /** Why the budget said no. Each is a calm state for the member, never an error page. */
@@ -254,13 +258,21 @@ export class AiBudgetService {
     this.newId = deps.newId ?? uuidv7;
   }
 
+  /** One READ COMMITTED transaction (see the class comment). */
+  private transaction<T>(
+    context: TenantContext,
+    work: (tx: TenantQueryRunner) => Promise<T>,
+  ): Promise<T> {
+    return this.database.transaction(context, work, { isolation: 'read committed' });
+  }
+
   private async run<T>(
     context: TenantContext,
     work: (tx: TenantQueryRunner, now: Date) => Promise<T>,
   ): Promise<AiBudgetResult<T>> {
     const now = this.now();
     try {
-      const value = await this.database.transaction(context, (tx) => work(tx, now));
+      const value = await this.transaction(context, (tx) => work(tx, now));
       return { ok: true, value };
     } catch (error) {
       if (error instanceof Refused) return { ok: false, reason: error.reason };
@@ -594,11 +606,11 @@ export class AiBudgetService {
     let failedTasks = 0;
     const now = this.now();
 
-    const lost = await this.database.transaction(context, (tx) =>
+    const lost = await this.transaction(context, (tx) =>
       this.store.lostCalls(tx, context, now, EXPIRY_BATCH),
     );
     for (const call of lost) {
-      const closed = await this.database.transaction(context, async (tx) => {
+      const closed = await this.transaction(context, async (tx) => {
         await this.store.lockTask(tx, context, call.taskId);
         if (!(await this.store.closeLostCall(tx, context, call, now))) return false;
         const cost = call.status === 'sent' ? call.holdMicroUsd : 0;
@@ -626,7 +638,7 @@ export class AiBudgetService {
     }
 
     const staleBefore = new Date(now.getTime() - AI_TASK_TTL_MS);
-    const stale = await this.database.transaction(context, (tx) =>
+    const stale = await this.transaction(context, (tx) =>
       this.store.staleRunningTasks(tx, context, staleBefore, EXPIRY_BATCH),
     );
     for (const taskId of stale) {

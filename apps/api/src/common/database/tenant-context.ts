@@ -620,6 +620,17 @@ const FIRST_OWNER_BOOTSTRAP_REASON =
 // TenantDatabase
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface TransactionOptions {
+  /**
+   * `read committed` is for work whose every counter move is a conditional UPDATE re-checked on
+   * the latest row version (the AI budget). Under the default REPEATABLE READ, MariaDB 11.8's
+   * `innodb_snapshot_isolation` refuses such an UPDATE with `ER_CHECKREAD` whenever another
+   * transaction committed the row after this one's snapshot began, which on a contended counter
+   * is nearly every racer. Unset = the server default.
+   */
+  readonly isolation?: 'read committed';
+}
+
 /**
  * The organization-bound database handle.
  *
@@ -645,9 +656,15 @@ export class TenantDatabase {
   async transaction<T>(
     context: TenantContext,
     work: (tx: TenantQueryRunner) => Promise<T>,
+    options: TransactionOptions = {},
   ): Promise<T> {
     const connection = await this.pool.getConnection();
     try {
+      if (options.isolation === 'read committed') {
+        // Without SESSION this applies to the next transaction only: the pooled connection
+        // goes back to the server default as soon as this one ends.
+        await connection.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+      }
       await connection.beginTransaction();
       try {
         const result = await work(makeRunner(connection, context, this.options));
