@@ -126,6 +126,10 @@ export function ProjectMilestonesScreen({
             tone="outline"
             size="feature"
             className="tm-a9-btn"
+            // The new milestone's "Show on the client timeline" default comes from the plan's
+            // client, read once when the dialog opens: opened before the plan answers, a client
+            // project's milestone would start hidden from that client.
+            disabled={plan.isPending}
             onClick={() => setEditing('new')}
           >
             {tOr('ProjectMilestones.add', 'Add milestone')}

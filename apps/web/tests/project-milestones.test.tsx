@@ -68,7 +68,7 @@ const members = [
   { userId: 'user-karim', displayName: 'Karim Adel', role: 'manager', status: 'active' },
 ];
 
-function mount(extra?: (call: Call) => Response | undefined) {
+function mount(extra?: (call: Call) => Response | Promise<Response> | undefined) {
   const calls: Call[] = [];
   const api = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -152,6 +152,26 @@ describe('ProjectMilestonesScreen', () => {
 
     expect(await screen.findByText('Website relaunch', { selector: 'p' })).toBeTruthy();
     await expectNoAxeViolations(view.container);
+  });
+
+  it('a new milestone waits for the plan, then starts on the client timeline', async () => {
+    let answerPlan: () => void = () => undefined;
+    mount((call) =>
+      call.url.includes('/milestone-plan')
+        ? new Promise<Response>((resolve) => (answerPlan = () => resolve(route(call))))
+        : undefined,
+    );
+    const add = screen.getByRole<HTMLButtonElement>('button', { name: 'Add milestone' });
+    expect(add.disabled).toBe(true);
+    answerPlan();
+    await waitFor(() => expect(add.disabled).toBe(false));
+
+    fireEvent.click(add);
+    const dialog = await screen.findByRole('dialog', { name: 'Add milestone' });
+    const shown = within(dialog).getByRole<HTMLInputElement>('switch', {
+      name: 'Show on the client timeline',
+    });
+    expect(shown.checked).toBe(true);
   });
 
   it('saves an edit: owner, delivered text and hiding it from the client timeline', async () => {
