@@ -6812,6 +6812,11 @@ export interface DigestPreference {
   readonly cadence: DigestCadence;
   readonly sendHour: number;
   readonly dayOfWeek: number;
+  /**
+   * 62-A1c (B12): the business briefing as one section of the digest mail. A row saved before the
+   * switch existed has no key and reads as off.
+   */
+  readonly businessBriefing?: boolean;
 }
 
 /**
@@ -9121,6 +9126,8 @@ export const HOME_WIDGET_IDS = [
   'summary',
   'pins',
   'savedContext',
+  // 62-A1b (B11): the business briefing card on Home.
+  'businessBriefing',
 ] as const;
 export type HomeWidgetId = (typeof HOME_WIDGET_IDS)[number];
 

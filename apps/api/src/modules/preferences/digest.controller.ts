@@ -49,12 +49,6 @@ export interface DigestPrefView {
   readonly businessBriefing: boolean;
 }
 
-/**
- * The stored `digest_json`: the schema's {@link DigestPreference} and, since 62-A1c, the
- * briefing switch. A row saved before the switch existed has no key and reads as off.
- */
-type StoredDigestPreference = DigestPreference & { readonly businessBriefing?: boolean };
-
 /** The shipped default an unsaved member reads by: a daily digest at 08:00, weekday Monday. */
 export const DEFAULT_DIGEST_PREFERENCE: DigestPrefView = {
   cadence: 'daily',
@@ -109,7 +103,7 @@ export class DigestPreferenceController {
   }
 }
 
-function viewOf(settings: StoredDigestPreference): DigestPrefView {
+function viewOf(settings: DigestPreference): DigestPrefView {
   return {
     cadence: settings.cadence,
     sendHour: settings.sendHour,
@@ -118,7 +112,7 @@ function viewOf(settings: StoredDigestPreference): DigestPrefView {
   };
 }
 
-function parseInput(body: unknown): StoredDigestPreference {
+function parseInput(body: unknown): DigestPreference {
   const details: { field: string; message: string }[] = [];
   const value = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
 

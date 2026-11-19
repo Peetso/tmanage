@@ -221,6 +221,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- 62-27 0380 ---- +9: the signals sweep reads `work_signals`, `work_signal_sweeps` and
     // `work_signal_settings`, its sources `work_item_estimates`, `person_capacity` and
     // `member_reporting_lines`, and the three flag tables that gate it per company.
+    // ---- 62-A3 / 62-A1c ---- +3: the growth rollup reads `ai_tasks` and `ai_usage_ledger`, and
+    // the digest briefing reads `membership_permission_overrides`.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -259,7 +261,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         3 +
         27 +
         4 +
-        9,
+        9 +
+        3,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

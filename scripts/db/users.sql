@@ -2664,12 +2664,22 @@ GRANT INSERT, UPDATE ON `tmanage`.`work_signal_settings` TO 'tmanage_app'@'%';
 -- tenant ones on `tmanage_erasure`; `ai_budget_pools` is a platform record and is never erased).
 -- `ai_workspace_settings` and `ai_credit_packs` have no write path yet, so the API holds only the
 -- database-wide read on them; the slice that writes them adds the grant with the code. The worker
--- holds nothing on these tables until the hold-expiry sweeper exists.
+-- writes none of these tables until the hold-expiry sweeper exists (it then needs UPDATE on
+-- `ai_tasks`, B13); it only reads two of them for Growth, below.
 GRANT INSERT, UPDATE ON `tmanage`.`ai_budget_pools` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_workspace_periods` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_member_periods` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_tasks` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_usage_ledger` TO 'tmanage_app'@'%';
+-- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
+-- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
+-- `projects` and `client_invoices` (the first-outcome figures) are granted above. Read only.
+GRANT SELECT ON `tmanage`.`ai_tasks` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`ai_usage_ledger` TO 'tmanage_worker'@'%';
+-- 62-A1c (B12 DIGEST BRIEFING). The digest mail's briefing section (`briefing-store.ts`) resolves
+-- each reader's permission set the way the Home card does, which reads the per-member
+-- `membership_permission_overrides` beside `custom_roles` (granted above). Read only.
+GRANT SELECT ON `tmanage`.`membership_permission_overrides` TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Erasure user — the company and account erasures, and nothing else
