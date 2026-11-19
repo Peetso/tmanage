@@ -15,6 +15,8 @@ import {
 const meta = {
   title: 'Home/Business briefing',
   component: HomeBriefingCard,
+  // A [vr] screen since T2 (62-A1b baselines, BATCH-2026-11-19 section 6).
+  tags: ['vr'],
   args: { organizationSlug: 'northstar', now: BRIEFING_NOW, client: briefingClient() },
 } satisfies Meta<typeof HomeBriefingCard>;
 

@@ -1,4 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
+import type { Decorator, Meta, StoryObj } from '@storybook/react-vite';
+import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { AlertSettingsScreen } from '../src/components/screens/AlertSettingsScreen';
 import { alertsClient } from './support/alert-fixtures';
 import { withStubbedNetwork } from './support/vr-fixtures';
@@ -9,10 +11,32 @@ import { withStubbedNetwork } from './support/vr-fixtures';
  * the fixtures `tests/alert-settings-screen.test.tsx` asserts on. Baselines are taken in the batch
  * test phase.
  */
+/**
+ * The screen's unsaved-changes guard calls `useRouter()`, which throws without a Next app router
+ * (`.storybook/preview.tsx` provides none). A router that goes nowhere: a story never navigates.
+ */
+const STILL_ROUTER: AppRouterInstance = {
+  back: () => undefined,
+  forward: () => undefined,
+  refresh: () => undefined,
+  push: () => undefined,
+  replace: () => undefined,
+  prefetch: () => undefined,
+  bfcacheId: 'story',
+};
+
+const withAppRouter: Decorator = (Story) => (
+  <AppRouterContext.Provider value={STILL_ROUTER}>
+    <Story />
+  </AppRouterContext.Provider>
+);
+
 const meta = {
   title: 'Settings/Alerts',
   component: AlertSettingsScreen,
-  decorators: [withStubbedNetwork],
+  // A [vr] screen since T2 (62-27 baselines, BATCH-2026-11-19 section 6).
+  tags: ['vr'],
+  decorators: [withStubbedNetwork, withAppRouter],
   args: {
     organizationSlug: 'northstar',
     organizationName: 'Atlas Studio',

@@ -19,6 +19,8 @@ import {
 const meta = {
   title: 'Projects/ONEPAGE project overview',
   component: ProjectOverviewScreen,
+  // A [vr] screen since T2 (ONEPAGE baselines, BATCH-2026-11-19 section 6).
+  tags: ['vr'],
   args: {
     organizationSlug: 'northstar',
     organizationName: 'Atlas Studio',
@@ -50,6 +52,8 @@ export const WithSignals: Story = {
 };
 
 export const Loading: Story = {
+  // A skeleton has no settled frame to shoot (the VR spec waits for it to clear).
+  tags: ['!vr'],
   args: { client: overviewClient({ projectSummary: 'pending' }) },
 };
 

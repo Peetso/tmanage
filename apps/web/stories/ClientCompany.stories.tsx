@@ -15,6 +15,8 @@ import {
 const meta = {
   title: 'Clients/ONEPAGE client company',
   component: ClientCompanyScreen,
+  // A [vr] screen since T2 (ONEPAGE baselines, BATCH-2026-11-19 section 6).
+  tags: ['vr'],
   args: {
     organizationSlug: 'northstar',
     organizationName: 'Atlas Studio',
