@@ -554,6 +554,19 @@ describe('TM-10 second half — paging, sorting, selection, bulk audience', () =
  * transition can name. Every test in the block below gets it, because a screen that renders
  * without it is not the screen a person uses.
  */
+/** The ONEPAGE summary of `proj-1` (B01's read the rebuilt overview draws). */
+const SUMMARY = {
+  project: {
+    id: 'proj-1',
+    name: 'Website relaunch',
+    status: 'active',
+    committedAt: null,
+    forecastAt: null,
+    archivedAt: null,
+  },
+  delivery: { open: 1, late: 0, done: 0, complete: true },
+};
+
 const MEMBERS = {
   members: [
     { userId: 'user-1', displayName: 'Ada Okonkwo', role: 'member', status: 'active' },
@@ -863,225 +876,25 @@ describe('TM-13 the work item detail', () => {
   });
 });
 
-describe('TM-03 the project overview', () => {
-  function renderOverview(items: readonly unknown[], shares: readonly unknown[] = []) {
-    const { client } = clientOver((call) =>
-      call.url.includes('/work-items')
-        ? json({ workItems: items })
-        : call.url.includes('/clients')
-          ? json({ clients: shares })
-          : json(PROJECTS.projects[0] as unknown),
-    );
-    render(
-      withQuery(
-        <ProjectOverviewScreen
-          organizationSlug="northstar"
-          organizationName="Northstar Studio"
-          projectId="proj-1"
-          client={client}
-          now={NOW}
-        />,
-      ),
-    );
-  }
-
-  it('keeps committed and forecast as two different things', async () => {
-    renderOverview([]);
-
-    expect(await screen.findByText('Nothing committed yet')).toBeInTheDocument();
-    expect(screen.getByText(/30 Sep 2026|Sep 30, 2026|September 30, 2026/)).toBeInTheDocument();
-  });
-
-  it('explains how it is going with counts, and no score', async () => {
-    renderOverview([
-      workItem({ id: 'a', state: 'blocked', title: 'Blocked thing' }),
-      workItem({
-        id: 'b',
-        state: 'in_progress',
-        dueAt: '2026-08-01T00:00:00.000Z',
-        title: 'Late thing',
-      }),
-      workItem({ id: 'c', state: 'done', title: 'Done thing' }),
-    ]);
-
-    expect(
-      await screen.findByText('One item is blocked, and one item is past its due date.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/These are counts, not a score/)).toBeInTheDocument();
-  });
-
-  it('says its counts are a page rather than a total when the page came back full', async () => {
-    renderOverview(
-      Array.from({ length: 200 }, (_, index) =>
-        workItem({ id: `wi-${index}`, title: `Item ${index}` }),
-      ),
-    );
-
-    expect(await screen.findByText(/These counts are a page, not a total/)).toBeInTheDocument();
-  });
-
-  it('lists blockers separately from next actions', async () => {
-    renderOverview([
-      workItem({ id: 'a', state: 'blocked', title: 'Blocked thing' }),
-      workItem({ id: 'b', state: 'ready', title: 'Ready thing' }),
-    ]);
-
-    // Wait for the item, not for the section. Both sections render immediately with their
-    // empty copy while the query is in flight, so awaiting the region would resolve against
-    // the empty one and then assert on it.
-    await screen.findByText('Blocked thing');
-
-    const blockers = screen.getByRole('region', { name: 'Blockers' });
-    expect(within(blockers).getByText('Blocked thing')).toBeInTheDocument();
-    expect(within(blockers).queryByText('Ready thing')).not.toBeInTheDocument();
-
-    const next = screen.getByRole('region', { name: 'Next actions' });
-    expect(within(next).getByText('Ready thing')).toBeInTheDocument();
-  });
-
-  it('names every item a client would be able to see', async () => {
-    renderOverview([
-      workItem({ id: 'a', audience: 'client_visible', title: 'Shared thing' }),
-      workItem({ id: 'b', audience: 'internal', title: 'Private thing' }),
-    ]);
-
-    // `findAllBy`, because the same item legitimately appears twice: it is in progress, so it
-    // is a next action, and it is client-visible, so it is also in the list below. Sections on
-    // this screen are views of the same work, not a partition of it.
-    await screen.findAllByText('Shared thing');
-
-    const shared = screen.getByRole('region', { name: 'What the client can see' });
-    expect(within(shared).getByText('Shared thing')).toBeInTheDocument();
-    expect(within(shared).queryByText('Private thing')).not.toBeInTheDocument();
-  });
-
-  it('shows no badge until the shares endpoint answers, then Internal once it answered empty', async () => {
-    // The shares endpoint is held open, so the header renders (the project resolved) while the
-    // shares query is still in flight. This is the "only after" the title claims: the badge must
-    // be *absent* here, not defaulted to "Internal" the way the pre-CLIENT-001 screen was.
-    let answerShares!: (response: Response) => void;
-    const shares = new Promise<Response>((resolve) => {
-      answerShares = resolve;
-    });
-    const { client } = clientOver((call) =>
-      call.url.includes('/work-items')
-        ? json({ workItems: [] })
-        : call.url.includes('/clients')
-          ? shares
-          : json(PROJECTS.projects[0] as unknown),
-    );
-    render(
-      withQuery(
-        <ProjectOverviewScreen
-          organizationSlug="northstar"
-          organizationName="Northstar Studio"
-          projectId="proj-1"
-          client={client}
-          now={NOW}
-        />,
-      ),
-    );
-
-    const header = await screen.findByRole('region', { name: 'This project' });
-    expect(within(header).queryByText('Internal')).not.toBeInTheDocument();
-
-    answerShares(json({ clients: [] }));
-    await within(header).findByText('Internal');
-  });
-
-  it('says a shared project is shared, instead of the old unconditional Internal', async () => {
-    renderOverview(
-      [],
-      [
-        {
-          id: 'share-1',
-          projectId: 'proj-1',
-          clientOrganizationId: 'client-1',
-          createdAt: '2026-08-01T00:00:00.000Z',
-        },
-      ],
-    );
-
-    const header = await screen.findByRole('region', { name: 'This project' });
-    await within(header).findByText('Client can open this project');
-    expect(within(header).queryByText('Internal')).not.toBeInTheDocument();
-  });
-
-  it('draws no badge at all when it cannot know — the shares endpoint refused', async () => {
-    const { client } = clientOver((call) =>
-      call.url.includes('/work-items')
-        ? json({ workItems: [] })
-        : call.url.includes('/clients')
-          ? json(
-              {
-                error: {
-                  code: 'forbidden',
-                  message: 'You do not have access to this.',
-                  correlationId: 'corr',
-                },
-              },
-              403,
-            )
-          : json(PROJECTS.projects[0] as unknown),
-    );
-    render(
-      withQuery(
-        <ProjectOverviewScreen
-          organizationSlug="northstar"
-          organizationName="Northstar Studio"
-          projectId="proj-1"
-          client={client}
-          now={NOW}
-        />,
-      ),
-    );
-
-    const header = await screen.findByRole('region', { name: 'This project' });
-    // A badge the screen cannot verify is a guess; the old screen guessed "Internal".
-    expect(within(header).queryByText('Internal')).not.toBeInTheDocument();
-    expect(within(header).queryByText('Client can open this project')).not.toBeInTheDocument();
-  });
-
-  it('has no axe violations', async () => {
-    const { client } = clientOver((call) =>
-      call.url.includes('/work-items')
-        ? json({ workItems: [workItem()] })
-        : call.url.includes('/clients')
-          ? json({ clients: [] })
-          : json(PROJECTS.projects[0] as unknown),
-    );
-
-    const { container } = render(
-      withQuery(
-        <ProjectOverviewScreen
-          organizationSlug="northstar"
-          organizationName="Northstar Studio"
-          projectId="proj-1"
-          client={client}
-          now={NOW}
-        />,
-      ),
-    );
-
-    await screen.findByRole('region', { name: 'Blockers' });
-    await expectNoAxeViolations(container);
-  });
-});
+// TM-03's project overview was rebuilt as the ONEPAGE overview (B04): its tests live in
+// `project-overview-screen.test.tsx` and `overview-blocks.test.tsx`.
 
 /**
  * The two screens share one `QueryClient` and are one click apart.
  *
- * `ProjectOverviewScreen`'s "Update work" action links to `/{slug}/work?project={id}`, which
- * is a client-side navigation: the provider does not remount, so whatever the first screen
- * cached is still there when the second one asks. They cache *different shapes* — the list
- * pages through `useInfiniteQuery` and holds `{ pages, pageParams }`, the overview holds a
- * plain array — and they used to name the same key, because the overview's fourth segment was
+ * `ProjectOverviewScreen`'s Work tab links to `/{slug}/work?project={id}`, which is a
+ * client-side navigation: the provider does not remount, so whatever the first screen cached is
+ * still there when the second one asks. Before ONEPAGE (B04) the overview read the work items
+ * itself and cached *a different shape* — the list pages through `useInfiniteQuery` and holds
+ * `{ pages, pageParams }`, the old overview held a plain array — and they named the same key,
+ * because the overview's fourth segment was
  * `''` and the list's was `[].sort().join(',')`, which is also `''`. Whichever arrived second
  * read the other's entry as fresh, called `.pages.flat()` on an array or `.filter` on an
  * object, and threw: a blank crash rather than an error anyone could act on.
  *
  * `workItemKeys` puts the shape word in the key, so the collision cannot be reconstructed by
- * argument. These two tests walk it in both directions with one client, and `staleTime` is set
+ * argument. The overview now reads its one summary instead; these two tests still walk the hand-off
+ * in both directions with one client, and `staleTime` is set
  * to the value `QueryProvider` actually uses, because a zero stale time would refetch and hide
  * the bug rather than reproduce it.
  */
@@ -1098,6 +911,7 @@ describe('the work surfaces share a cache, and must not share a cache entry', ()
   function workAndProjectRoutes(call: Call): Response {
     if (call.url.includes('/work-items')) return json({ workItems: [workItem()] });
     if (call.url.includes('/clients')) return json({ clients: [] });
+    if (call.url.includes('/projects/proj-1/summary')) return json(SUMMARY);
     if (call.url.includes('/projects/proj-1')) return json(PROJECTS.projects[0] as unknown);
     return json(PROJECTS);
   }
@@ -1117,7 +931,7 @@ describe('the work surfaces share a cache, and must not share a cache entry', ()
         />
       </QueryClientProvider>,
     );
-    await screen.findByRole('region', { name: 'Blockers' });
+    await screen.findByRole('region', { name: 'Delivery' });
     overview.unmount();
 
     render(
@@ -1165,10 +979,7 @@ describe('the work surfaces share a cache, and must not share a cache entry', ()
       </QueryClientProvider>,
     );
 
-    const health = await screen.findByRole('region', { name: 'How it is going' });
-    expect(
-      await within(health).findByText('Nothing is blocked and nothing is past its due date.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Delivery' })).toBeInTheDocument();
   });
 });
 
@@ -1183,11 +994,9 @@ describe('D16 follow-up — the owner reads as a name on all three surfaces (x42
     const { client } = clientOver((call) =>
       call.url.includes('/members')
         ? json(MEMBERS)
-        : call.url.includes('/work-items')
-          ? json({ workItems: [] })
-          : call.url.includes('/clients')
-            ? json({ clients: [] })
-            : json(PROJECTS.projects[0] as unknown),
+        : call.url.includes('/summary')
+          ? json(SUMMARY)
+          : json(PROJECTS.projects[0] as unknown),
     );
     render(
       withQuery(
@@ -1201,7 +1010,7 @@ describe('D16 follow-up — the owner reads as a name on all three surfaces (x42
       ),
     );
 
-    expect(await screen.findByText('Ada Okonkwo')).toBeInTheDocument();
+    expect(await screen.findByText(/Led by Ada Okonkwo/)).toBeInTheDocument();
     expect(screen.queryByText(/user-1/)).not.toBeInTheDocument();
   });
 

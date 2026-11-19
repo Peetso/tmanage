@@ -1,0 +1,358 @@
+/*
+ * ONEPAGE — the project overview and the client company page (Figma section 738:40257: project
+ * 739:40334 / AR 739:40873 / phone 739:42354, 739:42808 / no finance 739:41403, 739:41881; client
+ * 740:40765 / 740:41300 / 740:41828 / 740:42254). TManage tokens only; logical properties only, so
+ * the Arabic frames mirror without a second rule. Prefix `tm-ov-`.
+ */
+
+/* Header: title 40/46 like the sibling detail screens, the back link quiet above it. */
+.tm-app:has(.tm-ov) .tm-canvas-header {
+  align-items: flex-start;
+  border-block-end: none;
+}
+
+.tm-app:has(.tm-ov) .tm-canvas-header__title {
+  font-size: 40px;
+  line-height: 46px;
+  letter-spacing: -0.02em;
+}
+
+.tm-app:has(.tm-ov) .tm-canvas-header__description {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-ov-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  text-decoration: none;
+}
+
+.tm-ov-back:hover {
+  text-decoration: underline;
+}
+
+.tm-ov-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.tm-ov {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+/* Tabs/Item 169:162: 14/20 text, 12 px top, 8 px to the 3 px indicator, 24 px between tabs. */
+.tm-ov-tabs__list {
+  display: flex;
+  gap: var(--s6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.tm-ov-tabs__list::-webkit-scrollbar {
+  display: none;
+}
+
+.tm-ov-tabs__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 44px;
+  padding-block: var(--s3) var(--s2);
+  padding-inline: var(--s3);
+  border-block-end: 3px solid transparent;
+  color: var(--ink-650);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  scroll-snap-align: start;
+}
+
+.tm-ov-tabs__item:hover {
+  color: var(--ink-950);
+}
+
+.tm-ov-tabs__item[aria-current='page'] {
+  border-block-end-color: var(--lime-500);
+  color: var(--ink-950);
+}
+
+.tm-ov-tabs__count {
+  padding-inline: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+/* Overview blocks 739:40526: two rows, 24 px apart; a row shares its width among its cards. */
+.tm-ov-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-ov-blocks__row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s6);
+}
+
+.tm-ov-blocks__row > * {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+/* Card · … : surface, 1 px line, 24 px radius and padding, 16 px between parts. */
+.tm-ov-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-ov-card--error {
+  align-items: flex-start;
+}
+
+.tm-ov-card__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-block-size: 44px;
+  margin-block-start: calc(-1 * (44px - var(--t-heading-card-line)) / 2);
+  padding-block-end: calc(var(--s4) - (44px - var(--t-heading-card-line)) / 2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-ov-card__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-ov-card__link {
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* The whole header row is the link's hit area (review fix 4); the link alone is named. */
+.tm-ov-card__link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.tm-ov-card__head:hover .tm-ov-card__link {
+  text-decoration: underline;
+}
+
+.tm-ov-card__empty,
+.tm-ov-card__note {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-ov-card__empty {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+/* Figures: three equal columns, 24/31 value over a 12/17 label; the label is read first. */
+.tm-ov-figures {
+  display: flex;
+  gap: var(--s4);
+  margin: 0;
+  padding-block-end: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-ov-figures:last-child {
+  padding-block-end: 0;
+  border-block-end: none;
+}
+
+.tm-ov-figures__item {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-ov-figures__value {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-ov-figures__value[data-tone='danger'] {
+  color: var(--danger-600);
+}
+
+.tm-ov-figures__label {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+/* Rows: 40 px disc, 12 px gap, 14/20 title over 12/17 meta, capsule at the end; hairline between. */
+.tm-ov-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-ov-rows > li + li {
+  padding-block-start: var(--s4);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-ov-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-ov-row__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.tm-ov-row__title {
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-ov-row__title:hover {
+  text-decoration: underline;
+}
+
+.tm-ov-row__meta {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+.tm-ov-row__end {
+  flex: none;
+}
+
+.tm-ov-orb {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--orb-default);
+  block-size: var(--orb-default);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-950);
+}
+
+/* Client page: the narrowed Projects tab says so, with the way back. */
+.tm-ov-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-ov-filter a {
+  color: var(--ink-950);
+}
+
+.tm-ov-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: var(--s6);
+  align-items: start;
+}
+
+/* Tablet: the rows wrap two by two before the phone's single column. */
+@media (max-width: 73.69rem) {
+  .tm-ov-blocks__row {
+    flex-wrap: wrap;
+  }
+
+  .tm-ov-blocks__row > * {
+    flex-basis: calc(50% - var(--s6) / 2);
+  }
+}
+
+/* Phone (739:42354): one column in the frames' order, 16 px between cards. */
+@media (max-width: 47.99rem) {
+  .tm-ov,
+  .tm-ov-blocks,
+  .tm-ov-blocks__row {
+    gap: var(--s4);
+  }
+
+  .tm-ov-blocks__row {
+    flex-direction: column;
+  }
+
+  .tm-ov-blocks__row > * {
+    flex-basis: auto;
+  }
+
+  .tm-ov-tabs__list {
+    gap: var(--s2);
+    margin-inline: calc(-1 * var(--s4));
+    padding-inline: var(--s4);
+  }
+
+  .tm-app:has(.tm-ov) .tm-canvas-header__title {
+    font-size: var(--t-heading-section);
+    line-height: var(--t-heading-section-line);
+  }
+}

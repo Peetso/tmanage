@@ -6,6 +6,9 @@ import { ApiRequestError } from '../src/lib/api/errors';
 import { ClientCompanyScreen } from '../src/components/screens/ClientCompanyScreen';
 import { clientOnlyRead } from '../src/lib/portal-preview';
 import { translate, type MessageKey } from '../src/lib/i18n/t';
+import type { ClientView } from '../src/components/overview/overview-links';
+import { CLIENT_SUMMARY } from '../stories/support/overview-fixtures';
+import { expectNoAxeViolations } from './axe';
 
 /**
  * 2026-10-31 live-test fixes — the client company page (Figma 446:37327 with the rename dialog
@@ -29,7 +32,7 @@ interface Call {
   body: unknown;
 }
 
-function mount() {
+function mount(view: ClientView = 'overview', atRisk = false) {
   const calls: Call[] = [];
   const reply = (body: unknown, status = 200) =>
     Promise.resolve(
@@ -86,6 +89,16 @@ function mount() {
         ],
       });
     }
+    if (method === 'GET' && path === '/client-organizations/co-atlas/summary') {
+      return reply({
+        ...CLIENT_SUMMARY,
+        client: { id: 'co-atlas', name: 'Atlas Hospitality', archivedAt: null },
+        projects: {
+          items: [{ id: 'p-1', name: 'Atlas launch', status: 'active', band: 'amber' }],
+          truncated: false,
+        },
+      });
+    }
     if (method === 'PATCH') return reply({ ...ATLAS, name: (body as { name: string }).name });
     if (method === 'DELETE') return reply({ ...ATLAS, archivedAt: '2026-10-31T12:00:00Z' });
     return reply({});
@@ -105,6 +118,8 @@ function mount() {
         organizationSlug="northstar"
         organizationName="Northstar Studio"
         clientOrganizationId="co-atlas"
+        view={view}
+        atRisk={atRisk}
         client={client}
         now={() => NOW}
       />
@@ -115,14 +130,14 @@ function mount() {
 
 describe('ClientCompanyScreen', () => {
   it('lists the projects shared with the company, each opening the project (B10)', async () => {
-    mount();
+    mount('projects');
     const list = await screen.findByRole('list', { name: label('Clients.sharedProjectsTitle') });
     const link = within(list).getByRole('link', { name: /Atlas launch/ });
     expect(link.getAttribute('href')).toBe('/northstar/projects/p-1');
   });
 
   it('shows the company, its people by name and its pending invitations', async () => {
-    const calls = mount();
+    const calls = mount('people');
     const people = await screen.findByRole('list', { name: label('Clients.peopleTitle') });
     expect(within(people).getByText('Salma Riad')).toBeTruthy();
     expect(within(people).getByText(/salma@atlas\.example/)).toBeTruthy();
@@ -134,7 +149,7 @@ describe('ClientCompanyScreen', () => {
   });
 
   it('renames the company with its updatedAt guard', async () => {
-    const calls = mount();
+    const calls = mount('people');
     fireEvent.click(await screen.findByRole('button', { name: label('Clients.rename') }));
     const dialog = await screen.findByRole('dialog', { name: label('Clients.renameTitle') });
     fireEvent.change(
@@ -150,7 +165,7 @@ describe('ClientCompanyScreen', () => {
   });
 
   it('archives the company after a confirmation', async () => {
-    const calls = mount();
+    const calls = mount('people');
     fireEvent.click(await screen.findByRole('button', { name: label('Clients.archiveClient') }));
     const dialog = await screen.findByRole('alertdialog');
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false);
@@ -162,6 +177,44 @@ describe('ClientCompanyScreen', () => {
         ),
       ).toBe(true),
     );
+  });
+});
+
+describe('ONEPAGE client company overview (B04)', () => {
+  it('opens on the overview blocks from one summary read, Overview current', async () => {
+    const calls = mount();
+    expect(await screen.findByRole('region', { name: 'Delivery' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Money' })).toBeInTheDocument();
+    expect(calls.filter((call) => call.path.endsWith('/summary'))).toHaveLength(1);
+    const tabs = screen.getByRole('navigation', { name: 'Sections' });
+    expect(within(tabs).getByRole('link', { name: 'Overview' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(tabs).getByRole('link', { name: /^Projects/ })).toHaveAttribute(
+      'href',
+      '/northstar/clients/co-atlas?view=projects',
+    );
+    expect(screen.queryByRole('list', { name: label('Clients.peopleTitle') })).toBeNull();
+  });
+
+  it('narrows the Projects tab to the projects at risk, with the way back to all', async () => {
+    mount('projects', true);
+    const list = await screen.findByRole('list', { name: label('Clients.sharedProjectsTitle') });
+    expect(within(list).getByRole('link', { name: /Atlas launch/ })).toBeInTheDocument();
+    expect(await within(list).findByText('At risk')).toBeInTheDocument();
+    expect(screen.getByText('Showing the projects at risk.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Show all projects' })).toHaveAttribute(
+      'href',
+      '/northstar/clients/co-atlas?view=projects',
+    );
+  });
+
+  it('has no axe violations on the overview', async () => {
+    mount();
+    await screen.findByRole('region', { name: 'Money' });
+    // The render container, as every other screen test mounts it.
+    await expectNoAxeViolations(document.body.firstElementChild!);
   });
 });
 
