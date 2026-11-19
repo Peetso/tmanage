@@ -4998,18 +4998,30 @@ import type { ProjectSummary as WebProjectPageSummary } from '../../apps/web/src
 import type { ClientSummary as WebClientPageSummary } from '../../apps/web/src/lib/api/client-summary.js';
 type _projectPageSummary = Assert<Exact<ApiProjectSummaryView, WebProjectPageSummary>>;
 type _clientPageSummary = Assert<Exact<ApiClientSummaryView, WebClientPageSummary>>;
+// T5 D7: the client page's Time block and each project's health reason, paired on their own.
+import type { ClientTimeBlock as ApiClientTimeBlock } from '../../apps/api/src/modules/clients/client-summary.service.js';
+import type { ProjectHealthReason as ApiProjectHealthReason } from '../../apps/api/src/modules/projects/health.service.js';
+import type {
+  ProjectHealthReason as WebProjectHealthReason,
+  SummaryClientTime as WebSummaryClientTime,
+} from '../../apps/web/src/lib/api/client-summary.js';
+type _clientTimeBlock = Assert<Exact<ApiClientTimeBlock, WebSummaryClientTime>>;
+type _projectHealthReason = Assert<Exact<ApiProjectHealthReason, WebProjectHealthReason>>;
 
 // ---- 62-A2 ACTIVITY (B02/B09) · the Activity tab of a project and of a client ----
 import type {
   ActivityEntryView as ApiActivityEntryView,
   ActivityPageView as ApiActivityPageView,
+  ActivityTotalView as ApiActivityTotalView,
 } from '../../apps/api/src/modules/activity/activity.service.js';
 import type {
   ActivityEntry as WebActivityEntry,
   ActivityPage as WebActivityPage,
+  ActivityTotal as WebActivityTotal,
 } from '../../apps/web/src/lib/api/activity.js';
 type _activityEntry = Assert<Exact<ApiActivityEntryView, WebActivityEntry>>;
 type _activityPage = Assert<Exact<ApiActivityPageView, WebActivityPage>>;
+type _activityTotal = Assert<Exact<ApiActivityTotalView, WebActivityTotal>>;
 
 // ---- 62-A1b HOME BRIEFING (B11) · the business briefing card on Home ----
 import type { HomeBriefingView as ApiHomeBriefingView } from '../../apps/api/src/modules/home/home-briefing.service.js';
