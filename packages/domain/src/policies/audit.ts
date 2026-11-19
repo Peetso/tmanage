@@ -1259,6 +1259,11 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'working_calendar',
     clause: '§12 53-02 — a holiday pack was imported (pack key and pack version recorded)',
   },
+  // ---- 62-27 (B05) · signals engine ----
+  'work_signal_settings.updated': {
+    objectType: 'organization',
+    clause: '§12 62-27 — the owner changed the alert rules (on/off, threshold, who is told)',
+  },
   // ---- R13-s2 · outbound webhooks v2 (54-03 + 56-08) ----
   'webhook.secret_rotated': {
     objectType: 'webhook_endpoint',
@@ -1991,6 +1996,7 @@ const AUDIT_ACTION_LABELS = {
   'time_log.created': 'Logged time',
   'working_calendar.updated': 'Changed the working calendar',
   'working_calendar.holidays_imported': 'Imported a holiday list',
+  'work_signal_settings.updated': 'Changed the alert rules',
   'webhook.secret_rotated': 'Rotated a webhook signing secret',
   'webhook.paused': 'Paused a webhook',
   'webhook.resumed': 'Resumed a webhook',

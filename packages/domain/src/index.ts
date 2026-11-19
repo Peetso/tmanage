@@ -560,3 +560,7 @@ export * from './time/rounding.js';
 
 // Activity history per project and client: the action catalogue shared by worker and API — 62-A2 (B02)
 export * from './activity/activity-catalog.js';
+
+// Signals engine, and the per-organization flag chain its sweep shares with the API — 62-27 (B05)
+export * from './signals/index.js';
+export * from './flags/flag-chain.js';

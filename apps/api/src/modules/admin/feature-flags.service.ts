@@ -1,5 +1,17 @@
 import { createHash } from 'node:crypto';
+import {
+  parseFlagLockList,
+  percentageBucketInput,
+  percentageBucketOfDigest,
+  resolveFlagChain,
+  rolloutIncludesBucket,
+} from '@tmanage/domain';
+import type { PlatformFlagLayer } from '@tmanage/domain';
 import type { OrgFeatureFlagRow } from '../../common/database/schema.js';
+
+// The pure chain lives in the domain (`flags/flag-chain.ts`) so the worker resolves a flag the same way.
+export { FLAG_ROLLOUTS } from '@tmanage/domain';
+export type { FlagRollout, PlatformFlagLayer } from '@tmanage/domain';
 
 /**
  * The logic half of per-org optional-module feature flags (Administration module 18, x278) — the
@@ -40,6 +52,9 @@ export const OPTIONAL_MODULE_FLAGS = [
   'proofing',
   'approval_links',
   'public_forms',
+  // Plan 62 (62-27, 62-A1a/b): the signals engine, owner alert settings and the Home briefing.
+  // Default off; the platform owner turns it on per organization (the worker sweep reads it too).
+  'business_briefing',
 ] as const;
 
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
@@ -47,9 +62,10 @@ export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
 /**
  * Each optional module's default state until an org admin sets it explicitly. The live product
  * modules ship **on** — they are in the app and work today — so a never-touched flag reports the
- * module as on rather than falsely as off (ADM-12: the switches must match reality). The AI copilot
- * is the one default-**off** module: its flag genuinely gates the copilot `ask` route (NS-13), whose
- * only provider today is the local stub, so it must stay off until an admin opts in.
+ * module as on rather than falsely as off (ADM-12: the switches must match reality). Two modules
+ * are default-**off**: the AI copilot, whose flag genuinely gates the copilot `ask` route (NS-13)
+ * with the local stub as its only provider, and the business briefing (plan 62), which ships to a
+ * test list first; each stays off until an admin opts in.
  */
 export const DEFAULT_MODULE_ENABLED: Record<OptionalModuleFlag, boolean> = {
   chat: true,
@@ -73,6 +89,7 @@ export const DEFAULT_MODULE_ENABLED: Record<OptionalModuleFlag, boolean> = {
   proofing: true,
   approval_links: true,
   public_forms: true,
+  business_briefing: false,
 };
 
 const KNOWN_FLAGS: ReadonlySet<string> = new Set(OPTIONAL_MODULE_FLAGS);
@@ -83,18 +100,6 @@ export function isOptionalModuleFlag(value: unknown): value is OptionalModuleFla
 }
 
 // ---- platform-admin v2 · PA-10 ----
-
-/** Who a platform flag's default reaches (0244 `platform_feature_flags.rollout`). */
-export const FLAG_ROLLOUTS = ['everyone', 'allowlist', 'percentage'] as const;
-export type FlagRollout = (typeof FLAG_ROLLOUTS)[number];
-
-/** One `platform_feature_flags` row, decoded. */
-export interface PlatformFlagLayer {
-  readonly enabled: boolean;
-  readonly rollout: FlagRollout;
-  readonly percentage: number | null;
-  readonly allowlist: readonly string[];
-}
 
 /**
  * The platform side of one organization's flag read: the platform rows, this organization's
@@ -113,8 +118,8 @@ export interface PlatformFlagContext {
  * bucket for a flag, so raising the percentage only ever adds organizations.
  */
 export function percentageBucket(flagKey: string, organizationId: string): number {
-  const digest = createHash('sha256').update(`${flagKey}:${organizationId}`).digest();
-  return digest.readUInt32BE(0) % 100;
+  const input = percentageBucketInput(flagKey, organizationId);
+  return percentageBucketOfDigest(createHash('sha256').update(input).digest());
 }
 
 /** Whether a platform flag's rollout includes the organization. */
@@ -123,10 +128,8 @@ export function rolloutIncludes(
   flagKey: string,
   organizationId: string,
 ): boolean {
-  if (layer.rollout === 'everyone') return true;
-  if (layer.rollout === 'allowlist') return layer.allowlist.includes(organizationId);
-  const percentage = layer.percentage ?? 0;
-  return percentageBucket(flagKey, organizationId) < percentage;
+  const bucket = layer.rollout === 'percentage' ? percentageBucket(flagKey, organizationId) : 0;
+  return rolloutIncludesBucket(layer, bucket, organizationId);
 }
 
 /**
@@ -137,15 +140,7 @@ export function rolloutIncludes(
 export function parseFlagLocks(
   raw: string | undefined,
 ): Partial<Record<OptionalModuleFlag, boolean>> {
-  const locks: Partial<Record<OptionalModuleFlag, boolean>> = {};
-  if (typeof raw !== 'string') return locks;
-  for (const part of raw.split(',')) {
-    const [key, value] = part.split('=').map((piece) => piece.trim().toLowerCase());
-    if (!isOptionalModuleFlag(key)) continue;
-    if (value === 'on' || value === 'true' || value === '1') locks[key] = true;
-    else if (value === 'off' || value === 'false' || value === '0') locks[key] = false;
-  }
-  return locks;
+  return parseFlagLockList(raw, isOptionalModuleFlag);
 }
 
 /**
@@ -158,14 +153,15 @@ export function resolveFlag(
   orgRow: boolean | undefined,
   platform: PlatformFlagContext | null | undefined,
 ): boolean {
-  const lock = platform?.locks[key];
-  if (lock !== undefined) return lock;
-  const forced = platform?.overrides[key];
-  if (forced !== undefined) return forced;
-  if (orgRow !== undefined) return orgRow;
-  const layer = platform?.flags[key];
-  if (layer && rolloutIncludes(layer, key, platform.organizationId)) return layer.enabled;
-  return DEFAULT_MODULE_ENABLED[key];
+  return resolveFlagChain({
+    organizationId: platform?.organizationId ?? '',
+    lock: platform?.locks[key],
+    override: platform?.overrides[key],
+    orgRow,
+    layer: platform?.flags[key],
+    bucket: () => (platform ? percentageBucket(key, platform.organizationId) : 0),
+    codeDefault: DEFAULT_MODULE_ENABLED[key],
+  });
 }
 
 /**
