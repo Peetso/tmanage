@@ -215,6 +215,12 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // `platform_person_mail_sweep`, and 25 feature tables it asks "used yet?" (one LIMIT 1 each).
     // ---- MAILREST 0374 ---- +0: UPDATE on `mail_tip_log` and INSERT, UPDATE on
     // `mail_recipient_bounces` are writes on tables the worker already reads.
+    // ---- 62-A2 0379 ---- +4: the activity projector reads `activity_entries` and
+    // `activity_projection_cursors` where it writes them, and its new sources `deliverables` and
+    // `project_milestones`.
+    // ---- 62-27 0380 ---- +9: the signals sweep reads `work_signals`, `work_signal_sweeps` and
+    // `work_signal_settings`, its sources `work_item_estimates`, `person_capacity` and
+    // `member_reporting_lines`, and the three flag tables that gate it per company.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -251,7 +257,9 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         2 +
         1 +
         3 +
-        27,
+        27 +
+        4 +
+        9,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

@@ -1386,6 +1386,26 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // empties the sign-ups first, then the code.
   referral_codes: 'organization_id',
   referral_signups: 'organization_id',
+  // 0379 (62-A2 ACTIVITY). Tenant-owned: a company's activity history (ids and actions only) and
+  // where the projector stopped in its audit trail. No foreign key, so the company erasure may
+  // empty them in any order.
+  activity_entries: 'organization_id',
+  activity_projection_cursors: 'organization_id',
+  // 0380 (62-27 SIGNALS). Tenant-owned: a company's raised signals, its owner's alert rules and the
+  // time of its last sweep. No foreign key, so the company erasure may empty them in any order.
+  work_signals: 'organization_id',
+  work_signal_settings: 'organization_id',
+  work_signal_sweeps: 'organization_id',
+  // 0381–0383 (62-05 AI LEDGER). Tenant-owned: a company's AI credit periods, its members'
+  // periods, its AI tasks and their usage ledger, its AI settings and credit packs. No foreign key,
+  // so the company erasure may empty them in any order. `ai_budget_pools` is a platform record
+  // (NON_TENANT_TABLES).
+  ai_workspace_periods: 'organization_id',
+  ai_member_periods: 'organization_id',
+  ai_tasks: 'organization_id',
+  ai_usage_ledger: 'organization_id',
+  ai_workspace_settings: 'organization_id',
+  ai_credit_packs: 'organization_id',
 });
 
 /**
@@ -1533,6 +1553,10 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // through `identityTransaction` / `identityRead` (partner create audits in the same transaction).
   'referral_partners',
   'referral_partner_signups',
+  // 0381 (62-05 AI LEDGER). The platform's AI spend per budget pool and period, in micro-USD: one
+  // platform budget shared by every workspace, no organization of its own. Written only by the AI
+  // budget service (`modules/copilot/ai-budget.repository.ts`) and the hold-expiry sweeper.
+  'ai_budget_pools',
   // ---- 52-21 ----
   // 0255. Public abuse telemetry and issued challenges. GLOBAL: the callers are anonymous (no
   // organization yet, or a visitor of one), every key is a hash (submitted values, the challenge

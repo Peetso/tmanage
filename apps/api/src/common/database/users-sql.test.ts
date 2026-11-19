@@ -228,6 +228,23 @@ describe('the grants and the schema agree', () => {
       platform_growth_rollups:
         '57-14 worker-written only: the nightly growth job upserts the rollups on the worker ' +
         'credential; the API only reads them for /v1/platform/activity/growth (database-wide read)',
+      // ---- 62-A2 / 62-27 / 62-05 ----
+      activity_entries:
+        '62-A2 0379 worker-written only: the activity projector files entries on the worker ' +
+        'credential (INSERT IGNORE); the API only reads them for the Activity tabs (database-wide read)',
+      activity_projection_cursors:
+        '62-A2 0379 the projector cursor, moved only by the worker; the API never writes it',
+      work_signals:
+        '62-27 0380 worker-written only: the signals sweeper files and refreshes signals on the ' +
+        'worker credential; the API only reads them for the Home briefing (database-wide read)',
+      work_signal_sweeps:
+        '62-A1b 0380 the last-sweep stamp, upserted only by the worker; the API only reads it',
+      ai_workspace_settings:
+        '62-05 0383 no write path yet: the API only reads it (database-wide read); the slice that ' +
+        'writes it adds the INSERT/UPDATE grant with the code',
+      ai_credit_packs:
+        '62-05 0383 no write path yet: the API only reads it (database-wide read); the slice that ' +
+        'grants or spends packs adds the write grant with the code',
     };
     for (const table of schemaTables) {
       const writable = privilegesOn('tmanage_app', table);

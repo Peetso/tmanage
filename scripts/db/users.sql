@@ -2617,6 +2617,59 @@ GRANT INSERT ON `tmanage`.`referral_codes` TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`referral_signups` TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`referral_partners` TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`referral_partner_signups` TO 'tmanage_app'@'%';
+-- 0379 (62-A2 ACTIVITY). `activity_entries` and `activity_projection_cursors` (tenant): written only
+-- by the worker's `activity-projector` (`activity-projector-store.ts`), which walks `audit_events`
+-- by cursor and files each catalogued action under its project and client. Entries are INSERT
+-- (IGNORE on the source audit id, so a re-run writes nothing twice); the cursor is INSERT then
+-- UPDATE in the same transaction as the entries it covers. SELECT beside each write ("read where
+-- it writes"). The projector's source reads add `deliverables` and `project_milestones` to the
+-- worker's named reads; every other source table (`audit_events`, `organizations`, `projects`,
+-- `work_items`, `work_item_time_logs`, `file_assets`, `approvals`, `client_requests`,
+-- `client_invoices`, `quotes`, `expenses`) is already granted above. No UPDATE on an entry and no
+-- DELETE anywhere for the worker. The API only reads both (database-wide read); the company erasure
+-- deletes them on `tmanage_erasure`.
+GRANT SELECT, INSERT ON `tmanage`.`activity_entries` TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`activity_projection_cursors` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`deliverables` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`project_milestones` TO 'tmanage_worker'@'%';
+-- 0380 (62-27 SIGNALS, 62-A1b). The worker's `signals-sweeper` (`signals-store.ts`) files a signal
+-- (INSERT IGNORE on the dedupe key), moves a held condition's figure and `seen_at` on (UPDATE) and
+-- stamps the organization's last sweep (`work_signal_sweeps`, INSERT … ON DUPLICATE KEY UPDATE).
+-- It reads the owner's rules and the facts the eight rules run on: of those, `work_item_estimates`
+-- and `person_capacity` are new to this credential; `work_items`, `work_item_time_logs`,
+-- `timesheets`, `projects`, `memberships`, `client_invoices`, `project_budgets`, `expenses`,
+-- `approvals` and the outbox INSERT are granted above. The feature-flag chain
+-- (`feature-flag-store.ts`, the `business_briefing` gate) reads `org_feature_flags`,
+-- `platform_feature_flags` and `platform_org_flag_overrides`. The notice consumer
+-- (`signal-notice-store.ts`) resolves who is told through `member_reporting_lines` (new) and the
+-- membership tables granted above, and writes `notifications` (granted above). No DELETE.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`work_signals` TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`work_signal_sweeps` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_signal_settings` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_item_estimates` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`person_capacity` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`member_reporting_lines` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`org_feature_flags` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`platform_feature_flags` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`platform_org_flag_overrides` TO 'tmanage_worker'@'%';
+-- The owner's alert rules (`insights/signals.repository.ts`): one row per rule, upserted
+-- (INSERT … ON DUPLICATE KEY UPDATE), never deleted. `work_signals` and `work_signal_sweeps` are
+-- read by the API only (the Home briefing, database-wide read). The company erasure deletes all
+-- three on `tmanage_erasure`.
+GRANT INSERT, UPDATE ON `tmanage`.`work_signal_settings` TO 'tmanage_app'@'%';
+-- 0381–0383 (62-05 AI LEDGER, 62-06 AI BUDGET). The budget service
+-- (`modules/copilot/ai-budget.repository.ts`) creates a period or pool row on first use (INSERT)
+-- and moves every counter by a conditional UPDATE; a task and each of its calls are INSERT then
+-- UPDATE. No DELETE: ledger and task rows are never deleted (the company erasure deletes the
+-- tenant ones on `tmanage_erasure`; `ai_budget_pools` is a platform record and is never erased).
+-- `ai_workspace_settings` and `ai_credit_packs` have no write path yet, so the API holds only the
+-- database-wide read on them; the slice that writes them adds the grant with the code. The worker
+-- holds nothing on these tables until the hold-expiry sweeper exists.
+GRANT INSERT, UPDATE ON `tmanage`.`ai_budget_pools` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`ai_workspace_periods` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`ai_member_periods` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`ai_tasks` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`ai_usage_ledger` TO 'tmanage_app'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Erasure user — the company and account erasures, and nothing else
@@ -2648,8 +2701,16 @@ CREATE USER IF NOT EXISTS 'tmanage_erasure'@'%' IDENTIFIED BY 'local_dev_only_er
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_erasure'@'%';
 
 GRANT SELECT, DELETE ON `tmanage`.`a11y_preferences` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`activity_entries` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`activity_projection_cursors` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`admin_export_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`admin_security_alerts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_credit_packs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_member_periods` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_tasks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_usage_ledger` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_workspace_periods` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_workspace_settings` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approval_chain_checks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approval_delegations` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approval_records` TO 'tmanage_erasure'@'%';
@@ -2973,6 +3034,9 @@ GRANT SELECT, DELETE ON `tmanage`.`work_item_subtasks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_item_time_logs` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_item_watchers` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_items` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_signal_settings` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_signal_sweeps` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_signals` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`workflow_conditions` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`workflow_due_soon_fires` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`workflow_flow_versions` TO 'tmanage_erasure'@'%';

@@ -10826,6 +10826,8 @@ export const organizationLimits = mysqlTable(
     peopleLimit: int('people_limit'),
     activeProjectsLimit: int('active_projects_limit'),
     storageBytesLimit: bigint('storage_bytes_limit', { mode: 'number' }),
+    /** 0383 (62-05): a platform admin's AI credits raise for this workspace; NULL = the plan's value. */
+    aiCreditsLimit: int('ai_credits_limit'),
     updatedBy: char('updated_by', { length: 36 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -14709,4 +14711,429 @@ Object.assign(TABLES, {
   referral_signups: referralSignups,
   referral_partners: referralPartners,
   referral_partner_signups: referralPartnerSignups,
+});
+
+// ---- 62-A2 ACTIVITY · activity history per project and client (0379) ----
+
+/** `activity_entries.audience_class` — mirrors `ACTIVITY_AUDIENCE_CLASSES` in the domain. */
+export const ACTIVITY_AUDIENCE_CLASSES = ['internal', 'client_visible', 'finance'] as const;
+
+/**
+ * 0379 (62-A2). One row per projected audit event, filed under its project and (when the source
+ * row names one) its client. `uq_activity_entries_source` makes the projector idempotent. Ids,
+ * action, kind and audience class only — never a title, body or metadata. TENANT; worker SELECT,
+ * INSERT; api SELECT (and DELETE for the company erasure). `0379_activity_entries.sql` is the
+ * source of truth.
+ */
+export const activityEntries = mysqlTable(
+  'activity_entries',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    clientOrganizationId: char('client_organization_id', { length: 36 }),
+    objectType: varchar('object_type', { length: 64 }).notNull(),
+    objectId: char('object_id', { length: 36 }).notNull(),
+    action: varchar('action', { length: 190 }).notNull(),
+    kind: varchar('kind', { length: 32 }).notNull(),
+    actorUserId: char('actor_user_id', { length: 36 }),
+    audienceClass: mysqlEnum('audience_class', ACTIVITY_AUDIENCE_CLASSES).notNull(),
+    occurredAt: datetime('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
+    sourceAuditId: char('source_audit_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_activity_entries_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_activity_entries_source').on(table.sourceAuditId),
+    index('ix_activity_entries_project_time').on(
+      table.organizationId,
+      table.projectId,
+      table.occurredAt,
+      table.id,
+    ),
+    index('ix_activity_entries_client_time').on(
+      table.organizationId,
+      table.clientOrganizationId,
+      table.occurredAt,
+      table.id,
+    ),
+    index('ix_activity_entries_object').on(table.organizationId, table.objectType, table.objectId),
+  ],
+);
+
+/**
+ * 0379 (62-A2). One row per organization: where the projector stopped in that organization's
+ * `(created_at, id)` audit order, moved in the same transaction as the entries it covers. TENANT;
+ * worker SELECT, INSERT, UPDATE; api DELETE for the company erasure.
+ */
+export const activityProjectionCursors = mysqlTable(
+  'activity_projection_cursors',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    lastCreatedAt: datetime('last_created_at', { mode: 'date', fsp: 3 }),
+    lastEventId: char('last_event_id', { length: 36 }),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_activity_projection_cursors_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_activity_projection_cursors_org').on(table.organizationId),
+  ],
+);
+
+export type ActivityEntryRow = typeof activityEntries.$inferSelect;
+export type ActivityProjectionCursorRow = typeof activityProjectionCursors.$inferSelect;
+
+Object.assign(TABLES, {
+  activity_entries: activityEntries,
+  activity_projection_cursors: activityProjectionCursors,
+});
+
+// ---- 62-27 / 62-A1a SIGNALS · the signals engine (0380) ----
+
+/**
+ * 0380 (62-27). One row per rule, subject and day (`uq_work_signals_dedupe`). Ids, the measured
+ * figure and the threshold in force, never a title or an amount's text; `notify` says whether the
+ * rule was on when it fired. Times are bound values, never the database clock. TENANT; worker
+ * SELECT, INSERT; api SELECT (and DELETE for the company erasure). `0380_work_signals.sql` is the
+ * source of truth.
+ */
+export const workSignals = mysqlTable(
+  'work_signals',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    ruleKey: varchar('rule_key', { length: 48 }).notNull(),
+    subjectType: varchar('subject_type', { length: 32 }).notNull(),
+    subjectId: char('subject_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    signalDay: date('signal_day', { mode: 'string' }).notNull(),
+    measure: int('measure').notNull(),
+    threshold: int('threshold').notNull(),
+    notify: boolean('notify').notNull(),
+    raisedAt: datetime('raised_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** The last sweep that still found the condition; open = the organization's last sweep. */
+    seenAt: datetime('seen_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_signals_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_signals_dedupe').on(
+      table.organizationId,
+      table.ruleKey,
+      table.subjectId,
+      table.signalDay,
+    ),
+    index('ix_work_signals_subject_time').on(
+      table.organizationId,
+      table.ruleKey,
+      table.subjectId,
+      table.raisedAt,
+    ),
+    index('ix_work_signals_day').on(table.organizationId, table.signalDay, table.ruleKey),
+    index('ix_work_signals_project').on(table.organizationId, table.projectId, table.signalDay),
+    index('ix_work_signals_seen').on(table.organizationId, table.seenAt),
+  ],
+);
+
+/**
+ * 0380 (62-27). The owner's choice per rule — on/off, threshold, who is told. No row = the
+ * catalogue default. TENANT; api SELECT, INSERT, UPDATE (and DELETE for the company erasure);
+ * worker SELECT.
+ */
+export const workSignalSettings = mysqlTable(
+  'work_signal_settings',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    ruleKey: varchar('rule_key', { length: 48 }).notNull(),
+    enabled: boolean('enabled').notNull(),
+    threshold: int('threshold').notNull(),
+    recipient: varchar('recipient', { length: 32 }).notNull(),
+    updatedByUserId: char('updated_by_user_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_signal_settings_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_signal_settings_rule').on(table.organizationId, table.ruleKey),
+  ],
+);
+
+/**
+ * 0380 (62-A1b). One row per organization: the time of its last finished sweep, written in the
+ * same transaction as that sweep's signals (the briefing's "As of <time>"). TENANT; worker SELECT,
+ * INSERT, UPDATE (the upsert); api SELECT.
+ */
+export const workSignalSweeps = mysqlTable(
+  'work_signal_sweeps',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    sweptAt: datetime('swept_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_signal_sweeps_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_signal_sweeps_org').on(table.organizationId),
+  ],
+);
+
+export type WorkSignalRow = typeof workSignals.$inferSelect;
+export type WorkSignalSettingRow = typeof workSignalSettings.$inferSelect;
+export type WorkSignalSweepRow = typeof workSignalSweeps.$inferSelect;
+
+Object.assign(TABLES, {
+  work_signals: workSignals,
+  work_signal_settings: workSignalSettings,
+  work_signal_sweeps: workSignalSweeps,
+});
+
+// ---- 62-05 AI LEDGER · budget pools, periods, ledger, tasks, settings, packs (0381–0383) ----
+
+/** The four AI budget pools — mirrors `AI_POOLS` in `modules/copilot/ai-tiers.ts`. */
+export const AI_BUDGET_POOLS = ['customers', 'testing', 'reserve', 'packs'] as const;
+/** Mirrors `AI_TIERS` in `modules/copilot/ai-tiers.ts`. */
+export const AI_TASK_TIERS = ['help', 'low', 'medium', 'medium_high', 'high'] as const;
+export const AI_TASK_STATUSES = [
+  'running',
+  'completed',
+  'failed',
+  'refused',
+  'cancelled',
+  'undone',
+] as const;
+export const AI_LEDGER_STATUSES = ['reserved', 'sent', 'settled', 'released', 'expired'] as const;
+export const AI_WRITE_SCOPES = ['read', 'read_write'] as const;
+export const AI_WORKSPACE_POOL_CLASSES = ['customers', 'testing'] as const;
+export const AI_CREDIT_PACK_SOURCES = ['grant', 'purchase'] as const;
+
+/**
+ * 0381 (62-05). One row per pool and period: the platform's real spend in micro-USD against the
+ * pool's cap (`settled + reserved <= cap`, held by conditional updates). PLATFORM, non-tenant;
+ * api SELECT, INSERT, UPDATE; worker SELECT, UPDATE (hold expiry).
+ * `0381_ai_budget_pools_periods.sql` is the source of truth.
+ */
+export const aiBudgetPools = mysqlTable(
+  'ai_budget_pools',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    pool: mysqlEnum('pool', AI_BUDGET_POOLS).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    capMicroUsd: bigint('cap_micro_usd', { mode: 'number', unsigned: true }).notNull(),
+    settledMicroUsd: bigint('settled_micro_usd', { mode: 'number', unsigned: true })
+      .notNull()
+      .default(0),
+    reservedMicroUsd: bigint('reserved_micro_usd', { mode: 'number', unsigned: true })
+      .notNull()
+      .default(0),
+    pausedAt: datetime('paused_at', { mode: 'date', fsp: 3 }),
+    pausedReason: varchar('paused_reason', { length: 32 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_ai_budget_pools_pool_period').on(table.pool, table.periodStart)],
+);
+
+/**
+ * 0381 (62-05). One row per workspace and period: credits of successful work against the
+ * workspace allowance. TENANT; api SELECT, INSERT, UPDATE; worker SELECT, UPDATE.
+ */
+export const aiWorkspacePeriods = mysqlTable(
+  'ai_workspace_periods',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    allowanceCredits: int('allowance_credits', { unsigned: true }).notNull(),
+    settledCredits: int('settled_credits', { unsigned: true }).notNull().default(0),
+    reservedCredits: int('reserved_credits', { unsigned: true }).notNull().default(0),
+    pausedAt: datetime('paused_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_workspace_periods_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_workspace_periods_org_period').on(table.organizationId, table.periodStart),
+  ],
+);
+
+/**
+ * 0381 (62-05). One row per member and period: the member's share of the workspace allowance,
+ * the free-support and refund day counters. TENANT; api SELECT, INSERT, UPDATE; worker SELECT,
+ * UPDATE.
+ */
+export const aiMemberPeriods = mysqlTable(
+  'ai_member_periods',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    capCredits: int('cap_credits', { unsigned: true }).notNull(),
+    settledCredits: int('settled_credits', { unsigned: true }).notNull().default(0),
+    reservedCredits: int('reserved_credits', { unsigned: true }).notNull().default(0),
+    freeSupportDay: date('free_support_day', { mode: 'string' }),
+    freeSupportCount: smallint('free_support_count', { unsigned: true }).notNull().default(0),
+    refundsDay: date('refunds_day', { mode: 'string' }),
+    refundsCount: smallint('refunds_count', { unsigned: true }).notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_member_periods_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_member_periods_member_period').on(
+      table.organizationId,
+      table.membershipId,
+      table.periodStart,
+    ),
+  ],
+);
+
+/**
+ * 0382 (62-05). One row per AI task a member started: tier, activity, the pool it drew from, its
+ * ceiling and what was charged, refunded and spent. TENANT; api SELECT, INSERT, UPDATE.
+ * `0382_ai_usage_ledger_tasks.sql` is the source of truth.
+ */
+export const aiTasks = mysqlTable(
+  'ai_tasks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    tier: mysqlEnum('tier', AI_TASK_TIERS).notNull(),
+    activity: varchar('activity', { length: 32 }).notNull(),
+    pool: mysqlEnum('pool', AI_BUDGET_POOLS).notNull(),
+    status: mysqlEnum('status', AI_TASK_STATUSES).notNull(),
+    ceilingCredits: int('ceiling_credits', { unsigned: true }).notNull(),
+    chargedCredits: int('charged_credits', { unsigned: true }).notNull().default(0),
+    refundedCredits: int('refunded_credits', { unsigned: true }).notNull().default(0),
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'number', unsigned: true }).notNull().default(0),
+    receiptJson: json('receipt_json').$type<unknown>(),
+    undoJson: json('undo_json').$type<unknown>(),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }).notNull(),
+    finishedAt: datetime('finished_at', { mode: 'date', fsp: 3 }),
+    refundedAt: datetime('refunded_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_tasks_org_id').on(table.organizationId, table.id),
+    index('ix_ai_tasks_org_started').on(table.organizationId, table.startedAt, table.id),
+    index('ix_ai_tasks_member_started').on(
+      table.organizationId,
+      table.membershipId,
+      table.startedAt,
+    ),
+  ],
+);
+
+/**
+ * 0382 (62-05). One row per model call: the hold, then what was sent and settled, with token
+ * counts and the price-table version. Never deleted. TENANT; api SELECT, INSERT, UPDATE; worker
+ * SELECT, UPDATE (hold expiry).
+ */
+export const aiUsageLedger = mysqlTable(
+  'ai_usage_ledger',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    taskId: char('task_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    pool: mysqlEnum('pool', AI_BUDGET_POOLS).notNull(),
+    poolPeriodStart: date('pool_period_start', { mode: 'string' }).notNull(),
+    status: mysqlEnum('status', AI_LEDGER_STATUSES).notNull(),
+    model: varchar('model', { length: 64 }).notNull(),
+    priceTableVersion: varchar('price_table_version', { length: 16 }).notNull(),
+    holdMicroUsd: bigint('hold_micro_usd', { mode: 'number', unsigned: true }).notNull(),
+    holdCredits: int('hold_credits', { unsigned: true }).notNull(),
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'number', unsigned: true }),
+    inputTokens: int('input_tokens', { unsigned: true }).notNull().default(0),
+    cacheWrite5mTokens: int('cache_write_5m_tokens', { unsigned: true }).notNull().default(0),
+    cacheWrite1hTokens: int('cache_write_1h_tokens', { unsigned: true }).notNull().default(0),
+    cacheReadTokens: int('cache_read_tokens', { unsigned: true }).notNull().default(0),
+    outputTokens: int('output_tokens', { unsigned: true }).notNull().default(0),
+    toolCalls: smallint('tool_calls', { unsigned: true }).notNull().default(0),
+    latencyMs: int('latency_ms', { unsigned: true }),
+    stopReason: varchar('stop_reason', { length: 32 }),
+    providerMessageId: varchar('provider_message_id', { length: 64 }),
+    reservedAt: datetime('reserved_at', { mode: 'date', fsp: 3 }).notNull(),
+    holdExpiresAt: datetime('hold_expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }),
+    settledAt: datetime('settled_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_usage_ledger_org_id').on(table.organizationId, table.id),
+    index('ix_ai_usage_ledger_task').on(table.organizationId, table.taskId),
+    index('ix_ai_usage_ledger_org_reserved').on(table.organizationId, table.reservedAt, table.id),
+    index('ix_ai_usage_ledger_pool_period').on(table.pool, table.poolPeriodStart, table.reservedAt),
+    index('ix_ai_usage_ledger_open_holds').on(table.status, table.holdExpiresAt),
+  ],
+);
+
+/**
+ * 0383 (62-05). One row per workspace: AI on/off, write scope, member share and the pool class.
+ * TENANT; api SELECT, INSERT, UPDATE. `0383_ai_settings_packs_limit.sql` is the source of truth.
+ */
+export const aiWorkspaceSettings = mysqlTable(
+  'ai_workspace_settings',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    aiEnabled: boolean('ai_enabled').notNull().default(false),
+    writeScope: mysqlEnum('write_scope', AI_WRITE_SCOPES).notNull().default('read'),
+    runAtOnce: boolean('run_at_once').notNull().default(false),
+    memberSharePercent: tinyint('member_share_percent', { unsigned: true }).notNull().default(50),
+    testListAt: datetime('test_list_at', { mode: 'date', fsp: 3 }),
+    poolClass: mysqlEnum('pool_class', AI_WORKSPACE_POOL_CLASSES).notNull().default('customers'),
+    updatedByMembershipId: char('updated_by_membership_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_workspace_settings_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_workspace_settings_org').on(table.organizationId),
+  ],
+);
+
+/**
+ * 0383 (62-05). A credit pack granted to or bought by a workspace, spent down until it expires.
+ * TENANT; api SELECT, INSERT, UPDATE.
+ */
+export const aiCreditPacks = mysqlTable(
+  'ai_credit_packs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    sizeCredits: int('size_credits', { unsigned: true }).notNull(),
+    remainingCredits: int('remaining_credits', { unsigned: true }).notNull(),
+    source: mysqlEnum('source', AI_CREDIT_PACK_SOURCES).notNull(),
+    requestedByMembershipId: char('requested_by_membership_id', { length: 36 }),
+    grantedByUserId: char('granted_by_user_id', { length: 36 }),
+    grantedAt: datetime('granted_at', { mode: 'date', fsp: 3 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_credit_packs_org_id').on(table.organizationId, table.id),
+    index('ix_ai_credit_packs_org_expiry').on(
+      table.organizationId,
+      table.expiresAt,
+      table.grantedAt,
+    ),
+  ],
+);
+
+export type AiBudgetPoolRow = typeof aiBudgetPools.$inferSelect;
+export type AiWorkspacePeriodRow = typeof aiWorkspacePeriods.$inferSelect;
+export type AiMemberPeriodRow = typeof aiMemberPeriods.$inferSelect;
+export type AiTaskRow = typeof aiTasks.$inferSelect;
+export type AiUsageLedgerRow = typeof aiUsageLedger.$inferSelect;
+export type AiWorkspaceSettingsRow = typeof aiWorkspaceSettings.$inferSelect;
+export type AiCreditPackRow = typeof aiCreditPacks.$inferSelect;
+
+Object.assign(TABLES, {
+  ai_budget_pools: aiBudgetPools,
+  ai_workspace_periods: aiWorkspacePeriods,
+  ai_member_periods: aiMemberPeriods,
+  ai_tasks: aiTasks,
+  ai_usage_ledger: aiUsageLedger,
+  ai_workspace_settings: aiWorkspaceSettings,
+  ai_credit_packs: aiCreditPacks,
 });
