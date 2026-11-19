@@ -3,7 +3,7 @@ import type { WorkerTransaction } from '../common/database/worker-database.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import type { OutboxEffects } from '../outbox/dispatcher.js';
 import { organizationsWithFlagOn } from '../common/database/feature-flag-store.js';
-import { fileSignals } from '../common/database/signals-store.js';
+import { recordSweep } from '../common/database/signals-store.js';
 import { BUSINESS_BRIEFING_FLAG, WORK_SIGNAL_RAISED_EVENT } from '../jobs/signals-sweeper.js';
 import { workSignalRaisedConsumer } from './work-signal-notice.js';
 
@@ -218,7 +218,7 @@ describe('flag gate', () => {
   });
 });
 
-describe('fileSignals', () => {
+describe('recordSweep', () => {
   const signal = {
     rule: 'stale_task' as const,
     subjectType: 'work_item' as const,
@@ -227,6 +227,7 @@ describe('fileSignals', () => {
     measure: 20,
     threshold: 14,
   };
+  const filed = (notify: boolean) => ({ filed: [{ ...signal, notify }], held: [] });
 
   function recordingTx(insertResult: number) {
     const calls: { sql: string; params: readonly unknown[] }[] = [];
@@ -240,24 +241,53 @@ describe('fileSignals', () => {
     };
     return { tx, calls };
   }
+  const sqlOf = (calls: readonly { sql: string }[]) => calls.map((call) => call.sql.split(' ')[0]);
 
-  it('a notifying signal writes its row and one outbox event, both dated by the bound now', async () => {
+  it('a notifying signal writes its row, one outbox event and the sweep stamp, all dated by the bound now', async () => {
     const { tx, calls } = recordingTx(1);
-    expect(await fileSignals(tx, ORG, [{ ...signal, notify: true }], NOW)).toBe(1);
-    expect(calls).toHaveLength(2);
+    expect(await recordSweep(tx, ORG, filed(true), NOW)).toBe(1);
+    expect(calls).toHaveLength(3);
     expect(calls[0]?.params).toContain('2026-11-19');
-    expect(calls[0]?.params.at(-1)).toBe(NOW);
+    expect(calls[0]?.params.slice(-2)).toEqual([NOW, NOW]);
     expect(calls[1]?.params).toContain(WORK_SIGNAL_RAISED_EVENT);
     expect(calls[1]?.params.slice(-2)).toEqual([NOW, NOW]);
+    expect(calls[2]?.sql).toMatch(/work_signal_sweeps/);
+    expect(calls[2]?.params.slice(1)).toEqual([ORG, NOW]);
     for (const call of calls) expect(call.sql).not.toMatch(/NOW\(|CURRENT_TIMESTAMP|CURDATE/i);
   });
 
   it('an off rule writes the row and no event; a same-day duplicate writes nothing more', async () => {
     const off = recordingTx(1);
-    await fileSignals(off.tx, ORG, [{ ...signal, notify: false }], NOW);
-    expect(off.calls).toHaveLength(1);
+    await recordSweep(off.tx, ORG, filed(false), NOW);
+    expect(sqlOf(off.calls)).toEqual(['INSERT', 'INSERT']);
+    expect(off.calls[1]?.sql).toMatch(/work_signal_sweeps/);
     const duplicate = recordingTx(0);
-    expect(await fileSignals(duplicate.tx, ORG, [{ ...signal, notify: true }], NOW)).toBe(0);
-    expect(duplicate.calls).toHaveLength(1);
+    expect(await recordSweep(duplicate.tx, ORG, filed(true), NOW)).toBe(0);
+    expect(duplicate.calls).toHaveLength(2);
+  });
+
+  it('a held condition moves its latest row on (figure and seen_at) inside the 24 h window', async () => {
+    const { tx, calls } = recordingTx(1);
+    expect(await recordSweep(tx, ORG, { filed: [], held: [{ ...signal, measure: 21 }] }, NOW)).toBe(
+      0,
+    );
+    expect(calls[0]?.sql).toMatch(/^UPDATE work_signals SET measure/);
+    expect(calls[0]?.params).toEqual([
+      21,
+      14,
+      NOW,
+      ORG,
+      'stale_task',
+      'w1',
+      new Date(NOW.getTime() - 86_400_000),
+    ]);
+    expect(calls[1]?.sql).toMatch(/work_signal_sweeps/);
+  });
+
+  it('a sweep that found nothing still stamps the sweep time', async () => {
+    const { tx, calls } = recordingTx(1);
+    expect(await recordSweep(tx, ORG, { filed: [], held: [] }, NOW)).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.sql).toMatch(/INSERT INTO work_signal_sweeps/);
   });
 });

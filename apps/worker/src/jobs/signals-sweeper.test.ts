@@ -8,12 +8,9 @@ import {
   runSignalsSweepLoop,
   signalsToFile,
   subjectKey,
+  sweepRecordOf,
 } from './signals-sweeper.js';
-import type {
-  OrganizationSignalFacts,
-  SignalToFile,
-  SignalsSweepStore,
-} from './signals-sweeper.js';
+import type { OrganizationSignalFacts, SignalsSweepStore, SweepRecord } from './signals-sweeper.js';
 
 const NOW = new Date('2026-11-19T10:00:00.000Z');
 const DAY = 86_400_000;
@@ -193,29 +190,57 @@ describe('signalsToFile', () => {
 });
 
 function fakeStore(patch: Partial<SignalsSweepStore> = {}): SignalsSweepStore & {
-  readonly filed: { org: string; signals: readonly SignalToFile[] }[];
+  readonly recorded: { org: string; sweep: SweepRecord }[];
 } {
-  const filed: { org: string; signals: readonly SignalToFile[] }[] = [];
+  const recorded: { org: string; sweep: SweepRecord }[] = [];
   return {
-    filed,
+    recorded,
     organizations: async () => ['org-a', 'org-b'],
     settings: async (): Promise<readonly StoredSignalSetting[]> => [],
     facts: async () => SEEDED,
     lastRaised: async () => new Map(),
-    file: async (org, signals) => {
-      filed.push({ org, signals });
-      return signals.length;
+    record: async (org, sweep) => {
+      recorded.push({ org, sweep });
+      return sweep.filed.length;
     },
     ...patch,
   };
 }
+
+describe('sweepRecordOf', () => {
+  const finding: SignalFinding = {
+    rule: 'stale_task',
+    subjectType: 'work_item',
+    subjectId: 'w1',
+    projectId: 'p1',
+    measure: 20,
+    threshold: 14,
+  };
+
+  it('a condition raised 23 h ago is held (moved on), not filed again', () => {
+    const recent = new Map([
+      [subjectKey('stale_task', 'w1'), new Date(NOW.getTime() - 23 * 3_600_000)],
+    ]);
+    expect(sweepRecordOf([finding, finding], DEFAULTS, recent, NOW)).toEqual({
+      filed: [],
+      held: [finding],
+    });
+  });
+
+  it('a new condition is filed and not held', () => {
+    expect(sweepRecordOf([finding], DEFAULTS, new Map(), NOW)).toEqual({
+      filed: [{ ...finding, notify: true }],
+      held: [],
+    });
+  });
+});
 
 describe('runSignalsSweep', () => {
   it('sweeps only the organizations the store returns (flag on) and files their signals', async () => {
     const store = fakeStore();
     const result = await runSignalsSweep({ store, now: NOW });
     expect(result).toEqual({ organizations: 2, filed: 16, failed: 0 });
-    expect(store.filed.map((entry) => entry.org)).toEqual(['org-a', 'org-b']);
+    expect(store.recorded.map((entry) => entry.org)).toEqual(['org-a', 'org-b']);
   });
 
   it('one organization failing does not stop the others', async () => {
@@ -231,10 +256,24 @@ describe('runSignalsSweep', () => {
     expect(errors).toHaveLength(1);
   });
 
-  it('nothing found, nothing written', async () => {
+  it('nothing found: nothing filed, but the sweep is still recorded (the briefing as-of time)', async () => {
     const store = fakeStore({ facts: async () => EMPTY });
     await runSignalsSweep({ store, now: NOW });
-    expect(store.filed).toEqual([]);
+    expect(store.recorded).toEqual([
+      { org: 'org-a', sweep: { filed: [], held: [] } },
+      { org: 'org-b', sweep: { filed: [], held: [] } },
+    ]);
+  });
+
+  it('a failed organization records no sweep', async () => {
+    const store = fakeStore({
+      facts: async (org) => {
+        if (org === 'org-a') throw new Error('boom');
+        return EMPTY;
+      },
+    });
+    await runSignalsSweep({ store, now: NOW });
+    expect(store.recorded.map((entry) => entry.org)).toEqual(['org-b']);
   });
 
   it('the loop takes the signals-sweeper lock and stops on abort', async () => {

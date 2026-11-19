@@ -14,7 +14,8 @@ import type { HomeWidgetId, HomeWidgetPrefsView } from '../../lib/api/home-widge
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
-import type { MessageKey } from '../../lib/i18n/t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { getHomeBriefing, hasBriefing, homeBriefingQueryKey } from '../../lib/api/home-briefing';
 
 export interface HomeWidgetPrefsScreenProps {
   organizationSlug: string;
@@ -22,14 +23,23 @@ export interface HomeWidgetPrefsScreenProps {
   client?: ApiClient;
 }
 
-/** Message keys for the fixed Home widgets, keyed by the id the API validates against. */
-const WIDGET_LABEL_KEYS: Record<HomeWidgetId, MessageKey> = {
-  myDay: 'HomeWidgetPrefsScreen.widgetMyDay',
-  waiting: 'HomeWidgetPrefsScreen.widgetWaiting',
-  pulse: 'HomeWidgetPrefsScreen.widgetPulse',
-  summary: 'HomeWidgetPrefsScreen.widgetSummary',
-  pins: 'HomeWidgetPrefsScreen.widgetPins',
-  savedContext: 'HomeWidgetPrefsScreen.widgetSavedContext',
+/**
+ * The name of each fixed Home widget, keyed by the id the API validates against: its message key,
+ * and the English `tOr` shows until a newer key reaches the catalogs (the briefing, B11 WIRING).
+ */
+const WIDGET_LABELS: Readonly<
+  Record<HomeWidgetId, { readonly key: string; readonly english: string }>
+> = {
+  myDay: { key: 'HomeWidgetPrefsScreen.widgetMyDay', english: 'My Day' },
+  waiting: { key: 'HomeWidgetPrefsScreen.widgetWaiting', english: 'Waiting on others' },
+  pulse: { key: 'HomeWidgetPrefsScreen.widgetPulse', english: 'Pulse' },
+  summary: { key: 'HomeWidgetPrefsScreen.widgetSummary', english: 'Summary' },
+  pins: { key: 'HomeWidgetPrefsScreen.widgetPins', english: 'Pinned items' },
+  savedContext: { key: 'HomeWidgetPrefsScreen.widgetSavedContext', english: 'Saved context' },
+  businessBriefing: {
+    key: 'HomeWidgetPrefsScreen.widgetBusinessBriefing',
+    english: 'Business briefing',
+  },
 };
 
 /**
@@ -65,6 +75,8 @@ export function HomeWidgetPrefsScreen({
 }: HomeWidgetPrefsScreenProps) {
   const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
+  const tOr = useTOr();
+  const label = (id: HomeWidgetId): string => tOr(WIDGET_LABELS[id].key, WIDGET_LABELS[id].english);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -72,6 +84,14 @@ export function HomeWidgetPrefsScreen({
     queryKey: ['home-widget-prefs', organizationSlug],
     queryFn: () => getHomeWidgetPrefs(api, organizationSlug),
   });
+  // The briefing row is offered only to someone who has a briefing (fix 18: "Show business
+  // briefing" brings it back); its saved state is kept either way.
+  const briefing = useQuery({
+    queryKey: homeBriefingQueryKey(organizationSlug),
+    queryFn: () => getHomeBriefing(api, organizationSlug),
+  });
+  const offered = (id: HomeWidgetId): boolean =>
+    id !== 'businessBriefing' || hasBriefing(briefing.data);
 
   const [order, setOrder] = useState<HomeWidgetId[]>(() => foldOrder([]));
   const [hidden, setHidden] = useState<ReadonlySet<HomeWidgetId>>(new Set());
@@ -143,39 +163,41 @@ export function HomeWidgetPrefsScreen({
           </h2>
 
           <ul className="tm-stack" aria-label={t('HomeWidgetPrefsScreen.widgetsListLabel')}>
-            {order.map((id, index) => (
-              <li className="tm-field tm-field--inline" key={id}>
-                <span className="tm-field__label">{t(WIDGET_LABEL_KEYS[id])}</span>
-                <Button
-                  type="button"
-                  tone="outline"
-                  disabled={index === 0}
-                  aria-label={`${t('HomeWidgetPrefsScreen.moveLabel')} ${t(WIDGET_LABEL_KEYS[id])} ${t('HomeWidgetPrefsScreen.upSuffix')}`}
-                  onClick={() => move(index, -1)}
-                >
-                  {t('HomeWidgetPrefsScreen.up')}
-                </Button>
-                <Button
-                  type="button"
-                  tone="outline"
-                  disabled={index === order.length - 1}
-                  aria-label={`${t('HomeWidgetPrefsScreen.moveLabel')} ${t(WIDGET_LABEL_KEYS[id])} ${t('HomeWidgetPrefsScreen.downSuffix')}`}
-                  onClick={() => move(index, 1)}
-                >
-                  {t('HomeWidgetPrefsScreen.down')}
-                </Button>
-                <input
-                  id={`tm-widget-visible-${id}`}
-                  className="tm-field__control"
-                  type="checkbox"
-                  checked={!hidden.has(id)}
-                  onChange={(event) => toggleHidden(id, !event.target.checked)}
-                />
-                <label className="tm-field__label" htmlFor={`tm-widget-visible-${id}`}>
-                  {t('HomeWidgetPrefsScreen.show')}
-                </label>
-              </li>
-            ))}
+            {order.map((id, index) =>
+              offered(id) ? (
+                <li className="tm-field tm-field--inline" key={id}>
+                  <span className="tm-field__label">{label(id)}</span>
+                  <Button
+                    type="button"
+                    tone="outline"
+                    disabled={index === 0}
+                    aria-label={`${t('HomeWidgetPrefsScreen.moveLabel')} ${label(id)} ${t('HomeWidgetPrefsScreen.upSuffix')}`}
+                    onClick={() => move(index, -1)}
+                  >
+                    {t('HomeWidgetPrefsScreen.up')}
+                  </Button>
+                  <Button
+                    type="button"
+                    tone="outline"
+                    disabled={index === order.length - 1}
+                    aria-label={`${t('HomeWidgetPrefsScreen.moveLabel')} ${label(id)} ${t('HomeWidgetPrefsScreen.downSuffix')}`}
+                    onClick={() => move(index, 1)}
+                  >
+                    {t('HomeWidgetPrefsScreen.down')}
+                  </Button>
+                  <input
+                    id={`tm-widget-visible-${id}`}
+                    className="tm-field__control"
+                    type="checkbox"
+                    checked={!hidden.has(id)}
+                    onChange={(event) => toggleHidden(id, !event.target.checked)}
+                  />
+                  <label className="tm-field__label" htmlFor={`tm-widget-visible-${id}`}>
+                    {t('HomeWidgetPrefsScreen.show')}
+                  </label>
+                </li>
+              ) : null,
+            )}
           </ul>
 
           {save.isError ? (

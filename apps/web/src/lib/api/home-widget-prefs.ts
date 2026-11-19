@@ -20,6 +20,8 @@ export const HOME_WIDGET_IDS = [
   'summary',
   'pins',
   'savedContext',
+  // 62-A1b: the business briefing card (shown only where the company's briefing is on).
+  'businessBriefing',
 ] as const;
 export type HomeWidgetId = (typeof HOME_WIDGET_IDS)[number];
 

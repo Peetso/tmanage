@@ -12,3 +12,4 @@ export * from './stale-task.js';
 export * from './unusual-expense.js';
 export * from './approval-waiting-on-client.js';
 export * from './approved-time-not-invoiced.js';
+export * from './briefing.js';

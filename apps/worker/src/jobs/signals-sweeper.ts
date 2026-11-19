@@ -41,6 +41,10 @@ import type { WorkerFlag } from '../common/database/feature-flag-store.js';
  * (`consumers/work-signal-notice.ts`) tells the people the owner chose, resolved at delivery. A
  * rule that is off still files its signal (the Home briefing shows it) and sends nothing.
  *
+ * A condition found again within the 24 hours is not filed twice: its latest row's `seen_at` and
+ * measured figure move on instead, and every finished sweep stamps `work_signal_sweeps`. So the
+ * Home briefing (62-A1b) lists exactly what the last sweep found, "as of" that sweep.
+ *
  * Every time is the `now` the run is given; nothing reads the database clock.
  * The SQL lives in `common/database/signals-store.ts`.
  */
@@ -101,8 +105,18 @@ export interface SignalsSweepStore {
   facts(organizationId: string, now: Date): Promise<OrganizationSignalFacts>;
   /** When each `(rule, subject)` was last raised within the dedupe window before `now`. */
   lastRaised(organizationId: string, now: Date): Promise<ReadonlyMap<string, Date>>;
-  /** File the signals (and the outbox events of those that notify) in one transaction. */
-  file(organizationId: string, signals: readonly SignalToFile[], now: Date): Promise<number>;
+  /**
+   * Record one finished sweep in one transaction: file the new signals (and the outbox events of
+   * those that notify), move `seen_at` and the measured figure of the held ones (found again,
+   * raised less than 24 h ago), and stamp the organization's sweep time. Returns the rows filed.
+   */
+  record(organizationId: string, sweep: SweepRecord, now: Date): Promise<number>;
+}
+
+/** What one organization's sweep found: new signals to file, and conditions that still hold. */
+export interface SweepRecord {
+  readonly filed: readonly SignalToFile[];
+  readonly held: readonly SignalFinding[];
 }
 
 const remainingOf = (item: WorkItemSignalFacts): number =>
@@ -232,6 +246,36 @@ export function subjectKey(rule: string, subjectId: string): string {
   return `${rule}:${subjectId}`;
 }
 
+/** Pure: each subject once per rule, first finding wins (the rules' catalogue order). */
+export function distinctFindings(findings: readonly SignalFinding[]): readonly SignalFinding[] {
+  const seen = new Set<string>();
+  return findings.filter((finding) => {
+    const key = subjectKey(finding.rule, finding.subjectId);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Pure: split one sweep's findings into the signals to file now and the conditions that still
+ * hold on a signal raised less than 24 hours ago (their row is moved on, not filed again).
+ */
+export function sweepRecordOf(
+  findings: readonly SignalFinding[],
+  settings: Readonly<Record<SignalRuleKey, SignalRuleSetting>>,
+  lastRaised: ReadonlyMap<string, Date>,
+  now: Date,
+): SweepRecord {
+  const current = distinctFindings(findings);
+  const filed = signalsToFile(current, settings, lastRaised, now);
+  const filedKeys = new Set(filed.map((signal) => subjectKey(signal.rule, signal.subjectId)));
+  const held = current.filter(
+    (finding) => !filedKeys.has(subjectKey(finding.rule, finding.subjectId)),
+  );
+  return { filed, held };
+}
+
 /**
  * Pure: which findings to file now — each subject at most once per rule, and only when its last
  * signal is at least 24 hours old — each marked with whether its rule sends notices.
@@ -260,7 +304,10 @@ export interface SignalsSweepResult {
   readonly failed: number;
 }
 
-/** One run. One organization's failure is counted and does not stop the others. */
+/**
+ * One run. One organization's failure is counted and does not stop the others; its sweep time is
+ * then left where it was, so the briefing never claims a check that did not finish.
+ */
 export async function runSignalsSweep(deps: {
   readonly store: SignalsSweepStore;
   readonly now: Date;
@@ -274,13 +321,14 @@ export async function runSignalsSweep(deps: {
     try {
       const settings = resolveSignalSettings(await store.settings(organizationId));
       const findings = evaluateOrganization(await store.facts(organizationId, now), settings, now);
-      const toFile = signalsToFile(
+      const sweep = sweepRecordOf(
         findings,
         settings,
         await store.lastRaised(organizationId, now),
         now,
       );
-      filed += toFile.length === 0 ? 0 : await store.file(organizationId, toFile, now);
+      // Always recorded, also when nothing was found: the briefing's "As of" is this sweep.
+      filed += await store.record(organizationId, sweep, now);
     } catch (error) {
       failed += 1;
       deps.onError?.(error);

@@ -10,6 +10,9 @@ import { HomeController } from './home.controller.js';
 import { HomePinsController } from './home-pins.controller.js';
 import { RecentItemsController } from './recent-items.controller.js';
 import { OnboardingTourController } from './onboarding-tour.controller.js';
+import { HOME_BRIEFING_SERVICE, HomeBriefingController } from './home-briefing.controller.js';
+import { HomeBriefingRepository } from './home-briefing.repository.js';
+import { HomeBriefingService } from './home-briefing.service.js';
 
 /**
  * The Home module's wiring.
@@ -38,15 +41,24 @@ export class HomeModule {
         ),
     };
 
+    // 62-A1b: the business briefing, a read over `work_signals` behind `business_briefing`.
+    const briefing: Provider = {
+      provide: HOME_BRIEFING_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new HomeBriefingService(database, new HomeBriefingRepository()),
+    };
+
     return {
       module: HomeModule,
-      providers: [service],
+      providers: [service, briefing],
       exports: [service],
       controllers: [
         HomeController,
         HomePinsController,
         RecentItemsController,
         OnboardingTourController,
+        HomeBriefingController,
       ],
     };
   }

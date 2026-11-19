@@ -14,8 +14,8 @@ import {
 } from '../../jobs/signals-sweeper.js';
 import type {
   OrganizationSignalFacts,
-  SignalToFile,
   SignalsSweepStore,
+  SweepRecord,
 } from '../../jobs/signals-sweeper.js';
 import { organizationsWithFlagOn } from './feature-flag-store.js';
 import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
@@ -27,8 +27,9 @@ import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
  *
  * Grants: SELECT on `work_items`, `work_item_estimates`, `work_item_time_logs`, `timesheets`,
  * `projects`, `person_capacity`, `memberships`, `client_invoices`, `project_budgets`, `expenses`,
- * `approvals`, `work_signal_settings`; SELECT, INSERT on `work_signals`; INSERT on
- * `outbox_events`; and the flag reads of `feature-flag-store.ts`.
+ * `approvals`, `work_signal_settings`; SELECT, INSERT, UPDATE on `work_signals`; INSERT, UPDATE
+ * on `work_signal_sweeps`; INSERT on `outbox_events`; and the flag reads of
+ * `feature-flag-store.ts`.
  */
 
 export const SIGNAL_FACTS_LIMIT = 5_000;
@@ -98,8 +99,13 @@ export const SIGNALS_SQL = {
  GROUP BY rule_key, subject_id`,
   insertSignal: `INSERT IGNORE INTO work_signals
    (id, organization_id, rule_key, subject_type, subject_id, project_id, signal_day, measure,
-    threshold, notify, raised_at)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    threshold, notify, raised_at, seen_at)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  // A held condition: its latest row (raised inside the 24 h window) is seen by this sweep.
+  touchSignal: `UPDATE work_signals SET measure = ?, threshold = ?, seen_at = ?
+ WHERE organization_id = ? AND rule_key = ? AND subject_id = ? AND raised_at > ?`,
+  stampSweep: `INSERT INTO work_signal_sweeps (id, organization_id, swept_at) VALUES (?, ?, ?)
+ ON DUPLICATE KEY UPDATE swept_at = VALUES(swept_at)`,
   insertEvent: `INSERT INTO outbox_events
    (id, organization_id, type, schema_version, aggregate_type, aggregate_id, payload_json,
     correlation_id, occurred_at, available_at)
@@ -200,16 +206,31 @@ export async function readSignalFacts(
   };
 }
 
-/** File the signals; a notifying one also writes its outbox event. Returns the rows written. */
-export async function fileSignals(
+/**
+ * Record one sweep: file the new signals (a notifying one also writes its outbox event), move the
+ * held ones on, stamp the sweep time. Run inside one transaction. Returns the rows filed.
+ */
+export async function recordSweep(
   tx: WorkerTransaction,
   organizationId: string,
-  signals: readonly SignalToFile[],
+  sweep: SweepRecord,
   now: Date,
 ): Promise<number> {
   let written = 0;
   const day = signalDay(now);
-  for (const signal of signals) {
+  const windowStart = new Date(now.getTime() - SIGNAL_DEDUPE_WINDOW_MS);
+  for (const held of sweep.held) {
+    await tx.query(SIGNALS_SQL.touchSignal, [
+      Math.trunc(held.measure),
+      held.threshold,
+      now,
+      organizationId,
+      held.rule,
+      held.subjectId,
+      windowStart,
+    ]);
+  }
+  for (const signal of sweep.filed) {
     const id = uuidv7();
     const result = await tx.query<{ readonly affectedRows: number }>(SIGNALS_SQL.insertSignal, [
       id,
@@ -222,6 +243,7 @@ export async function fileSignals(
       Math.trunc(signal.measure),
       signal.threshold,
       signal.notify ? 1 : 0,
+      now,
       now,
     ]);
     if (result.affectedRows !== 1) continue;
@@ -238,6 +260,7 @@ export async function fileSignals(
       now,
     ]);
   }
+  await tx.query(SIGNALS_SQL.stampSweep, [uuidv7(), organizationId, now]);
   return written;
 }
 
@@ -274,7 +297,7 @@ export function createSignalsStore(
           ]),
         );
       }),
-    file: (organizationId, signals, now) =>
-      database.transaction((tx) => fileSignals(tx, organizationId, signals, now)),
+    record: (organizationId, sweep, now) =>
+      database.transaction((tx) => recordSweep(tx, organizationId, sweep, now)),
   };
 }

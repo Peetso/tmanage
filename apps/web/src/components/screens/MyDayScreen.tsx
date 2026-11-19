@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell, DayPulseBar } from '../shell/AppShell';
 import type { DayPulseItem } from '../shell/AppShell';
+import { HomeBriefingCard } from './HomeBriefingCard';
 import { HomeHeroSection } from './HomeHeroSection';
 import { HomePinnedSection } from './HomePinnedSection';
 import { HomeRecentItemsView } from './HomeRecentItemsView';
@@ -222,6 +223,9 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
         approvalsWaiting={summary.data?.waiting.approvals}
         upNext={upNext}
       />
+
+      {/* 62-A1b: the business briefing, the first block on Home for anyone who has one. */}
+      <HomeBriefingCard organizationSlug={organizationSlug} client={client} />
 
       {summary.isError ? (
         <InlineAlert tone="danger" title={t('MyDayScreen.summaryError')} live>

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 /**
  * 62-27 (B05) — "zero model calls", asserted. The signals engine is rows and rules: from every
  * entry point of the feature (domain rules, the sweep, its stores, the notice consumer, the
- * settings API) the transitive closure of relative imports may reach no model client, no AI SDK
+ * settings API, the Home briefing and its mail section) the transitive closure of relative imports may reach no model client, no AI SDK
  * package and no HTTP client. A future import of the copilot, an AI SDK or a network call into
  * this code fails here before it can spend anything.
  */
@@ -26,6 +26,10 @@ const ENTRY_POINTS = [
   'apps/api/src/modules/insights/signals.controller.ts',
   'apps/api/src/modules/insights/signals.service.ts',
   'apps/api/src/modules/insights/signals.repository.ts',
+  // 62-A1b (B11): the Home business briefing.
+  'apps/api/src/modules/home/home-briefing.controller.ts',
+  'apps/api/src/modules/home/home-briefing.service.ts',
+  'apps/api/src/modules/home/home-briefing.repository.ts',
 ];
 
 /** AI SDKs and HTTP clients: none may be imported anywhere in the closure. */
