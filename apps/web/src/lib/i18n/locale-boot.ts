@@ -7,7 +7,12 @@ import {
   LOCALE_COOKIE_NAME,
   localeFromCookieHeader,
 } from './locale-cookie';
-import { ARABIC_PREFIX, ARABIC_ROUTE_LOCALE, isArabicPublicPath } from './public-locale-routes';
+import {
+  ARABIC_PREFIX,
+  ARABIC_ROUTE_LOCALE,
+  arabicPageTargets,
+  isArabicPublicPath,
+} from './public-locale-routes';
 import { THEME_STORAGE_KEY } from '../theme';
 import { A11Y_STORAGE_KEY } from '../a11y-shell';
 import { A11Y_FONT_SCALES } from '../api/a11y-preferences';
@@ -25,6 +30,9 @@ import { A11Y_FONT_SCALES } from '../api/a11y-preferences';
  *    It runs before the body is parsed, sets `document.documentElement.lang`/`dir`, and for an
  *    Arabic tab swaps a prerendered page's English `<title>` for its Arabic one
  *    ({@link bootTitleTable}) while the document is still parsing, so the tab never shows English.
+ *    An Arabic tab on an English address with an Arabic page is sent there instead (the proxy's
+ *    saved-Arabic redirect, which a CDN-cached page never reaches), and a page whose served
+ *    language is not the tab's keeps its `lang`/`dir` until hydration brings the words.
  *  - {@link resolveBootLocale} — the same decision in TypeScript, which `LocaleStore` uses when it
  *    is constructed, so the store's client value equals what the script already painted.
  *
@@ -157,6 +165,7 @@ export function localeBootScript(): string {
     t: bootTitleTable(),
     p: ARABIC_PREFIX,
     pl: ARABIC_ROUTE_LOCALE,
+    tw: arabicPageTargets(),
     th: THEME_STORAGE_KEY,
     ax: A11Y_STORAGE_KEY,
     af: A11Y_FONT_SCALES,
@@ -192,9 +201,20 @@ export function localeBootScript(): string {
     'if(!l)return;' +
     'if(w){try{document.cookie=c.n+"="+encodeURIComponent(l)+"; Path=/; Max-Age="+c.m+' +
     '"; SameSite=Lax"+(window.location.protocol==="https:"?"; Secure":"");}catch(e){}}' +
-    'h.lang=l;' +
+    // CDNFIX (live 2026-11-18): the proxy's saved-Arabic 307 (`saved-arabic-redirect.ts`) never
+    // runs when the CDN answers from its cache, so the same rule runs here: an Arabic tab on an
+    // English address with an Arabic page goes there now, from `arabicPageTargets()` (only
+    // English addresses are keys, so an `/ar` page never redirects), `?lang=` dropped, the rest
+    // of the query and the hash kept. The served English page is left as it is, never rtl.
+    'if(l===c.pl&&Object.prototype.hasOwnProperty.call(c.tw,pn)){try{' +
+    'var u=new URLSearchParams(window.location.search);u.delete("lang");var us=u.toString();' +
+    'window.location.replace(c.tw[pn]+(us===""?"":"?"+us)+window.location.hash);return;}catch(e){}}' +
     'var g=l.split("-")[0].toLowerCase();' +
-    'h.dir=c.r.indexOf(g)>-1?"rtl":"ltr";' +
+    // Until hydration brings the catalog, the words on screen are the served HTML's, in the
+    // language its `lang` names. A page served in another language keeps its lang/dir, so English
+    // never reads right to left; `LocaleDirectionProvider` applies the locale with its words.
+    'if(String(h.lang).split("-")[0].toLowerCase()===g){h.lang=l;' +
+    'h.dir=c.r.indexOf(g)>-1?"rtl":"ltr";}' +
     // An Arabic tab: swap the prerendered English <title> now and while the head is still parsing
     // (the <title> may come after this script); the observer stops once the document is parsed.
     'if(g==="ar"){var f=function(){var v=document.title;' +

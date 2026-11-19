@@ -165,6 +165,22 @@ export function hasArabicPage(path: string | null | undefined): path is string {
   return hasArabicTwin(path) || (typeof path === 'string' && ARABIC_UNLISTED_PATHS.has(path));
 }
 
+/**
+ * Every English address with an Arabic page ({@link hasArabicPage}), mapped to that page by
+ * {@link languageSwitchTarget}: the routes the saved-Arabic redirect may send a visitor from, and
+ * where to (`saved-arabic-redirect.ts`). The proxy decides through `languageSwitchTarget` itself;
+ * the inline boot script cannot import, so it reads this table as data — one rule, two callers.
+ * Only English addresses are keys, so following an entry can never lead to another redirect.
+ */
+export function arabicPageTargets(): Readonly<Record<string, string>> {
+  const targets: Record<string, string> = {};
+  for (const path of [...WITH_TWIN, ...ARABIC_UNLISTED_PATHS]) {
+    const target = languageSwitchTarget(path, true);
+    if (target !== undefined) targets[path] = target;
+  }
+  return targets;
+}
+
 /** The Arabic twin of any path {@link hasArabicTwin} accepts (`/sign-in` → `/ar/sign-in`). */
 export function arabicTwinPath(path: string): string {
   return path === '/' ? ARABIC_PREFIX : `${ARABIC_PREFIX}${path}`;

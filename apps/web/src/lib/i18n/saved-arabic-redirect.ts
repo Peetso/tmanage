@@ -18,6 +18,13 @@ import { ARABIC_ROUTE_LOCALE, languageSwitchTarget } from './public-locale-route
  * dropped from the target because the path now names the language (`languageSwitchTarget`). Only
  * the cookie counts, not `localStorage`: the server cannot see it, and the boot script copies it
  * into the cookie, so the next request is redirected. Returns `undefined` for every other request.
+ *
+ * CDNFIX (live 2026-11-18): the CDN answers a cached public page without asking the origin and
+ * without looking at the cookie, so this 307 can be skipped. The boot script therefore applies the
+ * same rule in the browser: it reads `arabicPageTargets()`, which is `languageSwitchTarget` over
+ * every address with an Arabic page, and `ARABIC_ROUTE_LOCALE` — the two facts this function
+ * decides from. The cookie value is the full locale the language switch writes (`ar-EG`,
+ * `localeCookieString`); a bare `ar` is not on the allowlist.
  */
 export function savedArabicRedirect(
   pathname: string,

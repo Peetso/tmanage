@@ -36,17 +36,23 @@ afterEach(() => {
 
 describe('the inline boot script', () => {
   it('sets dir=rtl and lang=ar-EG for a cached Arabic locale (a reload)', () => {
+    // A page without an Arabic twin, served in Arabic (a dynamic render from the cookie).
+    window.history.replaceState(null, '', '/projects');
+    document.documentElement.lang = 'ar-EG';
     window.localStorage.setItem(LOCALE_STORAGE_KEY, 'ar-EG');
     runBootScript();
     expect(document.documentElement.dir).toBe('rtl');
     expect(document.documentElement.lang).toBe('ar-EG');
   });
 
-  it('honours ?lang=ar and persists it', () => {
-    window.history.replaceState(null, '', '/pricing?lang=ar');
+  it('honours ?lang=ar and persists it, leaving a page served in English ltr (CDNFIX)', () => {
+    window.history.replaceState(null, '', '/projects?lang=ar');
     runBootScript();
-    expect(document.documentElement.dir).toBe('rtl');
     expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('ar-EG');
+    expect(new LocaleStore().get()).toBe('ar-EG');
+    // The words on screen are still English until hydration brings the catalog.
+    expect(document.documentElement.dir).toBe('ltr');
+    expect(document.documentElement.lang).toBe('en');
   });
 
   it('ignores ?lang=xx and an off-allowlist cached value, keeping the server baseline', () => {
@@ -86,6 +92,8 @@ describe('the inline boot script', () => {
       if (stored) window.localStorage.setItem(LOCALE_STORAGE_KEY, stored);
       resetDocument();
       const expected = resolveBootLocale(search, stored)?.locale;
+      // Served in the decided language (CDNFIX: a page served in another keeps its lang).
+      if (expected) document.documentElement.lang = expected.split('-')[0] ?? 'en';
       runBootScript();
       expect(new LocaleStore().get()).toBe(expected);
       expect(document.documentElement.lang).toBe(expected);
@@ -127,16 +135,19 @@ describe('the boot script and the tab title (prerendered pages)', () => {
   });
 
   it('swaps the English title for the Arabic one before hydration for an Arabic tab', () => {
-    bootWithTitle('/pricing', 'ar-EG', 'Pricing · TManage');
-    expect(document.title).toBe('الأسعار · TManage');
-    expect(englishBootTitle(document.title)).toBe('Pricing · TManage');
+    // A page without an Arabic twin (one with a twin is sent there instead, CDNFIX).
+    const arabicRecover = bootTitleTable()['Recover your account · TManage'];
+    expect(arabicRecover).toBeDefined();
+    bootWithTitle('/recover', 'ar-EG', 'Recover your account · TManage');
+    expect(document.title).toBe(arabicRecover);
+    expect(englishBootTitle(document.title)).toBe('Recover your account · TManage');
   });
 
-  it('does it for ?lang=ar and for the sign-in page too', () => {
-    const arabicSignIn = bootTitleTable()['Sign in · TManage'];
-    expect(arabicSignIn).toBeDefined();
-    bootWithTitle('/sign-in?lang=ar', null, 'Sign in · TManage');
-    expect(document.title).toBe(arabicSignIn);
+  it('does it for ?lang=ar too', () => {
+    const arabicOffline = bootTitleTable()['Offline · TManage'];
+    expect(arabicOffline).toBeDefined();
+    bootWithTitle('/offline?lang=ar', null, 'Offline · TManage');
+    expect(document.title).toBe(arabicOffline);
   });
 
   it('leaves English tabs and unknown titles alone', () => {
@@ -151,6 +162,7 @@ describe('the boot script and the tab title (prerendered pages)', () => {
   it('covers only routes without a dynamic segment, so the script stays small', () => {
     const table = bootTitleTable();
     expect(Object.keys(table)).not.toContain('Work · TManage');
-    expect(localeBootScript().length).toBeLessThan(8000);
+    // CDNFIX: the table of addresses with an Arabic page (`arabicPageTargets`) is most of the rest.
+    expect(localeBootScript().length).toBeLessThan(14000);
   });
 });

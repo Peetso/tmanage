@@ -171,6 +171,9 @@ describe('the boot script and the store follow the cookie', () => {
   }
 
   it('prefers the cookie (what the server rendered) over localStorage', () => {
+    // A page without an Arabic twin, served in Arabic from the cookie.
+    window.history.replaceState(null, '', '/projects');
+    document.documentElement.lang = 'ar-EG';
     document.cookie = `${LOCALE_COOKIE_NAME}=ar-EG; Path=/`;
     window.localStorage.setItem(LOCALE_STORAGE_KEY, 'en-US');
     runBootScript();
@@ -179,6 +182,7 @@ describe('the boot script and the store follow the cookie', () => {
   });
 
   it('copies a localStorage-only choice into the cookie for the next load', () => {
+    window.history.replaceState(null, '', '/projects');
     window.localStorage.setItem(LOCALE_STORAGE_KEY, 'ar-EG');
     runBootScript();
     expect(readLocaleCookie()).toBe('ar-EG');
@@ -204,6 +208,8 @@ describe('the boot script and the store follow the cookie', () => {
       document.cookie = `${LOCALE_COOKIE_NAME}=${cookie}; Path=/`;
       window.history.replaceState(null, '', `/p${search}`);
       const expected = resolveBootLocale(search, stored, document.cookie)?.locale;
+      // Served in the decided language (CDNFIX: a page served in another keeps its lang).
+      document.documentElement.lang = expected?.split('-')[0] ?? 'en';
       runBootScript();
       expect(document.documentElement.lang).toBe(expected);
     }

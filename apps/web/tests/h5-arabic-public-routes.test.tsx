@@ -199,7 +199,9 @@ describe('the boot locale on an Arabic page', () => {
 
   it('sets rtl and ar-EG in the inline script and saves the choice', () => {
     window.history.replaceState(null, '', '/ar/pricing?lang=en');
-    document.documentElement.lang = 'en';
+    // Served in Arabic (`scripts/localize-prerendered-html.mjs` writes `lang="ar"`); `dir` is left
+    // ltr here so the script is seen to set it.
+    document.documentElement.lang = 'ar';
     document.documentElement.dir = 'ltr';
     new Function(localeBootScript())();
     expect(document.documentElement.lang).toBe('ar-EG');
