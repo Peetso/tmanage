@@ -4990,3 +4990,23 @@ import type {
 type _referral = Assert<Exact<ApiReferralView, WebReferralView>>;
 type _platformPartner = Assert<Exact<ApiPlatformPartnerView, WebPlatformPartnerView>>;
 type _platformReferrals = Assert<Exact<ApiPlatformReferralsView, WebPlatformReferralsView>>;
+
+// ---- ONEPAGE (B01/B04) · the project page and the client page in one read each ----
+import type { ProjectSummaryView as ApiProjectSummaryView } from '../../apps/api/src/modules/projects/project-summary.service.js';
+import type { ClientSummaryView as ApiClientSummaryView } from '../../apps/api/src/modules/clients/client-summary.service.js';
+import type { ProjectSummary as WebProjectPageSummary } from '../../apps/web/src/lib/api/project-summary.js';
+import type { ClientSummary as WebClientPageSummary } from '../../apps/web/src/lib/api/client-summary.js';
+type _projectPageSummary = Assert<Exact<ApiProjectSummaryView, WebProjectPageSummary>>;
+type _clientPageSummary = Assert<Exact<ApiClientSummaryView, WebClientPageSummary>>;
+
+// ---- 62-A2 ACTIVITY (B02/B09) · the Activity tab of a project and of a client ----
+import type {
+  ActivityEntryView as ApiActivityEntryView,
+  ActivityPageView as ApiActivityPageView,
+} from '../../apps/api/src/modules/activity/activity.service.js';
+import type {
+  ActivityEntry as WebActivityEntry,
+  ActivityPage as WebActivityPage,
+} from '../../apps/web/src/lib/api/activity.js';
+type _activityEntry = Assert<Exact<ApiActivityEntryView, WebActivityEntry>>;
+type _activityPage = Assert<Exact<ApiActivityPageView, WebActivityPage>>;

@@ -18,6 +18,7 @@ import { routeKey } from './types.js';
 import { NEVER, neverByKey, isNever } from './never.js';
 import { financeTimeOps } from './finance-time.js';
 import { financeDocumentOps } from './finance-documents.js';
+import { activityOps } from './activity.js';
 
 export * from './types.js';
 export { NEVER, neverByKey, isNever };
@@ -6352,6 +6353,8 @@ export const OPS: readonly AiActionOp[] = [
   ...financeTimeOps,
   // ---- 52-22 · quotes, client invoices, period-lock requests, public-form triage ----
   ...financeDocumentOps,
+  // ---- 62-A2 · the Activity tab of a project and of a client (read) ----
+  ...activityOps,
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',
@@ -6600,6 +6603,41 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/insights/workload-hours/capacity/:membershipId',
     capability: 'org.manage',
     risk: 'write',
+    scope: 'manage',
+  }, // ---- ONEPAGE (B01) · one read per project page and client page; a block the caller may not read
+  // is absent from the payload (finance figures need `finance.view`, checked server-side) ----
+  {
+    id: 'projects.summary.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/summary/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'client_organizations.summary.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/client-organizations/:clientOrganizationId/summary/',
+    capability: 'org.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  // ---- 62-27 (B05) · the owner's alert rules, behind `business_briefing`; the service admits the
+  // company owner only. Changing who is told or switching a rule off is confirm-class ----
+  {
+    id: 'insights.signal_settings.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/insights/signal-settings/',
+    capability: 'org.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'insights.signal_settings.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/insights/signal-settings/',
+    capability: 'org.manage',
+    risk: 'confirm',
     scope: 'manage',
   },
 ];

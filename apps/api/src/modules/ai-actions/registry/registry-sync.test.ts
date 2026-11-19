@@ -229,7 +229,10 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // answers list (+1 NEVER, platform_admin).
 // REFERRAL: GET referral/ and POST referral/code (+2 NEVER, referral); GET platform/referrals/ and
 // POST platform/referrals/partners (+2 NEVER, platform_admin).
-const EXPECTED_ROUTE_COUNT = 1549;
+// 62-A2: GET projects/:projectId/activity and client-organizations/:id/activity (+2 ops, read).
+// ONEPAGE: GET projects/:projectId/summary and client-organizations/:id/summary (+2 ops, read).
+// 62-27: GET and PUT insights/signal-settings (+2 ops, read and confirm).
+const EXPECTED_ROUTE_COUNT = 1555;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

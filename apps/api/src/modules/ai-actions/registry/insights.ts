@@ -6,6 +6,8 @@
  * confirm-class. Report/view/layout bodies are arbitrary analytics config, so they use the bounded
  * `config` schema; those results carry the `config` redaction profile (no secrets).
  */
+import { SIGNAL_RECIPIENTS, SIGNAL_RULE_KEYS } from '@tmanage/domain';
+import { z } from 'zod';
 import { det, listArgs, pathOnly, bodyArgs, noArgs, f, type AiActionDetail } from './detail.js';
 
 export const insightsDetails: readonly AiActionDetail[] = [
@@ -339,5 +341,48 @@ export const insightsDetails: readonly AiActionDetail[] = [
     input: noArgs(),
     redact: 'config',
     examples: [{ summary: 'Status', args: {} }],
+  }),
+  // 62-27 (B05): the owner's alert rules (Settings → Alerts), behind `business_briefing`; the
+  // service admits the company owner only and lists the money rules only with `finance.view`.
+  det({
+    id: 'insights.signal_settings.get',
+    title: 'List the alert rules',
+    description:
+      'The eight alert rules with, for each, whether it is on, its threshold and unit, and who ' +
+      'is told. Company owner only.',
+    input: noArgs(),
+    redact: 'config',
+    examples: [{ summary: 'All rules', args: {} }],
+  }),
+  det({
+    id: 'insights.signal_settings.set',
+    title: 'Change alert rules',
+    description:
+      'Save the listed alert rules whole: on/off, threshold (within the rule limits) and who is ' +
+      'told. Company owner only. Confirm-class: needs your approval before it runs.',
+    input: bodyArgs([], {
+      rules: z
+        .array(
+          z
+            .object({
+              rule: z.enum(SIGNAL_RULE_KEYS),
+              enabled: f.bool(),
+              threshold: f.int(1, 300),
+              recipient: z.enum(SIGNAL_RECIPIENTS),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(SIGNAL_RULE_KEYS.length),
+    }),
+    redact: 'config',
+    examples: [
+      {
+        summary: 'Stale task after 10 days',
+        args: {
+          rules: [{ rule: 'stale_task', enabled: true, threshold: 10, recipient: 'project_lead' }],
+        },
+      },
+    ],
   }),
 ];

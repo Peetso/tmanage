@@ -1062,4 +1062,16 @@ export const projectsDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'Suggest a due date', args: { projectId: 'proj_1' } }],
   }),
+  // ONEPAGE (B01): the project page in one read. Blocks the caller may not read are absent; the
+  // money block needs `finance.view` on the server, hence the `billing` profile.
+  det({
+    id: 'projects.summary.get',
+    title: 'Get a project at a glance',
+    description:
+      'One project in one read: delivery, approvals waiting and on whom, latest files, time, ' +
+      'money (with finance access), risks and milestones. A block you may not read is absent.',
+    input: pathOnly('projectId'),
+    redact: 'billing',
+    examples: [{ summary: 'How is Acme going?', args: { projectId: 'prj_acme' } }],
+  }),
 ];

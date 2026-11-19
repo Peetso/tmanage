@@ -566,6 +566,65 @@ const WEB_EXEMPT = new Map([
     'MatrixNotificationKind',
     'EMAILBUILD2 — web-only subset (NotificationKind minus tips) naming the matrix columns, never a response body; the response NotificationKindPrefView is paired Exact.',
   ],
+  // ONEPAGE (B01/B04): the blocks of the one-read project and client pages. The API types each block
+  // inline inside ProjectSummaryView / ClientSummaryView (no standalone …View), and both wrappers
+  // are paired Exact, so every block shape is covered there.
+  [
+    'SummaryDelivery',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryMilestone',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryHealth',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryWaitingApproval',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryApprovals',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryFile',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryFiles',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryTime',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryBudget',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryProjectMoney',
+    'ONEPAGE — one block of the project summary; the API inlines it inside `ProjectSummaryView`, which is paired Exact with `ProjectSummary`, so the block is covered there.',
+  ],
+  [
+    'ClientSummaryProject',
+    'ONEPAGE — one block of the client summary; the API inlines it inside `ClientSummaryView`, which is paired Exact with `ClientSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryCurrencyTotals',
+    'ONEPAGE — one block of the client summary; the API inlines it inside `ClientSummaryView`, which is paired Exact with `ClientSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryClientMoney',
+    'ONEPAGE — one block of the client summary; the API inlines it inside `ClientSummaryView`, which is paired Exact with `ClientSummary`, so the block is covered there.',
+  ],
+  [
+    'SummaryUnbilled',
+    'ONEPAGE — one block of the client summary; the API inlines it inside `ClientSummaryView`, which is paired Exact with `ClientSummary`, so the block is covered there.',
+  ],
 ]);
 
 // ── 1. Enumerate the API's response projections ─────────────────────────────

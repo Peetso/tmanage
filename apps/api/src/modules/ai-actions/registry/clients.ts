@@ -118,4 +118,15 @@ export const clientsDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),
+  // ONEPAGE (B01): the client page in one read, across the projects shared with the client.
+  det({
+    id: 'client_organizations.summary.get',
+    title: 'Get a client at a glance',
+    description:
+      'One client company in one read: its projects and their health, approvals waiting, latest ' +
+      'files, time, money (with finance access) and risks. A block you may not read is absent.',
+    input: pathOnly('clientOrganizationId'),
+    redact: 'billing',
+    examples: [{ summary: 'How is Northwind doing?', args: { clientOrganizationId: 'co_123' } }],
+  }),
 ];

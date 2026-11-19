@@ -27,6 +27,7 @@ import { taxDocumentDetails } from './tax-documents.js';
 import { financeExportDetails } from './finance-exports.js';
 import { einvoiceChainDetails } from './einvoice-chain.js';
 import { einvoiceCertificateDetails } from './einvoice-certificate.js';
+import { activityDetails } from './activity.js';
 
 export const waveCDetails: readonly AiActionDetail[] = [
   ...clientsDetails,
@@ -48,6 +49,8 @@ export const waveCDetails: readonly AiActionDetail[] = [
   ...financeExportDetails,
   ...einvoiceChainDetails,
   ...einvoiceCertificateDetails,
+  // 62-A2: the Activity tab of a project and of a client (`activity.ts`).
+  ...activityDetails,
 ];
 
 /** Wave C details indexed by op id (throws on a duplicate id within the wave). */
