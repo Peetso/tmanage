@@ -70,6 +70,8 @@ describe('the handler registry', () => {
       'work_item.created.v1',
       'work_item.people_assigned.v1',
       'work_item.updated.v1',
+      // 62-27 — the responsible manager's notice for a raised work signal.
+      'work_signal.raised.v1',
     ]);
   });
 

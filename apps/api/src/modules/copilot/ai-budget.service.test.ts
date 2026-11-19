@@ -48,11 +48,13 @@ interface MemberRow extends Counter {
   refundDay: IsoDate | null;
   refundCount: number;
 }
-interface TaskRow extends AiTaskRecord {
+/** The fake store's rows: the repository's records, which it moves in place like the SQL does. */
+type Writable<T> = { -readonly [K in keyof T]: T[K] };
+interface TaskRow extends Writable<AiTaskRecord> {
   org: string;
   refunded: number;
 }
-interface CallRow extends AiCallRecord {
+interface CallRow extends Writable<AiCallRecord> {
   org: string;
   expiresAt: Date;
   cost: number | null;

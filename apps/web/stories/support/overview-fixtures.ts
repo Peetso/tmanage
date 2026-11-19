@@ -91,7 +91,7 @@ export const PROJECT_SUMMARY: ProjectSummary = {
     trackedHours: 126,
     remainingHours: 28,
     percentBp: 8_200,
-    status: 'watch',
+    status: 'on_track',
   },
   money: {
     from: '2026-09-01',
