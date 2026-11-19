@@ -6,6 +6,10 @@ import { percent, shareOf } from '../../../lib/api/platform-growth';
 import type { GrowthFigures as Figures } from '../../../lib/api/platform-growth';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { fillCopy, useGrowthCopy, type GrowthCopy } from './growth-copy';
+// The tiles' own styles (the metric grid, the tile captions), so they draw the same wherever they
+// are placed, not only inside the Growth screen and the platform shell that import them too.
+import '../../../styles/screens/admin.css';
+import '../../../styles/screens/r44-security-growth.css';
 
 /**
  * 62-A3 (B14) · Growth tiles (Figma 758:43241 EN / 758:43432 AR, review fixes 34–41): Activation,
