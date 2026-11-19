@@ -20,6 +20,7 @@ import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { appLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminFeatureFlagsScreenProps {
@@ -47,6 +48,7 @@ export function AdminFeatureFlagsScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
   const queryKey = ['admin-feature-flags', organizationSlug];
 
   /** Human labels for the optional-module flags, keyed by the id the API validates against. */
@@ -70,6 +72,7 @@ export function AdminFeatureFlagsScreen({
     proofing: t(PLAN_52_FLAG_LABELS.proofing),
     approval_links: t(PLAN_52_FLAG_LABELS.approval_links),
     public_forms: t(PLAN_52_FLAG_LABELS.public_forms),
+    business_briefing: tOr('FeatureFlags.businessBriefing', 'Business briefing'),
   };
 
   /** A short "when last changed" note, or the module's default for a flag never set. */

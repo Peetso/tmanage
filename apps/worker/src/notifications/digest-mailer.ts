@@ -1,6 +1,8 @@
 import { LINK_TOKENS, forCompany, greeting, signOff } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import type { NaturalNotificationKind } from '@tmanage/domain';
+import { briefingSectionParagraphs } from './briefing-mail.js';
+import type { DigestBriefingSection } from './briefing-mail.js';
 import { isArabicLocale } from './collaboration-mailer.js';
 
 /**
@@ -8,6 +10,10 @@ import { isArabicLocale } from './collaboration-mailer.js';
  * of each kind are waiting and links to the inbox; it never quotes a title, a message or a comment
  * (those can be edited or withdrawn after the mail leaves, and the inbox re-checks access on open).
  * English, or Arabic for an `ar*` locale.
+ *
+ * 62-A1c: a person who switched it on also gets the business briefing as one section (the Home
+ * card's lines, `briefing-mail.ts`). The mail goes out when either part has something to say:
+ * counts only, the briefing only, or both; never empty (the store does not claim an empty one).
  */
 
 export interface DigestEmailFacts {
@@ -23,6 +29,8 @@ export interface DigestEmailFacts {
   /** Absolute links: the inbox, and the notification settings. */
   readonly inboxLink: string;
   readonly settingsLink: string;
+  /** 62-A1c: the business briefing section; absent when switched off, flag off or nothing open. */
+  readonly briefing?: DigestBriefingSection;
 }
 
 const KIND_ORDER: readonly NaturalNotificationKind[] = [
@@ -71,17 +79,29 @@ export function composeDigestEmail(facts: DigestEmailFacts): MailMessage {
   const signature = signOff('notice', language)
     .map((line) => line.replace(LINK_TOKENS.settings, facts.settingsLink))
     .join('\n');
+  const briefing =
+    facts.briefing === undefined ? [] : briefingSectionParagraphs(facts.briefing, language);
   if (arabic) {
     const period = facts.cadence === 'weekly' ? 'الأسبوعي' : 'اليومي';
     const phrase = facts.cadence === 'weekly' ? 'هذا الأسبوع' : 'منذ أمس';
+    const updates =
+      kinds.length === 0
+        ? []
+        : [
+            `${RLM}هذا ما حدث في ${studio} ${phrase}:`,
+            kinds.map((kind) => `• ${AR_KIND[kind]}: ${String(facts.counts[kind])}`).join('\n'),
+          ];
     return {
       to: facts.recipientEmail,
       language,
-      subject: `${RLM}ملخصك ${period} في ${studio}: ${String(total)} تحديثات`,
+      subject:
+        total > 0
+          ? `${RLM}ملخصك ${period} في ${studio}: ${String(total)} تحديثات`
+          : `${RLM}موجز العمل في ${studio}`,
       text: [
         greeting(language, facts.recipientName),
-        `${RLM}هذا ما حدث في ${studio} ${phrase}:`,
-        kinds.map((kind) => `• ${AR_KIND[kind]}: ${String(facts.counts[kind])}`).join('\n'),
+        ...updates,
+        ...briefing,
         `${RLM}افتح TManage: ${facts.inboxLink}`,
         'تريد الملخص بوتيرة أقل أو لا تريده؟ غيّر ذلك من إعدادات الإشعارات بالأسفل.',
         signature,
@@ -90,14 +110,24 @@ export function composeDigestEmail(facts: DigestEmailFacts): MailMessage {
   }
   const period = facts.cadence === 'weekly' ? 'weekly' : 'daily';
   const phrase = facts.cadence === 'weekly' ? 'this week' : 'since yesterday';
+  const updates =
+    kinds.length === 0
+      ? []
+      : [
+          `Here is what happened in ${studio} ${phrase}:`,
+          kinds.map((kind) => `• ${EN_KIND[kind]}: ${String(facts.counts[kind])}`).join('\n'),
+        ];
   return {
     to: facts.recipientEmail,
     language,
-    subject: `Your ${period} summary for ${studio}: ${String(total)} update${total === 1 ? '' : 's'}`,
+    subject:
+      total > 0
+        ? `Your ${period} summary for ${studio}: ${String(total)} update${total === 1 ? '' : 's'}`
+        : `Your business briefing for ${studio}`,
     text: [
       greeting(language, facts.recipientName),
-      `Here is what happened in ${studio} ${phrase}:`,
-      kinds.map((kind) => `• ${EN_KIND[kind]}: ${String(facts.counts[kind])}`).join('\n'),
+      ...updates,
+      ...briefing,
       `Open TManage: ${facts.inboxLink}`,
       'Want this less often, or not at all? Change it in Notification settings below.',
       signature,

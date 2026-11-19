@@ -98,14 +98,24 @@ describe('DigestPreferenceController (PREF-DIGEST, x245)', () => {
       sendHour: 9,
       dayOfWeek: 3,
     });
-    expect(saved).toEqual({ cadence: 'weekly', sendHour: 9, dayOfWeek: 3 });
+    expect(saved).toEqual({
+      cadence: 'weekly',
+      sendHour: 9,
+      dayOfWeek: 3,
+      businessBriefing: false,
+    });
 
     // The subject is the authenticated principal's membership, never a value the request named.
     expect(repo.upsertCalls).toHaveLength(1);
     expect(repo.upsertCalls[0]!.membershipId).toBe(MY_MEMBERSHIP);
 
     const readBack = await controller.get(context, member());
-    expect(readBack).toEqual({ cadence: 'weekly', sendHour: 9, dayOfWeek: 3 });
+    expect(readBack).toEqual({
+      cadence: 'weekly',
+      sendHour: 9,
+      dayOfWeek: 3,
+      businessBriefing: false,
+    });
   });
 
   it('does not read another member’s row — the subject is always the caller', async () => {
@@ -149,6 +159,45 @@ describe('DigestPreferenceController (PREF-DIGEST, x245)', () => {
     );
     await expectStatus(
       controllerWith(repo).put(context, member(), { cadence: 'weekly', sendHour: 8, dayOfWeek: 7 }),
+      400,
+    );
+    expect(repo.upsertCalls).toHaveLength(0);
+  });
+
+  it('62-A1c: the briefing switch is off by default, saved per person and read back', async () => {
+    const repo = new FakeDigestPreferenceRepository();
+    const controller = controllerWith(repo);
+    expect(DEFAULT_DIGEST_PREFERENCE.businessBriefing).toBe(false);
+
+    await controller.put(context, member(), {
+      cadence: 'daily',
+      sendHour: 7,
+      dayOfWeek: 1,
+      businessBriefing: true,
+    });
+    expect(repo.upsertCalls[0]!.settings).toMatchObject({ businessBriefing: true });
+    expect((await controller.get(context, member())).businessBriefing).toBe(true);
+
+    // A full replacement: a body without the switch turns it off again.
+    await controller.put(context, member(), { cadence: 'daily', sendHour: 7, dayOfWeek: 1 });
+    expect((await controller.get(context, member())).businessBriefing).toBe(false);
+  });
+
+  it('62-A1c: a row saved before the switch existed reads as off', async () => {
+    const repo = new FakeDigestPreferenceRepository();
+    repo.rows.set(MY_MEMBERSHIP, { cadence: 'weekly', sendHour: 6, dayOfWeek: 5 });
+    expect((await controllerWith(repo).get(context, member())).businessBriefing).toBe(false);
+  });
+
+  it('62-A1c: a switch that is not true or false is a 400 and writes nothing', async () => {
+    const repo = new FakeDigestPreferenceRepository();
+    await expectStatus(
+      controllerWith(repo).put(context, member(), {
+        cadence: 'daily',
+        sendHour: 8,
+        dayOfWeek: 1,
+        businessBriefing: 'yes',
+      }),
       400,
     );
     expect(repo.upsertCalls).toHaveLength(0);

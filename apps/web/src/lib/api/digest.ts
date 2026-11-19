@@ -20,6 +20,8 @@ export interface DigestPrefView {
   readonly cadence: DigestCadence;
   readonly sendHour: number;
   readonly dayOfWeek: number;
+  /** 62-A1c: the business briefing as a section of this mail; off by default, one per person. */
+  readonly businessBriefing: boolean;
 }
 
 function path(organizationSlug: string): string {

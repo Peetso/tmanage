@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   BRIEFING_GROUP_ORDER,
+  assembleBriefing,
   briefingAudience,
+  briefingReasonOf,
+  briefingSignalVisible,
   briefingSubjectKey,
+  briefingViewerBase,
   buildBriefing,
 } from './briefing.js';
-import type { BriefingSubject, BriefingViewer, OpenSignal } from './briefing.js';
+import type { BriefingSource, BriefingSubject, BriefingViewer, OpenSignal } from './briefing.js';
 import { SIGNAL_RULES, SIGNAL_RULE_KEYS } from './signal-catalog.js';
 import type { SignalRuleKey } from './signal-catalog.js';
 
@@ -177,5 +181,101 @@ describe('buildBriefing', () => {
       ]);
       expect(buildBriefing(one, subjects, OWNER)[0]?.lines[0]?.path).toBe(path);
     }
+  });
+});
+
+describe('briefingViewerBase (62-A1c: the card and the mail read the viewer the same way)', () => {
+  it('a lead is a project member holding project.manage; finance is finance.view', () => {
+    const lead = briefingViewerBase({
+      hasOrgWideScope: false,
+      holds: (c) => c === 'project.manage',
+      projectIds: ['p1'],
+      membershipId: 'm1',
+    });
+    expect([...lead.projectIds]).toEqual(['p1']);
+    expect(lead.finance).toBe(false);
+    const member = briefingViewerBase({
+      hasOrgWideScope: false,
+      holds: () => false,
+      projectIds: ['p1'],
+      membershipId: 'm1',
+    });
+    expect([...member.projectIds]).toEqual([]);
+  });
+});
+
+describe('assembleBriefing', () => {
+  function source(sweptAt: Date | null, signals: readonly OpenSignal[]) {
+    const calls: string[] = [];
+    const reads: BriefingSource = {
+      team: async (ids) => (calls.push(`team:${ids.join(',')}`), new Set(['m-team'])),
+      lastSweep: async () => (calls.push('lastSweep'), sweptAt),
+      openSignals: async () => (calls.push('openSignals'), signals),
+      subjects: async (visible) => (
+        calls.push(`subjects:${String(visible.length)}`),
+        resolved(visible)
+      ),
+    };
+    return { reads, calls };
+  }
+  const SWEPT = new Date('2026-11-19T08:00:00.000Z');
+  const base = (patch: Partial<Parameters<typeof briefingViewerBase>[0]> = {}) =>
+    briefingViewerBase({
+      hasOrgWideScope: false,
+      holds: () => false,
+      projectIds: [],
+      membershipId: 'm1',
+      ...patch,
+    });
+
+  it('company-wide: no team read; as of the last sweep; groups as buildBriefing', async () => {
+    const { reads, calls } = source(SWEPT, ALL);
+    const owner = base({ hasOrgWideScope: true, holds: () => true });
+    const briefing = await assembleBriefing(reads, owner);
+    expect(briefing.audience).toBe('company');
+    expect(briefing.asOf).toBe(SWEPT);
+    expect(briefing.groups).toEqual(buildBriefing(ALL, resolved(ALL), OWNER));
+    expect(calls.some((c) => c.startsWith('team'))).toBe(false);
+  });
+
+  it('only the visible signals are resolved', async () => {
+    const { reads, calls } = source(SWEPT, ALL);
+    await assembleBriefing(
+      reads,
+      base({ holds: (c) => c === 'project.manage', projectIds: ['p1'] }),
+    );
+    const visible = ALL.filter((s) =>
+      briefingSignalVisible(s, { ...LEAD, teamMembershipIds: new Set(['m-team']) }),
+    );
+    expect(calls).toContain(`subjects:${String(visible.length)}`);
+  });
+
+  it('before the first sweep: the audience, no time, nothing listed or resolved', async () => {
+    const { reads, calls } = source(null, ALL);
+    const briefing = await assembleBriefing(reads, base({ hasOrgWideScope: true }));
+    expect(briefing).toEqual({ audience: 'company', asOf: null, groups: [] });
+    expect(calls).toEqual(['lastSweep']);
+  });
+});
+
+describe('briefingReasonOf (the sentence the card and the mail each say in words)', () => {
+  const amount = { minor: 420_000, currency: 'USD' };
+  it.each([
+    ['deadline_at_risk', -3, null, 'dueLate', { days: 3 }],
+    ['deadline_at_risk', -1, null, 'dueLateOne', {}],
+    ['deadline_at_risk', 0, null, 'dueToday', {}],
+    ['deadline_at_risk', 1, null, 'dueTomorrow', {}],
+    ['deadline_at_risk', 4, null, 'dueIn', { days: 4 }],
+    ['overloaded_person', 115, null, 'overloaded', { percent: 115 }],
+    ['overdue_invoice', 12, null, 'overdue', { days: 12 }],
+    ['overdue_invoice', 12, amount, 'overdueAmount', { days: 12 }],
+    ['project_over_budget', 112, null, 'overBudget', { percent: 112 }],
+    ['stale_task', 16, null, 'stale', { days: 16 }],
+    ['unusual_expense', 4, amount, 'unusualExpenseAmount', { times: 4 }],
+    ['approval_waiting_on_client', 5, null, 'waitingOnClient', { days: 5 }],
+    ['approved_time_not_invoiced', 14, null, 'notInvoiced', { days: 14 }],
+  ] as const)('%s %d', (rule, measure, money, key, figures) => {
+    const reason = briefingReasonOf({ rule, measure, amount: money });
+    expect(reason).toEqual({ key, figures, amount: key.endsWith('Amount') ? amount : null });
   });
 });

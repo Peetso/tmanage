@@ -31,6 +31,8 @@ describe('controlCenterSectionsFor', () => {
         ['invitations', '/people'],
         // 57-08 REFERRAL (review B point 7): owner only, directly under Invitations.
         ['invite-agencies', '/admin/invite-agencies'],
+        // 62-27 (B12; FIGMA-D fix 29): owner only, shown while `business_briefing` is on.
+        ['alerts', '/settings/alerts'],
       ],
       [
         ['templates', '/projects/templates'],
@@ -59,7 +61,9 @@ describe('controlCenterSectionsFor', () => {
     ]);
     expect(foot).toEqual([]);
     // The org admin's menu is the owner's minus the owner-only invite link (57-08 REFERRAL).
-    expect(ids('org_admin')).toEqual(ids('owner').filter((id) => id !== 'invite-agencies'));
+    expect(ids('org_admin')).toEqual(
+      ids('owner').filter((id) => id !== 'invite-agencies' && id !== 'alerts'),
+    );
   });
 
   it('hides the pages a member would be refused, and everything gated while the role is unknown', () => {

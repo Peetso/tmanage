@@ -30,11 +30,10 @@ import type { DigestPreferenceRepository } from './digest.repository.js';
  * a state the store should ever hold: an unknown key, a cadence off the closed vocabulary, a send
  * hour outside 0–23, or a weekday outside 0–6 is a 400 and nothing is written.
  *
- * ## No dispatch in this slice
+ * ## No dispatch here
  *
- * This is preference storage only. No digest is assembled and no email is sent here (Needs-Peter);
- * the cadence a member saves is read back exactly, and a dispatcher — when it is built — reads this
- * table.
+ * This is preference storage only. The worker's digest sweep (53-15, `notification-digest.ts`)
+ * reads this row; the cadence and the briefing switch a member saves are read back exactly.
  */
 
 /** What the GET/PUT route exchanges: the whole digest cadence, without row identity. */
@@ -42,17 +41,35 @@ export interface DigestPrefView {
   readonly cadence: DigestCadence;
   readonly sendHour: number;
   readonly dayOfWeek: number;
+  /**
+   * 62-A1c (B12): the business briefing as one section of this mail. Off by default; one switch
+   * per person. The worker adds the section only while the company's `business_briefing` flag is
+   * on and the person has a briefing (the Home card's scope rules), and never sends an empty mail.
+   */
+  readonly businessBriefing: boolean;
 }
+
+/**
+ * The stored `digest_json`: the schema's {@link DigestPreference} and, since 62-A1c, the
+ * briefing switch. A row saved before the switch existed has no key and reads as off.
+ */
+type StoredDigestPreference = DigestPreference & { readonly businessBriefing?: boolean };
 
 /** The shipped default an unsaved member reads by: a daily digest at 08:00, weekday Monday. */
 export const DEFAULT_DIGEST_PREFERENCE: DigestPrefView = {
   cadence: 'daily',
   sendHour: 8,
   dayOfWeek: 1,
+  businessBriefing: false,
 };
 
 /** The only keys a PUT body may carry — anything else is a 400 (fixed-key allowlist). */
-const ALLOWED_KEYS: ReadonlySet<string> = new Set(['cadence', 'sendHour', 'dayOfWeek']);
+const ALLOWED_KEYS: ReadonlySet<string> = new Set([
+  'cadence',
+  'sendHour',
+  'dayOfWeek',
+  'businessBriefing',
+]);
 
 const CADENCES: ReadonlySet<string> = new Set(DIGEST_CADENCE);
 
@@ -92,15 +109,16 @@ export class DigestPreferenceController {
   }
 }
 
-function viewOf(settings: DigestPreference): DigestPrefView {
+function viewOf(settings: StoredDigestPreference): DigestPrefView {
   return {
     cadence: settings.cadence,
     sendHour: settings.sendHour,
     dayOfWeek: settings.dayOfWeek,
+    businessBriefing: 'businessBriefing' in settings && settings.businessBriefing === true,
   };
 }
 
-function parseInput(body: unknown): DigestPreference {
+function parseInput(body: unknown): StoredDigestPreference {
   const details: { field: string; message: string }[] = [];
   const value = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
 
@@ -127,9 +145,20 @@ function parseInput(body: unknown): DigestPreference {
   const sendHour = integerInRange('sendHour', 0, 23);
   const dayOfWeek = integerInRange('dayOfWeek', 0, 6);
 
+  // Optional so a body from before the switch still saves; a full replacement, so absent = off.
+  const briefingRaw = value['businessBriefing'];
+  if (briefingRaw !== undefined && typeof briefingRaw !== 'boolean') {
+    details.push({ field: 'businessBriefing', message: 'must be true or false' });
+  }
+
   if (details.length > 0) {
     throw new ApiError(400, 'validation_failed', 'The digest preferences are invalid', details);
   }
 
-  return { cadence: cadenceRaw as DigestCadence, sendHour, dayOfWeek };
+  return {
+    cadence: cadenceRaw as DigestCadence,
+    sendHour,
+    dayOfWeek,
+    businessBriefing: briefingRaw === true,
+  };
 }

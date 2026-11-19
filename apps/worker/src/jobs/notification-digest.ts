@@ -15,6 +15,11 @@ import type { DigestEmailFacts, DigestMailer } from '../notifications/digest-mai
  *
  * The mail names counts per kind and links the inbox; it never quotes content. A member whose
  * mail toggle is off, or who has nothing unread, gets nothing.
+ *
+ * 62-A1c (B12): a member who switched on the business briefing (`pref_digest`, off by default) and
+ * whose company has `business_briefing` on also gets the Home card's briefing as one section, read
+ * with the card's scope rules (`briefing-store.ts`). The window is claimed when the counts or the
+ * briefing have something to say; with both empty nothing is claimed and nothing is sent.
  */
 
 export const DIGEST_INTERVAL_MS = 15 * 60_000;
@@ -33,6 +38,8 @@ export interface DigestRecipient {
   /** 0 = Sunday … 6 = Saturday; read for `weekly` only. */
   readonly dayOfWeek: number;
   readonly timezone: string;
+  /** 62-A1c: add the business briefing section (off by default). */
+  readonly businessBriefing: boolean;
 }
 
 export interface DigestWindow {
@@ -41,6 +48,8 @@ export interface DigestWindow {
   /** The dedupe key of the claim row: one send per member per window. */
   readonly key: string;
   readonly cadence: 'daily' | 'weekly';
+  /** The sweep's clock (bound into the store's reads; the database clock is never used). */
+  readonly at: Date;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -83,15 +92,16 @@ export function digestWindowFor(now: Date, recipient: DigestRecipient): DigestWi
     since: new Date(now.getTime() - days * DAY_MS),
     key: `digest:${recipient.cadence}:${local.date}`,
     cadence: recipient.cadence,
+    at: now,
   };
 }
 
 export interface NotificationDigestStore {
   listRecipients(limit: number): Promise<readonly DigestRecipient[]>;
   /**
-   * In one transaction: collect the member's digestable unread rows since `window.since`, and when
-   * there are any, claim the window. Returns the mail facts (link paths unresolved) when this call
-   * claimed it, else null.
+   * In one transaction: collect the member's digestable unread rows since `window.since` and,
+   * when switched on, their business briefing; when either has something, claim the window.
+   * Returns the mail facts (links resolved through `links`) when this call claimed it, else null.
    */
   collectAndClaim(
     recipient: DigestRecipient,

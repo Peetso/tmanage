@@ -3,21 +3,23 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDigestPreference, updateDigestPreference } from '../../lib/api/digest';
 import type { DigestCadence, DigestPrefView } from '../../lib/api/digest';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
+import { getHomeBriefing, hasBriefing, homeBriefingQueryKey } from '../../lib/api/home-briefing';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
 
 export interface DigestPreferenceScreenProps {
   organizationSlug: string;
   organizationName: string;
-  client?: ApiClient;
+  client?: ApiClient | undefined;
 }
 
 /** The default an unsaved account reads by; the same values the API's `DEFAULT_DIGEST_PREFERENCE` holds. */
@@ -25,6 +27,7 @@ const DEFAULTS: DigestPrefView = {
   cadence: 'daily',
   sendHour: 8,
   dayOfWeek: 1,
+  businessBriefing: false,
 };
 
 const CADENCE_OPTIONS: readonly {
@@ -79,6 +82,7 @@ export function DigestPreferenceScreen({
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
 
   const preference = useQuery({
     queryKey: ['digest-preference', organizationSlug],
@@ -88,6 +92,7 @@ export function DigestPreferenceScreen({
   const [cadence, setCadence] = useState<DigestCadence>(DEFAULTS.cadence);
   const [sendHour, setSendHour] = useState(DEFAULTS.sendHour);
   const [dayOfWeek, setDayOfWeek] = useState(DEFAULTS.dayOfWeek);
+  const [businessBriefing, setBusinessBriefing] = useState(DEFAULTS.businessBriefing);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -95,16 +100,32 @@ export function DigestPreferenceScreen({
     setCadence(preference.data.cadence);
     setSendHour(preference.data.sendHour);
     setDayOfWeek(preference.data.dayOfWeek);
+    setBusinessBriefing(preference.data.businessBriefing);
   }, [preference.data]);
+
+  // 62-A1c: the briefing switch is offered only to someone who has a briefing (the Home card's
+  // read: flag on, internal, company-wide or leading a project or a person). The same cache key
+  // as the card, so Home and this screen share one read.
+  const briefing = useQuery({
+    queryKey: homeBriefingQueryKey(organizationSlug),
+    queryFn: () => getHomeBriefing(api, organizationSlug),
+  });
+  const offerBriefing = hasBriefing(briefing.data) || businessBriefing;
 
   const save = useMutation({
     mutationFn: (): Promise<DigestPrefView> =>
-      updateDigestPreference(api, organizationSlug, { cadence, sendHour, dayOfWeek }),
+      updateDigestPreference(api, organizationSlug, {
+        cadence,
+        sendHour,
+        dayOfWeek,
+        businessBriefing,
+      }),
     onSuccess: (result) => {
       queries.setQueryData(['digest-preference', organizationSlug], result);
       setCadence(result.cadence);
       setSendHour(result.sendHour);
       setDayOfWeek(result.dayOfWeek);
+      setBusinessBriefing(result.businessBriefing);
       setSaved(true);
     },
   });
@@ -207,6 +228,24 @@ export function DigestPreferenceScreen({
                       </div>
                     ) : null}
                   </div>
+                </>
+              ) : null}
+
+              {offerBriefing && cadence !== 'immediate' ? (
+                <>
+                  <hr className="tm-prefs-rule" />
+                  <Switch
+                    label={tOr(
+                      'DigestPreferenceScreen.businessBriefing',
+                      'Add the business briefing',
+                    )}
+                    hint={tOr(
+                      'DigestPreferenceScreen.businessBriefingHint',
+                      'What needs you, from the hourly check: the same lines as on Home. Sent only when there is something to say.',
+                    )}
+                    checked={businessBriefing}
+                    onChange={(event) => setBusinessBriefing(event.target.checked)}
+                  />
                 </>
               ) : null}
 

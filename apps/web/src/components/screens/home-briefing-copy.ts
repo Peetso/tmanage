@@ -1,8 +1,9 @@
+import { briefingReasonOf } from '@tmanage/domain';
 import type { BriefingGroupKey, BriefingLine } from '../../lib/api/home-briefing';
 
 /**
- * 62-A1b (B11) — every word the Home business briefing card draws, in one place, and the one
- * function that says a line's reason from its stored figures ("No change for 16 days").
+ * 62-A1b (B11) — every word the Home business briefing card draws, in one place, including the
+ * words for each reason the domain picks from the stored figures ("No change for 16 days").
  *
  * The keys reach `en.json` / `ar.json` through the wiring step (B11-REPORT, WIRING); until then
  * `tOr` returns the English given here, never a raw key. `{name}` holes are filled after the
@@ -97,46 +98,15 @@ export function filledParts(
     });
 }
 
-/** A line's reason in words, from the figures the sweep stored. Never content. */
+/** A line's reason in words, from the figures the sweep stored (domain `briefingReasonOf`). */
 export function briefingReason(line: BriefingLine, format: ReasonFormat): FilledText {
-  const say = (
-    key: BriefingCopyKey,
-    values: Readonly<Record<string, string>> = {},
-  ): FilledText => ({
-    template: format.text(key),
-    values,
-  });
-  const days = format.number(Math.abs(line.measure));
-  const amount =
-    line.amount === null ? null : format.money(line.amount.minor, line.amount.currency);
-  switch (line.rule) {
-    case 'deadline_at_risk':
-      if (line.measure < -1) return say('HomeBriefing.reason.dueLate', { days });
-      if (line.measure === -1) return say('HomeBriefing.reason.dueLateOne');
-      if (line.measure === 0) return say('HomeBriefing.reason.dueToday');
-      if (line.measure === 1) return say('HomeBriefing.reason.dueTomorrow');
-      return say('HomeBriefing.reason.dueIn', { days });
-    case 'overloaded_person':
-      return say('HomeBriefing.reason.overloaded', { percent: format.number(line.measure) });
-    case 'overdue_invoice':
-      return amount === null
-        ? say('HomeBriefing.reason.overdue', { days })
-        : say('HomeBriefing.reason.overdueAmount', { amount, days });
-    case 'project_over_budget':
-      return say('HomeBriefing.reason.overBudget', { percent: format.number(line.measure) });
-    case 'stale_task':
-      return say('HomeBriefing.reason.stale', { days });
-    case 'unusual_expense': {
-      const times = format.number(line.measure);
-      return amount === null
-        ? say('HomeBriefing.reason.unusualExpense', { times })
-        : say('HomeBriefing.reason.unusualExpenseAmount', { amount, times });
-    }
-    case 'approval_waiting_on_client':
-      return say('HomeBriefing.reason.waitingOnClient', { days });
-    case 'approved_time_not_invoiced':
-      return say('HomeBriefing.reason.notInvoiced', { days });
+  const reason = briefingReasonOf(line);
+  const values: Record<string, string> = {};
+  for (const [name, figure] of Object.entries(reason.figures)) values[name] = format.number(figure);
+  if (reason.amount !== null) {
+    values['amount'] = format.money(reason.amount.minor, reason.amount.currency);
   }
+  return { template: format.text(`HomeBriefing.reason.${reason.key}`), values };
 }
 
 /** A line's name: its record's title, else a plain word for its kind. */

@@ -30,6 +30,11 @@ const ENTRY_POINTS = [
   'apps/api/src/modules/home/home-briefing.controller.ts',
   'apps/api/src/modules/home/home-briefing.service.ts',
   'apps/api/src/modules/home/home-briefing.repository.ts',
+  // 62-A1c (B12): the briefing in the digest mail.
+  'apps/worker/src/common/database/briefing-store.ts',
+  'apps/worker/src/common/database/notification-digest-store.ts',
+  'apps/worker/src/notifications/briefing-mail.ts',
+  'apps/worker/src/notifications/digest-mailer.ts',
 ];
 
 /** AI SDKs and HTTP clients: none may be imported anywhere in the closure. */

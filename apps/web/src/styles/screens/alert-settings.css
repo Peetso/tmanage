@@ -1,0 +1,168 @@
+/*
+ * 62-27 (B12) — Settings → Alerts (FIGMA-D group c). TManage tokens only; logical properties only,
+ * so the Arabic frame mirrors without a second rule. Prefix `tm-alerts`.
+ */
+
+.tm-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+/* The rules card: surface, 1 px line, card radius. */
+.tm-alerts__card {
+  padding: var(--s2) var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+/* Rule · Threshold · Who is told: the same three columns for the header and every row. */
+.tm-alerts__head,
+.tm-alerts__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 14rem) minmax(12rem, 14rem);
+  gap: var(--s4);
+  align-items: start;
+}
+
+.tm-alerts__head {
+  padding-block: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-alerts__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-alerts__row {
+  padding-block: var(--s4);
+}
+
+.tm-alerts__row + .tm-alerts__row {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+/* The switch's row is its label: a 44 px hit area (fix 29). */
+.tm-alerts__rule .tm-choice__row {
+  min-block-size: 44px;
+}
+
+.tm-alerts__finance {
+  display: block;
+}
+
+/* Column names are for the phone; on a wide screen the header says them (screen readers: always). */
+.tm-alerts__label,
+.tm-alerts__select > .tm-field__label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-alerts__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+/* The number is the only editable part; the unit sits after it (fix 25). */
+.tm-alerts__number {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-alerts__number .tm-field__control {
+  inline-size: 6rem;
+  min-block-size: 44px;
+}
+
+.tm-alerts__unit {
+  color: var(--ink-650);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+/* A money rule's recipient: words and a lock, nothing that looks editable (fix 24). */
+.tm-alerts__fixed {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 44px;
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-alerts__lock {
+  flex: none;
+  color: var(--ink-650);
+}
+
+/* Off: threshold and recipient dimmed and disabled, values kept (fix 26). */
+.tm-alerts__row--off .tm-alerts__cell {
+  opacity: 0.5;
+}
+
+.tm-alerts__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+/* Phone (fix 32): each rule a stacked block; the column names show; Save sticks to the bottom. */
+@media (max-width: 47.99rem) {
+  .tm-alerts__card {
+    padding-inline: var(--s4);
+  }
+
+  .tm-alerts__head {
+    display: none;
+  }
+
+  .tm-alerts__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s3);
+  }
+
+  .tm-alerts__label,
+  .tm-alerts__select > .tm-field__label {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    color: var(--ink-650);
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+  }
+
+  .tm-alerts__number .tm-field__control {
+    flex: 1;
+    inline-size: auto;
+  }
+
+  .tm-alerts__actions {
+    position: sticky;
+    inset-block-end: 0;
+    padding-block: var(--s3);
+    background: var(--paper-0);
+    border-block-start: var(--b-quiet) solid var(--line-300);
+  }
+
+  .tm-alerts__actions > * {
+    flex: 1;
+  }
+}

@@ -1,4 +1,5 @@
-import { SIGNAL_RULES } from './signal-catalog.js';
+import type { Capability } from '../policies/capabilities.js';
+import { SIGNAL_FINANCE_CAPABILITY, SIGNAL_RULES } from './signal-catalog.js';
 import type { SignalBriefingGroup, SignalRuleKey, SignalSubjectType } from './signal-catalog.js';
 
 /**
@@ -189,4 +190,148 @@ export function buildBriefing(
       },
     ];
   });
+}
+
+/** The capability that makes a project member the project's lead (the notices' "lead" too). */
+export const BRIEFING_LEAD_CAPABILITY: Capability = 'project.manage';
+
+/** The viewer before their team is read: who they are, what they hold, where they are a member. */
+export interface BriefingViewerBase {
+  readonly companyWide: boolean;
+  readonly finance: boolean;
+  /** The projects the viewer leads (their projects, when they hold the lead capability). */
+  readonly projectIds: ReadonlySet<string>;
+  readonly membershipId: string;
+}
+
+/**
+ * The viewer's base from their principal facts: org-wide scope, the capabilities they hold after
+ * overrides, and the projects in their scope. The API (card) and the worker (mail) both call it.
+ */
+export function briefingViewerBase(input: {
+  readonly hasOrgWideScope: boolean;
+  readonly holds: (capability: Capability) => boolean;
+  readonly projectIds: readonly string[];
+  readonly membershipId: string;
+}): BriefingViewerBase {
+  return {
+    companyWide: input.hasOrgWideScope,
+    finance: input.holds(SIGNAL_FINANCE_CAPABILITY),
+    projectIds: new Set(input.holds(BRIEFING_LEAD_CAPABILITY) ? input.projectIds : []),
+    membershipId: input.membershipId,
+  };
+}
+
+/** The reads a briefing needs, bound to one company by the caller (API repository, worker store). */
+export interface BriefingSource {
+  /** The memberships on these projects, and the people reporting to `membershipId`. */
+  team(projectIds: readonly string[], membershipId: string): Promise<ReadonlySet<string>>;
+  /** The last finished sweep of the company; null before the first. */
+  lastSweep(): Promise<Date | null>;
+  /** The signals that sweep still found. */
+  openSignals(sweptAt: Date): Promise<readonly OpenSignal[]>;
+  /** Each signal's live record, keyed by {@link briefingSubjectKey}. */
+  subjects(signals: readonly OpenSignal[]): Promise<ReadonlyMap<string, BriefingSubject>>;
+}
+
+export interface Briefing {
+  readonly audience: BriefingAudience;
+  /** The last finished sweep; null before the first or when there is no audience. */
+  readonly asOf: Date | null;
+  readonly groups: readonly BriefingGroup[];
+}
+
+/**
+ * One viewer's briefing, read in the one order both callers share: the team (only when not
+ * company-wide), the audience (none = nothing else is read), the last sweep, the visible open
+ * signals, and only their records.
+ */
+export async function assembleBriefing(
+  source: BriefingSource,
+  base: BriefingViewerBase,
+): Promise<Briefing> {
+  const team = base.companyWide
+    ? new Set<string>()
+    : await source.team([...base.projectIds], base.membershipId);
+  const viewer: BriefingViewer = {
+    companyWide: base.companyWide,
+    finance: base.finance,
+    projectIds: base.projectIds,
+    teamMembershipIds: team,
+  };
+  const audience = briefingAudience(viewer);
+  if (audience === 'none') return { audience, asOf: null, groups: [] };
+  const sweptAt = await source.lastSweep();
+  if (sweptAt === null) return { audience, asOf: null, groups: [] };
+  // Only the signals this viewer may see are resolved; the builder checks again.
+  const visible = (await source.openSignals(sweptAt)).filter((signal) =>
+    briefingSignalVisible(signal, viewer),
+  );
+  const subjects = await source.subjects(visible);
+  return { audience, asOf: sweptAt, groups: buildBriefing(visible, subjects, viewer) };
+}
+
+/** Which sentence says a line's reason; the card and the mail each hold the words. */
+export type BriefingReasonKey =
+  | 'dueLate'
+  | 'dueLateOne'
+  | 'dueToday'
+  | 'dueTomorrow'
+  | 'dueIn'
+  | 'overloaded'
+  | 'overdue'
+  | 'overdueAmount'
+  | 'overBudget'
+  | 'stale'
+  | 'unusualExpense'
+  | 'unusualExpenseAmount'
+  | 'waitingOnClient'
+  | 'notInvoiced';
+
+/** The figures a reason sentence fills its holes with. */
+export type BriefingFigure = 'days' | 'percent' | 'times';
+
+export interface BriefingReason {
+  readonly key: BriefingReasonKey;
+  readonly figures: Readonly<Partial<Record<BriefingFigure, number>>>;
+  /** Set only for the sentences that say an amount (`overdueAmount`, `unusualExpenseAmount`). */
+  readonly amount: BriefingAmount | null;
+}
+
+/** A line's reason from the figures the sweep stored. Never content. */
+export function briefingReasonOf(
+  line: Pick<BriefingLine, 'rule' | 'measure' | 'amount'>,
+): BriefingReason {
+  const days = Math.abs(line.measure);
+  const say = (
+    key: BriefingReasonKey,
+    figures: BriefingReason['figures'] = {},
+    amount: BriefingAmount | null = null,
+  ): BriefingReason => ({ key, figures, amount });
+  switch (line.rule) {
+    case 'deadline_at_risk':
+      if (line.measure < -1) return say('dueLate', { days });
+      if (line.measure === -1) return say('dueLateOne');
+      if (line.measure === 0) return say('dueToday');
+      if (line.measure === 1) return say('dueTomorrow');
+      return say('dueIn', { days });
+    case 'overloaded_person':
+      return say('overloaded', { percent: line.measure });
+    case 'overdue_invoice':
+      return line.amount === null
+        ? say('overdue', { days })
+        : say('overdueAmount', { days }, line.amount);
+    case 'project_over_budget':
+      return say('overBudget', { percent: line.measure });
+    case 'stale_task':
+      return say('stale', { days });
+    case 'unusual_expense':
+      return line.amount === null
+        ? say('unusualExpense', { times: line.measure })
+        : say('unusualExpenseAmount', { times: line.measure }, line.amount);
+    case 'approval_waiting_on_client':
+      return say('waitingOnClient', { days });
+    case 'approved_time_not_invoiced':
+      return say('notInvoiced', { days });
+  }
 }

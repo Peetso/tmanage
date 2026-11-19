@@ -37,6 +37,8 @@ export const OPTIONAL_MODULE_FLAGS = [
   'proofing',
   'approval_links',
   'public_forms',
+  // Plan 62 (62-27, 62-A1b/c): signals, owner alert rules and the Home briefing. Default off.
+  'business_briefing',
 ] as const;
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
 
@@ -66,6 +68,7 @@ export const DEFAULT_MODULE_ENABLED: Record<OptionalModuleFlag, boolean> = {
   proofing: true,
   approval_links: true,
   public_forms: true,
+  business_briefing: false,
 };
 
 /** The plan-52 rollout flags' plain names, shared by the org Modules screen and the platform screen. */

@@ -21,6 +21,7 @@ const cairo: DigestRecipient = {
   sendHour: 8,
   dayOfWeek: 0,
   timezone: 'Africa/Cairo',
+  businessBriefing: false,
 };
 
 /** A tx answering the one matrix query with a fixed row. */
@@ -88,12 +89,25 @@ describe('notification digest (53-15)', () => {
   });
 
   it('reads stored cadence defensively, defaulting to daily at 08:00', () => {
-    expect(parseDigestJson(null)).toEqual({ cadence: 'daily', sendHour: 8, dayOfWeek: 0 });
+    expect(parseDigestJson(null)).toEqual({
+      cadence: 'daily',
+      sendHour: 8,
+      dayOfWeek: 0,
+      businessBriefing: false,
+    });
     expect(parseDigestJson('{"cadence":"weekly","sendHour":18,"dayOfWeek":6}')).toEqual({
       cadence: 'weekly',
       sendHour: 18,
       dayOfWeek: 6,
+      businessBriefing: false,
     });
+    // 62-A1c: the briefing switch is on only when stored as true.
+    expect(parseDigestJson({ cadence: 'daily', businessBriefing: true }).businessBriefing).toBe(
+      true,
+    );
+    expect(parseDigestJson({ cadence: 'daily', businessBriefing: 'yes' }).businessBriefing).toBe(
+      false,
+    );
   });
 });
 

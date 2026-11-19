@@ -1,11 +1,18 @@
-import {
-  SIGNAL_FINANCE_CAPABILITY,
-  briefingAudience,
-  briefingSignalVisible,
-  buildBriefing,
+import { assembleBriefing, briefingViewerBase } from '@tmanage/domain';
+import type {
+  BriefingAudience,
+  BriefingGroup,
+  BriefingSource,
+  BriefingViewer,
+  BriefingViewerBase,
+  Capability,
+  Principal,
 } from '@tmanage/domain';
-import type { BriefingAudience, BriefingGroup, BriefingViewer, Principal } from '@tmanage/domain';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { HomeBriefingRepository } from './home-briefing.repository.js';
 
@@ -28,21 +35,24 @@ export interface HomeBriefingView {
   readonly groups: readonly BriefingGroup[];
 }
 
-const LEAD_CAPABILITY = 'project.manage';
+/** The principal's briefing base (domain `briefingViewerBase`: the card and the mail share it). */
+export function briefingBaseOf(context: TenantContext, principal: Principal): BriefingViewerBase {
+  return briefingViewerBase({
+    hasOrgWideScope: principal.hasOrgWideScope,
+    holds: (capability: Capability) => context.capabilities.includes(capability),
+    projectIds: principal.projectIds,
+    membershipId: principal.membershipId,
+  });
+}
 
-/** The viewer as the briefing reads them; `teamMembershipIds` is filled from the database. */
+/** The full viewer once the team is known (used by the project and client summaries too). */
 export function briefingViewerOf(
   context: TenantContext,
   principal: Principal,
   teamMembershipIds: ReadonlySet<string> = new Set(),
 ): BriefingViewer {
-  const leads = context.capabilities.includes(LEAD_CAPABILITY);
-  return {
-    companyWide: principal.hasOrgWideScope,
-    finance: context.capabilities.includes(SIGNAL_FINANCE_CAPABILITY),
-    projectIds: new Set(leads ? principal.projectIds : []),
-    teamMembershipIds,
-  };
+  const { membershipId: _membershipId, ...base } = briefingBaseOf(context, principal);
+  return { ...base, teamMembershipIds };
 }
 
 function refuseOutsiders(principal: Principal): void {
@@ -65,26 +75,26 @@ export class HomeBriefingService {
 
   async briefingOf(context: TenantContext, principal: Principal): Promise<HomeBriefingView> {
     refuseOutsiders(principal);
-    return this.database.read(context, async (runner) => {
-      const bare = briefingViewerOf(context, principal);
-      const team = bare.companyWide
-        ? new Set<string>()
-        : await this.repository.team(runner, context, [...bare.projectIds], principal.membershipId);
-      const viewer = briefingViewerOf(context, principal, team);
-      const audience = briefingAudience(viewer);
-      if (audience === 'none') return { audience, asOf: null, groups: [] };
-      const sweptAt = await this.repository.lastSweep(runner, context);
-      if (sweptAt === null) return { audience, asOf: null, groups: [] };
-      // Only the signals this viewer may see are resolved; the builder checks again.
-      const visible = (await this.repository.openSignals(runner, context, sweptAt)).filter(
-        (signal) => briefingSignalVisible(signal, viewer),
-      );
-      const subjects = await this.repository.subjects(runner, context, visible);
-      return {
-        audience,
-        asOf: sweptAt.toISOString(),
-        groups: buildBriefing(visible, subjects, viewer),
-      };
-    });
+    const base = briefingBaseOf(context, principal);
+    const briefing = await this.database.read(context, (runner) =>
+      assembleBriefing(this.sourceOf(runner, context), base),
+    );
+    return {
+      audience: briefing.audience,
+      asOf: briefing.asOf?.toISOString() ?? null,
+      groups: briefing.groups,
+    };
+  }
+
+  /** The repository's reads bound to this request's runner and company. */
+  private sourceOf(runner: TenantQueryRunner, context: TenantContext): BriefingSource {
+    const repository = this.repository;
+    return {
+      team: (projectIds, membershipId) =>
+        repository.team(runner, context, projectIds, membershipId),
+      lastSweep: () => repository.lastSweep(runner, context),
+      openSignals: (sweptAt) => repository.openSignals(runner, context, sweptAt),
+      subjects: (signals) => repository.subjects(runner, context, signals),
+    };
   }
 }

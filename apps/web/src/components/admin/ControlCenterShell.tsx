@@ -23,6 +23,8 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { HelpTip } from '../help/HelpTip';
+import { FeatureOn } from '../shell/FeatureOn';
+import type { OptionalModuleFlag } from '../../lib/api/admin-feature-flags';
 import { PendingAiActionsBadge } from '../ai-actions/pending-ai-actions';
 import '../../styles/screens/admin.css';
 import './control-center.css';
@@ -38,6 +40,8 @@ export type ControlCenterSection =
   | 'invitations'
   // 57-08 REFERRAL: the owner's invite link for other companies (People, under Invitations).
   | 'invite-agencies'
+  // 62-A1c (B12): the owner's alert rules (Plan 62 signals), owner only, behind `business_briefing`.
+  | 'alerts'
   | 'offboarding'
   | 'templates'
   | 'fields'
@@ -118,6 +122,8 @@ interface SectionLink {
   readonly fallback?: string;
   /** Drawn for the workspace owner only (the page's API refuses every other role). */
   readonly ownerOnly?: boolean;
+  /** Drawn only while this rollout flag resolves on (the page's API answers 404 while it is off). */
+  readonly feature?: OptionalModuleFlag;
 }
 
 interface SectionGroup {
@@ -261,6 +267,16 @@ const GROUPS: readonly SectionGroup[] = [
         capability: 'org.manage',
         ownerOnly: true,
       },
+      // 62-A1c (B12; FIGMA-D fix 29): the alert rules, owner only, while the briefing is on.
+      {
+        id: 'alerts',
+        labelKey: ccKey('ControlCenter.alerts'),
+        fallback: 'Alerts',
+        href: '/settings/alerts',
+        capability: 'org.manage',
+        ownerOnly: true,
+        feature: 'business_briefing',
+      },
     ],
   },
   {
@@ -397,6 +413,7 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   audit: 'listChecks',
   'public-links': 'lock',
   'invite-agencies': 'mail',
+  alerts: 'bell',
   data: 'database',
   storage: 'cloud',
   privacy: 'lock',
@@ -615,14 +632,23 @@ export function ControlCenterSections({
         <div key={group.labelKey}>
           <p className="tm-cc-sections__label">{t(group.labelKey)}</p>
           <ul className="tm-cc-sections__group">
-            {group.items.map((item) => (
-              <SectionItem
-                key={item.id}
-                organizationSlug={organizationSlug}
-                item={item}
-                current={item.id === marked}
-              />
-            ))}
+            {group.items.map((item) => {
+              const entry = (
+                <SectionItem
+                  key={item.id}
+                  organizationSlug={organizationSlug}
+                  item={item}
+                  current={item.id === marked}
+                />
+              );
+              return item.feature === undefined ? (
+                entry
+              ) : (
+                <FeatureOn key={item.id} organizationSlug={organizationSlug} flag={item.feature}>
+                  {entry}
+                </FeatureOn>
+              );
+            })}
           </ul>
         </div>
       ))}

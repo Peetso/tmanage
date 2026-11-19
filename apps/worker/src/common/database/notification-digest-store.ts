@@ -7,16 +7,22 @@ import {
   type DigestWindow,
   type NotificationDigestStore,
 } from '../../jobs/notification-digest.js';
+import { BUSINESS_BRIEFING_FLAG } from '../../jobs/signals-sweeper.js';
+import type { DigestBriefingSection } from '../../notifications/briefing-mail.js';
 import type { DigestEmailFacts } from '../../notifications/digest-mailer.js';
+import { readBriefing } from './briefing-store.js';
+import { isFlagOn } from './feature-flag-store.js';
 import { findMemberMatrixCell } from './notification-matrix-store.js';
 import { findUsageMailRecipient, insertNotification } from './notifications-store.js';
-import type { WorkerDatabase } from './worker-database.js';
+import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
 
 /**
  * 53-15 — the SQL behind `jobs/notification-digest.ts`, as `tmanage_worker`. Grants (users.sql):
  * SELECT on `memberships`, `pref_digest`, `notification_preferences`, `org_settings`,
  * `organizations`, `notifications`, `users`, `notification_kind_prefs`, `user_preferences`;
  * INSERT on `notifications` (all but three exist — see the slice's registry fragment).
+ * 62-A1c: the briefing section reads through `briefing-store.ts` (its grants listed there) and the
+ * flag through `feature-flag-store.ts`.
  */
 
 // The one cross-tenant read: active internal members with their cadence and zone. A member with
@@ -50,11 +56,15 @@ interface RecipientRow {
   readonly org_timezone: string | null;
 }
 
-/** Pure: a stored `digest_json` (object or JSON text) as cadence / hour / weekday, with defaults. */
+/**
+ * Pure: a stored `digest_json` (object or JSON text) as cadence / hour / weekday and the 62-A1c
+ * briefing switch, with defaults (the switch is on only when stored as `true`).
+ */
 export function parseDigestJson(raw: unknown): {
   readonly cadence: DigestCadenceValue;
   readonly sendHour: number;
   readonly dayOfWeek: number;
+  readonly businessBriefing: boolean;
 } {
   let value: unknown = raw;
   if (typeof value === 'string') {
@@ -74,6 +84,7 @@ export function parseDigestJson(raw: unknown): {
     sendHour:
       typeof hour === 'number' && Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 8,
     dayOfWeek: typeof day === 'number' && Number.isInteger(day) && day >= 0 && day <= 6 ? day : 0,
+    businessBriefing: record['businessBriefing'] === true,
   };
 }
 
@@ -122,7 +133,10 @@ export function createNotificationDigestStore(database: WorkerDatabase): Notific
           }
           if (belongsInDigest(type, cell)) counts[kind] = (counts[kind] ?? 0) + 1;
         }
-        if (Object.keys(counts).length === 0) return null;
+        const briefing = recipient.businessBriefing
+          ? await briefingSectionFor(tx, recipient, window)
+          : null;
+        if (Object.keys(counts).length === 0 && briefing === null) return null;
         const claimed = await insertNotification(tx, {
           organizationId: recipient.organizationId,
           recipientUserId: recipient.userId,
@@ -146,8 +160,51 @@ export function createNotificationDigestStore(database: WorkerDatabase): Notific
           counts,
           inboxLink: links(`/${org.slug}/inbox`),
           settingsLink: links(`/${org.slug}/inbox/notification-preferences`),
+          ...(briefing === null
+            ? {}
+            : {
+                briefing: {
+                  ...briefing,
+                  homeLink: links(`/${org.slug}`),
+                  groups: briefing.groups.map((group) => ({
+                    ...group,
+                    link: links(`/${org.slug}${group.path}`),
+                  })),
+                },
+              }),
         };
       });
     },
+  };
+}
+
+/** The briefing part of the section (links not yet resolved), or null when there is nothing. */
+type BriefingPart = Omit<DigestBriefingSection, 'homeLink' | 'groups'> & {
+  readonly groups: readonly Omit<DigestBriefingSection['groups'][number], 'link'>[];
+};
+
+/**
+ * 62-A1c: the member's briefing for the mail, or null when the company's flag is off, they have
+ * no briefing (the card's 404 or `audience: none`), no sweep has finished, or nothing is open.
+ */
+async function briefingSectionFor(
+  tx: WorkerTransaction,
+  recipient: DigestRecipient,
+  window: DigestWindow,
+): Promise<BriefingPart | null> {
+  if (!(await isFlagOn(tx, BUSINESS_BRIEFING_FLAG, recipient.organizationId))) return null;
+  const briefing = await readBriefing(
+    tx,
+    recipient.organizationId,
+    recipient.membershipId,
+    window.at,
+  );
+  if (briefing === null || briefing.audience === 'none' || briefing.asOf === null) return null;
+  if (briefing.groups.length === 0) return null;
+  return {
+    audience: briefing.audience,
+    asOf: briefing.asOf,
+    timezone: recipient.timezone,
+    groups: briefing.groups,
   };
 }
