@@ -12,6 +12,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { listFactors } from '../../lib/api/auth';
+import { stepUpDecision, type StepUpDecision } from '../../lib/step-up-decision';
+import { StepUpDecisionNotice } from './StepUpDecisionNotice';
 import {
   addPasskey,
   getSecurityScore,
@@ -326,7 +328,8 @@ export function SignInSecurityScreen({
         <Dialog title={tr(`${K}.reauthTitle`, 'Confirm it is you')} onClose={() => setStepUp(null)}>
           <StepUpForm
             api={api}
-            needsCode={factors.data?.reauthNeedsAuthenticatorCode ?? false}
+            decision={stepUpDecision(factors)}
+            onRetry={() => void factors.refetch()}
             onCancel={() => setStepUp(null)}
             onConfirmed={(token) => {
               const action = stepUp;
@@ -343,12 +346,15 @@ export function SignInSecurityScreen({
 
 function StepUpForm({
   api,
-  needsCode,
+  decision,
+  onRetry,
   onCancel,
   onConfirmed,
 }: {
   api: ApiClient;
-  needsCode: boolean;
+  /** DC-2 / AR-9: the server's step-up decision; never defaulted while loading or unknown. */
+  decision: StepUpDecision;
+  onRetry: () => void;
   onCancel: () => void;
   onConfirmed: (token: string) => void;
 }) {
@@ -357,6 +363,8 @@ function StepUpForm({
   const codeId = useId();
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const known = decision.kind === 'known';
+  const needsCode = known && decision.needsCode;
   const confirm = useMutation({
     mutationFn: () =>
       reauthenticate(api, {
@@ -370,7 +378,7 @@ function StepUpForm({
       className="tm-stack"
       onSubmit={(event) => {
         event.preventDefault();
-        confirm.mutate();
+        if (known) confirm.mutate();
       }}
     >
       <p className="tm-sec-card__body">
@@ -390,6 +398,7 @@ function StepUpForm({
           required
         />
       </div>
+      <StepUpDecisionNotice decision={decision} onRetry={onRetry} />
       {needsCode ? (
         <div className="tm-sec-field">
           <label className="tm-sec-field__label" htmlFor={codeId}>
@@ -420,7 +429,7 @@ function StepUpForm({
         <Button
           tone="ink"
           type="submit"
-          disabled={password === ''}
+          disabled={password === '' || !known}
           loading={confirm.isPending}
           loadingLabel={tr(`${K}.confirming`, 'Checking')}
         >

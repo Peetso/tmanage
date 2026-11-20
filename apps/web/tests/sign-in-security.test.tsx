@@ -179,6 +179,21 @@ describe('SignInSecurityScreen (56-22)', () => {
     expect(JSON.parse(reauth?.body ?? '{}')).toEqual({ password: 'pw' });
   });
 
+  it('DC-2: an unreadable step-up decision is shown as unknown and never sends a password-only proof', async () => {
+    const calls = mount((call) =>
+      call.url.endsWith('/v1/auth/factors') ? { status: 503 } : routes(call),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    fireEvent.change(await screen.findByLabelText('Password'), { target: { value: 'pw' } });
+    expect(
+      await screen.findByText('We cannot reach TManage to check what this change needs.'),
+    ).toBeTruthy();
+    const confirm = screen.getByRole('button', { name: 'Confirm' });
+    expect(confirm.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(confirm);
+    expect(calls.some((c) => c.url.endsWith('/v1/auth/reauth'))).toBe(false);
+  });
+
   it('round-trips base64url', () => {
     expect(toBase64Url(fromBase64Url('AQID_-8'))).toBe('AQID_-8');
   });

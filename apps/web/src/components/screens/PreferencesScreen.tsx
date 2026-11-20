@@ -34,6 +34,8 @@ import { PrivacyPrefs } from '../preferences/PrivacyPrefs';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
+import { stepUpDecision, type StepUpDecision } from '../../lib/step-up-decision';
+import { StepUpDecisionNotice } from './StepUpDecisionNotice';
 import '../../styles/screens/preferences.css';
 
 export interface PreferencesScreenProps {
@@ -559,7 +561,8 @@ export function PreferencesScreen({
             <PasswordRow
               api={api}
               t={t}
-              needsCode={factors.data?.reauthNeedsAuthenticatorCode ?? false}
+              decision={stepUpDecision(factors)}
+              onRetry={() => void factors.refetch()}
             />
           </section>
           <hr className="tm-prefs-rule" />
@@ -604,13 +607,20 @@ export function PreferencesScreen({
 function PasswordRow({
   api,
   t,
-  needsCode,
+  decision,
+  onRetry,
 }: {
   api: ApiClient;
   t: ProfileTranslate;
-  /** STEPUPFIX: the server's rule — an authenticator app, not e-mail codes, needs the code. */
-  needsCode: boolean;
+  /**
+   * STEPUPFIX / DC-2 (AR-9): the server's rule — an authenticator app, not e-mail codes, needs
+   * the code. Never defaulted: while loading or unknown the form cannot be sent.
+   */
+  decision: StepUpDecision;
+  onRetry: () => void;
 }) {
+  const known = decision.kind === 'known';
+  const needsCode = known && decision.needsCode;
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState('');
   const [code, setCode] = useState('');
@@ -635,6 +645,7 @@ function PasswordRow({
   });
 
   const submit = () => {
+    if (!known) return;
     if (first !== second) {
       setMismatch(true);
       return;
@@ -674,6 +685,7 @@ function PasswordRow({
             value={current}
             onChange={(event) => setCurrent(event.target.value)}
           />
+          <StepUpDecisionNotice decision={decision} onRetry={onRetry} />
           {needsCode ? (
             <Field
               label={t('Profile.authenticatorCode')}
@@ -721,7 +733,7 @@ function PasswordRow({
               type="button"
               tone="ink"
               loading={change.isPending}
-              disabled={first === ''}
+              disabled={first === '' || !known}
               onClick={submit}
             >
               {t('Profile.savePassword')}
