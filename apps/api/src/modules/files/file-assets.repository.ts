@@ -592,7 +592,9 @@ export class FileAssetsRepository {
           eq(fileAssets.id, fileVersions.fileAssetId),
         ),
       )
-      .where(this.recheckPredicate(signatureVersion))
+      // A deleted file serves nothing, so it is not re-checked; a restore brings it back with its
+      // old checked-signature number, and the next pass picks it up (soft-delete guard, 0245).
+      .where(and(this.recheckPredicate(signatureVersion), isNull(fileAssets.deletedAt)))
       .orderBy(asc(fileVersions.organizationId));
     return rows.map((row) => row.organizationId);
   }
@@ -621,6 +623,8 @@ export class FileAssetsRepository {
         and(
           eq(fileVersions.organizationId, context.organizationId),
           this.recheckPredicate(signatureVersion),
+          // Deleted files are left out (see organizationsAwaitingRecheck).
+          isNull(fileAssets.deletedAt),
         ),
       )
       .orderBy(asc(fileVersions.checkedAt), asc(fileVersions.id))

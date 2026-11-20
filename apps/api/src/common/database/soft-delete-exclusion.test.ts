@@ -92,6 +92,11 @@ const LIST_READS: Readonly<Record<string, readonly string[]>> = {
     'listReadyForProject',
     // 55-14a: a client's own portal uploads in one project.
     'listClientUploadsForProject',
+    // QA-FIX S1: the signature re-check. A deleted file serves nothing (file-download.service.ts
+    // refuses it), so it is not re-checked; a restore puts it back in the queue, because its
+    // checked-signature number is still the old one.
+    'organizationsAwaitingRecheck',
+    'listAwaitingRecheck',
   ],
   'files/comments.repository.ts': ['listForFile'],
   'clients/update-comments.repository.ts': ['listForUpdate'],
