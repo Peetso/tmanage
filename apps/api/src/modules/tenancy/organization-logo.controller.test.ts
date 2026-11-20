@@ -8,7 +8,7 @@ import type {
   OrganizationLogoInput,
   OrganizationLogoRepository,
 } from './organization-logo.repository.js';
-import { acceptLogo } from './organization-logo-image.js';
+import { acceptLogo, rasterSize } from './organization-logo-image.js';
 
 /** C6 — the organization-scoped company logo routes over fakes, with the real `authorize`. */
 
@@ -169,5 +169,50 @@ describe('acceptLogo', () => {
     expect(acceptLogo('image/gif', Buffer.from('GIF89a....')).ok).toBe(false);
     const big = Buffer.concat([PNG, Buffer.alloc(512 * 1024)]);
     expect(acceptLogo('image/png', big)).toMatchObject({ ok: false, code: 'too_large' });
+  });
+});
+
+describe('QA-FIX-R L1: a raster logo is at least 256 px on its longer side', () => {
+  function png(width: number, height: number): Buffer {
+    const head = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+    const ihdr = Buffer.alloc(17);
+    ihdr.write('IHDR', 0, 'latin1');
+    ihdr.writeUInt32BE(width, 4);
+    ihdr.writeUInt32BE(height, 8);
+    return Buffer.concat([head, ihdr]);
+  }
+  function jpeg(width: number, height: number): Buffer {
+    const app0 = Buffer.from([0xff, 0xe0, 0x00, 0x04, 0x00, 0x00]);
+    const sof = Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08, 0, 0, 0, 0, 0x03]);
+    sof.writeUInt16BE(height, 5);
+    sof.writeUInt16BE(width, 7);
+    return Buffer.concat([Buffer.from([0xff, 0xd8]), app0, sof, Buffer.alloc(12)]);
+  }
+  function webpLossless(width: number, height: number): Buffer {
+    const out = Buffer.alloc(30);
+    out.write('RIFF', 0, 'latin1');
+    out.write('WEBPVP8L', 8, 'latin1');
+    out[20] = 0x2f;
+    out.writeUInt32LE(((width - 1) & 0x3fff) | (((height - 1) & 0x3fff) << 14), 21);
+    return out;
+  }
+
+  it('refuses the 120×40 PNG from the report with a sentence the card shows', () => {
+    expect(acceptLogo('image/png', png(120, 40))).toMatchObject({
+      ok: false,
+      code: 'too_small',
+      message: expect.stringContaining('256 px'),
+    });
+  });
+
+  it('takes a wide wordmark whose longer side reaches 256 px', () => {
+    expect(acceptLogo('image/png', png(512, 128)).ok).toBe(true);
+  });
+
+  it('reads JPEG and WebP headers the same way', () => {
+    expect(rasterSize('image/jpeg', jpeg(300, 90))).toEqual({ width: 300, height: 90 });
+    expect(acceptLogo('image/jpeg', jpeg(200, 200))).toMatchObject({ code: 'too_small' });
+    expect(rasterSize('image/webp', webpLossless(640, 200))).toEqual({ width: 640, height: 200 });
+    expect(acceptLogo('image/webp', webpLossless(100, 100))).toMatchObject({ code: 'too_small' });
   });
 });

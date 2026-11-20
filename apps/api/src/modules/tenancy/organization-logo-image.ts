@@ -20,6 +20,14 @@ export const LOGO_SVG_TYPE = 'image/svg+xml';
 
 export type LogoMimeType = (typeof LOGO_RASTER_TYPES)[number] | typeof LOGO_SVG_TYPE;
 
+/**
+ * QA-FIX-R L1 — the card says "at least 256 px", and a 120×40 PNG was taken. A raster logo's
+ * longer side must reach this; a wordmark is wide and short, so the shorter side is not held to
+ * it. SVG scales, so it has no pixel size to check. A raster whose header cannot be read is
+ * judged by the type check alone (the size rule keeps a logo sharp; it is not a safety rule).
+ */
+export const LOGO_MIN_PX = 256;
+
 export interface AcceptedLogo {
   readonly ok: true;
   readonly mimeType: LogoMimeType;
@@ -30,7 +38,7 @@ export interface AcceptedLogo {
 }
 
 export type LogoRefusalCode =
-  'too_large' | 'empty' | 'type_not_allowed' | 'type_mismatch' | `svg_${SvgRefusal}`;
+  'too_large' | 'too_small' | 'empty' | 'type_not_allowed' | 'type_mismatch' | `svg_${SvgRefusal}`;
 
 export interface RefusedLogo {
   readonly ok: false;
@@ -41,6 +49,8 @@ export interface RefusedLogo {
 
 const MESSAGES: Readonly<Record<LogoRefusalCode, string>> = {
   too_large: 'The logo is larger than 512 KB. Save a smaller file and try again.',
+  too_small:
+    'The logo is too small to stay sharp. Use an image at least 256 px wide or tall, or an SVG.',
   empty: 'That file is empty. Choose a PNG, JPEG, WebP or SVG logo.',
   type_not_allowed: 'Choose a PNG, JPEG, WebP or SVG file.',
   type_mismatch: 'That file is not the image type its name says. Save it again and try again.',
@@ -96,6 +106,8 @@ export function acceptLogo(declared: string, bytes: Buffer): AcceptedLogo | Refu
   const textual = new TextualCheck();
   const judgement = judgeContentType(normalized, bytes.subarray(0, 8_192), textual);
   if (!judgement.ok) return refuse(judgement.rejectionCode);
+  const size = rasterSize(judgement.detectedMimeType, bytes);
+  if (size !== null && Math.max(size.width, size.height) < LOGO_MIN_PX) return refuse('too_small');
   return {
     ok: true,
     mimeType: judgement.detectedMimeType as LogoMimeType,
@@ -114,4 +126,65 @@ export function decodeLogoBase64(raw: string): Buffer | null {
   if (compact.length === 0 || compact.length % 4 !== 0) return null;
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) return null;
   return Buffer.from(compact, 'base64');
+}
+
+/**
+ * The pixel size a PNG, JPEG or WebP header declares, or null when it cannot be read. Only the
+ * header is parsed; nothing is decoded. Layouts: PNG IHDR (W3C PNG spec), JPEG SOFn frame
+ * header (ITU-T T.81 Annex B), WebP `VP8 `/`VP8L`/`VP8X` headers (RFC 9649).
+ */
+export function rasterSize(
+  mimeType: string,
+  bytes: Buffer,
+): { readonly width: number; readonly height: number } | null {
+  if (mimeType === 'image/png') {
+    if (bytes.length < 24 || bytes.toString('latin1', 12, 16) !== 'IHDR') return null;
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+  if (mimeType === 'image/jpeg') return jpegSize(bytes);
+  if (mimeType === 'image/webp') return webpSize(bytes);
+  return null;
+}
+
+function jpegSize(bytes: Buffer): { width: number; height: number } | null {
+  let i = 2;
+  while (i + 3 < bytes.length) {
+    if (bytes[i] !== 0xff) return null;
+    const marker = bytes[i + 1] ?? 0;
+    if (marker === 0xff) {
+      i += 1;
+      continue;
+    }
+    // Standalone markers carry no length: TEM, RST0-7, SOI, EOI.
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
+      i += 2;
+      continue;
+    }
+    const length = bytes.readUInt16BE(i + 2);
+    const isFrame =
+      marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    if (isFrame) {
+      if (i + 9 > bytes.length) return null;
+      return { height: bytes.readUInt16BE(i + 5), width: bytes.readUInt16BE(i + 7) };
+    }
+    if (length < 2) return null;
+    i += 2 + length;
+  }
+  return null;
+}
+
+function webpSize(bytes: Buffer): { width: number; height: number } | null {
+  if (bytes.length < 30 || bytes.toString('latin1', 8, 12) !== 'WEBP') return null;
+  const chunk = bytes.toString('latin1', 12, 16);
+  if (chunk === 'VP8 ') {
+    return { width: bytes.readUInt16LE(26) & 0x3fff, height: bytes.readUInt16LE(28) & 0x3fff };
+  }
+  if (chunk === 'VP8L') {
+    const bits = bytes.readUInt32LE(21);
+    return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1 };
+  }
+  if (chunk === 'VP8X') {
+    return { width: bytes.readUIntLE(24, 3) + 1, height: bytes.readUIntLE(27, 3) + 1 };
+  }
+  return null;
 }
