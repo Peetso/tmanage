@@ -1,3 +1,4 @@
+import type { SignupAttribution } from '@tmanage/domain';
 import type { ApiClient } from './client';
 import { ApiRequestError } from './errors';
 import { fetchProviderAvailability, type ProviderAvailability } from './provider-availability';
@@ -39,6 +40,8 @@ export interface GoogleStartInput {
   readonly intent: GoogleIntent;
   readonly invitationToken?: string;
   readonly organizationName?: string;
+  /** Sign-up only (ADTRACK, NOCOOKIE): the landing page's `utm_*` values. */
+  readonly attribution?: SignupAttribution;
 }
 
 /** available / unavailable (404, not configured) / unknown (no definite answer; HT-3). */

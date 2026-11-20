@@ -134,15 +134,11 @@ export {
   WORKSPACE_SLUG_PATTERN,
 } from './value-objects/workspace-slug.js';
 export {
+  LEGACY_SIGNUP_ATTRIBUTION_COOKIE,
   parseSignupAttribution,
-  SIGNUP_ATTRIBUTION_COOKIE,
   SIGNUP_ATTRIBUTION_KEYS,
-  SIGNUP_ATTRIBUTION_MAX_AGE_SECONDS,
   SIGNUP_ATTRIBUTION_MAX_LENGTH,
-  signupAttributionCookieValue,
-  signupAttributionFromCookie,
-  SIGNUP_REFERRER_HOST_MAX_LENGTH,
-  signupReferrerHost,
+  signupAttributionFromInput,
 } from './value-objects/signup-attribution.js';
 export type {
   SignupAttribution,

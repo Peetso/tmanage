@@ -411,3 +411,56 @@ describe('when /sign-up cannot load (SIGNUP3)', () => {
     expect(screen.getByRole('button', { name: 'Create my workspace' })).toBeEnabled();
   });
 });
+
+describe('campaign tags from the address (ADTRACK, NOCOOKIE)', () => {
+  it('sends the valid utm values of its own address with the sign-up, and nothing else', async () => {
+    window.history.replaceState(null, '', '/sign-up?utm_source=facebook&utm_medium=bad%20value');
+    try {
+      const user = userEvent.setup();
+      const { client, calls } = open(() =>
+        json(
+          {
+            status: 'authenticated',
+            csrfToken: 'csrf-1',
+            expiresAt: '2026-10-19T00:00:00.000Z',
+            organizationSlug: 'nile-studio',
+          },
+          201,
+        ),
+      );
+      render(<SignUpScreen client={client} boundary={new AuthBoundary()} onCompleted={vi.fn()} />);
+      await ready();
+      await fill(user);
+      await user.click(screen.getByRole('button', { name: 'Create my workspace' }));
+      await screen.findByRole('heading', { level: 1, name: 'Check your email' });
+      const post = calls.find((c) => c.method === 'POST');
+      expect((post?.body as { attribution?: unknown }).attribution).toEqual({
+        utm_source: 'facebook',
+      });
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
+  it('sends no attribution when the address has none', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = open(() =>
+      json(
+        {
+          status: 'authenticated',
+          csrfToken: 'csrf-1',
+          expiresAt: '2026-10-19T00:00:00.000Z',
+          organizationSlug: 'nile-studio',
+        },
+        201,
+      ),
+    );
+    render(<SignUpScreen client={client} boundary={new AuthBoundary()} onCompleted={vi.fn()} />);
+    await ready();
+    await fill(user);
+    await user.click(screen.getByRole('button', { name: 'Create my workspace' }));
+    await screen.findByRole('heading', { level: 1, name: 'Check your email' });
+    const post = calls.find((c) => c.method === 'POST');
+    expect(Object.keys(post?.body as object)).not.toContain('attribution');
+  });
+});

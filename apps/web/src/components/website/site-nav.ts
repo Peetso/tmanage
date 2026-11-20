@@ -382,7 +382,7 @@ export const FOOTER_MOBILE_GROUPS: readonly WebFooterColumn[] = [
 export const FOOTER_LEGAL: readonly WebLink[] = [
   { label: 'SiteNav.privacy', href: '/legal/privacy' },
   { label: 'SiteNav.terms', href: '/legal/terms' },
-  { label: 'SiteNav.cookieSettings', href: '/legal/privacy' },
+  { label: 'SiteNav.cookies', href: '/legal/privacy#cookies' },
 ];
 
 export const FOOTER_SOCIAL: readonly { label: MessageKey; href: string; icon: WebIconName }[] = [

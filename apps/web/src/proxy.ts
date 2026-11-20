@@ -11,7 +11,7 @@ import {
 } from './lib/i18n/public-locale-routes';
 import { savedArabicRedirect } from './lib/i18n/saved-arabic-redirect';
 import { markdownPathFor, prefersMarkdown, publicPageLinkHeader } from './lib/markdown-negotiation';
-import { rememberSignupAttribution } from './lib/signup-attribution-cookie';
+import { forgetLegacySignupAttribution } from './lib/signup-attribution';
 import { publicNotFoundPage } from './lib/public-not-found';
 import { createUnroutedNotFound } from './lib/unrouted-not-found';
 import { signedOutAreaRedirect } from './lib/signed-in-shell-gate';
@@ -106,6 +106,8 @@ export function proxy(request: NextRequest): NextResponse {
   // `append`: in report-only mode `content-security-policy` carries the enforced frame-ancestors
   // stand-in; appending never overwrites a header Next or next.config.ts already set.
   for (const [name, value] of headers.response) response.headers.append(name, value);
+  // NOCOOKIE: a browser that still holds the retired attribution cookie has it expired, once.
+  forgetLegacySignupAttribution(request, response);
   return response;
 }
 
@@ -133,9 +135,9 @@ function arabicTwinRedirect(request: NextRequest): NextResponse | undefined {
 /**
  * A public page (one in the sitemap, English or Arabic) names its Markdown version and
  * `llms.txt` in a `Link` header, and varies by `Accept` (AGENTREADY): an English page asked for
- * `text/markdown` is answered with its Markdown version (`app/md`) at the same address, and a
- * landing from an ad keeps its `utm_*` values for sign-up (ADTRACK). Any other
- * request goes on unchanged.
+ * `text/markdown` is answered with its Markdown version (`app/md`) at the same address. A
+ * landing from an ad keeps its `utm_*` values in the address only (ADTRACK, NOCOOKIE:
+ * `lib/signup-attribution.ts`). Any other request goes on unchanged.
  */
 function publicPageResponse(request: NextRequest, requestHeaders: Headers): NextResponse {
   const pathname = request.nextUrl.pathname;
@@ -149,7 +151,6 @@ function publicPageResponse(request: NextRequest, requestHeaders: Headers): Next
       : NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.append('vary', 'Accept');
   response.headers.set('link', publicPageLinkHeader(english));
-  rememberSignupAttribution(request, response);
   return response;
 }
 

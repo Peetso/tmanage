@@ -1,16 +1,16 @@
 /**
  * Where a sign-up came from (ADTRACK, 2026-11-16): the four `utm_*` values of the public landing
- * address, kept first-party in a cookie by the web proxy and stored on the organization when its
- * owner signs up. The web proxy (writing the cookie) and the API (reading it back) both go
- * through {@link parseSignupAttribution}, so the API never trusts what the cookie holds.
+ * address, stored on the organization when its owner signs up. The values are labels for the
+ * platform operator's report only: nothing decides anything on them. A value is kept only if it
+ * is 1–100 characters of `[A-Za-z0-9_.-]`; anything else is dropped, never repaired.
  *
- * The values are labels for the platform operator's report only: nothing decides anything on
- * them. A value is kept only if it is 1–100 characters of `[A-Za-z0-9_.-]`; anything else is
- * dropped, never repaired.
- *
- * SEOD (B11, 2026-11-17): the landing's referring site rides along as `referrer_host` — the HOST
- * only (`chatgpt.com`), never the address, path or query, taken from the `Referer` header by
- * {@link signupReferrerHost} and validated again by {@link signupAttributionFromCookie}.
+ * NOCOOKIE (2026-11-20, manager decision): the values travel in the address, never in a cookie
+ * or browser storage. A marketing page copies the `utm_*` values of its own address onto its
+ * sign-up links; the sign-up form reads them from its own address and sends them in the sign-up
+ * request (`attribution`). Both ends go through {@link parseSignupAttribution}, so the API never
+ * trusts what the browser sends. The old `tm_signup_source` cookie is only expired
+ * ({@link LEGACY_SIGNUP_ATTRIBUTION_COOKIE}); nothing reads it. ePrivacy Directive art. 5(3):
+ * a cookie for attribution is not strictly necessary (Art. 29 WP Opinion 04/2012, WP194 §4).
  */
 export const SIGNUP_ATTRIBUTION_KEYS = [
   'utm_source',
@@ -21,61 +21,20 @@ export const SIGNUP_ATTRIBUTION_KEYS = [
 
 export type SignupAttributionKey = (typeof SIGNUP_ATTRIBUTION_KEYS)[number];
 
+/**
+ * The stored attribution. `referrer_host` is the organization column of the same name, written by
+ * the cookie era (SEOD, 2026-11-17); since NOCOOKIE nothing produces it, and old rows keep theirs.
+ */
 export type SignupAttribution = Readonly<
   Partial<Record<SignupAttributionKey | 'referrer_host', string>>
 >;
 
-/** Everything the cookie may hold: the `utm_*` keys, then the referring host. */
-const COOKIE_FIELDS = [...SIGNUP_ATTRIBUTION_KEYS, 'referrer_host'] as const;
-
-/** The first-party cookie the web proxy writes and the sign-up endpoint reads. */
-export const SIGNUP_ATTRIBUTION_COOKIE = 'tm_signup_source';
-
-/** Thirty days, in seconds. */
-export const SIGNUP_ATTRIBUTION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+/** The retired attribution cookie: the web expires it (Max-Age=0) when a browser still sends it. */
+export const LEGACY_SIGNUP_ATTRIBUTION_COOKIE = 'tm_signup_source';
 
 export const SIGNUP_ATTRIBUTION_MAX_LENGTH = 100;
 
 const VALUE_PATTERN = /^[A-Za-z0-9_.-]{1,100}$/;
-
-/** The longest DNS name. */
-export const SIGNUP_REFERRER_HOST_MAX_LENGTH = 253;
-
-/**
- * Lower-case DNS labels with at least one dot and a top-level label that starts with a letter:
- * no port, no user info, no IP address (v4 or v6), no `localhost`.
- */
-const HOST_PATTERN = /^(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*$/;
-
-function validHost(value: string | null | undefined): string | undefined {
-  return typeof value === 'string' &&
-    value.length <= SIGNUP_REFERRER_HOST_MAX_LENGTH &&
-    HOST_PATTERN.test(value)
-    ? value
-    : undefined;
-}
-
-/**
- * The referring site's host from an untrusted `Referer` header, or `undefined` when there is
- * none, it is not an http(s) address, the host is not a plain DNS name, or it is the site itself
- * (`ownHosts`, or a subdomain of one): moving between our own pages is not a source.
- */
-export function signupReferrerHost(
-  referer: string | null | undefined,
-  ownHosts: readonly string[],
-): string | undefined {
-  if (typeof referer !== 'string' || referer.length > 2048) return undefined;
-  let url: URL;
-  try {
-    url = new URL(referer);
-  } catch {
-    return undefined;
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return undefined;
-  const host = url.hostname.toLowerCase().replace(/\.$/, '');
-  const own = ownHosts.some((ownHost) => host === ownHost || host.endsWith(`.${ownHost}`));
-  return own ? undefined : validHost(host);
-}
 
 /**
  * The valid `utm_*` values `read` returns (a `URLSearchParams.get`, say), or `undefined` when
@@ -91,30 +50,15 @@ export function parseSignupAttribution(
   return entries.length === 0 ? undefined : Object.fromEntries(entries);
 }
 
-/** The cookie value: the valid entries as a query string (`utm_source=facebook&...`). */
-export function signupAttributionCookieValue(attribution: SignupAttribution): string {
-  return new URLSearchParams(
-    COOKIE_FIELDS.flatMap((key) => {
-      const value = attribution[key];
-      return value === undefined ? [] : [[key, value] as [string, string]];
-    }),
-  ).toString();
-}
-
-/** The attribution a cookie value holds, validated again, or `undefined`. */
-export function signupAttributionFromCookie(
-  value: string | undefined,
-): SignupAttribution | undefined {
-  if (value === undefined || value.length > 1024) return undefined;
-  let decoded: string;
-  try {
-    // A cookie writer may percent-encode the `=` and `&`; no valid value holds a `%` itself.
-    decoded = decodeURIComponent(value);
-  } catch {
-    return undefined;
-  }
-  const params = new URLSearchParams(decoded);
-  const utm = parseSignupAttribution((key) => params.get(key));
-  const referrerHost = validHost(params.get('referrer_host'));
-  return referrerHost === undefined ? utm : { ...utm, referrer_host: referrerHost };
+/**
+ * The attribution in an untrusted request body field (`{ utm_source: 'facebook', … }`), validated
+ * again, or `undefined` when it is not an object or holds no valid value. Other keys are ignored.
+ */
+export function signupAttributionFromInput(value: unknown): SignupAttribution | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  return parseSignupAttribution((key) => {
+    const field = Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined;
+    return typeof field === 'string' ? field : undefined;
+  });
 }

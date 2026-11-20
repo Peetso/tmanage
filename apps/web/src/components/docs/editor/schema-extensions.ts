@@ -57,11 +57,11 @@ export function embedSrc(raw: string | null | undefined): string | null {
   }
   if (host === 'youtu.be') {
     const id = url.pathname.slice(1).split('/')[0] ?? '';
-    return /^[\w-]{6,20}$/u.test(id) ? `https://www.youtube.com/embed/${id}` : null;
+    return /^[\w-]{6,20}$/u.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : null;
   }
   if (host.endsWith('youtube.com')) {
     const id = url.searchParams.get('v') ?? url.pathname.split('/embed/')[1] ?? '';
-    return /^[\w-]{6,20}$/u.test(id) ? `https://www.youtube.com/embed/${id}` : null;
+    return /^[\w-]{6,20}$/u.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : null;
   }
   if (host.endsWith('loom.com')) {
     const id = /^\/(?:share|embed)\/([0-9a-f]{20,40})/u.exec(url.pathname)?.[1];

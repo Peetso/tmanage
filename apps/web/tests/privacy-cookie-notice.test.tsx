@@ -1,6 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import { LEGAL_DOCUMENTS, LEGAL_DOCUMENTS_AR, SIGNUP_ATTRIBUTION_COOKIE } from '@tmanage/domain';
+import {
+  LEGACY_SIGNUP_ATTRIBUTION_COOKIE,
+  LEGAL_DOCUMENTS,
+  LEGAL_DOCUMENTS_AR,
+} from '@tmanage/domain';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { MarketingLegalScreen } from '../src/components/screens/MarketingLegalScreen';
@@ -21,7 +25,6 @@ const COOKIES = [
   LOCALE_COOKIE_NAME,
   THEME_COOKIE_NAME,
   DISPLAY_FORMAT_COOKIE_NAME,
-  SIGNUP_ATTRIBUTION_COOKIE,
 ];
 
 function cookiesBody(doc: { sections: readonly { id: string; body: string }[] }): string {
@@ -42,13 +45,21 @@ describe('privacy policy cookie notice', () => {
   ])('names every cookie the web sets, by its real name (%s)', (_locale, doc) => {
     const body = cookiesBody(doc);
     for (const name of COOKIES) expect(body, name).toContain(name);
+    // NOCOOKIE: the retired attribution cookie is gone from the site and from the notice.
+    expect(body).not.toContain(LEGACY_SIGNUP_ATTRIBUTION_COOKIE);
   });
 
-  it('says there are no advertising or third-party tracking cookies and gives lifetimes', () => {
+  it('opens with the necessary-only line (WP194), rules out ads and analytics, and gives lifetimes', () => {
     const body = cookiesBody(LEGAL_DOCUMENTS.privacy);
+    expect(body).toMatch(/^This site uses only cookies that are necessary for it to work/);
+    expect(cookiesBody(LEGAL_DOCUMENTS_AR.privacy)).toMatch(
+      /^\u200Fلا يستخدم هذا الموقع إلا ملفات تعريف الارتباط الضرورية/u,
+    );
     expect(body).toMatch(/do not use advertising cookies/);
-    expect(body).toMatch(/third-party analytics or tracking cookies/);
-    for (const lifetime of ['15 minutes', '14 days', '5 to 15 minutes', 'one year', '30 days']) {
+    expect(body).toMatch(/do not use analytics or tracking cookies/);
+    expect(body).toMatch(/never stored in a cookie/);
+    expect(body).not.toMatch(/30 days/);
+    for (const lifetime of ['15 minutes', '14 days', '5 to 15 minutes', 'one year']) {
       expect(body, lifetime).toContain(lifetime);
     }
   });

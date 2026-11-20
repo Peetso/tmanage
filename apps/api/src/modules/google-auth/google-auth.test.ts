@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ensureRequestState } from '../../common/http/request-state.js';
 import { ApiError } from '../../common/http/errors.js';
+import { readCookie } from '../identity/session-token.js';
 import type { CredentialsRepository } from '../identity/credentials.repository.js';
 import type { SessionService } from '../identity/session.service.js';
 import type { PublicSignupService } from '../signup/public-signup.service.js';
@@ -316,7 +317,7 @@ function controllerFor(world: World = { byEmail: 'user-1' }) {
     options,
     () => true,
   );
-  return { controller, exchangeCode, start };
+  return { controller, exchangeCode, start, service };
 }
 
 describe('Google never merges into an unverified pre-registered account (wave 9 S6, F03)', () => {
@@ -495,5 +496,65 @@ describe('GoogleAuthController callback', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('NOCOOKIE: sign-up attribution rides in the sealed flow, never in a cookie of its own', () => {
+  it('seals the form’s utm values into the flow and hands them to the sign-up; the old cookie is ignored', async () => {
+    const h = controllerFor();
+    vi.spyOn(h.service, 'isSignupOpen').mockResolvedValue(true);
+    const reply = { header: vi.fn() };
+    const request = {
+      headers: { cookie: 'tm_signup_source=utm_source%3Dold_campaign' } as Record<string, string>,
+      ip: '203.0.113.5',
+    };
+    ensureRequestState(request);
+    await h.controller.start(
+      { intent: 'sign-up', attribution: { utm_source: 'facebook', utm_medium: '<script>' } },
+      request,
+      reply,
+    );
+    const setCookie = String(reply.header.mock.calls[0]?.[1]);
+    const flow = openFlow(readCookie(setCookie, GOOGLE_FLOW_COOKIE), SECRET);
+    expect(flow?.signupAttribution).toEqual({ utm_source: 'facebook' });
+
+    const complete = vi
+      .spyOn(h.service, 'complete')
+      .mockResolvedValue({ kind: 'refused', reason: 'unverified_account' } as never);
+    vi.useFakeTimers({ now: NOW * 1000 });
+    try {
+      const sealedFlow = { ...(flow as GoogleFlow), nonce: 'nonce-1', expiresAt: NOW + 600 };
+      const callbackRequest = requestWith(sealedFlow);
+      callbackRequest.headers['cookie'] += '; tm_signup_source=utm_source%3Dold_campaign';
+      await h.controller.callback({ state: sealedFlow.state, code: 'c' }, callbackRequest, {
+        header: vi.fn(),
+      });
+      expect(complete).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        { utm_source: 'facebook' },
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a sign-in start carries no attribution, whatever the body says', async () => {
+    const h = controllerFor();
+    const reply = { header: vi.fn() };
+    const request = { headers: {} as Record<string, string>, ip: '203.0.113.5' };
+    ensureRequestState(request);
+    await h.controller.start(
+      { intent: 'sign-in', attribution: { utm_source: 'facebook' } },
+      request,
+      reply,
+    );
+    const flow = openFlow(
+      readCookie(String(reply.header.mock.calls[0]?.[1]), GOOGLE_FLOW_COOKIE),
+      SECRET,
+    );
+    expect(flow).toBeDefined();
+    expect(flow?.signupAttribution).toBeUndefined();
   });
 });

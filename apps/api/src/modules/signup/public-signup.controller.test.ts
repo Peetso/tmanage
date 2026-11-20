@@ -103,6 +103,25 @@ describe('PublicSignupController', () => {
     });
     expect(h.start).not.toHaveBeenCalled();
   });
+
+  it('NOCOOKIE: takes the utm values from the body, validated, and never from a cookie', async () => {
+    const h = harness();
+    const request = {
+      ...h.request,
+      headers: { ...h.request.headers, cookie: 'tm_signup_source=utm_source%3Dold_campaign' },
+    };
+    ensureRequestState(request);
+    await h.controller.signUp(
+      { ...BODY, attribution: { utm_source: 'facebook', utm_medium: 'bad value' } },
+      request,
+      h.reply,
+    );
+    expect(h.signUp).toHaveBeenLastCalledWith(expect.anything(), expect.any(String), {
+      utm_source: 'facebook',
+    });
+    await h.controller.signUp(BODY, request, h.reply);
+    expect(h.signUp).toHaveBeenLastCalledWith(expect.anything(), expect.any(String), undefined);
+  });
 });
 
 @Global()

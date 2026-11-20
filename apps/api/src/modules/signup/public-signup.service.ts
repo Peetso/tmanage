@@ -68,6 +68,8 @@ export interface PublicSignupBody {
   readonly plan?: unknown;
   /** REFERRAL (57-08): the invite code from `?ref=` (a code only; checked server-side). */
   readonly referral?: unknown;
+  /** ADTRACK, NOCOOKIE: the landing page's `utm_*` values, read by the controller only. */
+  readonly attribution?: unknown;
 }
 
 /** PLANWEB. The part of `PlanVersionsService` sign-up uses to check a picked plan. */

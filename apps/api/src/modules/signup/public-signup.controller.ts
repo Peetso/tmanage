@@ -1,11 +1,10 @@
-import { signupAttributionFromCookie, SIGNUP_ATTRIBUTION_COOKIE } from '@tmanage/domain';
+import { signupAttributionFromInput } from '@tmanage/domain';
 import { Body, Controller, Get, HttpCode, Inject, Optional, Post, Req, Res } from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { Public } from '../../common/http/decorators.js';
 import { clientAddressKey, type RequestAdmission } from '../../common/http/rate-limiter.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import type { SessionService } from '../identity/session.service.js';
-import { readCookie } from '../identity/session-token.js';
 import type { PublicSignupSwitch } from '../platform-admin/platform-settings.js';
 import { PUBLIC_ABUSE_ASSESS } from '../public-abuse/public-abuse.guard.js';
 import type { AssessPublicWrite } from '../public-abuse/public-abuse.guard.js';
@@ -36,14 +35,12 @@ interface ReplyLike {
 }
 
 /**
- * ADTRACK. The landing page's `utm_*` values from the web proxy's first-party cookie, validated
- * again here: the cookie is client-held, so only what the shared schema accepts is kept.
+ * ADTRACK, NOCOOKIE (2026-11-20). The landing page's `utm_*` values, sent by the sign-up form in
+ * the body's `attribution` field (it read them from its own address). Validated again here: the
+ * body is client-held, so only what the shared schema accepts is kept. No cookie is read.
  */
-export function signupAttributionOf(request: RequestLike) {
-  const header = request.headers['cookie'];
-  return signupAttributionFromCookie(
-    readCookie(typeof header === 'string' ? header : undefined, SIGNUP_ATTRIBUTION_COOKIE),
-  );
+export function signupAttributionOf(body: { readonly attribution?: unknown } | undefined) {
+  return signupAttributionFromInput(body?.attribution);
 }
 
 const RATE_LIMITED = 'Too many attempts. Wait a few minutes and try again.';
@@ -149,7 +146,7 @@ export class PublicSignupController {
       result = await this.service.signUp(
         body ?? {},
         state.correlationId,
-        signupAttributionOf(request),
+        signupAttributionOf(body),
       );
     } catch (error) {
       if (error instanceof SignupEmailTakenError) {

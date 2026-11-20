@@ -11,6 +11,7 @@ import { WebsiteDocumentTitle } from './WebsiteDocumentTitle';
 import { PublicLocaleAlternates } from './PublicLocaleAlternates';
 import { PublicStructuredData } from './PublicStructuredData';
 import { WebMcpTools } from './WebMcpTools';
+import { SignupLinkCarrier } from './SignupLinkCarrier';
 import { englishPublicPath } from '../../lib/i18n/public-locale-routes';
 import './website.css';
 
@@ -60,6 +61,7 @@ export function WebsiteChrome({ children }: { children: ReactNode }) {
       <PublicLocaleAlternates />
       <PublicStructuredData />
       <WebMcpTools />
+      <SignupLinkCarrier />
       <LiveAnnouncer label={tOr('Shell.liveAnnouncements', 'Live announcements')}>
         <div className="tm-web">
           <SkipLink targetId="tm-web-main">{t('WebsiteChrome.skipLink')}</SkipLink>

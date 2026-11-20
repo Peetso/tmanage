@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import {
-  parseSignupAttribution,
-  signupAttributionCookieValue,
-  signupAttributionFromCookie,
-  signupReferrerHost,
-} from './signup-attribution.js';
+import * as attribution from './signup-attribution.js';
+import { parseSignupAttribution, signupAttributionFromInput } from './signup-attribution.js';
 
-describe('signup attribution (ADTRACK)', () => {
+describe('signup attribution (ADTRACK, carried in the address since NOCOOKIE)', () => {
   it('keeps valid utm values and drops anything too long or outside [A-Za-z0-9_.-]', () => {
     const params = new URLSearchParams({
       utm_source: 'facebook',
@@ -21,50 +17,24 @@ describe('signup attribution (ADTRACK)', () => {
     });
   });
 
-  it('reads back a cookie a writer percent-encoded, validating again', () => {
-    const value = encodeURIComponent(
-      signupAttributionCookieValue({ utm_source: 'facebook', utm_campaign: 'tm_beta_traffic' }),
-    );
-    expect(signupAttributionFromCookie(`${value}%26utm_medium%3Dbad%20value`)).toEqual({
-      utm_source: 'facebook',
-      utm_campaign: 'tm_beta_traffic',
-    });
-  });
-
-  it('keeps only the referring host, never the address, and not our own site (SEOD)', () => {
-    const own = ['tmanageapp.com'];
-    expect(signupReferrerHost('https://ChatGPT.com/c/123?q=secret#x', own)).toBe('chatgpt.com');
-    expect(signupReferrerHost('https://user:pw@www.perplexity.ai:8443/search', own)).toBe(
-      'www.perplexity.ai',
-    );
-    for (const bad of [
-      'https://tmanageapp.com/pricing',
-      'https://app.tmanageapp.com/',
-      'https://192.168.1.10/',
-      'http://localhost:3000/',
-      'https://[::1]/',
-      'javascript:alert(1)',
-      'android-app://com.google.android.gm/',
-      `https://${'a'.repeat(250)}.com/`,
-      'not a url',
-      null,
-    ]) {
-      expect(signupReferrerHost(bad, own)).toBeUndefined();
+  it('reads a request body field, validating again and ignoring anything else', () => {
+    expect(
+      signupAttributionFromInput({
+        utm_source: 'facebook',
+        utm_campaign: 'tm_beta_traffic',
+        utm_medium: 'bad value',
+        referrer_host: 'evil.example',
+        constructor: 'x',
+      }),
+    ).toEqual({ utm_source: 'facebook', utm_campaign: 'tm_beta_traffic' });
+    for (const bad of [undefined, null, 'utm_source=facebook', ['facebook'], { utm_source: 7 }]) {
+      expect(signupAttributionFromInput(bad)).toBeUndefined();
     }
   });
 
-  it('carries the host through the cookie and re-validates it on read', () => {
-    const value = signupAttributionCookieValue({
-      utm_source: 'chatgpt.com',
-      referrer_host: 'chatgpt.com',
-    });
-    expect(signupAttributionFromCookie(value)).toEqual({
-      utm_source: 'chatgpt.com',
-      referrer_host: 'chatgpt.com',
-    });
-    expect(signupAttributionFromCookie('referrer_host=evil.example%2Fpath')).toBeUndefined();
-    expect(signupAttributionFromCookie('referrer_host=bing.com')).toEqual({
-      referrer_host: 'bing.com',
-    });
+  it('offers no way to write or read an attribution cookie any more', () => {
+    expect(Object.keys(attribution).filter((name) => /cookie/i.test(name))).toEqual([
+      'LEGACY_SIGNUP_ATTRIBUTION_COOKIE',
+    ]);
   });
 });

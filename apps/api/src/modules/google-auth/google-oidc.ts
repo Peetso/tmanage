@@ -1,5 +1,6 @@
 import { createHash, createHmac, createPublicKey, createVerify, randomBytes } from 'node:crypto';
 import type { JsonWebKey } from 'node:crypto';
+import type { SignupAttribution } from '@tmanage/domain';
 import { constantTimeEquals } from '../identity/session-token.js';
 
 /**
@@ -51,6 +52,12 @@ export interface GoogleFlow {
   readonly invitationToken?: string;
   /** Sign-up flow only: the workspace name typed before choosing Google, if any. */
   readonly organizationName?: string;
+  /**
+   * Sign-up flow only (ADTRACK, NOCOOKIE): the `utm_*` values the sign-up form sent with the
+   * start request, like `organizationName` part of the sign-up the person asked for. They ride
+   * in this sealed, ten-minute flow only across Google's redirect, never in a URL Google sees.
+   */
+  readonly signupAttribution?: SignupAttribution;
 }
 
 export interface GoogleClaims {
@@ -89,7 +96,11 @@ function random(bytes = 32): string {
 
 export function newFlow(
   intent: GoogleIntent,
-  extra: { invitationToken?: string; organizationName?: string } = {},
+  extra: {
+    invitationToken?: string;
+    organizationName?: string;
+    signupAttribution?: SignupAttribution;
+  } = {},
   nowSeconds: number = Math.floor(Date.now() / 1000),
 ): GoogleFlow {
   return {
@@ -101,6 +112,9 @@ export function newFlow(
     expiresAt: nowSeconds + GOOGLE_FLOW_TTL_SECONDS,
     ...(extra.invitationToken === undefined ? {} : { invitationToken: extra.invitationToken }),
     ...(extra.organizationName === undefined ? {} : { organizationName: extra.organizationName }),
+    ...(extra.signupAttribution === undefined
+      ? {}
+      : { signupAttribution: extra.signupAttribution }),
   };
 }
 

@@ -1,3 +1,4 @@
+import type { SignupAttribution } from '@tmanage/domain';
 import type { ApiClient } from './client';
 import { ApiRequestError } from './errors';
 
@@ -30,6 +31,8 @@ export interface PublicSignupInput {
   readonly plan?: string;
   /** REFERRAL (57-08): the invite code from `?ref=` (a code only; the API checks it). */
   readonly referral?: string;
+  /** ADTRACK, NOCOOKIE: the landing page's `utm_*` values, from the sign-up page's address. */
+  readonly attribution?: SignupAttribution;
 }
 
 /** The new owner's session, already issued (cookies set by the response). */

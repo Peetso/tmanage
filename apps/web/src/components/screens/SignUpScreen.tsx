@@ -8,6 +8,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSignupAvailability, signUp } from '../../lib/api/sign-up';
 import { afterSignUpPath, planFromQuery } from '../../lib/api/plan-versions';
 import { referralCodeFromQuery } from '../../lib/api/referrals';
+import { signupAttributionFromSearch } from '../../lib/signup-attribution';
+import type { SignupAttribution } from '@tmanage/domain';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
@@ -150,16 +152,20 @@ export function SignUpScreen({
   const signUpInput = (): GoogleStartInput => ({
     intent: 'sign-up',
     ...(organizationName.trim() === '' ? {} : { organizationName: organizationName.trim() }),
+    ...(attribution === undefined ? {} : { attribution }),
   });
   /** PLANWEB: the pricing page's `?plan=` (a catalog id only), sent with the sign-up. */
   const [pickedPlan, setPickedPlan] = useState<string | null>(null);
   /** REFERRAL (57-08): an invite link's `?ref=` code, sent with the sign-up (shape-checked). */
   const [referralCode, setReferralCode] = useState<string | null>(null);
+  /** ADTRACK, NOCOOKIE: the landing's `utm_*` values, carried here in the address, sent along. */
+  const [attribution, setAttribution] = useState<SignupAttribution | undefined>(undefined);
   useEffect(() => {
     setGoogleError(googleErrorKey(window.location.search));
     setMicrosoftError(microsoftErrorOf(window.location.search));
     setPickedPlan(planFromQuery(new URLSearchParams(window.location.search).get('plan')));
     setReferralCode(referralCodeFromQuery(new URLSearchParams(window.location.search).get('ref')));
+    setAttribution(signupAttributionFromSearch(window.location.search));
   }, []);
 
   // SIGNUP3: the one required load. A weak connection gets two quiet retries, then a calm
@@ -263,6 +269,7 @@ export function SignUpScreen({
         website,
         ...(pickedPlan === null ? {} : { plan: pickedPlan }),
         ...(referralCode === null ? {} : { referral: referralCode }),
+        ...(attribution === undefined ? {} : { attribution }),
         ...(await formProof.fields()),
       });
       setPassword('');

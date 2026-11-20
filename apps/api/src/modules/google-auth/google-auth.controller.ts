@@ -1,4 +1,4 @@
-import { signupAttributionFromCookie, SIGNUP_ATTRIBUTION_COOKIE } from '@tmanage/domain';
+import { signupAttributionFromInput } from '@tmanage/domain';
 import {
   Body,
   Controller,
@@ -90,6 +90,8 @@ interface StartBody {
   readonly intent?: unknown;
   readonly invitationToken?: unknown;
   readonly organizationName?: unknown;
+  /** ADTRACK, NOCOOKIE: the sign-up form's `utm_*` values (sign-up intent only). */
+  readonly attribution?: unknown;
 }
 
 const INTENTS: readonly GoogleIntent[] = ['sign-in', 'sign-up', 'invitation'];
@@ -166,9 +168,14 @@ export class GoogleAuthController {
         ? body.organizationName.trim().slice(0, 190)
         : undefined;
 
+    // ADTRACK, NOCOOKIE: the form's `utm_*` values, checked by the shared schema.
+    const signupAttribution =
+      intent === 'sign-up' ? signupAttributionFromInput(body?.attribution) : undefined;
+
     const flow = newFlow(intent, {
       ...(invitationToken === undefined ? {} : { invitationToken }),
       ...(organizationName ? { organizationName } : {}),
+      ...(signupAttribution === undefined ? {} : { signupAttribution }),
     });
     reply.header(
       'set-cookie',
@@ -242,9 +249,8 @@ export class GoogleAuthController {
         flow,
         claims,
         context,
-        signupAttributionFromCookie(
-          readCookie(headerOf(request, 'cookie'), SIGNUP_ATTRIBUTION_COOKIE),
-        ),
+        // Sealed by this server, but checked again like any stored input.
+        signupAttributionFromInput(flow.signupAttribution),
       );
     } catch (error) {
       if (error instanceof IdTokenRejectedError) {
