@@ -53,3 +53,6 @@ graphify-out/
 deploy/self-host/tmanage.env
 deploy/self-host/tmanage-bundle.zip
 deploy/self-host/backups/
+
+# Part-doc gate state: PART.md reads recorded per session by scripts/arch/part-docs-gate.mjs
+.claude/state/

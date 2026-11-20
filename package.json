@@ -12,6 +12,8 @@
   },
   "scripts": {
     "audit:design": "node scripts/audit-design-source.mjs",
+    "arch:parts": "node scripts/arch/part-docs-check.mjs",
+    "test:arch": "node --test scripts/arch/part-docs.test.mjs",
     "audit:prod": "pnpm audit --prod --audit-level low",
     "build": "pnpm build:packages && pnpm -r --filter=./apps/** build",
     "build:packages": "pnpm -r --filter=./packages/** build && pnpm --filter @tmanage/mcp-server build",

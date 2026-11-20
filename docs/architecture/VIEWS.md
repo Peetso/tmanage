@@ -135,6 +135,8 @@ There are 75 modules under `apps/api/src/modules`. They are grouped below into c
 | Platform Operations       | platform (outbox), platform-admin, admin, rate-limits, support, product-events (?)                                                         | outbox_events, flags, platform settings        | all (outbox)                   |
 | Audit, Security & Privacy | audit, security-reports, security-signals, privacy, public-abuse                                                                           | audit_events (append-only), signals            | all (audit)                    |
 | Public Site               | public-site, pricing-survey                                                                                                                | —                                              | —                              |
+| Shared Kernel             | packages/domain (pure policies), packages/contracts (wire types); no module may own them alone                                             |                                                |                                |
+| Design System             | packages/ui (tokens, styles, a11y, components, vr); consumed by apps/web                                                                   |                                                |                                |
 
 Relationships (Evans' context-map terms, S5):
 
