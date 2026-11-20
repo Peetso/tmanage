@@ -13,7 +13,7 @@
  * input/output schemas, redaction profiles, titles, descriptions and examples
  * to each op; this slice fixes only id, method, path, capability, risk and scope.
  */
-import type { AiActionOp, RouteKey } from './types.js';
+import type { AiActionOp, RouteKey, Sensitivity } from './types.js';
 import { routeKey } from './types.js';
 import { NEVER, neverByKey, isNever } from './never.js';
 import { financeTimeOps } from './finance-time.js';
@@ -21,6 +21,8 @@ import { financeDocumentOps } from './finance-documents.js';
 import { activityOps } from './activity.js';
 
 export * from './types.js';
+export { OP_SENSITIVITY } from './sensitivity.js';
+import { OP_SENSITIVITY as OP_SENSITIVITY_TABLE } from './sensitivity.js';
 export { NEVER, neverByKey, isNever };
 
 /**
@@ -6683,4 +6685,14 @@ export function classifiedRouteKeys(): ReadonlySet<RouteKey> {
   const keys = new Set<RouteKey>(opByRouteKey.keys());
   for (const key of neverByKey.keys()) keys.add(key);
   return keys;
+}
+
+/**
+ * 62-11. The sensitivity of an op: from `sensitivity.ts` for every op that changes something,
+ * `none` for a read. An unclassified change is `destructive` (fail closed: it always shows a card)
+ * — and `registry-sync.test.ts` refuses to let one exist.
+ */
+export function sensitivityOf(op: Pick<AiActionOp, 'id' | 'risk'>): Sensitivity {
+  if (op.risk === 'read') return 'none';
+  return OP_SENSITIVITY_TABLE[op.id] ?? 'destructive';
 }

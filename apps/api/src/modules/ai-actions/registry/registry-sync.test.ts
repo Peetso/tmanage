@@ -5,7 +5,9 @@ import {
   AI_SCOPES,
   NEVER,
   OPS,
+  OP_SENSITIVITY,
   RISK_CLASSES,
+  SENSITIVITIES,
   classifiedRouteKeys,
   neverByKey,
   opByRouteKey,
@@ -388,5 +390,18 @@ describe('AI action registry sync (T-REG-01)', () => {
         'classify the added/removed routes and update EXPECTED_ROUTE_COUNT in the same change.',
     ).toBe(EXPECTED_ROUTE_COUNT);
     expect(OPS.length + NEVER.length).toBe(liveRoutes.length);
+  });
+
+  // 62-11 (plan 62 §4.3): `sensitivity` is required on every op that changes something.
+  it('classifies the sensitivity of every write and confirm op, and only of real ones', () => {
+    const changing = OPS.filter((op) => op.risk !== 'read').map((op) => op.id);
+    const missing = changing.filter((id) => OP_SENSITIVITY[id] === undefined);
+    expect(missing, `add these ops to sensitivity.ts: ${missing.join(', ')}`).toEqual([]);
+    const known = new Set(changing);
+    const stale = Object.keys(OP_SENSITIVITY).filter((id) => !known.has(id));
+    expect(stale, `remove these entries from sensitivity.ts: ${stale.join(', ')}`).toEqual([]);
+    for (const value of Object.values(OP_SENSITIVITY)) {
+      expect(SENSITIVITIES as readonly string[]).toContain(value);
+    }
   });
 });

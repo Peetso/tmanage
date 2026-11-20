@@ -29,6 +29,15 @@ export type HttpMethod = (typeof HTTP_METHODS)[number];
 export const RISK_CLASSES = ['read', 'write', 'confirm'] as const;
 export type RiskClass = (typeof RISK_CLASSES)[number];
 
+/**
+ * 62-11 (plan 62 §4.3). What a change touches, which decides its gate in the in-app AI: `money`
+ * and `hr` need a step-up, a typed amount and the workspace's approval rule; `external` and
+ * `destructive` always show a card; `none` is an everyday change. Every op that is not `read`
+ * carries one in `sensitivity.ts` (required by `registry-sync.test.ts`).
+ */
+export const SENSITIVITIES = ['money', 'hr', 'external', 'destructive', 'none'] as const;
+export type Sensitivity = (typeof SENSITIVITIES)[number];
+
 /** Consent scopes (plan §4.2). A scope only ever *narrows* access. */
 export const AI_SCOPES = ['read', 'write', 'manage', 'billing'] as const;
 export type AiScope = (typeof AI_SCOPES)[number];
