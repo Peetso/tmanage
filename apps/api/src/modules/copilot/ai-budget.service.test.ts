@@ -23,7 +23,9 @@ import {
   AiBudgetService,
   worstCaseHoldMicroUsd,
   type AiBudgetResult,
+  type AiBudgetSettingsSource,
   type AiBudgetStore,
+  type AiPackTopUp,
 } from './ai-budget.service.js';
 import type { AiPool, AiSpendingPool, AiWorkspaceStanding } from './ai-tiers.js';
 
@@ -120,7 +122,10 @@ class FakeStore implements AiBudgetStore {
     input: { periodStart: IsoDate; allowanceCredits: number },
   ): Promise<void> {
     const key = `${ctx.organizationId}|${input.periodStart}`;
-    if (!this.state.workspaces.has(key)) {
+    const row = this.state.workspaces.get(key);
+    // 62-07: the duplicate branch refreshes the figure (the SQL's `on duplicate key update`).
+    if (row) row.cap = input.allowanceCredits;
+    else {
       this.state.workspaces.set(key, {
         cap: input.allowanceCredits,
         settled: 0,
@@ -135,7 +140,9 @@ class FakeStore implements AiBudgetStore {
     input: { membershipId: string; periodStart: IsoDate; capCredits: number },
   ): Promise<void> {
     const key = `${ctx.organizationId}|${input.membershipId}|${input.periodStart}`;
-    if (!this.state.members.has(key)) {
+    const existing = this.state.members.get(key);
+    if (existing) existing.cap = input.capCredits;
+    else {
       this.state.members.set(key, {
         cap: input.capCredits,
         settled: 0,
@@ -498,7 +505,13 @@ const SMALL_USAGE: AiUsage = {
   outputTokens: 400,
 };
 
-function setup(options: { platformCapMicroUsd?: number } = {}) {
+function setup(
+  options: {
+    platformCapMicroUsd?: number;
+    packs?: AiPackTopUp;
+    settings?: AiBudgetSettingsSource;
+  } = {},
+) {
   const store = new FakeStore();
   let now = START;
   const clock = {
@@ -510,6 +523,8 @@ function setup(options: { platformCapMicroUsd?: number } = {}) {
     database: fakeDatabase(store),
     store,
     platformCapMicroUsd: options.platformCapMicroUsd ?? 100_000_000,
+    ...(options.packs ? { packs: options.packs } : {}),
+    ...(options.settings ? { settings: options.settings } : {}),
     now: () => now,
   });
   const org = uuidv7();
@@ -680,8 +695,13 @@ describe('reserveCall — worst-case holds within the tier ceiling and the pool 
       outcomes.push(reason(await service.reserveCall(ctx, { taskId: task.taskId, ...sonnetCall })));
     }
     expect(outcomes).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'sonnet_unavailable']);
+    // The same allowance as above: since 62-07 each openTask refreshes the period's figures.
     const haiku = value(
-      await service.openTask(ctx, { tier: 'low', activity: 'tasks', allowance: ALLOWANCE }),
+      await service.openTask(ctx, {
+        tier: 'low',
+        activity: 'tasks',
+        allowance: { workspaceCredits: 5000, memberCredits: 5000 },
+      }),
     );
     expect((await service.reserveCall(ctx, { taskId: haiku.taskId, ...SMALL_CALL })).ok).toBe(true);
   });
@@ -903,5 +923,110 @@ describe('worstCaseHoldMicroUsd', () => {
     const hold = worstCaseHoldMicroUsd('claude-sonnet-5-5', 10_000, 2_000);
     expect(hold).toBe(10_000 * 4 + 2_000 * 10);
     expect(() => worstCaseHoldMicroUsd('claude-opus-5-5', 1, 1)).toThrow();
+  });
+});
+
+describe('62-07 credit packs after the allowance, 62-08 caps and the Sonnet switch', () => {
+  /** A pack port over the fake store: moves credits into the period row by raising its cap. */
+  function fakePacks(storeOf: () => FakeStore, balance: { credits: number }) {
+    const calls: number[] = [];
+    const packs: AiPackTopUp = {
+      async topUp(_tx, ctx, periodStart, holdCredits) {
+        calls.push(holdCredits);
+        const row = storeOf().state.workspaces.get(`${ctx.organizationId}|${periodStart}`);
+        if (!row) return false;
+        const short = Math.max(0, row.settled + row.reserved + holdCredits - row.cap);
+        if (short > balance.credits) return false;
+        balance.credits -= short;
+        row.cap += short;
+        return true;
+      },
+    };
+    return { packs, calls };
+  }
+
+  it('spends the allowance first and asks the packs only for what is missing', async () => {
+    const holder = { store: new FakeStore() };
+    const balance = { credits: 7 };
+    const { packs, calls } = fakePacks(() => holder.store, balance);
+    const env = setup({ packs });
+    // The setup made its own store; point the port at it.
+    holder.store = env.store;
+    const tight = { workspaceCredits: 8, memberCredits: 100 };
+    const first = await env.service.openTask(env.ctx, {
+      tier: 'low',
+      activity: 'tasks',
+      allowance: tight,
+    });
+    expect(first.ok).toBe(true);
+    expect(calls).toEqual([]); // 5 of 8 from the allowance: no pack touched
+    const second = await env.service.openTask(env.ctx, {
+      tier: 'low',
+      activity: 'tasks',
+      allowance: tight,
+    });
+    expect(second.ok).toBe(true);
+    expect(calls).toEqual([5]);
+    expect(balance.credits).toBe(5); // 10 held against 8: 2 moved from the pack
+  });
+
+  it('refuses with every hold rolled back when the packs hold too little', async () => {
+    const holder = { store: new FakeStore() };
+    const balance = { credits: 1 };
+    const { packs } = fakePacks(() => holder.store, balance);
+    const env = setup({ packs });
+    holder.store = env.store;
+    const tight = { workspaceCredits: 3, memberCredits: 100 };
+    expect(
+      reason(
+        await env.service.openTask(env.ctx, { tier: 'low', activity: 'tasks', allowance: tight }),
+      ),
+    ).toBe('workspace_credits_used');
+    expect(env.store.state.members.size).toBe(0);
+    expect(balance.credits).toBe(1);
+  });
+
+  it('refreshes the allowance of an existing period (a raise counts the same month)', async () => {
+    const env = setup();
+    const small = { workspaceCredits: 5, memberCredits: 100 };
+    value(
+      await env.service.openTask(env.ctx, { tier: 'low', activity: 'tasks', allowance: small }),
+    );
+    expect(
+      reason(
+        await env.service.openTask(env.ctx, { tier: 'low', activity: 'tasks', allowance: small }),
+      ),
+    ).toBe('workspace_credits_used');
+    const raised = { workspaceCredits: 10, memberCredits: 100 };
+    expect(
+      (await env.service.openTask(env.ctx, { tier: 'low', activity: 'tasks', allowance: raised }))
+        .ok,
+    ).toBe(true);
+  });
+
+  it('creates a new pool row at the platform admin cap and honours the Sonnet switch', async () => {
+    const caps = { customers: 50_000, testing: 30_000, reserve: 20_000, packs: 0 };
+    let sonnetEnabled = false;
+    const settings: AiBudgetSettingsSource = {
+      current: async () => ({ poolCapsMicroUsd: caps, sonnetEnabled }),
+    };
+    const env = setup({ settings });
+    const big = { workspaceCredits: 5000, memberCredits: 5000 };
+    const sonnet = value(
+      await env.service.openTask(env.ctx, {
+        tier: 'medium_high',
+        activity: 'file_analysis',
+        allowance: big,
+      }),
+    );
+    const call = { promptTokens: 100, maxTokens: 100 };
+    expect(reason(await env.service.reserveCall(env.ctx, { taskId: sonnet.taskId, ...call }))).toBe(
+      'sonnet_unavailable',
+    );
+    sonnetEnabled = true;
+    expect((await env.service.reserveCall(env.ctx, { taskId: sonnet.taskId, ...call })).ok).toBe(
+      true,
+    );
+    expect(env.store.state.pools.get(`customers|${PERIOD}`)?.cap).toBe(50_000);
   });
 });

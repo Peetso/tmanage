@@ -20,6 +20,7 @@ import {
   type AiActivity,
   type AiCallerClass,
   type AiPayer,
+  type AiPool,
   type AiSpendingPool,
   type AiSystemJob,
   type AiTier,
@@ -170,11 +171,51 @@ export interface ExpirySweep {
 /** The repository surface the service uses (the class itself, or a fake in unit tests). */
 export type AiBudgetStore = { readonly [K in keyof AiBudgetRepository]: AiBudgetRepository[K] };
 
+/**
+ * 62-07. The credit packs, as a port the budget service owns (IP-6) and billing implements
+ * (`billing/ai-packs.service.ts`). Called inside {@link AiBudgetService.openTask}'s transaction,
+ * after the member hold and before any call or pool lock (lock order task → member → workspace →
+ * packs → call → pool), only when the allowance alone cannot cover the workspace hold.
+ */
+export interface AiPackTopUp {
+  /**
+   * Move exactly the credits the hold is short of from the workspace's oldest live packs into the
+   * period (`ai_workspace_periods.pack_credits`). True when the period now covers `holdCredits`;
+   * false (nothing moved) when the live packs together hold too little.
+   */
+  topUp(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    periodStart: IsoDate,
+    holdCredits: number,
+    now: Date,
+  ): Promise<boolean>;
+}
+
+/**
+ * 62-08. The platform admin's AI budget settings, as a port (implemented over `platform_settings`
+ * by `platform-admin/settings/ai-budget.ts`). Read once per reserve, cached by the reader (30 s).
+ */
+export interface AiBudgetSettings {
+  /** Each pool's monthly cap for a period row created from now on, in micro-USD. */
+  readonly poolCapsMicroUsd: Readonly<Record<AiPool, number>>;
+  /** The Sonnet switch: off = no Sonnet call from the customer pool (the testing pool keeps it). */
+  readonly sonnetEnabled: boolean;
+}
+
+export interface AiBudgetSettingsSource {
+  current(): Promise<AiBudgetSettings>;
+}
+
 export interface AiBudgetDeps {
   readonly database: Pick<TenantDatabase, 'transaction'>;
   readonly store: AiBudgetStore;
   /** `platformCapMicroUsd(process.env)` at construction. */
   readonly platformCapMicroUsd: number;
+  /** 62-07. Credit packs after the allowance; absent = no packs (the allowance is all there is). */
+  readonly packs?: AiPackTopUp;
+  /** 62-08. The platform admin's caps and Sonnet switch; absent = the env shares, Sonnet on. */
+  readonly settings?: AiBudgetSettingsSource;
   readonly now?: () => Date;
   readonly newId?: () => string;
 }
@@ -247,6 +288,8 @@ export class AiBudgetService {
   private readonly database: Pick<TenantDatabase, 'transaction'>;
   private readonly store: AiBudgetStore;
   private readonly poolCaps: ReturnType<typeof poolCapsMicroUsd>;
+  private readonly packs: AiPackTopUp | null;
+  private readonly settings: AiBudgetSettingsSource | null;
   private readonly now: () => Date;
   private readonly newId: () => string;
 
@@ -254,8 +297,16 @@ export class AiBudgetService {
     this.database = deps.database;
     this.store = deps.store;
     this.poolCaps = poolCapsMicroUsd(deps.platformCapMicroUsd);
+    this.packs = deps.packs ?? null;
+    this.settings = deps.settings ?? null;
     this.now = deps.now ?? (() => new Date());
     this.newId = deps.newId ?? uuidv7;
+  }
+
+  /** The settings in force: the platform admin's, else the env shares with Sonnet on. */
+  private async currentSettings(): Promise<AiBudgetSettings> {
+    if (this.settings !== null) return this.settings.current();
+    return { poolCapsMicroUsd: this.poolCaps, sonnetEnabled: true };
   }
 
   /** One READ COMMITTED transaction (see the class comment). */
@@ -329,7 +380,12 @@ export class AiBudgetService {
           throw new Refused('member_credits_used');
         }
         if (!(await this.store.holdWorkspaceCredits(tx, context, period, ceiling, now))) {
-          throw new Refused('workspace_credits_used');
+          // 62-07: allowance first, then the oldest pack. Move exactly what is missing, retry once.
+          const covered =
+            this.packs !== null &&
+            (await this.packs.topUp(tx, context, period, ceiling, now)) &&
+            (await this.store.holdWorkspaceCredits(tx, context, period, ceiling, now));
+          if (!covered) throw new Refused('workspace_credits_used');
         }
       } else if (caller.kind === 'member') {
         const counted = await this.store.countFreeSupport(
@@ -366,10 +422,12 @@ export class AiBudgetService {
   }
 
   /** Hold the worst case of one call on the pool, within the task's tier ceiling. */
-  reserveCall(
+  async reserveCall(
     context: TenantContext,
     input: ReserveCallInput,
   ): Promise<AiBudgetResult<ReservedCall>> {
+    // Read before the transaction opens: the settings reader may go to the database itself.
+    const settings = await this.currentSettings();
     return this.run(context, async (tx, now) => {
       const task = await this.lockRunningTask(tx, context, input.taskId);
       const spec = AI_TIER_SPECS[task.tier];
@@ -386,10 +444,10 @@ export class AiBudgetService {
         id: this.newId(),
         pool: task.pool,
         periodStart: period,
-        capMicroUsd: this.poolCaps[task.pool],
+        capMicroUsd: settings.poolCapsMicroUsd[task.pool],
         now,
       });
-      const limitPercent = poolLimitPercentFor(task.pool, spec.model);
+      const limitPercent = poolLimitPercentFor(task.pool, spec.model, settings.sonnetEnabled);
       if (!(await this.store.holdPool(tx, task.pool, period, holdMicroUsd, limitPercent, now))) {
         const state = await this.store.poolState(tx, task.pool, period);
         const fitsWholeCap =

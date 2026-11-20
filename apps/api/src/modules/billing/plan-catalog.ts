@@ -75,7 +75,8 @@ const MB = 1024 ** 2;
  * temporary allowance on TManage before Drive/OneDrive is connected (57-13r, plan 57 §19.3: 1 GB
  * Free, 5 GB Starter, 10 GB Studio, 25 GB Business; Enterprise by agreement = null, so the
  * platform cap applies). Never sold. Clients are never limited and never billed, so they have no
- * entry here. Mirrors the `plan_versions` version-1 rows (0351, corrected by 0369).
+ * entry here. Mirrors the `plan_versions` version-1 rows (0351, corrected by 0369; 0391 adds the
+ * AI credit allowance of plan 62 §5).
  */
 export interface PlanLimits {
   readonly people: number | null;
@@ -88,14 +89,52 @@ export interface PlanLimits {
    * from this table. Optional only so a merged entitlement (`mergeLimits`) need not carry it.
    */
   readonly maxFileBytes?: number;
+  /**
+   * 62-07 (plan 62 §5). The monthly AI credit allowance (1 credit = 0.001 USD of real API cost),
+   * pooled per workspace, reset monthly, no rollover. `null` = by agreement (Enterprise): the
+   * resolver in `ai-allowance.ts` then uses the per-workspace target unless a platform admin raised
+   * it. Provisional until the Phase 0 benchmark (plan 62 §6). Optional only so a merged entitlement
+   * (`mergeLimits`) need not carry it; the resolver reads it from the plan, never from a merge.
+   */
+  readonly aiCreditsMonthly?: number | null;
 }
 
 export const PLAN_LIMITS: Readonly<Record<CatalogPlanId, PlanLimits>> = {
-  free: { people: 3, activeProjects: 3, storageBytes: GB, maxFileBytes: 25 * MB },
-  starter: { people: 10, activeProjects: null, storageBytes: 5 * GB, maxFileBytes: 250 * MB },
-  studio: { people: null, activeProjects: null, storageBytes: 10 * GB, maxFileBytes: GB },
-  business: { people: null, activeProjects: null, storageBytes: 25 * GB, maxFileBytes: 2 * GB },
-  enterprise: { people: null, activeProjects: null, storageBytes: null, maxFileBytes: 5 * GB },
+  free: {
+    people: 3,
+    activeProjects: 3,
+    storageBytes: GB,
+    maxFileBytes: 25 * MB,
+    aiCreditsMonthly: 0,
+  },
+  starter: {
+    people: 10,
+    activeProjects: null,
+    storageBytes: 5 * GB,
+    maxFileBytes: 250 * MB,
+    aiCreditsMonthly: 1000,
+  },
+  studio: {
+    people: null,
+    activeProjects: null,
+    storageBytes: 10 * GB,
+    maxFileBytes: GB,
+    aiCreditsMonthly: 2000,
+  },
+  business: {
+    people: null,
+    activeProjects: null,
+    storageBytes: 25 * GB,
+    maxFileBytes: 2 * GB,
+    aiCreditsMonthly: 3000,
+  },
+  enterprise: {
+    people: null,
+    activeProjects: null,
+    storageBytes: null,
+    maxFileBytes: 5 * GB,
+    aiCreditsMonthly: null,
+  },
 };
 
 /** The plan features a change can switch on or off, in the order the preview lists gains. */

@@ -1267,6 +1267,12 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'working_calendar',
     clause: '§12 53-02 — a holiday pack was imported (pack key and pack version recorded)',
   },
+  // ---- 62-07 · AI credit packs ----
+  /** The owner asked for more AI credits (testing). Metadata: pack balance, allowance — counts. */
+  'ai_credit_pack.requested': {
+    objectType: 'ai_credit_pack_request',
+    clause: '§12 62-07 — the owner asked the platform for an AI credit pack (counts only)',
+  },
   // ---- 62-27 (B05) · signals engine ----
   'work_signal_settings.updated': {
     objectType: 'organization',
@@ -2105,6 +2111,7 @@ const AUDIT_ACTION_LABELS = {
   'org_secret.certificate_revoked': 'Revoked the ZATCA signing certificate',
   'client_invoice.sign_failed': 'Could not sign an issued invoice',
   'import.undo': 'Undid an import',
+  'ai_credit_pack.requested': 'Asked for more AI credits',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

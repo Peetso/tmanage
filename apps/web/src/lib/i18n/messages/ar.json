@@ -20932,6 +20932,7 @@
   "activity.subject.quote.converted": "‏{actor} حوّل عرض السعر {subject} إلى مشروع",
   "FeatureFlags.businessBriefing": "موجز العمل",
   "AuditActionLabel.work_signal_settings.updated": "غيّر قواعد التنبيه",
+  "AuditActionLabel.ai_credit_pack.requested": "طلب رصيدًا إضافيًا للذكاء الاصطناعي",
   "Overview.signal.projects_at_riskOne": "مهمة واحدة متأخرة أو معرّضة للتأخير",
   "Overview.signal.projects_at_riskMany": "{count} من المهام متأخرة أو معرّضة للتأخير",
   "Overview.signal.projects_at_riskMeta": "تجاوزت موعدها، أو اقترب موعدها والوقت لا يكفي",

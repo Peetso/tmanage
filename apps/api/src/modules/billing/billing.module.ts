@@ -42,6 +42,14 @@ import {
 import { PlanVersionsRepository } from './plan-versions.repository.js';
 import { PlanVersionsService } from './plan-versions.service.js';
 import { platformAdminCore } from '../platform-admin/platform-admin-core.module.js';
+import { AiAllowanceService } from './ai-allowance.service.js';
+import { AI_PACKS_SERVICE, AiCreditsController } from './ai-packs.controller.js';
+import { AiPacksService } from './ai-packs.service.js';
+import {
+  AI_PACKS_PLATFORM_SERVICE,
+  PlatformAiTestListController,
+} from './ai-packs-platform.controller.js';
+import { AiPacksPlatformService } from './ai-packs-platform.service.js';
 
 /**
  * Billing / module 19 (x177). The subscription module — an organization's current plan (view, and
@@ -134,6 +142,26 @@ export class BillingModule {
         new PlanVersionsService(database, new PlanVersionsRepository(database)),
     };
 
+    // 62-07 (plan 62 §5). The AI credit allowance, the credit packs and the owner's pack request
+    // (`ai-packs.controller.ts`), and the platform admin's test list and pack grants
+    // (`ai-packs-platform.controller.ts`). The pool cap the allowance stops at is the env share
+    // until the orchestrator (62-09) wires the 62-08 settings source; nothing here calls a model.
+    const aiPacks: Provider = {
+      provide: AI_PACKS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new AiPacksService({
+          database,
+          allowance: new AiAllowanceService({ database }),
+          audit,
+        }),
+    };
+    const aiPacksPlatform: Provider = {
+      provide: AI_PACKS_PLATFORM_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new AiPacksPlatformService({ database }),
+    };
+
     return {
       module: BillingModule,
       // The platform-admin guard's lookup, for `PlatformPlanVersionsController`.
@@ -148,6 +176,8 @@ export class BillingModule {
         planChangeRequests,
         planUsage,
         planVersions,
+        aiPacks,
+        aiPacksPlatform,
       ],
       exports: [service, planPreview],
       controllers: [
@@ -161,6 +191,9 @@ export class BillingModule {
         WorkspacePlanController,
         // PLANWEB: the pricing page's live figures (nothing while the beta is free).
         PublicPlanVersionsController,
+        // 62-07: the workspace's AI credits and pack request; the platform's AI test list.
+        AiCreditsController,
+        PlatformAiTestListController,
       ],
     };
   }

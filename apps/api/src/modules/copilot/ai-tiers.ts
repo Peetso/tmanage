@@ -91,9 +91,18 @@ export const AI_POOL_SHARE_PERCENT: Readonly<Record<AiPool, number>> = Object.fr
 /** Sonnet is switched off once the customer pool passes this share of its cap (plan 62 §4.2). */
 export const SONNET_CUSTOMER_POOL_LIMIT_PERCENT = 80;
 
-/** The share of a pool's cap a call of `model` may fill from `pool`: 100 except Sonnet on customers. */
-export function poolLimitPercentFor(pool: AiSpendingPool, model: AiModelId): number {
-  return pool === 'customers' && model === SONNET ? SONNET_CUSTOMER_POOL_LIMIT_PERCENT : 100;
+/**
+ * The share of a pool's cap a call of `model` may fill from `pool`: 100 except Sonnet on customers,
+ * which stops at {@link SONNET_CUSTOMER_POOL_LIMIT_PERCENT} — or at 0 while the platform admin's
+ * Sonnet switch is off (62-08). The testing pool keeps Sonnet either way (the benchmark needs it).
+ */
+export function poolLimitPercentFor(
+  pool: AiSpendingPool,
+  model: AiModelId,
+  sonnetEnabled = true,
+): number {
+  if (pool !== 'customers' || model !== SONNET) return 100;
+  return sonnetEnabled ? SONNET_CUSTOMER_POOL_LIMIT_PERCENT : 0;
 }
 
 /** The monthly cap of each pool, in micro-USD, from the platform ceiling. Never sums above it. */

@@ -35,6 +35,11 @@ const MAX_COUNT_LIMIT = 1_000_000;
 
 /** The largest storage allowance a version may carry: 100 TiB. */
 const MAX_STORAGE_BYTES = 100 * 1024 ** 4;
+/**
+ * 62-07. The most AI credits a plan version may give a month: a typo guard, not a business rule
+ * (1,000,000 credits = 1,000 USD of real API cost, ten times the platform's whole monthly cap).
+ */
+const MAX_AI_CREDITS = 1_000_000;
 
 /** One published version of one plan. */
 export interface PlanVersion extends PlanVersionEntitlements {
@@ -158,6 +163,16 @@ export function parsePlanLimits(value: unknown): PlanLimits {
       CONTRACT_MAX_SIZE_BYTES,
       1,
     ),
+    // 62-07 (plan 62 §5): absent = the version predates the AI allowance (kept absent, so the
+    // resolver treats it as "no plan figure"); null = by agreement; else whole credits a month.
+    ...(limits['aiCreditsMonthly'] === undefined
+      ? {}
+      : {
+          aiCreditsMonthly:
+            limits['aiCreditsMonthly'] === null
+              ? null
+              : boundedInt(limits['aiCreditsMonthly'], 'limits.aiCreditsMonthly', MAX_AI_CREDITS),
+        }),
   };
 }
 

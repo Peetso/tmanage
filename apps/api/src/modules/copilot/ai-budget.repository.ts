@@ -127,15 +127,18 @@ const SQL = {
     (id, pool, period_start, cap_micro_usd, settled_micro_usd, reserved_micro_usd, created_at, updated_at)
     values (?, ?, ?, ?, 0, 0, ?, ?)
     on duplicate key update id = id`,
+  // 62-07: a later call carries the allowance resolved NOW (a support raise, a pack, a member
+  // leaving), so the duplicate branch refreshes the figure; the counters are never touched. A
+  // figure lowered below what is already spent only refuses the next hold.
   ensureWorkspace: `insert into ai_workspace_periods
     (id, organization_id, period_start, allowance_credits, settled_credits, reserved_credits, created_at, updated_at)
     values (?, ?, ?, ?, 0, 0, ?, ?)
-    on duplicate key update id = id`,
+    on duplicate key update allowance_credits = values(allowance_credits)`,
   ensureMember: `insert into ai_member_periods
     (id, organization_id, membership_id, period_start, cap_credits, settled_credits, reserved_credits,
      free_support_count, refunds_count, created_at, updated_at)
     values (?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)
-    on duplicate key update id = id`,
+    on duplicate key update cap_credits = values(cap_credits)`,
 
   holdMember: `update ai_member_periods
     set reserved_credits = reserved_credits + ?, updated_at = ?
@@ -144,7 +147,7 @@ const SQL = {
   holdWorkspace: `update ai_workspace_periods
     set reserved_credits = reserved_credits + ?, updated_at = ?
     where organization_id = ? and period_start = ? and paused_at is null
-      and settled_credits + reserved_credits + ? <= allowance_credits`,
+      and settled_credits + reserved_credits + ? <= allowance_credits + pack_credits`,
   closeMember: `update ai_member_periods
     set reserved_credits = reserved_credits - ?, settled_credits = settled_credits + ?, updated_at = ?
     where organization_id = ? and membership_id = ? and period_start = ? and reserved_credits >= ?`,
@@ -289,7 +292,7 @@ export class AiBudgetRepository {
     };
   }
 
-  // ── Period rows (idempotent; the first insert fixes the cap) ────────────────
+  // ── Period rows (idempotent; a later call refreshes the cap, 62-07) ─────────
 
   async ensurePoolPeriod(
     runner: TenantQueryRunner,
@@ -363,7 +366,10 @@ export class AiBudgetRepository {
     ]);
   }
 
-  /** Hold `credits` of the workspace allowance if not paused and within the allowance. */
+  /**
+   * Hold `credits` of the workspace allowance if not paused and within the allowance plus the pack
+   * credits already moved into the period (62-07: the allowance is spent first, packs after).
+   */
   holdWorkspaceCredits(
     runner: TenantQueryRunner,
     context: TenantContext,

@@ -301,6 +301,34 @@ const EXEMPT = new Map([
     'ClientHolidayView',
     'No web consumer yet: no route serves it — `clientHolidayProjection` in working-calendar.service.ts is not wired to any controller.',
   ],
+  [
+    'AiCreditsView',
+    'No web consumer yet: 62-07 `GET …/ai/credits` is API-only; the owner usage screen is slice 62-18 (Figma first), which adds the web client and the pairing.',
+  ],
+  [
+    'AiCreditPackView',
+    'No web consumer yet: one pack inside 62-07 `AiCreditsView`; paired with it in 62-18.',
+  ],
+  [
+    'AiPackRequestView',
+    'No web consumer yet: 62-07 `POST …/ai/credits/pack-requests` and the open request in `AiCreditsView`; the "Get more credits" button is slice 62-18.',
+  ],
+  [
+    'AiTestListView',
+    'No web consumer yet: 62-07 `GET /v1/platform/ai/test-list` is API-only; the Platform admin AI spend screen is slice 62-19 (Figma first).',
+  ],
+  [
+    'AiTestListEntryView',
+    'No web consumer yet: 62-07 `PUT /v1/platform/ai/test-list/:organizationId`; the screen is slice 62-19.',
+  ],
+  [
+    'AiPackRequestQueueView',
+    'No web consumer yet: 62-07 open pack requests and the decline route; the screen is slice 62-19.',
+  ],
+  [
+    'AiPackGrantView',
+    'No web consumer yet: 62-07 `POST /v1/platform/ai/test-list/:organizationId/packs`; the grant dialog is slice 62-19.',
+  ],
 ]);
 
 /**

@@ -238,7 +238,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // QA-FIX-O H1: POST deliverables/:id/approvals/:approvalId/resend-email (+1 op, confirm).
 // LANE-Q: POST public/walkthrough-requests (+1 NEVER, public_site). Part 2/3: GET
 // public/trial-invites/:token (+1 NEVER, signup) and six platform/outreach routes (+6 NEVER).
-const EXPECTED_ROUTE_COUNT = 1568;
+// 62-07: GET ai/credits and POST ai/credits/pack-requests (+2 NEVER, ai_credits); the platform AI
+// test list, entry, pack grant and request decline (+4 NEVER, platform_admin).
+const EXPECTED_ROUTE_COUNT = 1574;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

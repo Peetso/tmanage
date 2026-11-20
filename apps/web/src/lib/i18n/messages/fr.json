@@ -20726,6 +20726,7 @@
   "activity.subject.quote.converted": "{actor} a transformé le devis {subject} en projet",
   "FeatureFlags.businessBriefing": "Briefing d’activité",
   "AuditActionLabel.work_signal_settings.updated": "A modifié les règles d’alerte",
+  "AuditActionLabel.ai_credit_pack.requested": "A demandé plus de crédits d’IA",
   "Overview.signal.projects_at_riskOne": "Une tâche est en retard ou à risque",
   "Overview.signal.projects_at_riskMany": "{count} tâches sont en retard ou à risque",
   "Overview.signal.projects_at_riskMeta": "En retard, ou échéance sous {threshold} jours sans assez de temps",

@@ -2665,8 +2665,7 @@ GRANT INSERT, UPDATE ON `tmanage`.`work_signal_settings` TO 'tmanage_app'@'%';
 -- and moves every counter by a conditional UPDATE; a task and each of its calls are INSERT then
 -- UPDATE. No DELETE: ledger and task rows are never deleted (the company erasure deletes the
 -- tenant ones on `tmanage_erasure`; `ai_budget_pools` is a platform record and is never erased).
--- `ai_workspace_settings` and `ai_credit_packs` have no write path yet, so the API holds only the
--- database-wide read on them; the slice that writes them adds the grant with the code. The worker
+-- 62-07 adds the write paths of `ai_workspace_settings` and `ai_credit_packs` (below). The worker
 -- writes none of these tables until the hold-expiry sweeper exists (it then needs UPDATE on
 -- `ai_tasks`, B13); it only reads two of them for Growth, below.
 GRANT INSERT, UPDATE ON `tmanage`.`ai_budget_pools` TO 'tmanage_app'@'%';
@@ -2674,6 +2673,17 @@ GRANT INSERT, UPDATE ON `tmanage`.`ai_workspace_periods` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_member_periods` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_tasks` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_usage_ledger` TO 'tmanage_app'@'%';
+-- 0390 (62-07 AI PACKS). The platform admin's test list and pool class are an upsert on
+-- `ai_workspace_settings` (INSERT … ON DUPLICATE KEY UPDATE); a pack grant INSERTs
+-- `ai_credit_packs`, and spending or returning pack credits is a conditional UPDATE of
+-- `remaining_credits`; every move is an INSERT into the packs ledger `ai_credit_pack_moves` (never
+-- updated); an owner's pack request is an INSERT, its grant or decline one conditional UPDATE. No
+-- DELETE on any of them (the company erasure deletes on `tmanage_erasure`). SELECT rides the
+-- database-wide read. The worker touches none of them.
+GRANT INSERT, UPDATE ON `tmanage`.`ai_workspace_settings` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_packs` TO 'tmanage_app'@'%';
+GRANT INSERT ON `tmanage`.`ai_credit_pack_moves` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_app'@'%';
 -- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
 -- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
 -- `projects` and `client_invoices` (the first-outcome figures) are granted above. Read only.
@@ -2746,6 +2756,8 @@ GRANT SELECT, DELETE ON `tmanage`.`activity_entries` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`activity_projection_cursors` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`admin_export_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`admin_security_alerts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_moves` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_packs` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_member_periods` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_tasks` TO 'tmanage_erasure'@'%';

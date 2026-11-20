@@ -14962,9 +14962,13 @@ export const aiWorkspacePeriods = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     periodStart: date('period_start', { mode: 'string' }).notNull(),
     allowanceCredits: int('allowance_credits', { unsigned: true }).notNull(),
+    /** 0390 (62-07): credits moved in from packs this period (holds cap at allowance + this). */
+    packCredits: int('pack_credits', { unsigned: true }).notNull().default(0),
     settledCredits: int('settled_credits', { unsigned: true }).notNull().default(0),
     reservedCredits: int('reserved_credits', { unsigned: true }).notNull().default(0),
     pausedAt: datetime('paused_at', { mode: 'date', fsp: 3 }),
+    /** 0390 (62-07): when the period's unused pack credits went back to their packs. */
+    packReturnedAt: datetime('pack_returned_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },
@@ -15138,6 +15142,61 @@ export const aiCreditPacks = mysqlTable(
   ],
 );
 
+export const AI_CREDIT_PACK_MOVE_DIRECTIONS = ['draw', 'return'] as const;
+export const AI_CREDIT_PACK_REQUEST_STATUSES = ['open', 'granted', 'declined'] as const;
+
+/**
+ * 0390 (62-07). The packs ledger: one row per move of credits from a pack into a period (`draw`)
+ * or back from a closed period (`return`). Counts and ids only. TENANT; api SELECT, INSERT.
+ * `0390_ai_credit_pack_ledger.sql` is the source of truth.
+ */
+export const aiCreditPackMoves = mysqlTable(
+  'ai_credit_pack_moves',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    packId: char('pack_id', { length: 36 }).notNull(),
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    direction: mysqlEnum('direction', AI_CREDIT_PACK_MOVE_DIRECTIONS).notNull(),
+    credits: int('credits', { unsigned: true }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_credit_pack_moves_org_id').on(table.organizationId, table.id),
+    index('ix_ai_credit_pack_moves_period').on(
+      table.organizationId,
+      table.periodStart,
+      table.packId,
+    ),
+    index('ix_ai_credit_pack_moves_pack').on(table.organizationId, table.packId, table.createdAt),
+  ],
+);
+
+/**
+ * 0390 (62-07). An owner's request for a credit pack; a platform admin grants or declines it. At
+ * most one open per workspace (`open_slot` = 1 while open, unique with the organization). TENANT;
+ * api SELECT, INSERT, UPDATE.
+ */
+export const aiCreditPackRequests = mysqlTable(
+  'ai_credit_pack_requests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    requestedByMembershipId: char('requested_by_membership_id', { length: 36 }).notNull(),
+    status: mysqlEnum('status', AI_CREDIT_PACK_REQUEST_STATUSES).notNull(),
+    openSlot: tinyint('open_slot', { unsigned: true }),
+    packId: char('pack_id', { length: 36 }),
+    decidedByUserId: char('decided_by_user_id', { length: 36 }),
+    requestedAt: datetime('requested_at', { mode: 'date', fsp: 3 }).notNull(),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_credit_pack_requests_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_credit_pack_requests_open').on(table.organizationId, table.openSlot),
+    index('ix_ai_credit_pack_requests_status').on(table.status, table.requestedAt),
+  ],
+);
+
 export type AiBudgetPoolRow = typeof aiBudgetPools.$inferSelect;
 export type AiWorkspacePeriodRow = typeof aiWorkspacePeriods.$inferSelect;
 export type AiMemberPeriodRow = typeof aiMemberPeriods.$inferSelect;
@@ -15154,6 +15213,8 @@ Object.assign(TABLES, {
   ai_usage_ledger: aiUsageLedger,
   ai_workspace_settings: aiWorkspaceSettings,
   ai_credit_packs: aiCreditPacks,
+  ai_credit_pack_moves: aiCreditPackMoves,
+  ai_credit_pack_requests: aiCreditPackRequests,
 });
 
 // ---- DC-3 / RT-3 · lane K · leader lease ----

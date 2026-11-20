@@ -1339,6 +1339,26 @@ export const NEVER: readonly NeverEntry[] = [
   // 62-A3 (B14). The platform's monthly hosting and mail unit costs (platform.settings.edit).
   { method: 'GET', path: '/v1/platform/settings/unit-costs/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/unit-costs/', reason: 'platform_admin' },
+  // 62-07. The workspace's AI credits and pack request (never an AI tool); the platform's AI test
+  // list and credit-pack grants (platform.settings.edit).
+  { method: 'GET', path: '/v1/organizations/:orgSlug/ai/credits/', reason: 'ai_credits' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai/credits/pack-requests',
+    reason: 'ai_credits',
+  },
+  { method: 'GET', path: '/v1/platform/ai/test-list/', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/ai/test-list/:organizationId', reason: 'platform_admin' },
+  {
+    method: 'POST',
+    path: '/v1/platform/ai/test-list/:organizationId/packs',
+    reason: 'platform_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/platform/ai/test-list/:organizationId/pack-requests/:requestId/decline',
+    reason: 'platform_admin',
+  },
   // 55-14. Client portal magic-link sign-in: anonymous request, code, preview, consume, not-you.
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },

@@ -20726,6 +20726,7 @@
   "activity.subject.quote.converted": "{actor} hat aus dem Angebot {subject} ein Projekt gemacht",
   "FeatureFlags.businessBriefing": "Geschäftsbriefing",
   "AuditActionLabel.work_signal_settings.updated": "Hat die Warnregeln geändert",
+  "AuditActionLabel.ai_credit_pack.requested": "Hat mehr KI-Guthaben angefordert",
   "Overview.signal.projects_at_riskOne": "Eine Aufgabe ist verspätet oder gefährdet",
   "Overview.signal.projects_at_riskMany": "{count} Aufgaben sind verspätet oder gefährdet",
   "Overview.signal.projects_at_riskMeta": "Überfällig oder in {threshold} Tagen fällig, ohne genug Zeit",

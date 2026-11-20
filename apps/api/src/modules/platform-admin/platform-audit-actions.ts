@@ -140,6 +140,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.outreach_paused',
   'platform.outreach_stopped',
   'platform.outreach_recipient_bounced',
+  // ---- 62-07 AI test list and credit packs ----
+  'platform.ai_test_list_added',
+  'platform.ai_test_list_removed',
+  'platform.ai_pool_class_changed',
+  'platform.ai_pack_granted',
+  'platform.ai_pack_request_declined',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

@@ -124,6 +124,10 @@ export const NEVER_REASONS = [
   // 57-08. The owner's invite link (view, create the code): a growth link the owner chooses to share
   // with other companies. Owner-only by design; an AI principal must never create or hand it out.
   'referral',
+  // 62-07. The workspace's AI credits and its request for a credit pack: the AI's own budget is
+  // never something an AI principal may read for a tool answer or ask to raise (plan 62 §7: the
+  // `billing` scope is unreachable).
+  'ai_credits',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

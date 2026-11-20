@@ -1406,6 +1406,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   ai_usage_ledger: 'organization_id',
   ai_workspace_settings: 'organization_id',
   ai_credit_packs: 'organization_id',
+  // 0390 (62-07 AI PACKS). Tenant-owned: the company's credit-pack moves (the packs ledger) and its
+  // owner's pack requests. No foreign key, so the company erasure may empty them in any order.
+  ai_credit_pack_moves: 'organization_id',
+  ai_credit_pack_requests: 'organization_id',
   // 0387 (QA-FIX-O H1). Tenant-owned: what happened to each approval-request e-mail of a company's
   // approvals. No foreign key, so the company erasure may empty it in any order.
   approval_email_sends: 'organization_id',

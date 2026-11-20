@@ -20728,6 +20728,7 @@
   "activity.subject.quote.converted": "{actor} convirtió el presupuesto {subject} en proyecto",
   "FeatureFlags.businessBriefing": "Resumen del negocio",
   "AuditActionLabel.work_signal_settings.updated": "Cambió las reglas de alerta",
+  "AuditActionLabel.ai_credit_pack.requested": "Solicitó más créditos de IA",
   "Overview.signal.projects_at_riskOne": "Una tarea está atrasada o en riesgo",
   "Overview.signal.projects_at_riskMany": "{count} tareas están atrasadas o en riesgo",
   "Overview.signal.projects_at_riskMeta": "Vencidas, o vencen en {threshold} días sin tiempo suficiente",
