@@ -91,9 +91,9 @@ rules:
     IP-17,
   ]
 ux_rules: []
-last_verified_commit: a7169b1c2cba173146f8bd89c4cfade7483d4231
+last_verified_commit: 7fc659897bb78600e7f4b0372087dd5fe0f53d46
 last_verified_date: 2026-11-20
-last_verified_by: Claude Opus 5.5 (lane I, SCANNER-TLS rows)
+last_verified_by: Claude Opus 5.5 (lane N, QA-FIX S1/S5 rows)
 ---
 
 # api/files
@@ -183,6 +183,15 @@ inbound_mail`; a client file is at most 100 MiB and a client may start 20 upload
   (nothing claimed, file stays `scanning`); production refuses clear text to a host that is not
   loopback/private · `apps/api/src/common/scan/clamav-scanner.ts` (`dialTls`, `pinMatches`),
   `packages/config/src/env.ts` (`isLoopbackOrPrivateHost`) · `malware-scanner.test.ts`, `env.test.ts`.
+- **I-12** (QA-FIX S1) Every engine verdict is stored with the engine's version and signature number
+  (`scan_engine_version`, `checked_signature_version`, 0386); a `clean` version of a `ready` asset
+  checked against an older or unknown signature set is re-read by the re-check pass, and a detection
+  moves the asset `ready → rejected` (`malware_detected`), withdraws the private object and notifies
+  the uploader; the verdict trio stays write-once · `file-rescanner.ts`, `file-scan-job.ts`
+  (`rescanIfDue`), `packages/domain/src/state-machines/upload.ts` · `file-rescanner.test.ts`.
+- **I-13** (QA-FIX S5) A file refused by the verifier, the scan or a re-check notifies its uploader
+  once (`file.blocked.v1`, dedupe key = asset id), in the rejecting transaction ·
+  `file-block-notifier.ts` · `file-rescanner.test.ts`.
 - **I-10** Production refuses the `stub` scanner (but accepts `none`) ·
   `packages/config/src/env.ts:720,899-909`.
 
@@ -386,6 +395,7 @@ blocked reason) as decisions; screens never re-derive them from scan verdicts.
 | FIL-7 | DA-10       | 36 `current_timestamp(3)` row times                                                                 | P2  | bound `Date`                               |
 | FIL-8 | AR-10       | `UploadSessionView` has no API/web pair                                                             | P2  | add pair                                   |
 | FIL-10 | ST-4 / ops | Remote clamd (Oracle VM, SCANNER-TLS) is outside the repo: Hostinger's outbound IP or the stunnel cert changing makes the scanner `unreachable` (files wait, never `clean`); no circuit breaker, the probe-before-claim stops each pass | P2 | alert on `/healthz/deep` `scanner: unreachable`; runbook `D:/TManage/work/oracle-scanner/SETUP.md` §8 |
+| FIL-11 | QM-2 / ops | Live clamd `MaxFileSize 25M` with `AlertExceedsMax` unset answers `OK` for any file over 25 MB without scanning it (proved 2026-11-20: a 26 MB ZIP holding EICAR is `OK`, a 24 MB one is `FOUND`) | P0 | clamd `MaxFileSize`/`MaxScanSize` ≥ the upload cap, `AlertExceedsMax yes`; app cap = `UPLOAD_MAX_BYTES` |
 | FIL-9 | size        | `files.service.ts` is 2,199 lines, `files.module.ts` > 760 lines                                    | P2  | split per capability (upload, serve, purge)|
 
 DC classes checked: DC-1 (API) none; DC-3 handled by claims and named locks; DC-4 not found

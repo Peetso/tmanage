@@ -35,6 +35,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { resolveScanSource } from './file-safety.js';
+import type { EngineVersion } from '../../common/scan/malware-scanner.js';
 
 /**
  * File assets and their versions — the rows an upload produces.
@@ -521,14 +522,24 @@ export class FileAssetsRepository {
       readonly scanVerdict: 'clean' | 'infected' | 'unscanned';
       readonly scannedAt: Date;
       readonly scanner: string;
+      /** QA-FIX S1 (0386). The engine's version answer; absent for `none` or an engine that cannot say. */
+      readonly engine?: EngineVersion | null;
     },
   ): Promise<boolean> {
+    const engine = facts.engine ?? null;
     const result = await tenantDrizzle(runner)
       .update(fileVersions)
       .set({
         scanVerdict: facts.scanVerdict,
         scannedAt: facts.scannedAt,
         scanner: facts.scanner,
+        ...(engine === null
+          ? {}
+          : {
+              scanEngineVersion: engine.text,
+              checkedSignatureVersion: engine.signatureVersion,
+              checkedAt: facts.scannedAt,
+            }),
         // 56-06 (0307): who judged the bytes, written with the verdict (`file-safety.ts`).
         scanSource: resolveScanSource({ scanner: facts.scanner }),
         ...(facts.scanVerdict === 'clean' ? { trustZone: 'private' } : {}),
@@ -540,6 +551,106 @@ export class FileAssetsRepository {
           facts.scanVerdict === 'unscanned'
             ? isNull(fileVersions.scanVerdict)
             : or(isNull(fileVersions.scanVerdict), eq(fileVersions.scanVerdict, 'unscanned')),
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
+  // ── QA-FIX S1: re-check of clean versions against newer signatures ──────────
+
+  /**
+   * QA-FIX S1. The predicate the re-check pass selects by: a `clean`, promoted, locally held
+   * version of a `ready` asset whose bytes were last checked against an older signature set than
+   * `signatureVersion`, or against none known (`NULL`: every verdict before 0386 and every verdict
+   * from an engine that could not name its signatures).
+   */
+  private recheckPredicate(signatureVersion: number) {
+    return and(
+      eq(fileVersions.scanVerdict, 'clean'),
+      eq(fileVersions.trustZone, 'private'),
+      eq(fileVersions.storageBackend, 'local'),
+      or(
+        isNull(fileVersions.checkedSignatureVersion),
+        lt(fileVersions.checkedSignatureVersion, signatureVersion),
+      ),
+      eq(fileAssets.status, 'ready'),
+    );
+  }
+
+  /** The re-check pass's cross-tenant half, through the bootstrap hatch as the scan pass's is. */
+  async organizationsAwaitingRecheck(
+    runner: BootstrapQueryRunner,
+    signatureVersion: number,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ organizationId: fileVersions.organizationId })
+      .from(fileVersions)
+      .innerJoin(
+        fileAssets,
+        and(
+          eq(fileAssets.organizationId, fileVersions.organizationId),
+          eq(fileAssets.id, fileVersions.fileAssetId),
+        ),
+      )
+      .where(this.recheckPredicate(signatureVersion))
+      .orderBy(asc(fileVersions.organizationId));
+    return rows.map((row) => row.organizationId);
+  }
+
+  /**
+   * QA-FIX S1. Up to `limit` versions to re-check in this organization, least recently checked
+   * first (`NULL` sorts first in ascending order on MariaDB and MySQL), each with its asset.
+   */
+  async listAwaitingRecheck(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    signatureVersion: number,
+    limit: number,
+  ): Promise<readonly { readonly asset: FileAssetRow; readonly version: FileVersionRow }[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ asset: fileAssets, version: fileVersions })
+      .from(fileVersions)
+      .innerJoin(
+        fileAssets,
+        and(
+          eq(fileAssets.organizationId, fileVersions.organizationId),
+          eq(fileAssets.id, fileVersions.fileAssetId),
+        ),
+      )
+      .where(
+        and(
+          eq(fileVersions.organizationId, context.organizationId),
+          this.recheckPredicate(signatureVersion),
+        ),
+      )
+      .orderBy(asc(fileVersions.checkedAt), asc(fileVersions.id))
+      .limit(Math.min(Math.max(limit, 1), 200));
+    return rows;
+  }
+
+  /**
+   * QA-FIX S1. Record that a version's bytes were checked against `signatureVersion`. Conditional
+   * on the stored number being older (or absent), so two overlapping passes write it once and a
+   * slower pass with an older engine never moves it backwards. The verdict trio is not touched.
+   */
+  async recordRecheck(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileVersionId: string,
+    signatureVersion: number,
+    checkedAt: Date,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(fileVersions)
+      .set({ checkedSignatureVersion: signatureVersion, checkedAt })
+      .where(
+        and(
+          eq(fileVersions.organizationId, context.organizationId),
+          eq(fileVersions.id, fileVersionId),
+          or(
+            isNull(fileVersions.checkedSignatureVersion),
+            lt(fileVersions.checkedSignatureVersion, signatureVersion),
+          ),
         ),
       );
     return result[0].affectedRows === 1;

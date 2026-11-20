@@ -2348,6 +2348,8 @@ GRANT UPDATE ON `tmanage`.`project_phases`                                  TO '
 -- ENUMs on `file_assets` / `upload_sessions`; the existing INSERT/UPDATE grants cover it; no new grant.
 -- 57-13a (0361): `file_versions.storage_backend` / `provider_file_id` / `storage_connection_id` (where a
 -- version's bytes live) are written by the existing UPDATE grant on `file_versions`; no new grant.
+-- QA-FIX N (0386): `file_versions.scan_engine_version` / `checked_signature_version` / `checked_at`
+-- (which signatures judged a version, and the re-check pass) use the existing UPDATE grant; no new grant.
 -- R19-e · 56-06 (0307): `file_versions.scan_source` (tmanage|provider|none) is written beside the
 -- scan verdict by the existing UPDATE grant on `file_versions` (above); no new grant. The file-safety
 -- settings are `org_settings` rows (`file_safety_presets`, `require_scan_for_clients`).

@@ -63,6 +63,9 @@ import {
 import { FileSafetySettingsReader } from '../tenancy/file-safety-settings.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
+import { FILE_RESCANNER, FileRescanner } from './file-rescanner.js';
+import { FileBlockNotifier } from './file-block-notifier.js';
+import { NotificationsRepository } from '../inbox/notifications.repository.js';
 import {
   DEFAULT_FILE_SCAN_JOB_OPTIONS,
   FILE_SCAN_JOB,
@@ -344,7 +347,18 @@ export class FilesModule {
         store: ObjectStore,
         audit: AuditService,
         outbox: OutboxEventsRepository,
-      ) => new FileVerifier(database, assets, sessions, store, audit, outbox),
+      ) =>
+        new FileVerifier(
+          database,
+          assets,
+          sessions,
+          store,
+          audit,
+          outbox,
+          undefined,
+          undefined,
+          new FileBlockNotifier(new NotificationsRepository()),
+        ),
     };
 
     // FILE-002 slice B. The scan pass, after the verifier on the same tick: the same store
@@ -368,7 +382,50 @@ export class FilesModule {
         malwareScanner: MalwareScanner,
         audit: AuditService,
         outbox: OutboxEventsRepository,
-      ) => new FileScanner(database, assets, store, malwareScanner, audit, outbox),
+      ) =>
+        new FileScanner(
+          database,
+          assets,
+          store,
+          malwareScanner,
+          audit,
+          outbox,
+          undefined,
+          undefined,
+          undefined,
+          new FileBlockNotifier(new NotificationsRepository()),
+        ),
+    };
+
+    // QA-FIX S1. The re-check pass: clean files read again when the engine's signatures move on,
+    // newly detected ones blocked and their uploader told. Run by the scan job, rate-limited.
+    const rescanner: Provider = {
+      provide: FILE_RESCANNER,
+      inject: [
+        TENANT_DATABASE,
+        FILE_ASSETS_REPOSITORY,
+        OBJECT_STORE,
+        MALWARE_SCANNER,
+        AUDIT_SERVICE,
+        OUTBOX_EVENTS_REPOSITORY,
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        store: ObjectStore,
+        malwareScanner: MalwareScanner,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+      ) =>
+        new FileRescanner(
+          database,
+          assets,
+          store,
+          malwareScanner,
+          audit,
+          outbox,
+          new FileBlockNotifier(new NotificationsRepository()),
+        ),
     };
 
     // CQ-09. The verify-then-scan passes run in this process when it runs background work
@@ -445,14 +502,20 @@ export class FilesModule {
     const scanJob: Provider = {
       provide: FILE_SCAN_JOB,
       // R4 slice 3: a pass that made files ready asks the preview job for one of its own.
-      inject: [FILE_VERIFIER, FILE_SCANNER, PREVIEW_JOB],
-      useFactory: (fileVerifier: FileVerifier, fileScanner: FileScanner, previews: PreviewJob) =>
+      inject: [FILE_VERIFIER, FILE_SCANNER, PREVIEW_JOB, FILE_RESCANNER],
+      useFactory: (
+        fileVerifier: FileVerifier,
+        fileScanner: FileScanner,
+        previews: PreviewJob,
+        fileRescanner: FileRescanner,
+      ) =>
         new FileScanJob(
           fileVerifier,
           fileScanner,
           fileScanJobEnabled(),
           DEFAULT_FILE_SCAN_JOB_OPTIONS,
           previews,
+          fileRescanner,
         ),
     };
 
@@ -747,6 +810,7 @@ export class FilesModule {
         cleanup,
         verifier,
         scanner,
+        rescanner,
         previewJob,
         previewOrphanSweeper,
         scanJob,

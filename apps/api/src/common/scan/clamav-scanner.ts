@@ -4,7 +4,8 @@ import type { Socket } from 'node:net';
 import { connect as connectTls } from 'node:tls';
 import type { TLSSocket } from 'node:tls';
 import { ScanError, ScannerUnavailableError } from './malware-scanner.js';
-import type { MalwareScanner, ScanInput, ScanResult } from './malware-scanner.js';
+import { parseEngineVersion } from './malware-scanner.js';
+import type { EngineVersion, MalwareScanner, ScanInput, ScanResult } from './malware-scanner.js';
 
 /**
  * ClamAV over TCP — clamd's `INSTREAM` command, framed by hand on a `node:net` socket.
@@ -122,6 +123,32 @@ export class ClamavScanner implements MalwareScanner {
     } finally {
       socket.destroy();
     }
+  }
+
+  /**
+   * QA-FIX S1. `zVERSION` → `ClamAV 1.5.4/28189/<date>`: the engine and the signature number a
+   * verdict is recorded with. Debian/Ubuntu ship `EnableVersionCommand false`, which answers
+   * `COMMAND UNAVAILABLE`; `zVERSIONCOMMANDS` still answers with the same text before
+   * `| COMMANDS:` (checked on the live scanner, 2026-11-20), so it is the fallback. Anything else
+   * is `null`: the verdict is still recorded, and the re-check pass treats its signatures as
+   * unknown. Never throws for an engine that answers PING; an unreachable one is
+   * `ScannerUnavailableError`, as `probe` is.
+   */
+  async version(): Promise<EngineVersion | null> {
+    for (const command of ['zVERSION\0', 'zVERSIONCOMMANDS\0']) {
+      const socket = await this.open();
+      try {
+        socket.write(command);
+        const parsed = parseEngineVersion(await readReply(socket, this.options.timeoutMs));
+        if (parsed) return parsed;
+      } catch (error) {
+        if (error instanceof ScannerUnavailableError) throw error;
+        // A reply that is not a version: try the next command, then answer "unknown".
+      } finally {
+        socket.destroy();
+      }
+    }
+    return null;
   }
 
   async scan(input: ScanInput): Promise<ScanResult> {

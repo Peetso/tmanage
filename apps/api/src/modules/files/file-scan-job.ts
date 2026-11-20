@@ -3,6 +3,8 @@ import { describeScan } from './file-scanner.js';
 import type { FileScanner } from './file-scanner.js';
 import { describeVerification } from './file-verifier.js';
 import type { FileVerifier } from './file-verifier.js';
+import { describeRescan, RESCAN_MIN_INTERVAL_MS } from './file-rescanner.js';
+import type { FileRescanner } from './file-rescanner.js';
 import { describeFailure } from './upload-session-sweeper.js';
 
 /**
@@ -61,7 +63,16 @@ export class FileScanJob implements ScanRequester, OnApplicationBootstrap, OnMod
     private readonly options: FileScanJobOptions = DEFAULT_FILE_SCAN_JOB_OPTIONS,
     /** R4 slice 3. Asked for a pass whenever this one made files ready (the preview job). */
     private readonly followUp: { request(): void } | null = null,
+    /**
+     * QA-FIX S1. Re-checks clean files against newer signatures after the scan pass, at most once
+     * per `rescanIntervalMs` (the first pass after boot always runs it).
+     */
+    private readonly rescanner: Pick<FileRescanner, 'rescan'> | null = null,
+    private readonly rescanIntervalMs: number = RESCAN_MIN_INTERVAL_MS,
+    private readonly clock: () => number = () => Date.now(),
   ) {}
+
+  private lastRescanAt: number | null = null;
 
   onApplicationBootstrap(): void {
     if (!this.enabled) return;
@@ -123,9 +134,24 @@ export class FileScanJob implements ScanRequester, OnApplicationBootstrap, OnMod
       const scanned = await this.scanner.scan();
       this.options.log(`[scanner] pass: ${describeScan(scanned)}`);
       if (scanned.ready > 0 || scanned.unscanned > 0) this.followUp?.request();
+      await this.rescanIfDue();
     } catch (error) {
       // An unreachable store or scanner stops this pass; the next request or tick retries.
       this.options.log(`[scanner] pass failed: ${JSON.stringify(describeFailure(error))}`);
+    }
+  }
+
+  /** QA-FIX S1. The re-check pass, rate-limited; its failure is logged and never stops the job. */
+  private async rescanIfDue(): Promise<void> {
+    if (!this.rescanner) return;
+    const now = this.clock();
+    if (this.lastRescanAt !== null && now - this.lastRescanAt < this.rescanIntervalMs) return;
+    this.lastRescanAt = now;
+    try {
+      const report = await this.rescanner.rescan();
+      this.options.log(`[rescanner] pass: ${describeRescan(report)}`);
+    } catch (error) {
+      this.options.log(`[rescanner] pass failed: ${JSON.stringify(describeFailure(error))}`);
     }
   }
 }

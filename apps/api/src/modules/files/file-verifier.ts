@@ -24,6 +24,7 @@ import type { DetectedTypeToken, RejectionCode } from './content-signature.js';
 import { FileAssetTransitionError } from './file-assets.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { UploadSessionsRepository } from './upload-sessions.repository.js';
+import type { FileBlockNotifier } from './file-block-notifier.js';
 import { describeFailure } from './upload-session-sweeper.js';
 
 /** The ZIP-family types that are Office Open XML (a `vbaProject.bin` there is a macro). */
@@ -188,6 +189,8 @@ export class FileVerifier {
     /** Where a failed asset is reported. The row is named, never its payload. */
     private readonly onFailure: (fileAssetId: string, error: unknown) => void = (id, error) =>
       console.error(`[verifier] verifying file asset ${id} failed`, describeFailure(error)),
+    /** QA-FIX S5. Tells the uploader their file was refused; `null` in suites that do not care. */
+    private readonly notifier: FileBlockNotifier | null = null,
   ) {}
 
   /** One pass over every organization. Safe to run again at once: a second pass finds nothing. */
@@ -451,6 +454,7 @@ export class FileVerifier {
         }
         if (rejectionCode) {
           await this.assets.transition(tx, context, row.id, 'rejected', { rejectionCode });
+          await this.notifier?.blocked(tx, context, row);
           await this.audit?.record(tx, context, {
             action: 'file_asset.rejected',
             objectId: row.id,

@@ -19,7 +19,8 @@ const definition: StateMachineDefinition<UploadState> = {
   name: 'upload',
   initial: 'created',
   states: UPLOAD_STATES,
-  terminal: ['ready', 'rejected', 'expired', 'cancelled'],
+  // `ready` is final for the upload, with one exit: a later re-check that finds malware.
+  terminal: ['rejected', 'expired', 'cancelled'],
   transitions: [
     { from: 'created', to: 'uploading' },
     { from: 'created', to: 'expired' },
@@ -49,6 +50,15 @@ const definition: StateMachineDefinition<UploadState> = {
     },
     { from: 'scanning', to: 'rejected', requires: ['rejectionCode'] },
     { from: 'scanning', to: 'expired' },
+    {
+      from: 'ready',
+      to: 'rejected',
+      requires: ['rejectionCode'],
+      note:
+        'QA-FIX S1 (2026-11-20): a re-check with newer signatures found malware in a file an ' +
+        'older signature set had cleared. The verdict on the version stays write-once (0019); ' +
+        'the asset is blocked, so no door serves it again.',
+    },
   ],
 };
 

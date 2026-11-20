@@ -6,7 +6,11 @@ import { ObjectNotFoundError } from '@tmanage/storage';
 import type { ObjectStore, Promotion } from '@tmanage/storage';
 import { ObjectStoreUnavailableError } from '../../common/storage/storage.module.js';
 import { ScanError, ScannerUnavailableError } from '../../common/scan/malware-scanner.js';
-import type { MalwareScanner, ScanResult } from '../../common/scan/malware-scanner.js';
+import type {
+  EngineVersion,
+  MalwareScanner,
+  ScanResult,
+} from '../../common/scan/malware-scanner.js';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type {
   TenantContext,
@@ -18,6 +22,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { FileAssetTransitionError } from './file-assets.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
+import type { FileBlockNotifier } from './file-block-notifier.js';
 import { describeFailure } from './upload-session-sweeper.js';
 
 /**
@@ -156,6 +161,9 @@ class ScanDisputed extends Error {
 }
 
 export class FileScanner {
+  /** The engine's version for the pass in progress (QA-FIX S1); `null` when it cannot say. */
+  private engine: EngineVersion | null = null;
+
   constructor(
     private readonly database: TenantDatabase,
     private readonly assets: FileAssetsRepository,
@@ -173,6 +181,8 @@ export class FileScanner {
       detection: string,
     ) => void = (id, correlationId, detection) =>
       console.error(`[scanner] file asset ${id} rejected: ${detection} (${correlationId})`),
+    /** QA-FIX S5. Tells the uploader their file was blocked; `null` in suites that do not care. */
+    private readonly notifier: FileBlockNotifier | null = null,
   ) {}
 
   /** One pass over every organization. Safe to run again at once: a second pass finds nothing. */
@@ -180,6 +190,8 @@ export class FileScanner {
     // Before a single row is claimed: an unreachable engine is one line, not a claim on
     // every row that then waits out the bound for nothing.
     await this.scanner.probe();
+    // QA-FIX S1: the signature set every verdict of this pass is recorded with, asked once.
+    this.engine = await engineVersionOf(this.scanner);
 
     const correlationId = uuidv7();
     const now = this.now();
@@ -516,6 +528,7 @@ export class FileScanner {
         await this.assets.transition(tx, context, row.id, 'rejected', {
           rejectionCode: MALWARE_REJECTION_CODE,
         });
+        await this.notifier?.blocked(tx, context, row);
         await this.audit?.record(tx, context, {
           action: 'file_asset.rejected',
           objectId: row.id,
@@ -564,6 +577,7 @@ export class FileScanner {
       scanVerdict: verdict,
       scannedAt,
       scanner: this.scanner.name,
+      engine: this.engine,
     });
     if (recorded) return;
     const standing = await this.assets.findVersionById(tx, context, version.id);
@@ -699,6 +713,20 @@ function onError(stream: NodeJS.WritableStream, listener: (error: Error) => void
 function destroy(stream: NodeJS.ReadableStream | NodeJS.WritableStream): void {
   const candidate = stream as { destroy?: () => void; destroyed?: boolean };
   if (typeof candidate.destroy === 'function' && !candidate.destroyed) candidate.destroy();
+}
+
+/**
+ * QA-FIX S1. The engine's version, or `null` when the driver has none or the answer is not one.
+ * An unreachable engine is the pass's outage and propagates; anything else never stops a scan.
+ */
+export async function engineVersionOf(scanner: MalwareScanner): Promise<EngineVersion | null> {
+  if (scanner.kind !== 'engine' || typeof scanner.version !== 'function') return null;
+  try {
+    return await scanner.version();
+  } catch (error) {
+    if (error instanceof ScannerUnavailableError) throw error;
+    return null;
+  }
 }
 
 /** The one line a pass prints — `[scanner] pass: …` on stderr. */

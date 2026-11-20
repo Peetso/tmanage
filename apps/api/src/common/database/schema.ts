@@ -5754,9 +5754,20 @@ export const fileVersions = mysqlTable(
     providerFileId: varchar('provider_file_id', { length: 255 }),
     /** 0361. Internal. The `storage_connections` row that holds it; NULL when local. */
     storageConnectionId: char('storage_connection_id', { length: 36 }),
+    /** 0386. The engine's own version answer at the verdict (clamd `VERSION`); NULL before 0386. */
+    scanEngineVersion: varchar('scan_engine_version', { length: 96 }),
+    /** 0386. The signature-database number the bytes were last checked against (scan or re-check). */
+    checkedSignatureVersion: int('checked_signature_version', { unsigned: true }),
+    /** 0386. When that last check happened. */
+    checkedAt: datetime('checked_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_file_versions_org_id').on(table.organizationId, table.id),
+    index('ix_file_versions_org_verdict_checked').on(
+      table.organizationId,
+      table.scanVerdict,
+      table.checkedSignatureVersion,
+    ),
     uniqueIndex('uq_file_versions_org_asset_no').on(
       table.organizationId,
       table.fileAssetId,
