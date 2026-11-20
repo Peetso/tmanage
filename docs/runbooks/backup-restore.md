@@ -1,7 +1,12 @@
 # Backup, restore and rollback
 
 How to take a backup of TManage, prove it restores, and go back one deploy on Hostinger shared
-hosting. The scripts live in `scripts/ops/` (see its README for flags). This runbook does not
+hosting.
+
+**Daily off-site copy (since 2026-11-20):** the app itself backs the database up to OCI Object
+Storage (Always Free), encrypted, verified and rotated; set-up, env vars and restore are in
+`docs/runbooks/offsite-backup-oci.md`. The host-side scripts below stay for manual and
+pre-deploy backups and for the uploads folder. The scripts live in `scripts/ops/` (see its README for flags). This runbook does not
 change the deploy order in `docs/runbooks/deploy.md`; it adds a backup step in front of it.
 
 Status: written 2026-10-22 (AUDIT-2026-10-22 top-10 #10). The pure helpers are unit-tested; the

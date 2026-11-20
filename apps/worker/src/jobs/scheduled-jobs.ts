@@ -29,6 +29,8 @@ import { createSecurityReportPurgeStore } from '../common/database/security-repo
 import { createSecuritySignalStore } from '../common/database/security-signal-store.js';
 import { createTimerAutostopStore } from '../common/database/timer-autostop-store.js';
 import { DigestMailer } from '../notifications/digest-mailer.js';
+import { createOffsiteBackupJob } from '../backup/offsite-backup.js';
+import type { OffsiteBackupEnv } from '../backup/backup-config.js';
 import {
   APPROVAL_CHAIN_TICK_MS,
   approvalChainWalkDue,
@@ -78,7 +80,7 @@ export interface ScheduledJobMail {
 }
 
 /** The environment the jobs read (the parsed `loadEnv()` result satisfies it). */
-export interface ScheduledJobEnv {
+export interface ScheduledJobEnv extends OffsiteBackupEnv {
   readonly WEB_PUBLIC_URL: string;
   readonly ALERT_EMAILS?: string | undefined;
   readonly AUDIT_ANCHOR_KEY?: string | undefined;
@@ -98,6 +100,7 @@ export const SCHEDULED_JOB_NAMES = [
   'finance-facts',
   'einvoice-chain',
   'approval-chain',
+  'offsite-backup',
 ] as const;
 
 export function alertEmailsOf(raw: string | undefined): readonly string[] {
@@ -259,6 +262,7 @@ export function createScheduledJobs(
         return `${String(r.organizations)} organization(s), ${String(r.ok)} ok, ${String(r.broken)} broken, ${String(r.failed)} failed`;
       },
     },
+    createOffsiteBackupJob(env),
   ];
   return jobs;
 }

@@ -94,6 +94,14 @@ one credential, so a one-user install sets only the database connection.
 | `ALERT_EMAILS` | no |  | no |  | Operator alerts: the comma list of addresses (the owner(s) of the account that runs this TManage service) mailed on an unhandled server error or a failed background job, at most once per 15 minutes per kind, through the app's own mailer. |
 | `STATUS_PAGE_URL` | no |  | no |  | Optional: the free uptime monitor's public status page (UptimeRobot / Better Stack). |
 | `ORIGIN_TLS_PROBE_ADDRESS` | no |  | no |  | Optional: `<origin ip>:443`, where `GET /healthz/deep` reads the origin's own TLS certificate (`checks.origin_tls`). |
+| `BACKUP_OCI_NAMESPACE` | no |  | no |  | The OCI Object Storage namespace (OCI console, Tenancy details) for the daily encrypted database backup (OFFSITE-BACKUP) the in-app `offsite-backup` job uploads (runbook docs/runbooks/backup-restore.md). |
+| `BACKUP_OCI_REGION` | no |  | no |  | The bucket's OCI region identifier; default `ca-montreal-1`. |
+| `BACKUP_OCI_BUCKET` | no |  | no |  | The private Standard-tier bucket the backups go to (`tmanage-db-backups`). |
+| `BACKUP_OCI_ACCESS_KEY_ID` | no |  | yes |  | Access key of the backup user's OCI Customer Secret Key. |
+| `BACKUP_OCI_SECRET_ACCESS_KEY` | no |  | yes |  | Secret key of that Customer Secret Key (shown once by the OCI console). |
+| `BACKUP_OCI_ENDPOINT` | no |  | no |  | Optional override of the S3-compatible endpoint, a bare `https://` origin. |
+| `BACKUP_OCI_MAX_BYTES` | no |  | no |  | Bytes the bucket may hold; default 15 GB, at most the 20 GB free tier. |
+| `BACKUP_AGE_RECIPIENT` | no |  | no |  | The age public key (`age1…`, comma list for several) every backup is encrypted to before it leaves the host; the private key never reaches the server. |
 | `GEOIP_DB_PATH` | no |  | no |  |  |
 | `GEOIP_ASN_DB_PATH` | no |  | no |  |  |
 | `GEOIP_TOR_EXIT_LIST_URL` | no |  | no |  |  |

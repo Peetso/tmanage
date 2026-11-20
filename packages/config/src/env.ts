@@ -616,6 +616,36 @@ export const envSchema = z
         value === undefined || value.trim() === '' ? undefined : value.trim(),
       ),
     /**
+     * The OCI Object Storage namespace (OCI console, Tenancy details) for the daily
+     * encrypted database backup (OFFSITE-BACKUP) the in-app `offsite-backup` job uploads (runbook
+     * docs/runbooks/backup-restore.md). All `BACKUP_OCI_*` unset = off (`backups: not_configured`);
+     * some set = misconfigured, reported as a failed run (`backups: failed`), never a boot refusal.
+     */
+    BACKUP_OCI_NAMESPACE: optionalTrimmed(),
+    /** The bucket's OCI region identifier; default `ca-montreal-1`. */
+    BACKUP_OCI_REGION: optionalTrimmed(),
+    /** The private Standard-tier bucket the backups go to (`tmanage-db-backups`). */
+    BACKUP_OCI_BUCKET: optionalTrimmed(),
+    /** Access key of the backup user's OCI Customer Secret Key. */
+    BACKUP_OCI_ACCESS_KEY_ID: optionalTrimmed(),
+    /** Secret key of that Customer Secret Key (shown once by the OCI console). */
+    BACKUP_OCI_SECRET_ACCESS_KEY: optionalTrimmed(),
+    /**
+     * Optional override of the S3-compatible endpoint, a bare `https://` origin.
+     * Default `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.
+     */
+    BACKUP_OCI_ENDPOINT: optionalTrimmed(),
+    /** Bytes the bucket may hold; default 15 GB, at most the 20 GB free tier. */
+    BACKUP_OCI_MAX_BYTES: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      positiveInt.optional(),
+    ),
+    /**
+     * The age public key (`age1…`, comma list for several) every backup is
+     * encrypted to before it leaves the host; the private key never reaches the server.
+     */
+    BACKUP_AGE_RECIPIENT: optionalTrimmed(),
+    /**
      * R12 (R1). The local DB-IP Lite `.mmdb` files (city; optional ASN) and the optional Tor exit
      * list URL (https://check.torproject.org/torbulkexitlist). Unset = locations unknown.
      */

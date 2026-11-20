@@ -1,7 +1,9 @@
 # scripts/ops
 
 Operations scripts. Plain Node (no dependencies), runnable on Hostinger shared hosting. The
-procedure — schedule, restore drill, rollback — is in `docs/runbooks/backup-restore.md`.
+procedure — schedule, restore drill, rollback — is in `docs/runbooks/backup-restore.md`. The daily
+off-site copy runs in the app (`offsite-backup` job, `docs/runbooks/offsite-backup-oci.md`);
+`restore.mjs` restores its downloads too, and `backup-encrypt.mjs keygen` makes its age key.
 
 | Script            | Purpose                                                           |
 | ----------------- | ----------------------------------------------------------------- |

@@ -124,6 +124,7 @@ The runtime **owns no table**. `outbox_events` is owned by `api/platform` (`apps
 | `jobs/budget-burn-sweeper`, `retainer-period-roll` | api/projects or api/finance |
 | `jobs/finance-facts-rebuild`, `einvoice-chain-reconciler` | api/finance |
 | `jobs/growth-rollup` | api/platform-admin |
+| `backup/*`, `common/database/backup-dump.ts`, `backup-store.ts` (`offsite-backup` job; runbook `docs/runbooks/offsite-backup-oci.md`) | api/platform-admin (operations) |
 | `jobs/audit-anchor`, `approval-chain-walk` | api/audit, api/approvals |
 | `jobs/security-detector`, `security-report-purge`, `ip-lookup-sweeper`, `support-session-sweeper`, `field-cipher-rotation` | api/security-signals, api/security-reports, api/identity, api/platform-admin |
 | `jobs/activity-projector` | api/activity |
