@@ -136,6 +136,15 @@ function log(message) {
 }
 
 /**
+ * R3 (2026-11-21, measurement only): one line per boot stage with this process's pid and the ms
+ * since the process started (`process.uptime()`, so static-import time is included). Distinct
+ * pids in these lines count the copies Hostinger started; the gaps say where the cold start goes.
+ */
+function bootMark(stage) {
+  log(`boot: ${stage} +${Math.round(process.uptime() * 1000)}ms (pid ${process.pid})`);
+}
+
+/**
  * Apply the schema on start — guarded, idempotent, locked.
  *
  * The migrator holds a MySQL advisory lock for its whole run, refuses to touch a partially
@@ -231,10 +240,15 @@ function stopWebSupervision() {
 /** Spawn one `next start` child on the private transport (no supervision of its own). */
 function spawnWebChild(transport, nominalPort) {
   const nextBin = require.resolve('next/dist/bin/next');
-  const preload =
-    transport.kind === 'tcp'
+  // R2: the parent watchdog is preloaded on every transport, so the child ends with this process
+  // even when this process is SIGKILLed (parent-watchdog.mjs).
+  const preload = [
+    '--import',
+    pathToFileURL(resolve(ROOT, 'parent-watchdog.mjs')).href,
+    ...(transport.kind === 'tcp'
       ? []
-      : ['--import', pathToFileURL(resolve(ROOT, 'web-socket-preload.mjs')).href];
+      : ['--import', pathToFileURL(resolve(ROOT, 'web-socket-preload.mjs')).href]),
+  ];
   return spawn(
     process.execPath,
     [
@@ -257,6 +271,8 @@ function spawnWebChild(transport, nominalPort) {
         ...webChildEnv(process.env, transport, nominalPort),
         // next.config re-runs its public-config validation when `next start` loads it.
         ...webChildPublicConfig(process.env),
+        // R2: the pid the child's watchdog follows (parent-watchdog.mjs).
+        TMANAGE_PARENT_PID: String(process.pid),
       },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
@@ -747,6 +763,7 @@ async function main() {
     });
   });
   log(`listening on :${port} (starting; web child on ${describeWebTransport(transport)})`);
+  bootMark('listening');
 
   // Shutdown works at any point of the boot: whatever has started is stopped.
   let app;
@@ -809,10 +826,13 @@ async function main() {
 
   const env = loadEnv();
   await runMigrations(env, migrationGate);
+  bootMark('migrations done');
   // A signal arrived during the migrations: the shutdown above owns the exit; boot goes no further.
   if (migrationGate.stopping) return;
 
   const api = await createApi(env);
+  // The API is in-process (no port of its own): this marks Nest initialised and Fastify ready.
+  bootMark('api ready');
   app = api.app;
   // 51-13a. An exception nothing caught (or an unhandled rejection) mails ALERT_EMAILS through the
   // API's notifier — at most once per 15 minutes across restarts — then exits 1 as Node would.
@@ -833,7 +853,10 @@ async function main() {
   // RT-4 (SRV-2): ready once the API and the web child answer; the relay and the sweeps start
   // after, so a slow worker never lengthens the 503 window.
   await becomeReady({
-    startWeb: () => startWeb(transport, nominalPort),
+    startWeb: async () => {
+      await startWeb(transport, nominalPort);
+      bootMark('web ready');
+    },
     markReady: () => {
       state.ready = { fastify: api.fastify };
       log(`ready on :${port} (web via ${describeWebTransport(transport)}, /v1 API in-process)`);

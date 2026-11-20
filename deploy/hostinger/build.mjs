@@ -833,6 +833,8 @@ export const SERVER_FILES = Object.freeze([
   'production-env.mjs',
   'web-transport.mjs',
   'web-socket-preload.mjs',
+  // R2: passed to the web child by path (`--import`); ends the child when server.mjs dies.
+  'parent-watchdog.mjs',
   // server.mjs imports the web child's restart backoff from here; missing it, boot fails.
   'web-restart.mjs',
   // server.mjs and web-transport.mjs import the CDN cache policy from here; missing it, boot fails.

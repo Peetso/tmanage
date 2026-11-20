@@ -142,11 +142,12 @@ The part owns **no tables** and writes no SQL itself (AR-4). It runs the migrato
 | SIGTERM | `server.close()`, kill the child, wait for the migration gate (≤ 120 s, `migration-shutdown.mjs:20`), stop sweeps and worker, **release the leader lease**, stop Nest, then `process.exit(0)` | RT-6 | no drain budget; idle keep-alive sockets are closed by `server.close()` (Node ≥ 19), active ones are not bounded |
 | Slow or idle client | proxy upstream destroyed after 120 s idle (`web-transport.mjs` `bindProxyLifetimes`); headers 20 s, whole request 300 s, keep-alive 65 s (S-11) | ST-1, ST-3 | Hostinger's proxy timeouts are not published (unverified) |
 | Web child crash | supervised restart with backoff (`web-restart.mjs`, `server.mjs:261-280`) | Fail fast + supervisor | ok |
+| Parent SIGKILLed (lsnode terminateSelf, hPanel Stop, OOM) | the web child's preloaded watchdog (`parent-watchdog.mjs`, R2 2026-11-21) sees `TMANAGE_PARENT_PID` gone (ppid changed, or `kill(pid, 0)` ESRCH; polled every 2 s) and exits, so no orphaned `next start` holds NPROC | RT-6, DC-3 | ok |
 | Uncaught exception | mail to `ALERT_EMAILS` at most once per 15 min, then exit 1 (`process-alerts.mjs`, `server.mjs:696-709`) | Fail fast | ok |
 | Migration failure | `MigrationError` → exit 1 (`server.mjs:732-737`) | ST-7 | the schema-drift refusal lives in api-common/database |
 | Relay wedged | heartbeat watchdog mails once per stale spell (`server.mjs:475-482`); `/healthz/deep` reports `worker: fail` | RT-11 (partial) | deep health is pass/fail, not `healthy/degraded/unhealthy` |
 
-**Logging (RT-7):** `log()` writes `[server] <text>` to stderr (`server.mjs:126-128`). This is plain text, not JSON, with no instance id, so a second process cannot be seen in the log (DC-3 diagnosis gap).
+**Logging (RT-7):** `log()` writes `[server] <text>` to stderr (`server.mjs:126-128`). R3 (2026-11-21): `bootMark` adds `boot: <stage> +<ms since process start>ms (pid N)` for `listening`, `migrations done`, `api ready` and `web ready`, to measure the cold start and count copies. This is plain text, not JSON, with no instance id, so a second process cannot be seen in the log (DC-3 diagnosis gap).
 
 ## UX rules for its screens
 
@@ -199,6 +200,7 @@ n/a — the part renders no screen. Its only user-visible output is the 503 `sta
 | `migration-shutdown.test.mjs` | the bounded wait while a migration file runs |
 | `boot-guards.test.mjs` | S-4, security headers |
 | `web-restart.test.mjs`, `web-child-host.test.mjs` | child supervision |
+| `parent-watchdog.test.mjs` | R2: SIGKILL the parent, the child is gone within 2 s (control: without the watchdog it is orphaned); R3 boot marks |
 | `process-alerts.test.mjs`, `job-alerts.test.mjs` | crash and job alert throttles, heartbeat |
 | `database-env.test.mjs`, `page-limit.test.mjs`, `csp-report.test.mjs`, `security-txt.test.mjs`, `cache-headers.test.mjs`, `realtime-inprocess.test.mjs`, `brand-icons.test.mjs` | their modules |
 
