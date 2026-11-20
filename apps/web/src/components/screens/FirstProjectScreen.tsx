@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { hasCapability, isInternalRole } from '@tmanage/domain';
+import { PROJECT_NAME_MAX, hasCapability, isInternalRole } from '@tmanage/domain';
 import {
   Button,
   Checkbox,
@@ -121,6 +121,8 @@ export function FirstProjectScreen({
   const [clientChoice, setClientChoice] = useState('');
   const [newClientName, setNewClientName] = useState('');
   const [clientError, setClientError] = useState<string | undefined>(undefined);
+  // QA-FIX-R M6: the API's word on the name field, shown at the field rather than as a banner.
+  const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [createdProjectId, setCreatedProjectId] = useState<string | undefined>(undefined);
   const [createdClientId, setCreatedClientId] = useState<string | undefined>(undefined);
 
@@ -172,6 +174,7 @@ export function FirstProjectScreen({
     setFailure(undefined);
     setServerDateError(undefined);
     setClientError(undefined);
+    setNameError(undefined);
 
     if (name.trim() === '') {
       setFailure(t('FirstProjectScreen.nameRequired'));
@@ -228,6 +231,8 @@ export function FirstProjectScreen({
           setClientError(fields.get('clientOrganizationId') ?? fields.get('name') ?? error.message);
         } else if (dateMessage !== undefined) {
           setServerDateError(dateMessage);
+        } else if (fields.has('name')) {
+          setNameError(t('FirstProjectScreen.nameRefused'));
         } else {
           setFailure(error.message);
         }
@@ -343,7 +348,14 @@ export function FirstProjectScreen({
             label={t('FirstProjectScreen.projectNameLabel')}
             name="projectName"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            // QA-FIX-R M6: the API's own limit, so a long name stops at the field instead of
+            // coming back as one generic refusal.
+            maxLength={PROJECT_NAME_MAX}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameError(undefined);
+            }}
+            {...(nameError === undefined ? {} : { error: nameError })}
             required
           />
 

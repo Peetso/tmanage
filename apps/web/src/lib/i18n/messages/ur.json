@@ -527,6 +527,7 @@
   "ProjectMilestones.add": "سنگِ میل شامل کریں",
   "ProjectMilestones.doneOn": "{date} کو مکمل",
   "ProjectMilestones.due": "آخری تاریخ {date}",
+  "ProjectMilestones.lateSince": "تاخیر: آخری تاریخ {date} تھی",
   "ProjectMilestones.noDate": "ابھی کوئی تاریخ نہیں",
   "ProjectMilestones.clientCanSee": "کلائنٹ دیکھ سکتا ہے",
   "ProjectMilestones.stageDone": "مکمل",

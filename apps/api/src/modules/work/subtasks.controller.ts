@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
+import { WORK_ITEM_TITLE_MAX } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -24,8 +25,8 @@ import type {
  * service's, against the resolved parent.
  */
 
-/** `work_item_subtasks.title` is `VARCHAR(300)`. */
-const MAX_TITLE_LENGTH = 300;
+/** `work_item_subtasks.title` is `VARCHAR(300)`, shared with the web (QA-FIX-R M6). */
+const MAX_TITLE_LENGTH = WORK_ITEM_TITLE_MAX;
 /** `position` is `INT UNSIGNED`; a plain ordinal bounded to a sane range. */
 const MAX_POSITION = 1_000_000;
 

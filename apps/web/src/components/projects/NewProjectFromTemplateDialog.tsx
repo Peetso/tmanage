@@ -22,6 +22,7 @@ import {
   type TOr,
 } from './EditMilestoneDialog';
 import './templates-milestones.css';
+import { PROJECT_NAME_MAX } from '@tmanage/domain';
 
 /** The "Blank project" choice: no template, a plain project. */
 const BLANK = '';
@@ -224,7 +225,7 @@ export function NewProjectFromTemplateDialog({
               className="tm-a9-input"
               name="name"
               value={name}
-              maxLength={190}
+              maxLength={PROJECT_NAME_MAX}
               required
               dir="auto"
               onChange={(event) => setName(event.target.value)}

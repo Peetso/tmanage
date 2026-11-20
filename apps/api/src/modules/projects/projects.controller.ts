@@ -9,6 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { PROJECT_NAME_MAX } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -46,8 +47,8 @@ interface CreateProjectBody {
   readonly targetDate?: unknown;
 }
 
-/** `organizations.name`'s width is 190; `projects.name` is the same. */
-const MAX_PROJECT_NAME_LENGTH = 190;
+/** `organizations.name`'s width is 190; `projects.name` is the same, shared with the web (QA-FIX-R M6). */
+const MAX_PROJECT_NAME_LENGTH = PROJECT_NAME_MAX;
 
 @Controller('v1/organizations/:orgSlug/projects')
 export class ProjectsController {

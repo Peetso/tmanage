@@ -62,6 +62,7 @@ import { ForwardSheet } from '../chat/pane/ForwardSheet';
 import { MessageInfoSheet } from '../chat/pane/MessageInfoSheet';
 import { jumpToMessage } from '../chat/pane/ReplyQuote';
 import '../chat/pane/pane.css';
+import { WORK_ITEM_TITLE_MAX } from '@tmanage/domain';
 // R7 slices 3, 5 and 6: system rows, media, link previews, ticks, typing, presence, receipts.
 import { SystemMessageRow } from '../chat/SystemMessageRow';
 import { VoiceNoteBubble } from '../chat/media/VoiceNoteBubble';
@@ -2283,7 +2284,7 @@ function ConvertDialog({
           className="tm-field__control"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          maxLength={300}
+          maxLength={WORK_ITEM_TITLE_MAX}
         />
         <span className="tm-field__hint">{t('ProjectChannelScreen.titleHint')}</span>
       </div>

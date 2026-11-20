@@ -37,6 +37,7 @@ import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
 import { MoreOptions, useMyUserId } from '../forms/MoreOptions';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { WORK_ITEM_TITLE_MAX } from '@tmanage/domain';
 
 /**
  * **Quick capture (modules 22 Desktop companion / 23 Mobile companion, 38-MODULE-MAP rows 22–23).**
@@ -364,6 +365,11 @@ export function QuickCaptureScreen({
         <form
           className="tm-capture"
           aria-labelledby={headingId}
+          // QA-FIX-R M2: the browser's own check on the required project list stopped the submit
+          // before `submit()` ran, so the inline "choose a project" message never showed and,
+          // where the native bubble is not drawn, the press did nothing at all. The form checks
+          // itself and says what is missing next to the button (UX-23, GOV.UK validation pattern).
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             submit();
@@ -379,7 +385,7 @@ export function QuickCaptureScreen({
               label={t('QuickCaptureScreen.titleLabel')}
               required
               value={title}
-              maxLength={500}
+              maxLength={WORK_ITEM_TITLE_MAX}
               onChange={(event) => setTitle(event.target.value)}
             />
             <MicButton dictation={dictation} compact />

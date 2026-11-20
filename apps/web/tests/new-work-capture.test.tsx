@@ -169,6 +169,16 @@ describe('New work capsule', () => {
     expect(await screen.findByLabelText(/^Project/)).toHaveValue('');
   });
 
+  it('QA-FIX-R M2: Capture without a project says what is missing and sends nothing', async () => {
+    const user = userEvent.setup();
+    const w = world();
+    renderCapture(w);
+    await user.type(await screen.findByLabelText(/^Title/), 'Check the hero copy');
+    await user.click(screen.getByRole('button', { name: 'Capture' }));
+    expect(await screen.findByText('Choose the project this work belongs to.')).toBeInTheDocument();
+    expect(w.calls.filter((call) => call.method !== 'GET')).toEqual([]);
+  });
+
   it('files the item in the chosen project, then labels it and uploads and attaches the file', async () => {
     const user = userEvent.setup();
     const w = world();

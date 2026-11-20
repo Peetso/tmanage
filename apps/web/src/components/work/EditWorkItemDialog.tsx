@@ -8,6 +8,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { dayToInstant } from '../../lib/work-item-presentation';
 import { dayOf, DueDatePicker, formatChipDay, useA6T, WorkDialogFrame } from './DueDatePicker';
 import { initialsOf, OwnerPickerDialog, useOwnerCandidates } from './OwnerPickerDialog';
+import { WORK_ITEM_TITLE_MAX } from '@tmanage/domain';
 
 export type WorkItemChanges = Omit<UpdateWorkItemInput, 'version'>;
 
@@ -114,7 +115,7 @@ export function EditWorkItemDialog({
           label={t('EditWorkItem.titleLabel')}
           name="title"
           value={title}
-          maxLength={300}
+          maxLength={WORK_ITEM_TITLE_MAX}
           required
           onChange={(event) => {
             setTitle(event.target.value);

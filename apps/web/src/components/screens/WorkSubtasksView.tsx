@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { WORK_ITEM_TITLE_MAX } from '@tmanage/domain';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import {
   addSubtask,
@@ -160,7 +161,7 @@ export function WorkSubtasksView({ organizationSlug, workItemId, api }: WorkSubt
           label={t('WorkSubtasksView.addLabel')}
           name="subtaskTitle"
           value={title}
-          maxLength={300}
+          maxLength={WORK_ITEM_TITLE_MAX}
           onChange={(event) => setTitle(event.target.value)}
           hint={t('WorkSubtasksView.addHint')}
         />

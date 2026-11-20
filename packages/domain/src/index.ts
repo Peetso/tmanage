@@ -543,6 +543,7 @@ export * from './quick-add/index.js';
 
 // Iterations (light sprints) and points: burndown, next free slot — 53-21 (R19-d)
 export * from './work/burndown.js';
+export * from './work/text-limits.js';
 
 // Milestones and phases on the timeline: bands, diamonds, client status — 53-07 (R19-c)
 export * from './calendar/timeline-bands.js';

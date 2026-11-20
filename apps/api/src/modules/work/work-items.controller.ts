@@ -10,7 +10,7 @@ import {
   Patch,
   Query,
 } from '@nestjs/common';
-import { WORK_ITEM_STATES } from '@tmanage/domain';
+import { WORK_ITEM_STATES, WORK_ITEM_TITLE_MAX } from '@tmanage/domain';
 import type { Audience, Principal, WorkItemState } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -98,8 +98,8 @@ interface TransitionBody {
   readonly facts?: unknown;
 }
 
-/** `work_items.title` is `VARCHAR(300)`. */
-const MAX_TITLE_LENGTH = 300;
+/** `work_items.title` is `VARCHAR(300)`; the web's fields read the same constant (QA-FIX-R M6). */
+const MAX_TITLE_LENGTH = WORK_ITEM_TITLE_MAX;
 /** `work_items.type` is `VARCHAR(32)`. */
 const MAX_TYPE_LENGTH = 32;
 /** A6 (0219). `work_items.description` is `TEXT`; the route bounds it well below that. */
