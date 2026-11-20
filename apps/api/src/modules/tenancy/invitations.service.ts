@@ -132,6 +132,22 @@ export const ALREADY_MEMBER_MESSAGE =
   'The account you are signed in with is already a member here. If this invitation is for ' +
   'someone else, sign out and open the link again.';
 
+/** QA-FIX-P M7: the 409 an invitation to someone who is already a member answers with. */
+export const INVITATION_ALREADY_MEMBER = 'invitation_already_member';
+
+export const INVITEE_ALREADY_MEMBER_MESSAGE =
+  'This person is already a member here. Change their role on the People page instead.';
+
+export function invitationAlreadyMember(): ApiError {
+  return new ApiError(
+    409,
+    'conflict',
+    INVITEE_ALREADY_MEMBER_MESSAGE,
+    [{ field: 'email', message: INVITATION_ALREADY_MEMBER }],
+    'invitation_issue_already_member',
+  );
+}
+
 /** Registering from an invitation whose address already has an account. */
 export const ACCOUNT_EXISTS_MESSAGE =
   'An account already uses this email address. Sign in with it, then open the link again.';
@@ -447,6 +463,11 @@ export class InvitationsService {
           clientOrganizationId,
         );
         if (existing.length > 0) throw invitationAlreadyPending();
+        // QA-FIX-P M7: an address that already belongs here (the owner's included) is refused
+        // before any row or mail — no pending invitation for someone who is already in.
+        if (await this.invitations.isAlreadyMember(tx, context, email, clientOrganizationId)) {
+          throw invitationAlreadyMember();
+        }
 
         if (projectIds.length > 0) {
           // A foreign, unknown or archived project is one 400 naming the field, never which id.

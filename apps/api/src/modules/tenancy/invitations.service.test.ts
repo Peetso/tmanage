@@ -108,6 +108,8 @@ function harness(
     readonly clientOrganizationId?: string;
     /** R38 G4: projects already shared with that client organization. */
     readonly alreadyShared?: readonly string[];
+    /** QA-FIX-P M7: the invited address already belongs to a member here. */
+    readonly alreadyMember?: boolean;
   } = {},
 ): Harness {
   const pending = 'pending' in options ? options.pending : INVITATION;
@@ -145,6 +147,7 @@ function harness(
     projectIdsFor: vi.fn(() => Promise.resolve(options.projectIds ?? [])),
     addProjectMemberships,
     findPendingForEmail: vi.fn(() => Promise.resolve([])),
+    isAlreadyMember: vi.fn(() => Promise.resolve(options.alreadyMember ?? false)),
     liveProjectIds: vi.fn(() => Promise.resolve(options.liveProjectIds ?? [])),
     issue,
     attachProjects,
@@ -409,6 +412,16 @@ describe('A1: "Add to projects" and "Personal note" on an invitation', () => {
     expect(issue.mock.calls[0]?.[2]).toMatchObject({ note: 'Welcome aboard', role: 'manager' });
     expect(attachProjects).toHaveBeenCalledWith({}, context, 'inv-2', [P1]);
     expect(addProjectMemberships).not.toHaveBeenCalled();
+  });
+
+  it('QA-FIX-P M7: refuses inviting an address that is already a member (the owner too), no row, no mail', async () => {
+    const { service, issue } = harness({ alreadyMember: true });
+    const error = await refusal(
+      service.issue(context, owner, { email: 'Owner@Example.com', role: 'member' }),
+    );
+    expect(error.status).toBe(409);
+    expect(error.details).toEqual([{ field: 'email', message: 'invitation_already_member' }]);
+    expect(issue).not.toHaveBeenCalled();
   });
 
   it('refuses a project that is not live in this tenant (400), without a write', async () => {

@@ -1,5 +1,7 @@
 import { Controller, Get, Inject, Query } from '@nestjs/common';
-import { Ctx, RequireCapability } from '../../common/http/decorators.js';
+import { rosterScopeFor, seesRosterAdminFields } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
+import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { MEMBERSHIPS_REPOSITORY, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -39,11 +41,16 @@ import type { MembershipsRepository } from './memberships.repository.js';
  * API surface grows faster than anything can exercise it.
  */
 
+/**
+ * QA-FIX-P S2 (ADR-0014): a person in the roster, cut to what the screens need. `role` is shown
+ * (people chips, chat, activity); `status` is an administration field, sent only to a viewer who
+ * holds `org.manage` (OWASP ASVS 5.0 V8.2.3, field-level access).
+ */
 export interface MemberView {
   readonly userId: string;
   readonly displayName: string;
   readonly role: string;
-  readonly status: string;
+  readonly status?: string;
 }
 
 const MAX_LIMIT = 200;
@@ -98,6 +105,7 @@ export class MembersController {
   @RequireCapability('work.read')
   async list(
     @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
     @Query('after') after?: string,
     @Query('limit') limit?: string,
     @Query('q') q?: string,
@@ -112,13 +120,25 @@ export class MembersController {
     const effectiveLimit = Math.min(parsedLimit ?? DEFAULT_LIMIT, MAX_LIMIT);
     const search = (q ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
 
-    const rows = await this.database.read(context, (db) =>
+    // ADR-0014: a guest sees only the people who share a project with them.
+    const scope = rosterScopeFor(principal.kind === 'internal' ? principal.role : '');
+    const rows = await this.database.read(context, async (db) =>
       this.memberships.listWithNames(db, context, {
         ...(after ? { after } : {}),
         ...(search === '' ? {} : { q: search }),
+        ...(scope === 'shared_projects'
+          ? {
+              onlyUserIds: await this.memberships.coMemberUserIds(
+                db,
+                context,
+                principal.projectIds,
+              ),
+            }
+          : {}),
         limit: effectiveLimit,
       }),
     );
+    const adminFields = seesRosterAdminFields(context.capabilities ?? []);
 
     // A full page means there may be another; a short one means there is not. The cursor is
     // the last row's membership id, which is what `listWithNames` orders and pages on.
@@ -130,7 +150,7 @@ export class MembersController {
         userId: row.userId,
         displayName: row.displayName,
         role: row.role,
-        status: row.status,
+        ...(adminFields ? { status: row.status } : {}),
       })),
       nextAfter: full && last ? last.membershipId : null,
     };

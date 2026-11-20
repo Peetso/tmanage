@@ -115,6 +115,13 @@ export {
 export type { Audience } from './policies/audience.js';
 
 export { authorize, isAuthorized, mayGrantCapability } from './policies/authorize.js';
+export {
+  mayActOnMember,
+  memberAuthorityTier,
+  rosterScopeFor,
+  seesRosterAdminFields,
+} from './policies/member-authority.js';
+export type { MemberAuthorityTier, RosterScope } from './policies/member-authority.js';
 export type {
   AuthorizationDecision,
   AuthorizationRequest,

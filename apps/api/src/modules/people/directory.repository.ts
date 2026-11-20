@@ -72,6 +72,8 @@ export interface PersonDirectoryOptions {
    * and cannot widen who is reachable.
    */
   readonly q?: string;
+  /** QA-FIX-P S2 (ADR-0014): only these people (a guest's shared-project roster). */
+  readonly onlyUserIds?: readonly string[];
 }
 
 /**
@@ -134,6 +136,10 @@ export class PeopleDirectoryRepository {
     if (options.after) predicates.push(gt(memberships.id, options.after));
     if (search !== '') {
       predicates.push(like(users.displayName, `%${escapeLikePattern(search)}%`));
+    }
+    if (options.onlyUserIds !== undefined) {
+      if (options.onlyUserIds.length === 0) return [];
+      predicates.push(inArray(memberships.userId, [...options.onlyUserIds]));
     }
 
     const rows = await tenantDrizzle(runner)

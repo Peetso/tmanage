@@ -241,6 +241,20 @@ describe('wave9-S8 F42 regression: org admins act only on single-organization me
     expect((await controller.list(context, owner())).sessions).toHaveLength(2);
     expect(await controller.revoke(context, owner(), 's-o')).toEqual({ revoked: true });
   });
+
+  it("QA-FIX-P S3: an org_admin can neither see nor end another org_admin's sessions", async () => {
+    const repo = new FakeRepository(
+      [member('user-b', 'm-b', 'Bea', 'org_admin'), member('user-a', 'm-a', 'Ada')],
+      [sessionRow('s-b', 'user-b'), sessionRow('s-a', 'user-a')],
+    );
+    const controller = controllerWith(repo);
+    await expectStatus(controller.revoke(context, admin(), 's-b'), 403);
+    expect(repo.revokeCalls).toBe(0);
+    expect((await controller.list(context, admin())).sessions.map((s) => s.sessionId)).toEqual([
+      's-a',
+    ]);
+    expect(await controller.revoke(context, owner(), 's-b')).toEqual({ revoked: true });
+  });
 });
 
 describe('R12 session trail CSV (admin)', () => {

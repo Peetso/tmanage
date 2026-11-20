@@ -469,6 +469,16 @@ describe('OffboardingService', () => {
     expect(result.status).toBe('offboarded');
   });
 
+  it('QA-FIX-P S3: an organization admin cannot offboard another organization admin; the owner can', async () => {
+    const { service, transitions } = serviceWith(membershipRow({ role: 'org_admin' }));
+    await expect(
+      service.offboard(context, { ...owner(), role: 'org_admin' }, TARGET_USER),
+    ).rejects.toMatchObject({ status: 403, auditCode: 'offboard:member_rank' });
+    expect(transitions).toHaveLength(0);
+    const result = await service.offboard(context, owner(), TARGET_USER);
+    expect(result.status).toBe('offboarded');
+  });
+
   it('F23: an organization admin still offboards a member (200)', async () => {
     const { service } = serviceWith(membershipRow({ role: 'member' }));
 

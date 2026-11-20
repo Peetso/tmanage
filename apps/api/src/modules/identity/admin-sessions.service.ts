@@ -1,4 +1,7 @@
+import { capabilitySetFor, mayActOnMember, memberAuthorityTier } from '@tmanage/domain';
+import type { MemberAuthorityTier } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { targetTier } from '../tenancy/member-authority.js';
 import {
   ACCESS_ELSEWHERE_REASON,
   ACCESS_ELSEWHERE_TABLES,
@@ -161,11 +164,28 @@ export class AdminSessionsService {
     // 2026-10-31 live test: the caller always sees their OWN sessions here, even when they also
     // belong to another organization — showing a person their own devices leaks nothing, and an
     // empty list while the admin is plainly signed in read as broken.
-    return members.filter(
-      (m) =>
-        m.userId === context.userId ||
-        (!elsewhere.has(m.userId) && (m.role !== 'owner' || callerRole === 'owner')),
-    );
+    // QA-FIX-P S3: only the sessions of people the caller outranks (an admin never sees, so is
+    // never offered to end, the owner's or another admin's sessions).
+    const actor = callerTier(callerRole, context);
+    const visible: OrgMemberRow[] = [];
+    for (const m of members) {
+      if (m.userId === context.userId) {
+        visible.push(m);
+        continue;
+      }
+      if (elsewhere.has(m.userId)) continue;
+      if (mayActOnMember(actor, await this.memberTier(context, m.role))) visible.push(m);
+    }
+    return visible;
+  }
+
+  /** QA-FIX-P S3: a member's authority tier, a custom role resolved tenant-scoped. */
+  async memberTier(context: TenantContext, storedRole: string): Promise<MemberAuthorityTier> {
+    if (storedRole === 'owner') return 'owner';
+    if (storedRole !== '' && capabilitySetFor(storedRole).size > 0) {
+      return memberAuthorityTier(storedRole, capabilitySetFor(storedRole));
+    }
+    return this.database.read(context, (runner) => targetTier(runner, context, storedRole));
   }
 
   private async usersWithAccessElsewhere(
@@ -206,4 +226,10 @@ function toEntry(row: AdminSessionRow, member: OrgMemberRow): Omit<AdminSessionL
     lastSeenAt: (row.rotatedAt ?? row.createdAt).toISOString(),
     deviceLabel: row.userAgent,
   };
+}
+
+/** The caller's authority tier: its role's set plus the resolved context's capabilities. */
+export function callerTier(callerRole: string, context: TenantContext): MemberAuthorityTier {
+  const held = new Set([...capabilitySetFor(callerRole), ...(context.capabilities ?? [])]);
+  return memberAuthorityTier(callerRole, held);
 }

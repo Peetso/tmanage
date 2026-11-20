@@ -1,4 +1,11 @@
-import { authorize, capabilitySetFor, hasCapability, INTERNAL_ROLES } from '@tmanage/domain';
+import {
+  authorize,
+  capabilitySetFor,
+  hasCapability,
+  INTERNAL_ROLES,
+  mayActOnMember,
+  memberAuthorityTier,
+} from '@tmanage/domain';
 import type { InternalRole, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -12,6 +19,7 @@ import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import { capabilitiesOfStoredRole, exceedsCaller, isRoleAssigner } from './role-grant-ceiling.js';
 import type { StorageHold, StorageHoldsHook } from '../storage-root/storage-holds.js';
 import type { StorageProvider } from '../storage-root/storage-handover.repository.js';
+import { actorTier, MEMBER_RANK_MESSAGE } from './member-authority.js';
 
 /**
  * Member offboarding — ADM-12 (access-impact preview) and ADM-13 (execution). SEC:Administration.
@@ -161,6 +169,12 @@ export class OffboardingService {
     const target = await this.database.read(context, (db) =>
       capabilitiesOfStoredRole(db, context, membership.role, this.customRoles),
     );
+    // QA-FIX-P S3: an admin-tier target (org.manage, built-in or custom) is removed only by
+    // someone who outranks it — the owner. Member-tier targets keep the subset rule below.
+    const tier = memberAuthorityTier(membership.role, target);
+    if (tier !== 'member' && !mayActOnMember(actorTier(principal, context), tier)) {
+      throw new ApiError(403, 'forbidden', MEMBER_RANK_MESSAGE, undefined, 'offboard:member_rank');
+    }
     if (exceedsCaller(target, capabilitySetFor(principal.role))) {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'offboard_ceiling');
     }

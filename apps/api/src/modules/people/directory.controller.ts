@@ -1,9 +1,12 @@
 import { Controller, Get, Inject, Optional, Query } from '@nestjs/common';
-import { Ctx, RequireCapability } from '../../common/http/decorators.js';
+import { rosterScopeFor, seesRosterAdminFields } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
+import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { PeopleDirectoryRepository } from './directory.repository.js';
+import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import {
   CustomRoleNamesRepository,
   customRoleSummaryOf,
@@ -41,8 +44,8 @@ export interface PersonDirectoryView {
   readonly userId: string;
   readonly displayName: string;
   /**
-   * The member's sign-in address (r-people's second line). Internal principals only: anyone
-   * else is handed null, even though `work.read` already keeps client principals off this route.
+   * The member's sign-in address (r-people's second line). QA-FIX-P S2 (ADR-0014): only for a
+   * viewer who manages members (`org.manage`); everyone else is handed null.
    */
   readonly email: string | null;
   readonly role: string;
@@ -52,7 +55,8 @@ export interface PersonDirectoryView {
    * role, which the screen names in the reader's language.
    */
   readonly roleName: string | null;
-  readonly status: string;
+  /** ADR-0014: an administration field, sent only to a viewer holding `org.manage`. */
+  readonly status?: string;
   readonly projectCount: number;
   /** The membership's compare-and-swap token, sent back on `PATCH members/:userId/role`. */
   readonly version: number;
@@ -93,11 +97,14 @@ export class PeopleDirectoryController {
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Inject(PeopleDirectoryRepository) private readonly directory: PeopleDirectoryRepository,
     @Optional() @Inject(CustomRoleNamesRepository) roleNames?: CustomRoleNamesRepository,
+    @Optional() @Inject(MembershipsRepository) memberships?: MembershipsRepository,
   ) {
     this.roleNames = roleNames ?? new CustomRoleNamesRepository();
+    this.memberships = memberships ?? new MembershipsRepository();
   }
 
   private readonly roleNames: CustomRoleNamesRepository;
+  private readonly memberships: MembershipsRepository;
 
   /**
    * The organization's active people, by name, each with a project count.
@@ -114,6 +121,7 @@ export class PeopleDirectoryController {
   @RequireCapability('people.view')
   async list(
     @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
     @Query('after') after?: string,
     @Query('limit') limit?: string,
     @Query('q') q?: string,
@@ -138,9 +146,21 @@ export class PeopleDirectoryController {
       toDate: isoDate(new Date(now.getTime() + (DECLARED_HORIZON_DAYS - 1) * 86_400_000)),
     };
     const { rows, details, roleNames } = await this.database.read(context, async (db) => {
+      // ADR-0014: a guest sees only the people who share a project with them.
+      const scoped =
+        rosterScopeFor(principal.kind === 'internal' ? principal.role : '') === 'shared_projects';
       const page = await this.directory.list(db, context, {
         ...(after ? { after } : {}),
         ...(search === '' ? {} : { q: search }),
+        ...(scoped
+          ? {
+              onlyUserIds: await this.memberships.coMemberUserIds(
+                db,
+                context,
+                principal.projectIds,
+              ),
+            }
+          : {}),
         limit: effectiveLimit,
       });
       return {
@@ -155,8 +175,10 @@ export class PeopleDirectoryController {
     });
 
     const full = rows.length === effectiveLimit;
-    // Second line of defence behind `work.read`: an address is projected to staff, never further.
-    const mayReadEmail = context.principalKind === 'internal';
+    // QA-FIX-P S2 (ADR-0014; ASVS 5.0 V8.2.3): the address and the status are administration
+    // fields, for a viewer who manages members — never further.
+    const adminFields =
+      context.principalKind === 'internal' && seesRosterAdminFields(context.capabilities ?? []);
     const last = rows[rows.length - 1];
 
     return {
@@ -166,10 +188,10 @@ export class PeopleDirectoryController {
           membershipId: row.membershipId,
           userId: row.userId,
           displayName: row.displayName,
-          email: mayReadEmail ? row.email : null,
+          email: adminFields ? row.email : null,
           role: row.role,
           roleName: customRoleSummaryOf(roleNames, row.role)?.name ?? null,
-          status: row.status,
+          ...(adminFields ? { status: row.status } : {}),
           projectCount: row.projectCount,
           version: row.version,
           lastActiveAt: extra?.lastActiveAt ?? null,

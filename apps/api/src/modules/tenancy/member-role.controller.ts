@@ -25,6 +25,7 @@ import {
   isRoleAssigner,
   requireRoleAssigner as requireAssigner,
 } from './role-grant-ceiling.js';
+import { requireMayActOnMember } from './member-authority.js';
 
 /**
  * ADM-01 — a member's built-in role, chosen on invite and changed later (audit gap 5).
@@ -239,6 +240,18 @@ export class MemberRoleController {
           'Only an owner can change who owns the organization.',
           [{ field: 'role', message: 'Choose a role other than Owner.' }],
           'member_role.owner_seat',
+        );
+      }
+      // QA-FIX-P S3: nobody re-roles a person with the same or more authority — an admin cannot
+      // change another admin's role. Changing your own role is the self rule's business.
+      if (current.userId !== context.userId) {
+        await requireMayActOnMember(
+          tx,
+          context,
+          principal,
+          current.role,
+          'member_role',
+          this.customRoles,
         );
       }
       if (current.role === 'owner' && current.status === 'active') {

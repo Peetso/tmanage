@@ -132,6 +132,17 @@ describe('MemberRoleController (ADM-01)', () => {
     ).toBe(403);
   });
 
+  it('QA-FIX-P S3: an org admin cannot re-role another org admin; the owner can', async () => {
+    const { controller } = setup([member({ role: 'org_admin' })]);
+    const error = await controller
+      .change(context, principal('org_admin'), 'u1', { role: 'member' })
+      .catch((e: unknown) => e);
+    expect((error as ApiError).status).toBe(403);
+    expect((error as ApiError).auditCode).toBe('member_role:member_rank');
+    const view = await controller.change(context, principal('owner'), 'u1', { role: 'member' });
+    expect(view.role).toBe('member');
+  });
+
   it('never demotes the last active owner, but does when another owner remains', async () => {
     const solo = setup([member({ role: 'owner' })]);
     expect(

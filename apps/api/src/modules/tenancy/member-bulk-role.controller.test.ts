@@ -262,6 +262,40 @@ describe('MemberBulkRoleController (ADM bulk role assignment, x222)', () => {
     expect(repo.keepOwners).toEqual([true, false]);
   });
 
+  it('QA-FIX-P S3: an org admin cannot bulk re-role the owner or another org admin, no write', async () => {
+    const repo = new FakeBulkRoleRepository(
+      [role('r1', 'Coordinator', ['work.read'])],
+      new Set(['m-owner', 'm-admin', 'm1']),
+    );
+    const rows: Record<string, { id: string; userId: string; role: string; status: string }> = {
+      'm-owner': { id: 'm-owner', userId: 'u-owner', role: 'owner', status: 'active' },
+      'm-admin': { id: 'm-admin', userId: 'u-admin', role: 'org_admin', status: 'active' },
+    };
+    const memberships = {
+      findById: (_r: unknown, _c: unknown, id: string) => Promise.resolve(rows[id] ?? null),
+      countActiveHoldersOfRoles: () => Promise.resolve(1),
+    } as unknown as MembershipsRepository;
+    const database = {
+      transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
+    } as unknown as TenantDatabase;
+    const controller = new MemberBulkRoleController(
+      database,
+      repo as unknown as MemberBulkRoleRepository,
+      undefined,
+      memberships,
+    );
+    for (const target of ['m-owner', 'm-admin']) {
+      await expectStatus(
+        controller.assign(context, orgAdmin(), 'org', {
+          roleId: 'r1',
+          membershipIds: ['m1', target],
+        }),
+        403,
+      );
+    }
+    expect(repo.applied).toHaveLength(0);
+  });
+
   it('409s an owner batch that would leave no active owner (ADM-01), no write', async () => {
     const repo = new FakeBulkRoleRepository(
       [role('r1', 'Coordinator', ['work.read'])],

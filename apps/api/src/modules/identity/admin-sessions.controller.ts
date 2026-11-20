@@ -1,14 +1,14 @@
 import { Controller, Get, HttpCode, Inject, Module, Param, Post, Res } from '@nestjs/common';
 import type { StreamableFile } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { authorize } from '@tmanage/domain';
+import { authorize, mayActOnMember } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { AdminSessionsRepository } from './admin-sessions.repository.js';
-import { AdminSessionsService } from './admin-sessions.service.js';
+import { AdminSessionsService, callerTier } from './admin-sessions.service.js';
 import type { SessionIntelView } from './geo/session-intel.js';
 import { csvDownload, type HeaderWriter } from './geo/trail-csv.js';
 import { MeSessionTrailController } from './session.controller.js';
@@ -147,6 +147,21 @@ export class AdminSessionsController {
         undefined,
         'admin_sessions.revoke:owner_exempt',
       );
+    }
+
+    // 2c. QA-FIX-P S3: nobody ends the sessions of someone with the same or more authority — an
+    //     admin cannot sign another admin out. Your own sessions are always yours to end.
+    if (resolved.membershipId !== context.membershipId) {
+      const target = await this.sessions.memberTier(context, resolved.role);
+      if (!mayActOnMember(callerTier(callerRole(principal), context), target)) {
+        throw new ApiError(
+          403,
+          'forbidden',
+          MESSAGES.forbidden,
+          undefined,
+          'admin_sessions.revoke:member_rank',
+        );
+      }
     }
 
     // 3. Soft-close (idempotent, never a hard delete).

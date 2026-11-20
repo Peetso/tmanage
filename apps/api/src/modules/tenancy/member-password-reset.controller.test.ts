@@ -10,14 +10,23 @@ import type { AuditService } from '../audit/audit.service.js';
 import { ApiError } from '../../common/http/errors.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { CAPABILITIES, capabilitiesFor } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
 
 const ORG = '00000000-0000-4000-8000-0000000000a1';
-const context = {
-  organizationId: ORG,
-  membershipId: 'm0',
-  userId: 'u0',
-  correlationId: '00000000-0000-4000-8000-0000000000c1',
-} as unknown as TenantContext;
+const contextFor = (role: 'owner' | 'org_admin' | 'member') =>
+  ({
+    organizationId: ORG,
+    membershipId: 'm0',
+    userId: 'u0',
+    principalKind: 'internal',
+    capabilities: role === 'owner' ? [...CAPABILITIES] : [...capabilitiesFor(role)],
+    correlationId: '00000000-0000-4000-8000-0000000000c1',
+  }) as unknown as TenantContext;
+const context = contextFor('owner');
+const principalFor = (role: 'owner' | 'org_admin') =>
+  ({ kind: 'internal', role, organizationId: ORG, userId: 'u0' }) as unknown as Principal;
+const owner = principalFor('owner');
 
 const REASON = 'Locked out after a phone change';
 
@@ -52,14 +61,23 @@ function setup(rows: ResetMember[]) {
       return Promise.resolve({});
     },
   };
-  const controller = new MemberPasswordResetController(database, resets, audit, members);
-  return { controller, calls, audits, requested };
+  const notices: unknown[] = [];
+  const notifier = {
+    insertForRecipient: (_t: unknown, _c: unknown, input: unknown) => {
+      calls.push('notice');
+      notices.push(input);
+      return Promise.resolve();
+    },
+  };
+  const controller = new MemberPasswordResetController(database, resets, audit, members, notifier);
+  return { controller, calls, audits, requested, notices };
 }
 
 const member = (over: Partial<ResetMember> = {}): ResetMember => ({
   membershipId: 'm1',
   userId: 'u1',
   status: 'active',
+  role: 'member',
   email: 'sam@example.com',
   ...over,
 });
@@ -73,7 +91,9 @@ async function status(promise: Promise<unknown>): Promise<number> {
 describe('MemberPasswordResetController (Q4)', () => {
   it('answers 404 for a membership that is not in the caller’s organization', async () => {
     const { controller, calls } = setup([member()]);
-    expect(await status(controller.send(context, 'm-foreign', { reason: REASON }))).toBe(404);
+    expect(await status(controller.send(context, owner, 'm-foreign', { reason: REASON }))).toBe(
+      404,
+    );
     expect(calls).toEqual([]);
   });
 
@@ -83,19 +103,19 @@ describe('MemberPasswordResetController (Q4)', () => {
       member({ membershipId: 'm2', userId: 'u2', status: 'suspended' }),
       member(),
     ]);
-    expect(await status(controller.send(context, 'm0', { reason: REASON }))).toBe(422);
-    expect(await status(controller.send(context, 'm2', { reason: REASON }))).toBe(422);
-    expect(await status(controller.send(context, 'm1', { reason: 'abc' }))).toBe(422);
-    expect(await status(controller.send(context, 'm1', {}))).toBe(422);
+    expect(await status(controller.send(context, owner, 'm0', { reason: REASON }))).toBe(422);
+    expect(await status(controller.send(context, owner, 'm2', { reason: REASON }))).toBe(422);
+    expect(await status(controller.send(context, owner, 'm1', { reason: 'abc' }))).toBe(422);
+    expect(await status(controller.send(context, owner, 'm1', {}))).toBe(422);
     expect(calls).toEqual([]);
   });
 
   it('records the audit row and commits it before requesting the ordinary reset link', async () => {
     const { controller, calls, audits, requested } = setup([member()]);
-    await expect(controller.send(context, 'm1', { reason: REASON })).resolves.toEqual({
+    await expect(controller.send(context, owner, 'm1', { reason: REASON })).resolves.toEqual({
       status: 'sent',
     });
-    expect(calls).toEqual(['audit', 'commit', 'request']);
+    expect(calls).toEqual(['audit', 'notice', 'commit', 'request']);
     expect(audits).toEqual([
       expect.objectContaining({
         action: 'member.password_reset_sent',
@@ -105,6 +125,42 @@ describe('MemberPasswordResetController (Q4)', () => {
       }),
     ]);
     expect(requested).toEqual(['sam@example.com']);
+  });
+
+  it('S3: an admin cannot reset the owner or another admin; no audit, no notice, no mail', async () => {
+    const { controller, calls } = setup([
+      member({ membershipId: 'm-owner', userId: 'u-owner', role: 'owner' }),
+      member({ membershipId: 'm-admin', userId: 'u-admin', role: 'org_admin' }),
+    ]);
+    const admin = principalFor('org_admin');
+    const adminContext = contextFor('org_admin');
+    for (const target of ['m-owner', 'm-admin']) {
+      const error = await controller
+        .send(adminContext, admin, target, { reason: REASON })
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).status).toBe(403);
+      expect((error as ApiError).auditCode).toBe('member_password_reset:member_rank');
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('S3: an admin may still reset a member, and the owner may reset an admin', async () => {
+    const { controller, notices } = setup([
+      member(),
+      member({ membershipId: 'm-admin', userId: 'u-admin', role: 'org_admin' }),
+    ]);
+    await expect(
+      controller.send(contextFor('org_admin'), principalFor('org_admin'), 'm1', { reason: REASON }),
+    ).resolves.toEqual({ status: 'sent' });
+    await expect(controller.send(context, owner, 'm-admin', { reason: REASON })).resolves.toEqual({
+      status: 'sent',
+    });
+    // The target hears of it in-app right away (ASVS 5.0 V6.3.7).
+    expect(notices).toEqual([
+      expect.objectContaining({ recipientUserId: 'u1', type: 'member.password_reset_sent.v1' }),
+      expect.objectContaining({ recipientUserId: 'u-admin', objectId: 'm-admin' }),
+    ]);
   });
 
   it('sits behind org.manage and answers 202', () => {

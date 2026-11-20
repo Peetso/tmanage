@@ -1,12 +1,14 @@
-import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
+  clientMemberships,
   clientOrganizations,
   invitationPendingKeys,
   invitationProjects,
   invitations,
+  memberships,
   organizations,
   projectMemberships,
   projects,
@@ -584,6 +586,48 @@ export class InvitationsRepository {
    * invitation at once — two live tokens for one person, each granting a different membership.
    * The second argument is kept for the callers' signature and no longer narrows the match.
    */
+  /**
+   * QA-FIX-P M7: does this address already belong to someone in this organization — a staff
+   * membership that has not been offboarded, or (for a client invitation) a live client
+   * membership of the same client organization? `users.email` is stored normalized
+   * (`invitee-accounts.repository.ts`), and the column collation compares case-insensitively.
+   */
+  async isAlreadyMember(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    email: string,
+    clientOrganizationId: string | null,
+  ): Promise<boolean> {
+    const staff = await tenantDrizzle(runner)
+      .select({ id: memberships.id })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(users.email, email),
+          ne(memberships.status, 'offboarded'),
+        ),
+      )
+      .limit(1);
+    if (staff.length > 0) return true;
+    if (clientOrganizationId === null) return false;
+    const client = await tenantDrizzle(runner)
+      .select({ id: clientMemberships.id })
+      .from(clientMemberships)
+      .innerJoin(users, eq(users.id, clientMemberships.userId))
+      .where(
+        and(
+          eq(clientMemberships.organizationId, context.organizationId),
+          eq(clientMemberships.clientOrganizationId, clientOrganizationId),
+          eq(users.email, email),
+          ne(clientMemberships.status, 'offboarded'),
+        ),
+      )
+      .limit(1);
+    return client.length > 0;
+  }
+
   async findPendingForEmail(
     runner: TenantQueryRunner,
     context: TenantContext,

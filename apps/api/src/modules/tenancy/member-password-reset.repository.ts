@@ -9,6 +9,8 @@ export interface ResetMember {
   readonly membershipId: string;
   readonly userId: string;
   readonly status: MembershipStatus;
+  /** The stored role (a built-in name or a custom role id), for the authority rule (S3). */
+  readonly role: string;
   /** The sign-in address the link goes to. Never returned to the admin. */
   readonly email: string;
 }
@@ -30,6 +32,7 @@ export class MemberPasswordResetRepository {
         membershipId: memberships.id,
         userId: memberships.userId,
         status: memberships.status,
+        role: memberships.role,
         email: users.email,
       })
       .from(memberships)

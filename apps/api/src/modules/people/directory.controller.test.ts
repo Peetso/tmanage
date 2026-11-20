@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
 import { CLIENT_ROLES, INTERNAL_ROLES, capabilitiesFor } from '@tmanage/domain';
-import type { Capability } from '@tmanage/domain';
+import type { Capability, Principal } from '@tmanage/domain';
 import { analyzeStatement } from '../../common/database/tenant-guard.js';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
@@ -27,13 +27,14 @@ const OTHER_ORG = uuidv7();
 function contextFor(
   organizationId: string,
   principalKind: TenantContext['principalKind'] = 'internal',
+  capabilities: readonly Capability[] = [],
 ): TenantContext {
   return createTenantContext({
     organizationId,
     userId: uuidv7(),
     principalKind,
     membershipId: uuidv7(),
-    capabilities: [],
+    capabilities: [...capabilities],
     policyVersion: 'test',
     correlationId: uuidv7(),
   });
@@ -180,7 +181,8 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
         version: 1,
       },
     ];
-    const context = contextFor(ORG);
+    // An organization admin (org.manage) gets the administration fields.
+    const context = contextFor(ORG, 'internal', capabilitiesFor('org_admin'));
     const database = {
       read: <T>(_context: TenantContext, work: (db: never) => Promise<T>) =>
         work(undefined as never),
@@ -209,7 +211,7 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
       directory as unknown as PeopleDirectoryRepository,
     );
 
-    const full = await controller.list(context, undefined, '2');
+    const full = await controller.list(context, viewer('org_admin'), undefined, '2');
     expect(full.people).toEqual([
       {
         membershipId: 'm-1',
@@ -248,14 +250,31 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
     // The membership id is the cursor and the profile link (PEO-02 routes on it).
     expect(full.nextAfter).toBe('m-2');
 
-    const short = await controller.list(context, undefined, '50');
+    const short = await controller.list(context, viewer('org_admin'), undefined, '50');
     expect(short.nextAfter).toBeNull();
 
     // B2: the address is for staff. A client principal (refused by `work.read` before it gets
     // here) would still be handed no email — the projection does not rely on the guard alone.
-    const asClient = await controller.list(contextFor(ORG, 'client'), undefined, '50');
+    const asClient = await controller.list(
+      contextFor(ORG, 'client'),
+      viewer('member'),
+      undefined,
+      '50',
+    );
     expect(asClient.people.map((person) => person.email)).toEqual([null, null]);
     expect(asClient.people.map((person) => person.version)).toEqual([3, 1]);
+
+    // QA-FIX-P S2 (ADR-0014): a member — even one on no project — keeps names and roles for
+    // mentions and assignment, but no address and no status.
+    const asMember = await controller.list(
+      contextFor(ORG, 'internal', capabilitiesFor('member')),
+      viewer('member'),
+      undefined,
+      '50',
+    );
+    expect(asMember.people.map((person) => person.displayName)).toEqual(['Ada', 'Bo']);
+    expect(asMember.people.map((person) => person.email)).toEqual([null, null]);
+    for (const person of asMember.people) expect(person).not.toHaveProperty('status');
   });
 
   it('H1: names a custom role for every viewer, and only roles of this organization', async () => {
@@ -291,7 +310,7 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
       } as never,
     );
 
-    const page = await controller.list(contextFor(ORG), undefined, '50');
+    const page = await controller.list(contextFor(ORG), viewer('member'), undefined, '50');
 
     expect(page.people.map((p) => p.roleName)).toEqual(['Night editor', null, null]);
     // The raw role stays as stored, so the role-change dialog still compares by id.
@@ -301,7 +320,9 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
 
   it('refuses a non-positive limit with a 400 rather than a silent default', async () => {
     const controller = new PeopleDirectoryController({} as never, {} as never);
-    await expect(controller.list(contextFor(ORG), undefined, '0')).rejects.toMatchObject({
+    await expect(
+      controller.list(contextFor(ORG), viewer('member'), undefined, '0'),
+    ).rejects.toMatchObject({
       status: 400,
     });
   });
@@ -350,3 +371,17 @@ describe('PeopleDirectoryRepository.rowDetails', () => {
     expect(captured).toHaveLength(0);
   });
 });
+
+function viewer(role: string, projectIds: readonly string[] = []): Principal {
+  return {
+    userId: 'viewer',
+    organizationId: ORG,
+    kind: 'internal',
+    role,
+    membershipId: 'm-viewer',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds,
+    hasOrgWideScope: role !== 'guest',
+  } as unknown as Principal;
+}

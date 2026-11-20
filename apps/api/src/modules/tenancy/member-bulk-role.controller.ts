@@ -16,6 +16,7 @@ import { BuiltInRolesController, MemberRoleController } from './member-role.cont
 import { MembershipsRepository } from './memberships.repository.js';
 import { InvitationsRepository } from './invitations.repository.js';
 import { isOwnerPrincipal, isRoleAssigner, requireRoleAssigner } from './role-grant-ceiling.js';
+import { requireMayActOnMember } from './member-authority.js';
 
 /**
  * Admin bulk role assignment (Administration module 18, x222) — the deeper flow the audit named after
@@ -156,6 +157,18 @@ export class MemberBulkRoleController {
             MESSAGES.forbidden,
             undefined,
             'member_bulk_role.admin_seat',
+          );
+        }
+        // QA-FIX-P S3: never someone with the same or more authority (an admin cannot re-role
+        // the owner or another admin). 403 for the whole batch, before the first write.
+        if (target && target.userId !== context.userId) {
+          await requireMayActOnMember(
+            tx,
+            context,
+            principal,
+            target.role,
+            'member_bulk_role',
+            this.repository,
           );
         }
         targets.set(membershipId, target);

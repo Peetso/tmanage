@@ -136,6 +136,7 @@ function harness(options: Options = {}) {
     projectIdsFor: vi.fn(() => Promise.resolve(options.projectIdsFor ?? [])),
     addProjectMemberships: vi.fn(() => Promise.resolve(0)),
     findPendingForEmail: vi.fn(() => Promise.resolve([])),
+    isAlreadyMember: vi.fn(() => Promise.resolve(false)),
     liveProjectIds: vi.fn((_r: unknown, _c: unknown, ids: readonly string[]) =>
       Promise.resolve(options.liveProjectIds ?? ids),
     ),

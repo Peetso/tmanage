@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
 import { CLIENT_ROLES, INTERNAL_ROLES, capabilitiesFor } from '@tmanage/domain';
-import type { Capability } from '@tmanage/domain';
+import type { Capability, Principal } from '@tmanage/domain';
 import { analyzeStatement } from '../../common/database/tenant-guard.js';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
@@ -202,15 +202,94 @@ describe('GET /v1/organizations/:orgSlug/members', () => {
       memberships as unknown as MembershipsRepository,
     );
 
-    const full = await controller.list(context, undefined, '2');
+    const full = await controller.list(context, viewer('member'), undefined, '2');
     expect(full.members).toEqual([
-      { userId: 'u-1', displayName: 'Ada', role: 'member', status: 'active' },
-      { userId: 'u-2', displayName: 'Bo', role: 'guest', status: 'active' },
+      { userId: 'u-1', displayName: 'Ada', role: 'member' },
+      { userId: 'u-2', displayName: 'Bo', role: 'guest' },
     ]);
     // The membership id is the cursor and is not otherwise exposed.
     expect(full.nextAfter).toBe('m-2');
 
-    const short = await controller.list(context, undefined, '50');
+    const short = await controller.list(context, viewer('member'), undefined, '50');
     expect(short.nextAfter).toBeNull();
   });
+
+  /** QA-FIX-P S2 / M5 (ADR-0014). */
+  function harness() {
+    const rows = [
+      { membershipId: 'm-1', userId: 'u-1', displayName: 'Ada', role: 'owner', status: 'active' },
+      { membershipId: 'm-2', userId: 'u-2', displayName: 'Bo', role: 'member', status: 'active' },
+    ];
+    const asked: { onlyUserIds?: readonly string[] }[] = [];
+    const database = {
+      read: <T>(_context: TenantContext, work: (db: never) => Promise<T>) =>
+        work(undefined as never),
+    };
+    const memberships = {
+      listWithNames: (_db: never, _c: TenantContext, options: { onlyUserIds?: string[] }) => {
+        asked.push(options);
+        return Promise.resolve(
+          options.onlyUserIds ? rows.filter((r) => options.onlyUserIds?.includes(r.userId)) : rows,
+        );
+      },
+      coMemberUserIds: (_db: never, c: TenantContext, projectIds: readonly string[]) =>
+        Promise.resolve(projectIds.length === 0 ? [c.userId] : [c.userId, 'u-2']),
+    };
+    const controller = new MembersController(
+      database as never,
+      memberships as unknown as MembershipsRepository,
+    );
+    return { controller, asked };
+  }
+
+  it('S2: a member with zero projects keeps the roster for mentions, without the status field', async () => {
+    const { controller, asked } = harness();
+    const context = contextFor(ORG);
+    const answer = await controller.list(context, viewer('member', []), undefined, undefined);
+    expect(answer.members).toEqual([
+      { userId: 'u-1', displayName: 'Ada', role: 'owner' },
+      { userId: 'u-2', displayName: 'Bo', role: 'member' },
+    ]);
+    for (const row of answer.members) expect(row).not.toHaveProperty('status');
+    expect(asked[0]?.onlyUserIds).toBeUndefined();
+  });
+
+  it('S2: a guest sees only the people who share a project with them', async () => {
+    const { controller, asked } = harness();
+    const context = contextFor(ORG);
+    const none = await controller.list(context, viewer('guest', []), undefined, undefined);
+    expect(asked[0]?.onlyUserIds).toEqual([context.userId]);
+    expect(none.members).toEqual([]);
+    const shared = await controller.list(context, viewer('guest', ['p-1']), undefined, undefined);
+    expect(shared.members.map((m) => m.userId)).toEqual(['u-2']);
+  });
+
+  it('S2: an admin (org.manage) still gets the status field', async () => {
+    const { controller } = harness();
+    const context = createTenantContext({
+      ...contextFor(ORG),
+      capabilities: [...capabilitiesFor('org_admin')],
+    });
+    const answer = await controller.list(context, viewer('org_admin'), undefined, undefined);
+    expect(answer.members[0]).toEqual({
+      userId: 'u-1',
+      displayName: 'Ada',
+      role: 'owner',
+      status: 'active',
+    });
+  });
 });
+
+function viewer(role: string, projectIds: readonly string[] = []): Principal {
+  return {
+    userId: 'viewer',
+    organizationId: ORG,
+    kind: 'internal',
+    role,
+    membershipId: 'm-viewer',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds,
+    hasOrgWideScope: role !== 'guest',
+  } as unknown as Principal;
+}

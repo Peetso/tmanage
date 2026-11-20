@@ -2,7 +2,12 @@ import { and, asc, eq, gt, inArray, like, ne, sql } from 'drizzle-orm';
 import { PLATFORM_SUPPORT_ROLE, uuidv7 } from '@tmanage/domain';
 import type { InternalRole } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { type MEMBERSHIP_STATUS, memberships, users } from '../../common/database/schema.js';
+import {
+  type MEMBERSHIP_STATUS,
+  memberships,
+  projectMemberships,
+  users,
+} from '../../common/database/schema.js';
 import type { MembershipRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { defaultOrgWideScope } from './principal.repository.js';
@@ -120,6 +125,11 @@ export interface MemberDirectoryOptions extends ListMembershipsOptions {
    * Blank or whitespace-only is the same as absent: an empty search box asks for everybody.
    */
   readonly q?: string;
+  /**
+   * QA-FIX-P S2 (ADR-0014): only these people. A guest's roster is the people who share a
+   * project with them, from {@link coMemberUserIds}. Absent means the whole organization.
+   */
+  readonly onlyUserIds?: readonly string[];
 }
 
 /**
@@ -224,6 +234,10 @@ export class MembershipsRepository {
     if (search !== '') {
       predicates.push(like(users.displayName, `%${escapeLikePattern(search)}%`));
     }
+    if (options.onlyUserIds !== undefined) {
+      if (options.onlyUserIds.length === 0) return [];
+      predicates.push(inArray(memberships.userId, [...options.onlyUserIds]));
+    }
 
     return tenantDrizzle(runner)
       .select({
@@ -238,6 +252,29 @@ export class MembershipsRepository {
       .where(and(...predicates))
       .orderBy(asc(memberships.id))
       .limit(limit);
+  }
+
+  /**
+   * QA-FIX-P S2 (ADR-0014): the people who share at least one of `projectIds` with the viewer,
+   * plus the viewer — a guest's roster, as Asana shows a guest only what is shared with them.
+   * Tenant-scoped on `project_memberships.organization_id`.
+   */
+  async coMemberUserIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly string[]> {
+    if (projectIds.length === 0) return [context.userId];
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ userId: projectMemberships.userId })
+      .from(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.organizationId, context.organizationId),
+          inArray(projectMemberships.projectId, [...projectIds]),
+        ),
+      );
+    return [...new Set([context.userId, ...rows.map((row) => row.userId)])];
   }
 
   async findById(
