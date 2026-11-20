@@ -5080,3 +5080,11 @@ type _outreachRecipient = Assert<Exact<ApiOutreachRecipientView, WebOutreachReci
 type _outreachCampaign = Assert<Exact<ApiOutreachCampaignView, WebOutreachCampaignView>>;
 type _outreach = Assert<Exact<ApiOutreachView, WebOutreachView>>;
 type _outreachImport = Assert<Exact<ApiOutreachImportView, WebOutreachImportView>>;
+
+// Lane O (approval reviewer e-mail state) and lane M (role mailbox login state).
+import type { ApprovalReviewerView as ApiApprovalReviewerView } from '../../apps/api/src/modules/approvals/deliverables.service.js';
+import type { ApprovalReviewerView as WebApprovalReviewerView } from '../../apps/web/src/lib/api/deliverables.js';
+import type { MailboxLoginView as ApiMailboxLoginView } from '../../apps/api/src/modules/platform-admin/settings/mail-people.service.js';
+import type { MailboxLoginView as WebMailboxLoginView } from '../../apps/web/src/lib/api/platform-mail-people.js';
+type _approvalReviewer = Assert<Exact<ApiApprovalReviewerView, WebApprovalReviewerView>>;
+type _mailboxLogin = Assert<Exact<ApiMailboxLoginView, WebMailboxLoginView>>;
