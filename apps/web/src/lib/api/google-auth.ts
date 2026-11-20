@@ -1,10 +1,11 @@
 import type { ApiClient } from './client';
 import { ApiRequestError } from './errors';
+import { fetchProviderAvailability, type ProviderAvailability } from './provider-availability';
 
 /**
  * "Continue with Google" — the browser half. The routes exist only when the API has both
  * `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; a 404 from the availability probe hides the
- * button. The OAuth state, nonce and PKCE verifier live in an HttpOnly cookie the API sets;
+ * button, and no answer (5xx, timeout) keeps it as `unknown` (HT-3). The OAuth state, nonce and PKCE verifier live in an HttpOnly cookie the API sets;
  * nothing here ever sees them.
  */
 
@@ -40,20 +41,9 @@ export interface GoogleStartInput {
   readonly organizationName?: string;
 }
 
-/** Whether the button should show; false on 404 (not configured) and on any failure. */
-export async function fetchGoogleAvailability(
-  client: ApiClient,
-): Promise<GoogleAvailabilityView | null> {
-  try {
-    const { data } = await client.request<GoogleAvailabilityView>({
-      method: 'GET',
-      path: '/v1/auth/google',
-      authentication: 'none',
-    });
-    return data.available === true ? data : null;
-  } catch {
-    return null;
-  }
+/** available / unavailable (404, not configured) / unknown (no definite answer; HT-3). */
+export function fetchGoogleAvailability(client: ApiClient): Promise<ProviderAvailability> {
+  return fetchProviderAvailability(client, '/v1/auth/google');
 }
 
 export async function startGoogle(client: ApiClient, input: GoogleStartInput): Promise<string> {

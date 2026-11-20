@@ -26,6 +26,7 @@ import {
   googleErrorKey,
   useGoogleAvailability,
 } from './GoogleSignInButton';
+import { providerOffered } from '../../lib/api/provider-availability';
 import {
   MicrosoftErrorMessage,
   MicrosoftSignInButton,
@@ -132,12 +133,13 @@ export function SignUpScreen({
   const [created, setCreated] = useState<Created | undefined>(undefined);
   const heading = useRef<HTMLHeadingElement>(null);
   const stepChanged = useRef(false);
-  const google = useGoogleAvailability(api);
+  // Kept while availability is unknown (HT-3); the API still refuses a closed sign-up.
+  const google = providerOffered(useGoogleAvailability(api), 'sign-up');
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   // 52-21: the invisible form proof, fetched once when the form is shown.
   const formProof = useFormProof(api, loadAttempt);
   // 51-05 "Continue with Microsoft", beside Google.
-  const microsoft = useMicrosoftAvailability(api);
+  const microsoft = providerOffered(useMicrosoftAvailability(api), 'sign-up');
   // LANDFIX: inside Facebook/Instagram/TikTok webviews the providers refuse the sign-in.
   const inAppBrowser = useInAppBrowser();
   const [microsoftError, setMicrosoftError] = useState<readonly [string, string] | undefined>(
@@ -349,7 +351,7 @@ export function SignUpScreen({
     );
   }
 
-  const providers = google?.signUp === true || microsoft?.signUp === true;
+  const providers = google || microsoft;
 
   if (availability === 'available' && step === 'details') {
     return (
@@ -556,8 +558,8 @@ export function SignUpScreen({
           {!inAppBrowser.inApp && providers ? (
             <>
               <div className="tm-id-methods">
-                {google?.signUp ? <GoogleSignInButton api={api} input={signUpInput} /> : null}
-                {microsoft?.signUp ? <MicrosoftSignInButton api={api} input={signUpInput} /> : null}
+                {google ? <GoogleSignInButton api={api} input={signUpInput} /> : null}
+                {microsoft ? <MicrosoftSignInButton api={api} input={signUpInput} /> : null}
               </div>
               <p className="tm-divider tm-id-or">{t('SignUpFunnel.or')}</p>
             </>
@@ -619,8 +621,8 @@ export function SignUpScreen({
             <>
               <p className="tm-divider tm-id-or">{t('SignUpFunnel.or')}</p>
               <InAppBrowserNotice
-                google={google?.signUp === true}
-                microsoft={microsoft?.signUp === true}
+                google={google}
+                microsoft={microsoft}
                 android={inAppBrowser.android}
               />
             </>

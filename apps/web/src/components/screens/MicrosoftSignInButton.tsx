@@ -1,27 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
-import type { GoogleAvailabilityView, GoogleStartInput } from '../../lib/api/google-auth';
+import type { GoogleStartInput } from '../../lib/api/google-auth';
 import { fetchMicrosoftAvailability, startMicrosoft } from '../../lib/api/microsoft-auth';
+import type { ProviderAvailability } from '../../lib/api/provider-availability';
+import { isTransientFailure } from '../../lib/session-check';
+import { useProviderAvailability } from './useProviderAvailability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 
-/** Whether "Continue with Microsoft" is configured on the API (null while unknown or when not). */
-export function useMicrosoftAvailability(api: ApiClient): GoogleAvailabilityView | null {
-  const [availability, setAvailability] = useState<GoogleAvailabilityView | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void fetchMicrosoftAvailability(api).then((value) => {
-      if (!cancelled) setAvailability(value);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return availability;
+/** Whether "Continue with Microsoft" is configured on the API: null until the first answer. */
+export function useMicrosoftAvailability(api: ApiClient): ProviderAvailability | null {
+  return useProviderAvailability(() => fetchMicrosoftAvailability(api));
 }
 
 export interface MicrosoftSignInButtonProps {
@@ -38,15 +30,16 @@ export interface MicrosoftSignInButtonProps {
 export function MicrosoftSignInButton({ api, input }: MicrosoftSignInButtonProps) {
   const tr = useTOr();
   const [working, setWorking] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<'none' | 'refused' | 'unreachable'>('none');
 
   async function go() {
     setWorking(true);
-    setFailed(false);
+    setFailed('none');
     try {
       window.location.assign(await startMicrosoft(api, input()));
-    } catch {
-      setFailed(true);
+    } catch (error) {
+      // HT-2: the session check's classifier says whether this was "no answer" (try again).
+      setFailed(isTransientFailure(error) ? 'unreachable' : 'refused');
       setWorking(false);
     }
   }
@@ -64,15 +57,18 @@ export function MicrosoftSignInButton({ api, input }: MicrosoftSignInButtonProps
         <img src="/brand/microsoft-logo.svg" alt="" width={18} height={18} aria-hidden="true" />
         {tr('microsoft.continue', 'Continue with Microsoft')}
       </Button>
-      {failed ? (
-        <InlineAlert tone="danger" live>
-          {tr('microsoft.error.failed', FAILED)}
+      {failed === 'none' ? null : (
+        <InlineAlert tone={failed === 'unreachable' ? 'warning' : 'danger'} live>
+          {failed === 'unreachable'
+            ? tr('microsoft.error.unreachable', UNREACHABLE)
+            : tr('microsoft.error.failed', FAILED)}
         </InlineAlert>
-      ) : null}
+      )}
     </>
   );
 }
 
+const UNREACHABLE = 'Microsoft sign-in is temporarily unavailable. Try again in a moment.';
 const FAILED = 'Microsoft sign-in did not go through. Try again, or use your email and password.';
 
 /** `?microsoft_error=<code>` → catalog key and English line. */

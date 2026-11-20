@@ -1,32 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import {
   fetchGoogleAvailability,
   startGoogle,
-  type GoogleAvailabilityView,
   type GoogleStartInput,
 } from '../../lib/api/google-auth';
+import type { ProviderAvailability } from '../../lib/api/provider-availability';
+import { isTransientFailure } from '../../lib/session-check';
+import { useProviderAvailability } from './useProviderAvailability';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 
-/** Whether "Continue with Google" is configured on the API (null while unknown or when not). */
-export function useGoogleAvailability(api: ApiClient): GoogleAvailabilityView | null {
-  const [availability, setAvailability] = useState<GoogleAvailabilityView | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void fetchGoogleAvailability(api).then((value) => {
-      if (!cancelled) setAvailability(value);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return availability;
+/** Whether "Continue with Google" is configured on the API: null until the first answer. */
+export function useGoogleAvailability(api: ApiClient): ProviderAvailability | null {
+  return useProviderAvailability(() => fetchGoogleAvailability(api));
 }
 
 export interface GoogleSignInButtonProps {
@@ -44,15 +35,16 @@ export interface GoogleSignInButtonProps {
 export function GoogleSignInButton({ api, input }: GoogleSignInButtonProps) {
   const t = useT();
   const [working, setWorking] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<'none' | 'refused' | 'unreachable'>('none');
 
   async function go() {
     setWorking(true);
-    setFailed(false);
+    setFailed('none');
     try {
       window.location.assign(await startGoogle(api, input()));
-    } catch {
-      setFailed(true);
+    } catch (error) {
+      // HT-2: the session check's classifier says whether this was "no answer" (try again).
+      setFailed(isTransientFailure(error) ? 'unreachable' : 'refused');
       setWorking(false);
     }
   }
@@ -70,11 +62,11 @@ export function GoogleSignInButton({ api, input }: GoogleSignInButtonProps) {
         <img src="/brand/google-g.svg" alt="" width={18} height={18} aria-hidden="true" />
         {t('google.continue')}
       </Button>
-      {failed ? (
-        <InlineAlert tone="danger" live>
-          {t('google.error.failed')}
+      {failed === 'none' ? null : (
+        <InlineAlert tone={failed === 'unreachable' ? 'warning' : 'danger'} live>
+          {t(failed === 'unreachable' ? 'google.error.unreachable' : 'google.error.failed')}
         </InlineAlert>
-      ) : null}
+      )}
     </>
   );
 }

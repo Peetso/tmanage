@@ -7,7 +7,7 @@ import { AuthBoundary } from '../src/lib/auth-boundary';
 
 /** 51-05 "Continue with Microsoft": hidden unless configured, then starts its own flow. */
 
-function clientOver(microsoft: 'on' | 'off', urls: string[]): ApiClient {
+function clientOver(microsoft: 'on' | 'off' | 'down', urls: string[]): ApiClient {
   return new ApiClient({
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
@@ -19,7 +19,7 @@ function clientOver(microsoft: 'on' | 'off', urls: string[]): ApiClient {
         : url.endsWith('/v1/auth/microsoft') && microsoft === 'on'
           ? { available: true, signUp: true }
           : { error: { code: 'not_found', message: 'Not found' } };
-      const status = 'error' in body ? 404 : 200;
+      const status = microsoft === 'down' ? 503 : 'error' in body ? 404 : 200;
       return Promise.resolve(
         new Response(JSON.stringify(body), {
           status,
@@ -62,5 +62,18 @@ describe('Continue with Microsoft', () => {
     } finally {
       Object.defineProperty(window, 'location', { configurable: true, value: original });
     }
+  });
+
+  it('HT-3: keeps the button when the API cannot answer (503), and says "try again" on click', async () => {
+    const urls: string[] = [];
+    render(<SignInScreen client={clientOver('down', urls)} boundary={new AuthBoundary()} />);
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: /Continue with Microsoft/ }));
+    expect(
+      await screen.findByText(
+        'Microsoft sign-in is temporarily unavailable. Try again in a moment.',
+      ),
+    ).toBeTruthy();
   });
 });

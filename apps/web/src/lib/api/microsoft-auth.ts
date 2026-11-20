@@ -1,11 +1,7 @@
 import type { ApiClient } from './client';
 import { ApiRequestError } from './errors';
-import type {
-  GoogleAvailabilityView,
-  GooglePendingMfaView,
-  GoogleStartInput,
-  GoogleStartView,
-} from './google-auth';
+import { fetchProviderAvailability, type ProviderAvailability } from './provider-availability';
+import type { GooglePendingMfaView, GoogleStartInput, GoogleStartView } from './google-auth';
 
 /**
  * "Continue with Microsoft" (51-05) — the browser half. The API's `/v1/auth/microsoft/*` routes
@@ -20,20 +16,9 @@ export interface MicrosoftUnavailableView {
   readonly available: false;
 }
 
-/** Whether the button should show; null when not configured and on any failure. */
-export async function fetchMicrosoftAvailability(
-  client: ApiClient,
-): Promise<GoogleAvailabilityView | null> {
-  try {
-    const { data } = await client.request<GoogleAvailabilityView | MicrosoftUnavailableView>({
-      method: 'GET',
-      path: '/v1/auth/microsoft',
-      authentication: 'none',
-    });
-    return data.available === true ? data : null;
-  } catch {
-    return null;
-  }
+/** available / unavailable (`{ available: false }` or 404) / unknown (no definite answer; HT-3). */
+export function fetchMicrosoftAvailability(client: ApiClient): Promise<ProviderAvailability> {
+  return fetchProviderAvailability(client, '/v1/auth/microsoft');
 }
 
 export async function startMicrosoft(client: ApiClient, input: GoogleStartInput): Promise<string> {

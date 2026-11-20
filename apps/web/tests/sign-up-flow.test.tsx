@@ -394,7 +394,8 @@ describe('when /sign-up cannot load (SIGNUP3)', () => {
     render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
     await ready();
     expect(screen.getByLabelText(/^Email/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Continue with Google/ })).toBeNull();
+    // HT-3: a 500 is not "Google is not configured", so the button stays (a click retries).
+    expect(screen.getByRole('button', { name: /Continue with Google/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
   });
 

@@ -26,6 +26,7 @@ import {
   googleErrorKey,
   useGoogleAvailability,
 } from './GoogleSignInButton';
+import { providerOffered } from '../../lib/api/provider-availability';
 import '../../styles/screens/identity.css';
 
 export interface InvitationScreenProps {
@@ -178,7 +179,7 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<RegistrationField, string>>>({});
-  const google = useGoogleAvailability(api);
+  const google = providerOffered(useGoogleAvailability(api));
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   useEffect(() => setGoogleError(googleErrorKey(window.location.search)), []);
 

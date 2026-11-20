@@ -30,6 +30,7 @@ import {
   googleErrorKey,
   useGoogleAvailability,
 } from './GoogleSignInButton';
+import { providerOffered } from '../../lib/api/provider-availability';
 import {
   MicrosoftErrorMessage,
   MicrosoftSignInButton,
@@ -174,11 +175,12 @@ export function SignInScreen({
   );
   const [developmentFailure, setDevelopmentFailure] = useState<string | undefined>(undefined);
 
-  // "Continue with Google": shown only when the API has it configured.
-  const google = useGoogleAvailability(api);
+  // "Continue with Google": shown when the API has it configured, and kept while that is
+  // unknown (a 5xx during a restart is not "not configured"; HT-3).
+  const google = providerOffered(useGoogleAvailability(api));
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   // 51-05 "Continue with Microsoft": the same, beside Google.
-  const microsoft = useMicrosoftAvailability(api);
+  const microsoft = providerOffered(useMicrosoftAvailability(api));
   // LANDFIX: inside Facebook/Instagram/TikTok webviews the providers refuse the sign-in.
   const inAppBrowser = useInAppBrowser();
   const [microsoftError, setMicrosoftError] = useState<readonly [string, string] | undefined>(
@@ -470,8 +472,8 @@ export function SignInScreen({
         <>
           <p className="tm-divider tm-id-or">{t('SignUpFunnel.or')}</p>
           <InAppBrowserNotice
-            google={Boolean(google)}
-            microsoft={Boolean(microsoft)}
+            google={google}
+            microsoft={microsoft}
             android={inAppBrowser.android}
           />
         </>
