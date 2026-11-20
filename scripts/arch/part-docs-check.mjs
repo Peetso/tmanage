@@ -1,22 +1,21 @@
 #!/usr/bin/env node
-// Fitness check for the part-documentation system: PD-1…PD-8 of docs/architecture/PART-DOCS.md §6
-// (rows PD-1…PD-8 of FITNESS-FUNCTIONS.md §PD).
+// Fitness check for the part docs that exist: PD-1…PD-8 of docs/architecture/PART-DOCS.md §6
+// (rows PD-1…PD-8 of FITNESS-FUNCTIONS.md §PD). A part without a PART.md is not an error
+// (Peter, 2026-11-20: general standards, not a doc for every part); there is no missing-docs
+// ratchet.
 //
 //   node scripts/arch/part-docs-check.mjs                    check (exit 1 on any violation)
 //   node scripts/arch/part-docs-check.mjs --write-registry   regenerate docs/architecture/parts.json
-//   node scripts/arch/part-docs-check.mjs --init-baseline    write the missing-docs baseline once
 //   node scripts/arch/part-docs-check.mjs --pre-commit       PD-6 warnings for the staged files
 //
-// Read-only towards git (`rev-list`, `merge-base --is-ancestor`, `show`, `diff --cached`).
+// Read-only towards git (`rev-list`, `merge-base --is-ancestor`, `diff --cached`).
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  BASELINE_PATH,
   KINDS,
   OPTIONAL_HEADINGS,
-  P0_PARTS,
   REGISTRY_PATH,
   REPO_ROOT,
   REQUIRED_HEADINGS,
@@ -93,13 +92,6 @@ export function defaultGit(root) {
     countSince(sha, specs) {
       return Number(git(root, ['rev-list', '--count', `${sha}..HEAD`, '--', ...specs]).trim());
     },
-    headFile(rel) {
-      try {
-        return git(root, ['show', `HEAD:${rel}`]);
-      } catch {
-        return null;
-      }
-    },
     staged() {
       return git(root, ['diff', '--cached', '--name-only']).split('\n').filter(Boolean);
     },
@@ -130,52 +122,11 @@ export function checkRegistryFresh(root, built) {
   return [];
 }
 
-/** PD-1: doc + loader per part, with a baseline of undocumented parts that may only shrink. */
-export function checkPresence(root, registry, baseline, headBaseline) {
+/** PD-1: a part that has a PART.md also has its CLAUDE.md loader(s) importing it. */
+export function checkLoaders(root, registry) {
   const errors = [];
-  const listed = new Set(baseline);
-  for (const id of baseline) {
-    if (!registry.parts.some((p) => p.id === id)) {
-      errors.push({
-        rule: 'PD-1',
-        part: id,
-        message: `baseline names a part that is not in the registry`,
-      });
-    }
-    if (P0_PARTS.includes(id)) {
-      errors.push({
-        rule: 'PD-1',
-        part: id,
-        message: 'P0 part may never be in the missing-docs baseline',
-      });
-    }
-  }
-  if (headBaseline) {
-    for (const id of baseline) {
-      if (!headBaseline.includes(id)) {
-        errors.push({
-          rule: 'PD-1',
-          part: id,
-          message: `baseline grew (not in HEAD's ${BASELINE_PATH}); it may only shrink. Write the PART.md instead`,
-        });
-      }
-    }
-  }
   for (const p of registry.parts) {
-    const docThere = has(root, p.doc);
-    if (!docThere) {
-      if (!listed.has(p.id)) {
-        errors.push({ rule: 'PD-1', part: p.id, message: `${p.doc} is missing` });
-      }
-      continue;
-    }
-    if (listed.has(p.id)) {
-      errors.push({
-        rule: 'PD-1',
-        part: p.id,
-        message: `${p.doc} exists: remove "${p.id}" from ${BASELINE_PATH} (the ratchet only shrinks)`,
-      });
-    }
+    if (!has(root, p.doc)) continue; // no PART.md is allowed: the general standards apply
     for (const loader of p.loaders) {
       const text = has(root, loader.file) ? read(root, loader.file) : null;
       const imports = text?.split(/\r?\n/).some((line) => line.trim() === loader.import);
@@ -329,19 +280,7 @@ export function runCheck(root = REPO_ROOT, gitApi = defaultGit(root)) {
   const errors = checkRegistryFresh(root, built);
   const registry = built;
 
-  const baseline = has(root, BASELINE_PATH)
-    ? (JSON.parse(read(root, BASELINE_PATH)).missing ?? [])
-    : [];
-  if (!has(root, BASELINE_PATH)) {
-    errors.push({
-      rule: 'PD-1',
-      part: '-',
-      message: `${BASELINE_PATH} is missing: run --init-baseline once`,
-    });
-  }
-  const headText = gitApi.headFile(BASELINE_PATH);
-  const headBaseline = headText ? (JSON.parse(headText).missing ?? []) : null;
-  errors.push(...checkPresence(root, registry, baseline, headBaseline));
+  errors.push(...checkLoaders(root, registry));
 
   const standards = STANDARDS.filter((s) => has(root, s)).map((s) => read(root, s));
   const ruleIds = definedRuleIds(standards);
@@ -368,7 +307,7 @@ export function runCheck(root = REPO_ROOT, gitApi = defaultGit(root)) {
     errors.push(...checkStale(p, data, registry, gitApi, warnings));
     errors.push(...checkTables(p, data, tableOwners));
   }
-  return { errors, warnings, total: registry.parts.length, documented, baseline: baseline.length };
+  return { errors, warnings, total: registry.parts.length, documented };
 }
 
 /** PD-6 (committer): production part changed without its PART.md while already at N/2. */
@@ -420,34 +359,15 @@ async function main() {
     console.log(`wrote ${REGISTRY_PATH}: ${registry.parts.length} parts`);
     return;
   }
-  if (args.has('--init-baseline')) {
-    if (has(root, BASELINE_PATH)) {
-      console.error(`${BASELINE_PATH} exists; it may only shrink (edit it by removing entries).`);
-      process.exit(1);
-    }
-    const registry = buildRegistry(root);
-    const missing = registry.parts
-      .filter((p) => !has(root, p.doc) && !P0_PARTS.includes(p.id))
-      .map((p) => p.id);
-    mkdirSync(path.dirname(path.join(root, BASELINE_PATH)), { recursive: true });
-    const body = {
-      $comment:
-        'PD-1 ratchet (PART-DOCS §6): parts without a PART.md yet. May only shrink; P0 parts never appear. Raising it needs an ADR.',
-      missing,
-    };
-    await writeJson(root, BASELINE_PATH, body);
-    console.log(`wrote ${BASELINE_PATH}: ${missing.length} parts`);
-    return;
-  }
   if (args.has('--pre-commit')) {
     for (const w of runPreCommit(root)) console.warn(`warning: ${w}`);
     return;
   }
-  const { errors, warnings, total, documented, baseline } = runCheck(root);
+  const { errors, warnings, total, documented } = runCheck(root);
   for (const w of warnings) console.warn(`warning: ${w}`);
   for (const e of errors) console.error(`${e.rule} ${e.part}: ${e.message}`);
   console.log(
-    `part docs: ${documented}/${total} parts documented, ${baseline} in the missing-docs baseline`,
+    `part docs: ${documented} PART.md checked; ${total - documented} of ${total} parts have none (allowed, PART-DOCS §7)`,
   );
   if (errors.length) {
     console.error(

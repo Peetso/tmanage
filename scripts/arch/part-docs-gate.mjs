@@ -1,9 +1,15 @@
 #!/usr/bin/env node
-// Claude Code hook: "read the part's PART.md before you edit the part" (PART-DOCS.md §3.3 L2).
+// Claude Code hook: "read the general standards before you edit code" (PART-DOCS.md §3.3 L2).
+//
+// Rule (Peter, 2026-11-20: general standards, not a doc for every part):
+//   * an edit of a repository file outside docs/ and .claude/ needs docs/architecture/README.md
+//     to have been read once in this session (per agent: a subagent needs its own read);
+//   * an edit inside a part that HAS a PART.md also needs that PART.md read;
+//   * a part without a PART.md never blocks and never reminds.
 //
 //   node scripts/arch/part-docs-gate.mjs gate     PreToolUse  Edit|Write|MultiEdit|NotebookEdit,
 //                                                  and Bash|PowerShell (write targets only)
-//   node scripts/arch/part-docs-gate.mjs record   PostToolUse Read (records PART.md reads)
+//   node scripts/arch/part-docs-gate.mjs record   PostToolUse Read (records README/PART.md reads)
 //
 // Verified hook contract (https://code.claude.com/docs/en/hooks, read 2026-11-20):
 //   * stdin JSON carries session_id, transcript_path, cwd, hook_event_name, tool_name,
@@ -11,20 +17,19 @@
 //     when the hook fires inside a subagent (hooks from settings files run in subagents too).
 //   * exit 2 blocks a PreToolUse call and stderr is shown to Claude; exit 0 with no output lets
 //     the call continue through the normal permission flow (it does not approve it).
-//   * hookSpecificOutput.additionalContext is added to Claude's context next to the tool result.
 //   * a crash or timeout does not block unless the hook has "onFailure": "block".
 //   * the subagent's own transcript is `<session>/subagents/agent-<agent_id>.jsonl`.
 //
 // A read counts when (a) the PostToolUse(Read) record exists for this session + agent, or
-// (b) this agent's transcript holds a Read (or single-file shell read) of the PART.md. (a) exists
+// (b) this agent's transcript holds a Read (or single-file shell read) of the doc. (a) exists
 // because the docs say the transcript "is written asynchronously and may lag".
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
+  ARCH_README,
   DOC_NAME,
   LOADER_NAME,
-  P0_PARTS,
   REGISTRY_PATH,
   REPO_ROOT,
   agentTranscriptPath,
@@ -48,7 +53,7 @@ const readText = (file) => {
   }
 };
 
-/** Edits that never need a part doc read: the docs themselves, and everything outside a part. */
+/** Edits that never need a read: PART.md, CLAUDE.md, docs/**, .claude/**, files outside the repo. */
 export function isExempt(rel) {
   if (rel == null) return true;
   const base = path.posix.basename(rel);
@@ -58,6 +63,11 @@ export function isExempt(rel) {
     rel.startsWith('docs/') ||
     rel.startsWith('.claude/')
   );
+}
+
+/** Docs whose reads the gate records: the architecture README and every PART.md. */
+export function isTrackedDoc(rel) {
+  return rel === ARCH_README || path.posix.basename(rel ?? '') === DOC_NAME;
 }
 
 function targetsOf(input) {
@@ -80,7 +90,7 @@ function wasRead({ input, docRel, root }) {
 
 /**
  * Decision for one PreToolUse input.
- * @returns {{ action: 'allow' | 'remind' | 'deny', message?: string }}
+ * @returns {{ action: 'allow' | 'deny', message?: string }}
  */
 export function decide(input, root = REPO_ROOT) {
   const cwd = input.cwd || root;
@@ -88,6 +98,16 @@ export function decide(input, root = REPO_ROOT) {
     .map((t) => repoRelative(t, root, cwd))
     .filter((rel) => !isExempt(rel));
   if (rels.length === 0) return { action: 'allow' };
+
+  const denials = [];
+  if (!existsSync(path.join(root, ARCH_README))) {
+    // Fail closed: the entry point to the standards is part of the gate's contract.
+    denials.push(`${ARCH_README} is missing; restore it before editing code.`);
+  } else if (!wasRead({ input, docRel: ARCH_README, root })) {
+    denials.push(
+      `Read ${ARCH_README} first (Read tool, once per session) and follow the standards it points to.`,
+    );
+  }
 
   let registry;
   try {
@@ -102,19 +122,10 @@ export function decide(input, root = REPO_ROOT) {
     };
   }
 
-  const reminders = [];
-  const denials = [];
   for (const rel of rels) {
     const part = findPart(registry, rel);
-    if (!part) continue;
-    if (!existsSync(path.join(root, part.doc))) {
-      const p0 = P0_PARTS.includes(part.id) ? ' It is a P0 part: PD-1 fails until it exists.' : '';
-      reminders.push(
-        `Part ${part.id} has no ${part.doc} yet (rollout, PART-DOCS §7).${p0} ` +
-          'Read docs/architecture/PART-DOCS.md §4 and write the part doc with this change if you can.',
-      );
-      continue;
-    }
+    // No part, or a part without a PART.md: the general standards are enough (PART-DOCS §3.3).
+    if (!part || !existsSync(path.join(root, part.doc))) continue;
     if (!wasRead({ input, docRel: part.doc, root })) {
       denials.push(
         `${rel} belongs to part ${part.id}. Read ${part.doc} first (Read tool) and quote its rule IDs in your plan.`,
@@ -127,15 +138,14 @@ export function decide(input, root = REPO_ROOT) {
       message: `Part-doc gate (PART-DOCS §3.3): ${[...new Set(denials)].join(' ')}`,
     };
   }
-  if (reminders.length) return { action: 'remind', message: [...new Set(reminders)].join(' ') };
   return { action: 'allow' };
 }
 
-/** PostToolUse(Read): append a record when a PART.md inside the repository was read. */
+/** PostToolUse(Read): append a record when the README or a PART.md in the repository was read. */
 export function record(input, root = REPO_ROOT) {
   if (input.tool_name !== 'Read') return false;
   const rel = repoRelative(input.tool_input?.file_path, root, input.cwd || root);
-  if (!rel || path.posix.basename(rel) !== DOC_NAME) return false;
+  if (!rel || !isTrackedDoc(rel)) return false;
   const file = path.join(root, STATE_PATH);
   mkdirSync(path.dirname(file), { recursive: true });
   const line = {
@@ -175,14 +185,6 @@ async function main() {
   if (result.action === 'deny') {
     process.stderr.write(`${result.message}\n`);
     process.exit(2);
-  }
-  if (result.action === 'remind') {
-    // No permissionDecision: the call goes through the normal permission flow unchanged.
-    process.stdout.write(
-      `${JSON.stringify({
-        hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: result.message },
-      })}\n`,
-    );
   }
 }
 

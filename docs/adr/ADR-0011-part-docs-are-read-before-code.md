@@ -64,3 +64,14 @@ All are cited in `docs/architecture/PART-DOCS.md` §1.
 | --------- | ------------------------------------------------ | ----------------- |
 | PD-1…PD-8 | `scripts/arch/part-docs-check.mjs`               | to build          |
 | GATE      | `.claude/settings.json` PostToolUse + PreToolUse | to build          |
+
+## Amendment, 2026-11-20 (Peter): general standards, not a doc for every part
+
+Peter changed the rule the same day: TManage follows **general standards**, not a doc for every part. What changes:
+
+- The rollout of `PART.md` to the remaining 184 parts is cancelled. A part without a `PART.md` never blocks an edit and never fails `pnpm arch:parts`.
+- The missing-docs ratchet (`docs/architecture/baselines/parts-missing.json`) and the P0 list are removed.
+- The edit gate now asks for `docs/architecture/README.md` to be read once per session (per agent) before any repository edit outside `docs/` and `.claude/`. Where a part has a `PART.md`, that one is still required as well.
+- The 18 existing `PART.md` files stay, with PD-1 (loader) to PD-8.
+
+Implemented in `scripts/arch/part-docs-gate.mjs`, `part-docs-check.mjs`, `parts-lib.mjs`; tests in `scripts/arch/part-docs.test.mjs`. `PART-DOCS.md` v1.1 and `README.md` say the same.

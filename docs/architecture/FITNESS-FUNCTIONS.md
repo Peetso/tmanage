@@ -173,17 +173,17 @@ GitHub Actions cannot start until billing is fixed, so today `pnpm verify` and `
 
 ### §PD: PART-DOCS (`scripts/arch/part-docs-check.mjs` + the edit gate)
 
-| Check | Spec                                                                                                                                                                         | Runs in          | Status |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------ |
-| PD-1  | Every registry part has `PART.md` + `CLAUDE.md` (`@PART.md`); missing-docs baseline only shrinks; P0 parts never in it                                                       | script           | B      |
-| PD-2  | Front-matter schema; `part` = registry id; `context` in VIEWS §4                                                                                                             | script           | B      |
-| PD-3  | Required headings present, in order, non-empty or `n/a — reason`                                                                                                             | script           | B      |
-| PD-4  | Every cited rule ID exists in the three standards                                                                                                                            | script           | B      |
-| PD-5  | Stale: more than N = 15 (proposed) commits on the part's paths since `last_verified_commit`                                                                                  | script           | B      |
-| PD-6  | Production part changed without its `PART.md` while already at N/2                                                                                                           | committer        | B      |
-| PD-7  | `PART.md` ≤ 30,000 characters (on-demand truncation is at 40,000)                                                                                                            | script           | B      |
-| PD-8  | `tables_owned` matches `table-owners.json`; `provides_api` is in the route census                                                                                            | script           | B      |
-| GATE  | `.claude/settings.json`: PostToolUse(Read) records `PART.md` reads; PreToolUse(Edit\|Write\|NotebookEdit) denies edits to a part without a recorded read; `onFailure: block` | Claude Code hook | B      |
+| Check | Spec                                                                                                                                                                                                                                                                              | Runs in          | Status                                                                 |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------- |
+| PD-1  | A part that has a `PART.md` has a `CLAUDE.md` (`@PART.md`); a part without one is not an error (no baseline since 2026-11-20)                                                                                                                                                     | script           | E `scripts/arch/part-docs-check.mjs`                                   |
+| PD-2  | Front-matter schema; `part` = registry id; `context` in VIEWS §4                                                                                                                                                                                                                  | script           | E `scripts/arch/part-docs-check.mjs`                                   |
+| PD-3  | Required headings present, in order, non-empty or `n/a — reason`                                                                                                                                                                                                                  | script           | E `scripts/arch/part-docs-check.mjs`                                   |
+| PD-4  | Every cited rule ID exists in the three standards                                                                                                                                                                                                                                 | script           | E `scripts/arch/part-docs-check.mjs`                                   |
+| PD-5  | Stale: more than N = 15 (proposed) commits on the part's paths since `last_verified_commit`                                                                                                                                                                                       | script           | E `scripts/arch/part-docs-check.mjs`                                   |
+| PD-6  | Production part changed without its `PART.md` while already at N/2                                                                                                                                                                                                                | committer        | E `part-docs-check.mjs --pre-commit`                                   |
+| PD-7  | `PART.md` ≤ 30,000 characters (on-demand truncation is at 40,000)                                                                                                                                                                                                                 | script           | E `scripts/arch/part-docs-check.mjs`                                   |
+| PD-8  | `tables_owned` matches `table-owners.json`; `provides_api` is in the route census                                                                                                                                                                                                 | script           | E+B `part-docs-check.mjs` (inactive until AR-7; route census to build) |
+| GATE  | `.claude/settings.json` + `scripts/arch/part-docs-gate.mjs`: PostToolUse(Read) records reads of `docs/architecture/README.md` and `PART.md`; PreToolUse denies a repo edit until the README is read in the session, and an edit in a part that has a `PART.md` until that is read | Claude Code hook | E `scripts/arch/part-docs.test.mjs`                                    |
 
 ### Totals across all standards (2026-11-20)
 
@@ -192,11 +192,11 @@ GitHub Actions cannot start until billing is fixed, so today `pnpm verify` and `
 | ENGINEERING-STANDARD    | 76   | 17  | 10  | 41  | 8   |
 | UI-UX-DESIGN-STANDARD   | 24   | 2   | 5   | 15  | 2   |
 | IMPLEMENTATION-PATTERNS | 17   | 3   | 3   | 9   | 2   |
-| PART-DOCS (checks)      | 8    | 0   | 0   | 8   | 0   |
-| **All**                 | 125  | 22  | 18  | 73  | 12  |
+| PART-DOCS (checks)      | 8    | 7   | 1   | 0   | 0   |
+| **All**                 | 125  | 29  | 19  | 65  | 12  |
 
 The edit gate (GATE) is counted separately: it is the enforcement mechanism, not a rule.
 
 ### Build order, updated
 
-The order is: 1, then GATE + PD-1…PD-4 (so part docs can start), then 2–6 above, then UX-14/UX-11 ratchets, UX-17 measurement, and IP-15/IP-16 on the P0 risk files.
+The order is: 1, then GATE + PD-1…PD-4 (built 2026-11-20; part docs are optional since Peter's rule change that day, PART-DOCS §7), then 2–6 above, then UX-14/UX-11 ratchets, UX-17 measurement, and IP-15/IP-16 on the P0 risk files.

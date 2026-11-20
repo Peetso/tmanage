@@ -77,8 +77,8 @@ Date:                            <YYYY-MM-DD>
 ## I. Parts read (PART-DOCS §3.3)
 
 - [ ] Parts touched, from `docs/architecture/parts.json`: …
-- [ ] `PART.md` of each was Read before any edit; the rule IDs quoted from it: …
-- [ ] Each touched part's `PART.md` is updated in the same change, with `last_verified_commit` restamped
+- [ ] `docs/architecture/README.md` was Read this session; the general-standard rule IDs applied: …
+- [ ] Where a touched part has a `PART.md` (most have none): it was Read before any edit, its rule IDs are quoted, and it is updated in the same change with `last_verified_commit` restamped
 
 ## J. Production readiness review (PR-5; required for a new part, external dependency or background job)
 

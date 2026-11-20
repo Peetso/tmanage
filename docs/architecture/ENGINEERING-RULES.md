@@ -6,7 +6,7 @@ The rules that used to be here were replaced on 2026-11-20 by a cited, code-mapp
 
 1. **`ENGINEERING-STANDARD.md`**: the rules. Each has an ID, a verified source, today's `file:line`, a target and a check.
 2. `DESIGN-CHECKLIST.md`: fill it before any design or build.
-3. `IMPLEMENTATION-PATTERNS.md`, `UI-UX-DESIGN-STANDARD.md`, `PART-DOCS.md` (read the part's `PART.md` before any edit).
+3. `IMPLEMENTATION-PATTERNS.md`, `UI-UX-DESIGN-STANDARD.md`, `PART-DOCS.md` (where a part has a `PART.md`, read it before editing that part; most parts have none).
 4. `VIEWS.md`, `QUALITY-ATTRIBUTES.md`, `FITNESS-FUNCTIONS.md`.
 5. `README.md` in this folder: read order, gates and governance.
 
