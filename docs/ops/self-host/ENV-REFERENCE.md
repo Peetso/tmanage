@@ -123,6 +123,10 @@ one credential, so a one-user install sets only the database connection.
 | `MALWARE_SCAN_TIMEOUT_MS` | no | `30000` | no |  | One object's whole scan — connect, stream, reply. |
 | `CLAMAV_HOST` | no |  | no | yes |  |
 | `CLAMAV_PORT` | no | `3310` | no |  |  |
+| `CLAMAV_TLS` | no | `false` | no |  | Scanner over TLS (SCANNER-TLS). |
+| `CLAMAV_TLS_FINGERPRINT` | no |  | no |  | SHA-256 of the server certificate (DER), as `openssl x509 -noout -fingerprint -sha256` prints it (`AB:CD:…`, with or without the colons or the `sha256 Fingerprint=` prefix). |
+| `CLAMAV_TLS_CA` | no |  | no |  | A PEM CA (or the server's own self-signed certificate) the chain must verify to, inline (newlines may be written `\n`) or base64 of the PEM. |
+| `CLAMAV_TLS_SERVERNAME` | no |  | no |  | SNI, and the name a CA-verified certificate must carry. |
 | `UPLOAD_MAX_BYTES` | no | `104857600` | no |  |  |
 | `UPLOAD_PART_SIZE_BYTES` | no | `8388608` | no |  | The size of one multipart part, `UPLOAD_PART_SIZE_DEFAULT_BYTES` (8 MiB) by default, bounded because the API buffers one part per request. |
 | `UPLOAD_MAX_OPEN_SESSIONS_PER_USER` | no | `20` | no |  | Security review 2026-09-04. |

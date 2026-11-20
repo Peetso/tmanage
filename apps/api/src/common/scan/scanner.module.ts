@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { MALWARE_SCANNER } from '../http/tokens.js';
 import { ClamavScanner } from './clamav-scanner.js';
+import type { ClamavTlsOptions } from './clamav-scanner.js';
 import { NoneScanner, StubScanner } from './malware-scanner.js';
 import type { MalwareScanner } from './malware-scanner.js';
 
@@ -25,6 +26,8 @@ export interface ScannerModuleConfig {
   readonly port: number;
   /** `MALWARE_SCAN_TIMEOUT_MS`. */
   readonly timeoutMs: number;
+  /** `CLAMAV_TLS=1` with its pin / CA / servername; absent = plain TCP. */
+  readonly tls?: ClamavTlsOptions | undefined;
 }
 
 function driverFrom(config: ScannerModuleConfig): MalwareScanner {
@@ -35,7 +38,12 @@ function driverFrom(config: ScannerModuleConfig): MalwareScanner {
     // caller that bypassed `loadEnv` fails at wiring time rather than at the first scan.
     throw new Error('MALWARE_SCAN_DRIVER=clamav requires CLAMAV_HOST');
   }
-  return new ClamavScanner({ host: config.host, port: config.port, timeoutMs: config.timeoutMs });
+  return new ClamavScanner({
+    host: config.host,
+    port: config.port,
+    timeoutMs: config.timeoutMs,
+    tls: config.tls,
+  });
 }
 
 function moduleFor(scanner: MalwareScanner): DynamicModule {

@@ -1,5 +1,8 @@
-import { connect } from 'node:net';
+import { timingSafeEqual } from 'node:crypto';
+import { connect, isIP } from 'node:net';
 import type { Socket } from 'node:net';
+import { connect as connectTls } from 'node:tls';
+import type { TLSSocket } from 'node:tls';
 import { ScanError, ScannerUnavailableError } from './malware-scanner.js';
 import type { MalwareScanner, ScanInput, ScanResult } from './malware-scanner.js';
 
@@ -40,7 +43,27 @@ import type { MalwareScanner, ScanInput, ScanResult } from './malware-scanner.js
  * one; the variable exists so an operator can say so. The clock bounds the engine, not
  * the source: a store stream that stalls stalls the pass, and that is the store's fault
  * to report, not a verdict to invent.
+ *
+ * ## TLS (SCANNER-TLS)
+ *
+ * With {@link ClamavTlsOptions} the same bytes go over TLS 1.3 to a stunnel in front of clamd on
+ * another machine (`docs/runbooks/hostinger-shared-hosting.md` §6). The server is trusted only
+ * through a **pin** (`fingerprint256`, the SHA-256 of its certificate: the recommended form for a
+ * self-signed stunnel certificate) and/or a **CA** the chain must verify to, with the name
+ * checked; never through "any certificate". Nothing is written before the handshake has
+ * finished and the pin matched, and a handshake that fails or a pin that does not match is
+ * {@link ScannerUnavailableError}: the pass stops before it claims a row, and every file stays
+ * `scanning`, never `clean`.
  */
+
+export interface ClamavTlsOptions {
+  /** `AB:CD:…` (normalised by `packages/config`): the server certificate must have exactly this SHA-256. */
+  readonly fingerprint256?: string | undefined;
+  /** A PEM CA (or the self-signed certificate itself); the chain and the name must verify to it. */
+  readonly ca?: string | undefined;
+  /** SNI and, with `ca`, the name checked. Default: the host when it is a name, not an address. */
+  readonly servername?: string | undefined;
+}
 
 export interface ClamavScannerOptions {
   readonly host: string;
@@ -49,6 +72,8 @@ export interface ClamavScannerOptions {
   readonly timeoutMs: number;
   /** Injectable for the suite: the socket factory. `node:net`'s `connect` otherwise. */
   readonly connect?: ((host: string, port: number) => Socket) | undefined;
+  /** TLS to the engine; absent = plain TCP (loopback or a private network only, `packages/config`). */
+  readonly tls?: ClamavTlsOptions | undefined;
 }
 
 export const CONNECT_TIMEOUT_MS = 5_000;
@@ -74,6 +99,12 @@ export class ClamavScanner implements MalwareScanner {
   private readonly dial: (host: string, port: number) => Socket;
 
   constructor(private readonly options: ClamavScannerOptions) {
+    const tls = options.tls;
+    if (tls !== undefined && !tls.fingerprint256 && !tls.ca) {
+      // `packages/config` refuses this at boot; repeated so no caller builds a TLS scanner
+      // that would trust whatever certificate the network offers.
+      throw new Error('clamav TLS needs a certificate pin or a CA');
+    }
     this.dial = options.connect ?? ((host, port) => connect({ host, port }));
   }
 
@@ -138,12 +169,19 @@ export class ClamavScanner implements MalwareScanner {
     }
   }
 
-  /** A connected socket, or `ScannerUnavailableError`. */
+  /**
+   * A connected socket (for TLS, a finished handshake whose certificate passed), or
+   * `ScannerUnavailableError`. The connect bound covers the handshake too.
+   */
   private open(): Promise<Socket> {
+    const tls = this.options.tls;
     return new Promise<Socket>((resolve, reject) => {
       let socket: Socket;
       try {
-        socket = this.dial(this.options.host, this.options.port);
+        socket =
+          tls === undefined
+            ? this.dial(this.options.host, this.options.port)
+            : dialTls(this.options.host, this.options.port, tls);
       } catch (error) {
         reject(new ScannerUnavailableError(errorCode(error)));
         return;
@@ -158,13 +196,42 @@ export class ClamavScanner implements MalwareScanner {
         reject(new ScannerUnavailableError(errorCode(error)));
       };
       socket.once('error', failed);
-      socket.once('connect', () => {
+      socket.once(tls === undefined ? 'connect' : 'secureConnect', () => {
         clearTimeout(timer);
+        if (tls?.fingerprint256 && !pinMatches(socket as TLSSocket, tls.fingerprint256)) {
+          failed(new ScannerUnavailableError('tls certificate pin mismatch'));
+          return;
+        }
         socket.off('error', failed);
         resolve(socket);
       });
     });
   }
+}
+
+/**
+ * TLS 1.3 to the engine. With a CA, `node:tls` verifies the chain and the name; with a pin
+ * alone the chain is not verified (a self-signed certificate has none) and {@link pinMatches}
+ * is the whole trust decision, taken before a byte is written. No session is offered for
+ * resumption, so every handshake presents the certificate the pin is checked against.
+ */
+function dialTls(host: string, port: number, tls: ClamavTlsOptions): TLSSocket {
+  const servername = tls.servername ?? (isIP(host) === 0 ? host : undefined);
+  return connectTls({
+    host,
+    port,
+    minVersion: 'TLSv1.3',
+    ...(servername === undefined ? {} : { servername }),
+    ...(tls.ca === undefined ? { rejectUnauthorized: false } : { ca: tls.ca }),
+  });
+}
+
+function pinMatches(socket: TLSSocket, expected: string): boolean {
+  const actual = socket.getPeerCertificate().fingerprint256;
+  if (typeof actual !== 'string') return false;
+  const a = Buffer.from(actual.toUpperCase());
+  const b = Buffer.from(expected.toUpperCase());
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /**

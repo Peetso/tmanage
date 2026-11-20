@@ -90,13 +90,22 @@ describe('evaluateDeepHealth', () => {
     expect(missing.checks.worker).toBe('fail');
   });
 
-  it('reports the scanner as configured only for clamav with a host, and never fails on it', async () => {
+  it('reports the scanner ok or unreachable from its probe, only for clamav with a host, and never fails on it', async () => {
+    const clamav = { ...base, scannerDriver: 'clamav', scannerHost: 'clamd' };
     const on = await evaluateDeepHealth(
-      { ...base, scannerDriver: 'clamav', scannerHost: 'clamd' },
-      probes(),
+      clamav,
+      probes({ probeScanner: () => Promise.resolve() }),
       NOW,
     );
     expect(on.checks.scanner).toBe('ok');
+    // Reversal: report `ok` for a configured scanner without probing it and this is `ok`.
+    const down = await evaluateDeepHealth(
+      clamav,
+      probes({ probeScanner: () => Promise.reject(new Error('ECONNREFUSED')) }),
+      NOW,
+    );
+    expect(down.checks.scanner).toBe('unreachable');
+    expect(down.status).toBe('ok');
     const off = await evaluateDeepHealth({ ...base, scannerDriver: 'none' }, probes(), NOW);
     expect(off.checks.scanner).toBe('not_configured');
     expect(off.status).toBe('ok');

@@ -41,6 +41,8 @@ const prodEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
   CACHE_DRIVER: 'redis',
   MALWARE_SCAN_DRIVER: 'clamav',
   CLAMAV_HOST: 'clamd.tmanage.example',
+  CLAMAV_TLS: '1',
+  CLAMAV_TLS_FINGERPRINT: 'AB'.repeat(32),
   EMAIL_DRIVER: 'smtp',
   WORKER_DATABASE_URL: 'mysql://tmanage_worker:pw@localhost:3306/tmanage',
   ERASURE_DATABASE_URL: 'mysql://tmanage_erasure:pw@localhost:3306/tmanage',
@@ -729,6 +731,47 @@ describe('loadEnv', () => {
       expect(
         loadEnv({ ...devEnv(), MALWARE_SCAN_DRIVER: 'clamav', CLAMAV_HOST: 'clamd' }).CLAMAV_PORT,
       ).toBe(3310);
+    });
+
+    it('refuses clamav in clear text to a public host in production; loopback and private stay legal (SCANNER-TLS)', () => {
+      const plain = { CLAMAV_TLS: undefined, CLAMAV_TLS_FINGERPRINT: undefined };
+      // Reversal: without the production check the first boots.
+      expect(
+        issuePaths(() => loadEnv(prodEnv({ ...plain, CLAMAV_HOST: '203.0.113.7' }))),
+      ).toContain('CLAMAV_TLS');
+      expect(issuePaths(() => loadEnv(prodEnv(plain)))).toContain('CLAMAV_TLS');
+      for (const host of [
+        '127.0.0.1',
+        'localhost',
+        '10.0.0.5',
+        '172.20.1.1',
+        '192.168.1.9',
+        '::1',
+      ]) {
+        expect(() => loadEnv(prodEnv({ ...plain, CLAMAV_HOST: host })), host).not.toThrow();
+      }
+      for (const host of ['172.32.0.1', '8.8.8.8', '::ffff:127.0.0.1']) {
+        expect(
+          issuePaths(() => loadEnv(prodEnv({ ...plain, CLAMAV_HOST: host }))),
+          host,
+        ).toContain('CLAMAV_TLS');
+      }
+    });
+
+    it('needs a pin or a CA with CLAMAV_TLS=1, refuses either without it, and normalises the pin', () => {
+      expect(issuePaths(() => loadEnv(prodEnv({ CLAMAV_TLS_FINGERPRINT: undefined })))).toContain(
+        'CLAMAV_TLS_FINGERPRINT',
+      );
+      expect(
+        issuePaths(() => loadEnv({ ...devEnv(), CLAMAV_TLS_FINGERPRINT: 'AB'.repeat(32) })),
+      ).toContain('CLAMAV_TLS_FINGERPRINT');
+      expect(
+        issuePaths(() => loadEnv(prodEnv({ CLAMAV_TLS_FINGERPRINT: 'AB'.repeat(31) }))),
+      ).toContain('CLAMAV_TLS_FINGERPRINT');
+      const pasted = `sha256 Fingerprint=${'ab:'.repeat(31)}ab`;
+      expect(loadEnv(prodEnv({ CLAMAV_TLS_FINGERPRINT: pasted })).CLAMAV_TLS_FINGERPRINT).toBe(
+        Array(32).fill('AB').join(':'),
+      );
     });
 
     it.each(['SESSION_SECRET', 'CSRF_SECRET', 'STORAGE_LOCAL_SIGNING_SECRET'])(

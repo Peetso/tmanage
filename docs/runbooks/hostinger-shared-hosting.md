@@ -368,7 +368,13 @@ item) rather than discovered later as a surprise.
    version is recorded `unscanned` once and the asset parks at `scanning` forever. Moot while the
    object store is unavailable (item 1), but a live decision the day FILE-003 lands.
    **Decision:** accept `unscanned` files, or provision an external scanning path before files go
-   live.
+   live. **Built (SCANNER-TLS, 2026-11-20):** the external path is a clamd on a free Oracle Cloud
+   VM behind stunnel, reached with `MALWARE_SCAN_DRIVER=clamav`, `CLAMAV_HOST=<vm ip>`,
+   `CLAMAV_PORT=3311`, `CLAMAV_TLS=1`, `CLAMAV_TLS_FINGERPRINT=<sha-256 of the stunnel cert>`.
+   Production refuses clear text to a non-private host; a pin mismatch or an unreachable VM
+   leaves files at `scanning` (never `clean`) and `/healthz/deep` reports `scanner: unreachable`.
+   Server set-up: `D:/TManage/work/oracle-scanner/SETUP.md`. Set the variables one by one in
+   hPanel; never replace the whole environment.
 
 4. **Live chat updates are absent.** `REALTIME_PORT=0` (§2). Accepted; chat still works without
    live updates. Recorded here so it is a decision, not a surprise.

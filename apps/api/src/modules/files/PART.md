@@ -91,9 +91,9 @@ rules:
     IP-17,
   ]
 ux_rules: []
-last_verified_commit: 3b7e4fa70eb6facff3f1dccc65c0867f0707a0a6
+last_verified_commit: a7169b1c2cba173146f8bd89c4cfade7483d4231
 last_verified_date: 2026-11-20
-last_verified_by: Claude Opus 5.5 (lane H)
+last_verified_by: Claude Opus 5.5 (lane I, SCANNER-TLS rows)
 ---
 
 # api/files
@@ -178,6 +178,11 @@ inbound_mail`; a client file is at most 100 MiB and a client may start 20 upload
 - **I-9** Rejected/quarantined objects are purged after `FILE_RETENTION_REJECTED_DAYS` (default 30)
   · `quarantine-cleanup.ts:85-86`, `files.module.ts:302`, `packages/config/src/env.ts:337` ·
   `quarantine-cleanup.test.ts`, `apps/api/test/file-003-lifecycle.db.test.ts`.
+- **I-11** (SCANNER-TLS) The clamd driver speaks TLS 1.3 when `CLAMAV_TLS=1` and trusts the server
+  only by a SHA-256 pin or a CA; a pin mismatch or a failed handshake is `ScannerUnavailableError`
+  (nothing claimed, file stays `scanning`); production refuses clear text to a host that is not
+  loopback/private · `apps/api/src/common/scan/clamav-scanner.ts` (`dialTls`, `pinMatches`),
+  `packages/config/src/env.ts` (`isLoopbackOrPrivateHost`) · `malware-scanner.test.ts`, `env.test.ts`.
 - **I-10** Production refuses the `stub` scanner (but accepts `none`) ·
   `packages/config/src/env.ts:720,899-909`.
 
@@ -380,6 +385,7 @@ blocked reason) as decisions; screens never re-derive them from scan verdicts.
 | FIL-6 | HT-5        | Part-sink bearer token in the URL query                                                             | P2  | ADR or header                              |
 | FIL-7 | DA-10       | 36 `current_timestamp(3)` row times                                                                 | P2  | bound `Date`                               |
 | FIL-8 | AR-10       | `UploadSessionView` has no API/web pair                                                             | P2  | add pair                                   |
+| FIL-10 | ST-4 / ops | Remote clamd (Oracle VM, SCANNER-TLS) is outside the repo: Hostinger's outbound IP or the stunnel cert changing makes the scanner `unreachable` (files wait, never `clean`); no circuit breaker, the probe-before-claim stops each pass | P2 | alert on `/healthz/deep` `scanner: unreachable`; runbook `D:/TManage/work/oracle-scanner/SETUP.md` §8 |
 | FIL-9 | size        | `files.service.ts` is 2,199 lines, `files.module.ts` > 760 lines                                    | P2  | split per capability (upload, serve, purge)|
 
 DC classes checked: DC-1 (API) none; DC-3 handled by claims and named locks; DC-4 not found

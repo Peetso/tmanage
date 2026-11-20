@@ -109,6 +109,14 @@ export function composeAppModule(env: Env): DynamicModule {
       host: env.CLAMAV_HOST,
       port: env.CLAMAV_PORT,
       timeoutMs: env.MALWARE_SCAN_TIMEOUT_MS,
+      // SCANNER-TLS: a remote clamd behind stunnel, trusted by its certificate pin or a CA.
+      tls: env.CLAMAV_TLS
+        ? {
+            fingerprint256: env.CLAMAV_TLS_FINGERPRINT,
+            ca: env.CLAMAV_TLS_CA,
+            servername: env.CLAMAV_TLS_SERVERNAME,
+          }
+        : undefined,
     }),
   });
 }

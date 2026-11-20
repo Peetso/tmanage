@@ -23,6 +23,47 @@ import { parseTrustedProxies } from './trusted-proxies.js';
 const nonEmpty = (label: string) => z.string().trim().min(1, `${label} must not be empty`);
 
 const port = z.coerce.number().int().min(1).max(65_535);
+
+/**
+ * SCANNER-TLS. `AB:CD:…` (64 hex digits, upper case, colon-separated — `fingerprint256`'s shape
+ * in `node:tls`) from what an operator pastes, or `null` when it is not a SHA-256 fingerprint.
+ */
+export function normaliseFingerprint(value: string): string | null {
+  const hex = value.replace(/^.*=/u, '').replace(/[\s:]/gu, '').toUpperCase();
+  if (!/^[0-9A-F]{64}$/u.test(hex)) return null;
+  return hex.match(/../gu)!.join(':');
+}
+
+/** SCANNER-TLS. A PEM certificate from inline text (`\n` allowed) or base64 of it; else `null`. */
+export function normaliseCertificatePem(value: string): string | null {
+  const pemOf = (text: string) =>
+    /-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/u.test(text) ? text : null;
+  if (value.includes('-----BEGIN')) return pemOf(value.replace(/\\n/gu, '\n'));
+  if (!/^[A-Za-z0-9+/=\s]+$/u.test(value)) return null;
+  return pemOf(Buffer.from(value, 'base64').toString('utf8'));
+}
+
+/**
+ * SCANNER-TLS. Loopback (`localhost`, 127/8, ::1) or a private address (RFC 1918 10/8,
+ * 172.16/12, 192.168/16; RFC 4193 fc00::/7; link-local fe80::/10). A DNS name other than `localhost` is not: what it
+ * resolves to is not known at boot, so it is treated as public.
+ */
+export function isLoopbackOrPrivateHost(host: string): boolean {
+  const name = host
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/gu, '');
+  if (name === 'localhost' || name.endsWith('.localhost')) return true;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u.exec(name);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    if (v4.slice(1).some((part) => Number(part) > 255)) return false;
+    return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  if (!name.includes(':')) return false;
+  return name === '::1' || /^f[cd][0-9a-f]{0,2}:/u.test(name) || /^fe[89ab][0-9a-f]?:/u.test(name);
+}
+
 const positiveInt = z.coerce.number().int().positive();
 /** An optional string; blank means unset. */
 const optionalTrimmed = () =>
@@ -722,6 +763,48 @@ export const envSchema = z
     MALWARE_SCAN_TIMEOUT_MS: positiveInt.default(30_000),
     CLAMAV_HOST: nonEmpty('CLAMAV_HOST').optional(),
     CLAMAV_PORT: port.default(3310),
+    /**
+     * Scanner over TLS (SCANNER-TLS). `1` dials CLAMAV_HOST:CLAMAV_PORT with TLS 1.3 (a
+     * stunnel in front of clamd) and trusts the server only through a pin or a CA below,
+     * never the public roots alone: a self-signed stunnel certificate has none. Production
+     * refuses `0` when CLAMAV_HOST is not loopback or a private address: client files must
+     * not cross the internet in clear text.
+     */
+    CLAMAV_TLS: z
+      .enum(['0', '1'])
+      .default('0')
+      .transform((value) => value === '1'),
+    /**
+     * SHA-256 of the server certificate (DER), as `openssl x509 -noout -fingerprint -sha256`
+     * prints it (`AB:CD:…`, with or without the colons or the `sha256 Fingerprint=` prefix).
+     * The recommended trust for a self-signed stunnel certificate: only that certificate passes.
+     */
+    CLAMAV_TLS_FINGERPRINT: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => (value === undefined || value === '' ? undefined : value))
+      .refine((value) => value === undefined || normaliseFingerprint(value) !== null, {
+        message:
+          'CLAMAV_TLS_FINGERPRINT must be a SHA-256 fingerprint: 64 hex digits, colons optional',
+      })
+      .transform((value) => (value === undefined ? undefined : normaliseFingerprint(value)!)),
+    /**
+     * A PEM CA (or the server's own self-signed certificate) the chain must verify to, inline
+     * (newlines may be written `\n`) or base64 of the PEM. With it the name is checked too
+     * (CLAMAV_TLS_SERVERNAME, else CLAMAV_HOST).
+     */
+    CLAMAV_TLS_CA: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => (value === undefined || value === '' ? undefined : value))
+      .refine((value) => value === undefined || normaliseCertificatePem(value) !== null, {
+        message: 'CLAMAV_TLS_CA must be a PEM certificate, inline or base64 of the PEM',
+      })
+      .transform((value) => (value === undefined ? undefined : normaliseCertificatePem(value)!)),
+    /** SNI, and the name a CA-verified certificate must carry. Default: CLAMAV_HOST when it is a name. */
+    CLAMAV_TLS_SERVERNAME: nonEmpty('CLAMAV_TLS_SERVERNAME').optional(),
     UPLOAD_MAX_BYTES: positiveInt.default(104_857_600),
     /**
      * FILE-001b. The size of one multipart part, `UPLOAD_PART_SIZE_DEFAULT_BYTES` (8 MiB)
@@ -801,6 +884,23 @@ export const envSchema = z
     }
     if (env.MALWARE_SCAN_DRIVER === 'clamav' && !env.CLAMAV_HOST) {
       fail('CLAMAV_HOST', 'required when MALWARE_SCAN_DRIVER=clamav');
+    }
+    // SCANNER-TLS. TLS without a pin or a CA would trust any certificate the network offers;
+    // a pin or a CA without TLS would look configured and send the bytes in clear text.
+    if (env.CLAMAV_TLS && !env.CLAMAV_TLS_FINGERPRINT && !env.CLAMAV_TLS_CA) {
+      fail(
+        'CLAMAV_TLS_FINGERPRINT',
+        'CLAMAV_TLS=1 needs CLAMAV_TLS_FINGERPRINT (recommended) or CLAMAV_TLS_CA: the server certificate must be pinned or verified',
+      );
+    }
+    if (!env.CLAMAV_TLS) {
+      for (const key of [
+        'CLAMAV_TLS_FINGERPRINT',
+        'CLAMAV_TLS_CA',
+        'CLAMAV_TLS_SERVERNAME',
+      ] as const) {
+        if (env[key] !== undefined) fail(key, 'is set but CLAMAV_TLS is not 1: set CLAMAV_TLS=1');
+      }
     }
     if (env.SMTP_USERNAME !== undefined && env.SMTP_PASSWORD === undefined) {
       fail('SMTP_PASSWORD', 'required when SMTP_USERNAME is set');
@@ -895,6 +995,19 @@ export const envSchema = z
           'must name a different database user from WORKER_DATABASE_URL',
         );
       }
+    }
+    // SCANNER-TLS (SE-6, T-14). Every uploaded file is streamed to clamd: to a host that is not
+    // loopback or a private address that is the client's file on the internet in clear text.
+    if (
+      env.MALWARE_SCAN_DRIVER === 'clamav' &&
+      env.CLAMAV_HOST !== undefined &&
+      !env.CLAMAV_TLS &&
+      !isLoopbackOrPrivateHost(env.CLAMAV_HOST)
+    ) {
+      fail(
+        'CLAMAV_TLS',
+        `must be 1 in production when CLAMAV_HOST (${env.CLAMAV_HOST}) is not a loopback or private address: files would cross the network in clear text. Put stunnel in front of clamd and set CLAMAV_TLS=1 with CLAMAV_TLS_FINGERPRINT`,
+      );
     }
     const substitutes: ReadonlyArray<readonly [string, string, string]> = [
       ['QUEUE_DRIVER', env.QUEUE_DRIVER, 'memory'],

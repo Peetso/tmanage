@@ -6,7 +6,8 @@ import { Controller, Get, Inject, Module, Res } from '@nestjs/common';
 import type { DynamicModule, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { APP_GUARD, ModuleRef } from '@nestjs/core';
 import { Public } from '../http/decorators.js';
-import { TENANT_DATABASE } from '../http/tokens.js';
+import { MALWARE_SCANNER, TENANT_DATABASE } from '../http/tokens.js';
+import type { MalwareScanner } from '../scan/malware-scanner.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
 import {
   declaredTableNames,
@@ -39,8 +40,10 @@ import type { OriginTlsCheck } from './origin-tls.js';
  *   build is recorded as applied (a deploy whose schema did not land answers 503 here);
  * - **worker** — the relay's heartbeat file (`OUTBOX_HEARTBEAT_FILE`) is fresher than
  *   `OUTBOX_HEARTBEAT_MAX_AGE_SECONDS`; `not_configured` when no heartbeat is kept;
- * - **scanner** — a malware scanner (`MALWARE_SCAN_DRIVER=clamav` with a host) is configured;
- *   `not_configured` otherwise;
+ * - **scanner** — with `MALWARE_SCAN_DRIVER=clamav` and a host, the engine answered a `PING`
+ *   (over TLS when `CLAMAV_TLS=1`) within the last {@link SCANNER_PROBE_CACHE_MS}: `ok`, else
+ *   `unreachable`; `not_configured` otherwise. Reported only: an unreachable scanner parks
+ *   files at `scanning`, it does not stop the app serving;
  * - **schema** — 56-27's schema-drift reading (`schema-drift.ts`): ledger checksums equal the
  *   shipped files and every declared table exists; `not_configured` when it cannot be read;
  * - **backups** — 51-09's reading of `platform_backup_runs` (`backup-health.ts`): `ok` / `stale` /
@@ -64,6 +67,8 @@ import type { OriginTlsCheck } from './origin-tls.js';
  */
 
 export type CheckState = 'ok' | 'fail' | 'not_configured';
+/** SCANNER-TLS. `unreachable`: configured, but the engine did not answer the probe. */
+export type ScannerCheckState = 'ok' | 'unreachable' | 'not_configured';
 
 export interface DeepHealthReport {
   readonly status: 'ok' | 'fail';
@@ -71,7 +76,7 @@ export interface DeepHealthReport {
     readonly database: CheckState;
     readonly migrations: CheckState;
     readonly worker: CheckState;
-    readonly scanner: CheckState;
+    readonly scanner: ScannerCheckState;
     readonly schema: CheckState;
     readonly backups: BackupCheckState;
     readonly origin_tls: OriginTlsCheck;
@@ -109,7 +114,15 @@ export interface DeepHealthProbes {
   shippedVersions(): Promise<readonly number[] | null>;
   /** The last completed relay batch, or `null` when absent or unreadable. */
   readHeartbeat(path: string): Promise<Date | null>;
+  /** SCANNER-TLS. The engine's `PING`; throws when it cannot be reached. Absent = not probed. */
+  probeScanner?(): Promise<void>;
 }
+
+/**
+ * SCANNER-TLS. How long one scanner reading stands. The route is public; without this bound a
+ * poller could turn it into a TLS handshake to clamd every few seconds.
+ */
+export const SCANNER_PROBE_CACHE_MS = 60_000;
 
 export const DEEP_HEALTH_CACHE_MS = 5_000;
 
@@ -143,10 +156,16 @@ export async function evaluateDeepHealth(
     worker = ageSeconds <= config.heartbeatMaxAgeSeconds ? 'ok' : 'fail';
   }
 
-  const scanner: CheckState =
-    config.scannerDriver === 'clamav' && (config.scannerHost ?? '') !== ''
-      ? 'ok'
-      : 'not_configured';
+  let scanner: ScannerCheckState = 'not_configured';
+  if (config.scannerDriver === 'clamav' && (config.scannerHost ?? '') !== '') {
+    scanner =
+      probes.probeScanner === undefined
+        ? 'ok'
+        : await probes.probeScanner().then(
+            () => 'ok' as const,
+            () => 'unreachable' as const,
+          );
+  }
 
   const realtime = config.realtimeSocketUrl ? 'ok' : 'not_configured';
 
@@ -238,11 +257,30 @@ export class DeepHealthController {
       alerts,
     );
     const dir = findMigrationsDir(config.migrationsDir);
+    // SCANNER-TLS. The scanner is `ScannerModule`'s global provider; looked up non-strictly
+    // for the notifier's reason. One reading stands for SCANNER_PROBE_CACHE_MS.
+    let scannerReading: { at: number; result: Promise<void> } | null = null;
+    const probeScanner = (): Promise<void> => {
+      const now = Date.now();
+      if (scannerReading === null || now - scannerReading.at > SCANNER_PROBE_CACHE_MS) {
+        let scanner: MalwareScanner | null = null;
+        try {
+          scanner = moduleRef.get<MalwareScanner>(MALWARE_SCANNER, { strict: false });
+        } catch {
+          scanner = null;
+        }
+        const result = scanner === null ? Promise.reject(new Error('no scanner')) : scanner.probe();
+        result.catch(() => undefined);
+        scannerReading = { at: now, result };
+      }
+      return scannerReading.result;
+    };
     this.probes = {
       readLedger: () => readMigrationLedger(database),
       shippedVersions: async () =>
         dir === undefined ? null : versionsFromFilenames(await readdir(dir)),
       readHeartbeat: readHeartbeatFile,
+      probeScanner,
     };
   }
 
