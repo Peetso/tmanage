@@ -7,6 +7,7 @@ import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { FormCheckMessage, useFormCheck } from '../../lib/forms/form-check';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -136,6 +137,8 @@ export function ReportSchedulesScreen({
 
   const rows = schedules.data ?? [];
 
+  // QA-FIX-S M2: the constraints in the markup are reported here, in the app's words.
+  const check = useFormCheck();
   return (
     <AppShell
       organizationSlug={organizationSlug}
@@ -152,12 +155,12 @@ export function ReportSchedulesScreen({
           </h2>
 
           <form
+            noValidate
             ref={firstStep}
             className="tm-stack"
-            onSubmit={(event) => {
-              event.preventDefault();
+            {...check.handlers(() => {
               if (!save.isPending) save.mutate();
-            }}
+            })}
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-report-schedule-report">
@@ -218,6 +221,8 @@ export function ReportSchedulesScreen({
               </label>
               <input
                 id="tm-report-schedule-hour"
+                required
+                {...check.control('tm-report-schedule-hour')}
                 className="tm-field__control"
                 type="number"
                 min={0}
@@ -225,6 +230,7 @@ export function ReportSchedulesScreen({
                 value={hour}
                 onChange={(event) => setHour(Number(event.target.value))}
               />
+              <FormCheckMessage check={check} name="tm-report-schedule-hour" />
               <span className="tm-field__hint">{t('ReportSchedulesScreen.hourHint')}</span>
             </div>
 

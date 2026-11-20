@@ -179,6 +179,7 @@ export function ShareWithClientDialog({
         </h2>
 
         <form
+          noValidate
           className="tm-stack"
           onSubmit={(event) => {
             event.preventDefault();

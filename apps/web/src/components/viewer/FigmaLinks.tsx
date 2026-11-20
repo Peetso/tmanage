@@ -366,6 +366,7 @@ export function AttachFigmaDialog({
             {t('Figma.attach.title')}
           </h2>
           <form
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
               if (url.trim() !== '') inspect.mutate(url.trim());

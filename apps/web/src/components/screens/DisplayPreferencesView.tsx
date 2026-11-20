@@ -302,6 +302,7 @@ export function DisplayPreferencesView({
         <div className="tm-prefs tm-prefs--appearance">
           <div className="tm-prefs__main">
             <form
+              noValidate
               className="tm-prefs-card"
               aria-label={t('displayPreferences.sectionDisplay')}
               onSubmit={(event) => {

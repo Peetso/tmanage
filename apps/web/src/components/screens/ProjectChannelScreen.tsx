@@ -2257,6 +2257,7 @@ function ConvertDialog({
 
   return (
     <form
+      noValidate
       className="tm-chat-thread"
       onSubmit={submit}
       aria-label={t('ProjectChannelScreen.createWorkFormAria')}

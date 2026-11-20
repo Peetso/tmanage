@@ -155,6 +155,7 @@ export function DigestPreferenceScreen({
         <div className="tm-prefs tm-prefs--a11y">
           <div className="tm-prefs__main">
             <form
+              noValidate
               className="tm-prefs-card"
               aria-labelledby="tm-digest-heading"
               onSubmit={(event) => {

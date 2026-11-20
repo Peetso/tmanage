@@ -10,6 +10,7 @@ import type { PlanChangePreviewView } from '../../lib/api/plan-preview';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useFormCheck } from '../../lib/forms/form-check';
 import '../../styles/screens/billing.css';
 
 export interface PlanChangePreviewScreenProps {
@@ -62,6 +63,8 @@ export function PlanChangePreviewScreen({
     const next = Math.min(1000, Math.max(1, (Number.isFinite(seatCount) ? seatCount : 1) + by));
     setSeats(String(next));
   };
+  // QA-FIX-S M2: a seat count outside 1 to 1000 is answered at the field, in the app's words.
+  const check = useFormCheck();
 
   return (
     <SettingsShell
@@ -75,12 +78,10 @@ export function PlanChangePreviewScreen({
       headerAside={<p className="tm-bil-aside-note">{t('PlanChangePreviewScreen.headerNote')}</p>}
     >
       <form
+        noValidate
         className="tm-bil-stack"
         aria-labelledby="tm-plan-preview-heading"
-        onSubmit={(event) => {
-          event.preventDefault();
-          preview.mutate();
-        }}
+        {...check.handlers(() => preview.mutate())}
       >
         <h2 id="tm-plan-preview-heading" className="tm-visually-hidden">
           {t('PlanChangePreviewScreen.estimateHeading')}
@@ -169,6 +170,8 @@ export function PlanChangePreviewScreen({
               <Field
                 label={t('PlanChangePreviewScreen.seatsLabel')}
                 type="number"
+                name="seats"
+                error={check.error('seats')}
                 min={1}
                 max={1000}
                 step={1}

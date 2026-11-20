@@ -121,6 +121,7 @@ export function InboxRulesScreen({
       ) : (
         <div className="tm-inbox-rules">
           <form
+            noValidate
             ref={firstStep}
             className="tm-card"
             aria-labelledby="tm-inbox-rules-add-heading"

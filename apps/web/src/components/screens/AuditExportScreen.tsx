@@ -110,7 +110,7 @@ export function AuditExportScreen({
           <h2 id="tm-audit-export-heading" className="tm-cc-card__title">
             {t('AuditExportScreen.cardTitle')}
           </h2>
-          <form className="tm-cc-form" aria-label={t('AuditExportScreen.filtersLabel')}>
+          <form noValidate className="tm-cc-form" aria-label={t('AuditExportScreen.filtersLabel')}>
             <div className="tm-cc-form__pair">
               <Field
                 label={t('AuditExportScreen.from')}

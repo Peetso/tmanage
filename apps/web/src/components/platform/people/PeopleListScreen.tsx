@@ -129,6 +129,7 @@ function PeopleBody({
 
   const filters = (
     <form
+      noValidate
       className="tm-stack tm-stack--tight"
       role="search"
       onSubmit={(event) => {

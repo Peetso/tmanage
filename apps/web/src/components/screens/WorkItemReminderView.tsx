@@ -105,7 +105,7 @@ export function WorkItemReminderView({
         </InlineAlert>
       ) : null}
 
-      <form className="tm-stack" onSubmit={submit}>
+      <form noValidate className="tm-stack" onSubmit={submit}>
         <Field
           label={t('WorkItemReminderView.remindMeAt')}
           type="datetime-local"

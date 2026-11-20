@@ -14,6 +14,7 @@ import type { AvailabilityView } from '../../lib/api/people-availability';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { FormCheckMessage, useFormCheck } from '../../lib/forms/form-check';
 import '../../styles/screens/people.css';
 
 export interface AvailabilityScreenProps {
@@ -135,6 +136,8 @@ export function AvailabilityScreen({
   const first = days[0]!;
   const last = days[days.length - 1]!;
 
+  // QA-FIX-S M2: the constraints in the markup are reported here, in the app's words.
+  const check = useFormCheck();
   return (
     <AppShell
       organizationSlug={organizationSlug}
@@ -274,12 +277,10 @@ export function AvailabilityScreen({
 
           <div className="ppl-aside ppl-aside--352">
             <form
+              noValidate
               className="ppl-card ppl-card--tight ppl-form"
               aria-labelledby="tm-availability-add-heading"
-              onSubmit={(event) => {
-                event.preventDefault();
-                add.mutate();
-              }}
+              {...check.handlers(() => add.mutate())}
             >
               <h2 id="tm-availability-add-heading" className="ppl-card__title">
                 {t('AvailabilityScreen.addHeading')}
@@ -292,12 +293,14 @@ export function AvailabilityScreen({
                   </label>
                   <input
                     id="tm-availability-start"
+                    {...check.control('tm-availability-start')}
                     className="tm-field__control"
                     type="date"
                     value={startDate}
                     required
                     onChange={(event) => setStartDate(event.target.value)}
                   />
+                  <FormCheckMessage check={check} name="tm-availability-start" />
                 </div>
 
                 <div className="tm-field">
@@ -306,12 +309,14 @@ export function AvailabilityScreen({
                   </label>
                   <input
                     id="tm-availability-end"
+                    {...check.control('tm-availability-end')}
                     className="tm-field__control"
                     type="date"
                     value={endDate}
                     required
                     onChange={(event) => setEndDate(event.target.value)}
                   />
+                  <FormCheckMessage check={check} name="tm-availability-end" />
                 </div>
               </div>
 

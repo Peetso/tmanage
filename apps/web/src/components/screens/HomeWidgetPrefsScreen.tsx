@@ -150,6 +150,7 @@ export function HomeWidgetPrefsScreen({
         </InlineAlert>
       ) : (
         <form
+          noValidate
           className="tm-panel tm-stack"
           aria-labelledby="tm-widget-prefs-heading"
           onSubmit={(event) => {

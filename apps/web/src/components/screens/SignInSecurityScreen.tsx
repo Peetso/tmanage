@@ -26,6 +26,7 @@ import {
   type SecurityCheckId,
   type SecurityDeviceView,
 } from '../../lib/api/passkeys';
+import { FormCheckMessage, useFormCheck } from '../../lib/forms/form-check';
 import '../../styles/screens/access-security.css';
 import '../../styles/screens/sign-in-security.css';
 
@@ -373,13 +374,15 @@ function StepUpForm({
       }),
     onSuccess: onConfirmed,
   });
+  // QA-FIX-S M2: an empty code is answered at the field, in the app's words.
+  const check = useFormCheck();
   return (
     <form
+      noValidate
       className="tm-stack"
-      onSubmit={(event) => {
-        event.preventDefault();
+      {...check.handlers(() => {
         if (known) confirm.mutate();
-      }}
+      })}
     >
       <p className="tm-sec-card__body">
         {tr(`${K}.reauthBody`, 'Enter your password to make this change.')}
@@ -393,10 +396,13 @@ function StepUpForm({
           className="tm-sec-input"
           type="password"
           autoComplete="current-password"
+          name="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
+          {...check.control('password')}
         />
+        <FormCheckMessage check={check} name="password" />
       </div>
       <StepUpDecisionNotice decision={decision} onRetry={onRetry} />
       {needsCode ? (
@@ -411,10 +417,13 @@ function StepUpForm({
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={7}
+            name="code"
             value={code}
             onChange={(event) => setCode(event.target.value)}
             required
+            {...check.control('code')}
           />
+          <FormCheckMessage check={check} name="code" />
         </div>
       ) : null}
       {confirm.isError ? (

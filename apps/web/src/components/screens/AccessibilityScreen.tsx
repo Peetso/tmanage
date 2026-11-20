@@ -149,6 +149,7 @@ export function AccessibilityPreferencesPanel({
         <div className="tm-prefs tm-prefs--a11y">
           <div className="tm-prefs__main">
             <form
+              noValidate
               className="tm-prefs-card"
               aria-labelledby="tm-a11y-heading"
               onSubmit={(event) => {

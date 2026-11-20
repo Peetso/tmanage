@@ -163,6 +163,7 @@ export function ProjectGithubScreen({
             </InlineAlert>
           ) : null}
           <form
+            noValidate
             ref={firstStep}
             className="tm-pmi__list"
             onSubmit={(event) => {

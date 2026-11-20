@@ -100,6 +100,7 @@ export function SendForApprovalDialog({
         </div>
 
         <form
+          noValidate
           className="tm-stack"
           onSubmit={(event) => {
             event.preventDefault();

@@ -417,6 +417,7 @@ export function WhichProjectDialog({
       }}
     >
       <form
+        noValidate
         method="dialog"
         onSubmit={(event) => {
           event.preventDefault();

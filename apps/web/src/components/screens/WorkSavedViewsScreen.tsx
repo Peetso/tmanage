@@ -215,6 +215,7 @@ export function WorkSavedViewsScreen({
         </h2>
 
         <form
+          noValidate
           ref={firstStep}
           className="wp-editor"
           onSubmit={(event) => {

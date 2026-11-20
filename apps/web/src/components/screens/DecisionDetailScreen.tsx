@@ -388,6 +388,7 @@ function DecisionEditForm({
 
   return (
     <form
+      noValidate
       className="tm-decpage__edit"
       onSubmit={submit}
       aria-label={tOr('DecisionDetailScreen.editAria', 'Edit decision')}

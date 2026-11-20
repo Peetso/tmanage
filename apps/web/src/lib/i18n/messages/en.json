@@ -21234,5 +21234,17 @@
   "WalkthroughForm.errorRateLimited": "Too many requests from this network. Please try again later.",
   "WalkthroughForm.errorInvalid": "Something in the form is not right. Check the times and try again.",
   "WalkthroughForm.errorNetwork": "We could not reach the server. Please try again.",
-  "WalkthroughForm.errorGeneric": "Something went wrong. Please try again."
+  "WalkthroughForm.errorGeneric": "Something went wrong. Please try again.",
+  "FormCheck.fillIn": "Fill in this field.",
+  "FormCheck.choose": "Choose one of the options.",
+  "FormCheck.email": "Enter an email address, like name@example.com.",
+  "FormCheck.link": "Enter a full link that starts with https://",
+  "FormCheck.date": "Enter a complete date.",
+  "FormCheck.number": "Enter a number.",
+  "FormCheck.wholeNumber": "Enter a whole number.",
+  "FormCheck.wholeNumberBetween": "Enter a whole number from {min} to {max}.",
+  "FormCheck.wholeNumberAtLeast": "Enter a whole number of {min} or more.",
+  "FormCheck.wholeNumberAtMost": "Enter a whole number of {max} or less.",
+  "FormCheck.minLength": "Write at least {min} characters.",
+  "FormCheck.format": "Check what you entered here."
 }

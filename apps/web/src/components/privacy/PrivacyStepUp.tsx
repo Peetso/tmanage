@@ -121,6 +121,7 @@ export function PrivacyStepUpDialog({
       }
     >
       <form
+        noValidate
         id={formId}
         onSubmit={(event) => {
           event.preventDefault();

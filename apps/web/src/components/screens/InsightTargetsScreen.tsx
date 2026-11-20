@@ -15,6 +15,7 @@ import type {
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { FormCheckMessage, useFormCheck } from '../../lib/forms/form-check';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -86,6 +87,8 @@ export function InsightTargetsScreen({
 
   const rows = status.data ?? [];
 
+  // QA-FIX-S M2: the constraints in the markup are reported here, in the app's words.
+  const check = useFormCheck();
   return (
     <AppShell
       organizationSlug={organizationSlug}
@@ -102,12 +105,10 @@ export function InsightTargetsScreen({
           </h2>
 
           <form
+            noValidate
             ref={firstStep}
             className="tm-row"
-            onSubmit={(event) => {
-              event.preventDefault();
-              save.mutate();
-            }}
+            {...check.handlers(() => save.mutate())}
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-target-metric">
@@ -132,6 +133,8 @@ export function InsightTargetsScreen({
               </label>
               <input
                 id="tm-target-value"
+                required
+                {...check.control('tm-target-value')}
                 className="tm-field__control"
                 type="number"
                 min={0}
@@ -140,6 +143,7 @@ export function InsightTargetsScreen({
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
               />
+              <FormCheckMessage check={check} name="tm-target-value" />
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-target-period">

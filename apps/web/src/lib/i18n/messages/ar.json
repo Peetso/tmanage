@@ -21234,5 +21234,17 @@
   "WalkthroughForm.errorRateLimited": "طلبات كثيرة من هذه الشبكة. يرجى المحاولة لاحقاً.",
   "WalkthroughForm.errorInvalid": "هناك خطأ في النموذج. تحقق من الأوقات وحاول مرة أخرى.",
   "WalkthroughForm.errorNetwork": "تعذّر الوصول إلى الخادم. يرجى المحاولة مرة أخرى.",
-  "WalkthroughForm.errorGeneric": "حدث خطأ ما. يرجى المحاولة مرة أخرى."
+  "WalkthroughForm.errorGeneric": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+  "FormCheck.fillIn": "املأ هذا الحقل.",
+  "FormCheck.choose": "اختر أحد الخيارات.",
+  "FormCheck.email": "أدخل عنوان بريد إلكتروني، مثل name@example.com.",
+  "FormCheck.link": "أدخل رابطًا كاملًا يبدأ بـ https://",
+  "FormCheck.date": "أدخل تاريخًا كاملًا.",
+  "FormCheck.number": "أدخل رقمًا.",
+  "FormCheck.wholeNumber": "أدخل عددًا صحيحًا.",
+  "FormCheck.wholeNumberBetween": "أدخل عددًا صحيحًا من {min} إلى {max}.",
+  "FormCheck.wholeNumberAtLeast": "أدخل عددًا صحيحًا لا يقل عن {min}.",
+  "FormCheck.wholeNumberAtMost": "أدخل عددًا صحيحًا لا يزيد على {max}.",
+  "FormCheck.minLength": "اكتب ما لا يقل عن {min} من الأحرف.",
+  "FormCheck.format": "راجع ما أدخلته هنا."
 }

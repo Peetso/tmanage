@@ -351,6 +351,7 @@ function CreateTokenDialog({
   return (
     <Dialog title={t('AccessTokens.dialogTitle')} onClose={onClose}>
       <form
+        noValidate
         className="tm-sec-form"
         onSubmit={(event) => {
           event.preventDefault();

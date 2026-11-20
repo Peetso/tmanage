@@ -89,6 +89,7 @@ export function UsageExportScreen({
     >
       <div className="tm-bil">
         <form
+          noValidate
           className="tm-bil-card tm-bil-main tm-bil-export"
           aria-label={t('UsageExportScreen.filtersLabel')}
         >

@@ -90,6 +90,7 @@ export function NewGroupDialog({ api, organizationSlug, onClose, onCreated }: Ne
       }}
     >
       <form
+        noValidate
         className="tm-chatgroup-sheet"
         role="dialog"
         aria-modal="true"

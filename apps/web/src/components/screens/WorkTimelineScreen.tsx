@@ -945,6 +945,7 @@ export function WorkTimelineScreen({
 
       {reasonPrompt ? (
         <form
+          noValidate
           className="wte-panel"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1040,6 +1041,7 @@ export function WorkTimelineScreen({
             </ul>
           )}
           <form
+            noValidate
             className="wte-panel__row"
             onSubmit={(event) => {
               event.preventDefault();

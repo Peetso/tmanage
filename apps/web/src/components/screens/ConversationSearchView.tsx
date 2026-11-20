@@ -139,7 +139,7 @@ export function ConversationSearchView({
       }
     >
       <div className="tm-chat-search">
-        <form onSubmit={onSubmit} role="search" className="tm-chat-search__field">
+        <form noValidate onSubmit={onSubmit} role="search" className="tm-chat-search__field">
           <span aria-hidden="true" className="tm-chat-mono">
             ⌕
           </span>

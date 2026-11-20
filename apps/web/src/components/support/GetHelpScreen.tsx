@@ -511,6 +511,7 @@ function RequestThread({
           </ol>
           {detail.data.thread.mine ? (
             <form
+              noValidate
               className="tm-support-stack"
               onSubmit={(event) => {
                 event.preventDefault();

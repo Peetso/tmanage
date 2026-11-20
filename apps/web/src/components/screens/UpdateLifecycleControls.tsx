@@ -88,6 +88,7 @@ export function UpdateLifecycleControls({
   if (editing) {
     return (
       <form
+        noValidate
         className="tm-upd-card"
         aria-label={t('UpdateLifecycleControls.editForm')}
         onSubmit={(event) => {

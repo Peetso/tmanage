@@ -137,7 +137,7 @@ export function CopilotAnswerView({
             />
           ) : null}
 
-          <form className="tm-sa-composer" onSubmit={onSubmit} role="search">
+          <form noValidate className="tm-sa-composer" onSubmit={onSubmit} role="search">
             <label className="tm-visually-hidden" htmlFor="tm-copilot-q">
               {t('CopilotAnswerView.composerLabel')}
             </label>

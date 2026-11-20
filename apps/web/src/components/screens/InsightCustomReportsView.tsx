@@ -136,6 +136,7 @@ export function InsightCustomReportsView({
           </h2>
 
           <form
+            noValidate
             ref={firstStep}
             className="tm-stack"
             onSubmit={(event) => {

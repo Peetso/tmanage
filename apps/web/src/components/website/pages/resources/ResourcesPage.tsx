@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Link from '../../WebLink';
 import { Badge, Button, Field, SearchField } from '@tmanage/ui';
 import { ArrowLink, ButtonLink, IconOrb, cx } from '../../primitives';
@@ -26,6 +18,7 @@ import {
 } from './resources-data';
 import './resources.css';
 import { useT } from '../../../../lib/i18n/use-t';
+import { useFormCheck } from '../../../../lib/forms/form-check';
 
 /**
  * WEB-15 Resources (`/resources`), built to the round-2 Figma frame 308:40: a centred hero with
@@ -91,6 +84,7 @@ export function ResourcesPage() {
           </h1>
           <p className="tm-web-res-hero__lede">{t('ResourcesPage.heroLede')}</p>
           <form
+            noValidate
             ref={searchRef}
             className="tm-web-res-search"
             role="search"
@@ -321,11 +315,8 @@ function Newsletter() {
   const t = useT();
   const [state, setState] = useState<'idle' | 'noted'>('idle');
   const statusId = useId();
-
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setState('noted');
-  }
+  // QA-FIX-S M2: an empty or malformed address is answered in the page's language, at the field.
+  const check = useFormCheck();
 
   return (
     <WebSection
@@ -342,7 +333,12 @@ function Newsletter() {
             {t('ResourcesPage.newsletterTitle')}
           </h2>
         </div>
-        <form className="tm-web-res-news__form" onSubmit={onSubmit} aria-describedby={statusId}>
+        <form
+          noValidate
+          className="tm-web-res-news__form"
+          {...check.handlers(() => setState('noted'))}
+          aria-describedby={statusId}
+        >
           <div className="tm-web-res-news__row">
             <Field
               label={t('ResourcesPage.workEmail')}
@@ -351,6 +347,7 @@ function Newsletter() {
               autoComplete="email"
               placeholder={t('ResourcesPage.emailPlaceholder')}
               required
+              error={check.error('email')}
             />
             <Button type="submit" tone="lime" size="accessible">
               {t('ResourcesPage.subscribe')}

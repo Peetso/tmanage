@@ -26,6 +26,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { qrModules, qrPath } from '../../lib/qr-code';
 import { SixDigitCode } from './SixDigitCode';
 import { ConfirmEmailNotice } from './ConfirmEmailNotice';
+import { FormCheckMessage, useFormCheck } from '../../lib/forms/form-check';
 import '../../styles/screens/access-security.css';
 
 export interface TwoStepSignInScreenProps {
@@ -485,6 +486,7 @@ function EmailEnrolCard({
 
   return (
     <form
+      noValidate
       className="tm-sec-card tm-sec-card--dialog"
       aria-labelledby="tm-2s-email"
       onSubmit={(event) => {
@@ -596,6 +598,7 @@ function EnrolCard({
 
   return (
     <form
+      noValidate
       className="tm-sec-card tm-sec-card--dialog"
       aria-labelledby="tm-2s-title"
       onSubmit={(event) => {
@@ -754,14 +757,14 @@ function StepUpCard({
       ).data,
     onSuccess: (data) => onConfirmed(data.reauthToken),
   });
+  // QA-FIX-S M2: an empty code is answered at the field, in the app's words.
+  const check = useFormCheck();
   return (
     <form
+      noValidate
       className="tm-sec-card tm-sec-card--dialog"
       aria-labelledby="tm-2s-stepup"
-      onSubmit={(event) => {
-        event.preventDefault();
-        confirm.mutate();
-      }}
+      {...check.handlers(() => confirm.mutate())}
     >
       <h2 id="tm-2s-stepup" className="tm-sec-card__title">
         {t('TwoStep.reauthTitle')}
@@ -776,10 +779,13 @@ function StepUpCard({
           className="tm-sec-input"
           type="password"
           autoComplete="current-password"
+          name="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
+          {...check.control('password')}
         />
+        <FormCheckMessage check={check} name="password" />
       </div>
       {needsCode ? (
         <div className="tm-sec-field">
@@ -793,10 +799,13 @@ function StepUpCard({
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={7}
+            name="code"
             value={code}
             onChange={(event) => setCode(event.target.value)}
             required
+            {...check.control('code')}
           />
+          <FormCheckMessage check={check} name="code" />
         </div>
       ) : null}
       {confirm.isError ? (

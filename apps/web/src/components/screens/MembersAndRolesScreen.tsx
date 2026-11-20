@@ -278,6 +278,7 @@ export function MembersAndRolesScreen({
               {t('MembersAndRolesScreen.addHeading')}
             </h2>
             <form
+              noValidate
               className="tm-prj-form"
               onSubmit={(event) => {
                 event.preventDefault();

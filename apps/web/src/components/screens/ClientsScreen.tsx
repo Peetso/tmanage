@@ -252,7 +252,7 @@ export function ClientsScreen({
       description={t('Clients.subtitle')}
       actions={
         <div className="cl-header-actions">
-          <form role="search" onSubmit={(event) => event.preventDefault()}>
+          <form noValidate role="search" onSubmit={(event) => event.preventDefault()}>
             <SearchField
               className="cl-search"
               label={t('Clients.searchLabel')}

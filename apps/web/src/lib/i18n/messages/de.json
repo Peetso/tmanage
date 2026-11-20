@@ -21028,5 +21028,17 @@
   "WalkthroughForm.errorRateLimited": "Zu viele Anfragen aus diesem Netzwerk. Bitte versuchen Sie es später erneut.",
   "WalkthroughForm.errorInvalid": "Etwas im Formular stimmt nicht. Prüfen Sie die Zeiten und versuchen Sie es erneut.",
   "WalkthroughForm.errorNetwork": "Der Server ist nicht erreichbar. Bitte versuchen Sie es erneut.",
-  "WalkthroughForm.errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
+  "WalkthroughForm.errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+  "FormCheck.fillIn": "Füllen Sie dieses Feld aus.",
+  "FormCheck.choose": "Wählen Sie eine der Optionen.",
+  "FormCheck.email": "Geben Sie eine E-Mail-Adresse ein, z. B. name@example.com.",
+  "FormCheck.link": "Geben Sie einen vollständigen Link ein, der mit https:// beginnt.",
+  "FormCheck.date": "Geben Sie ein vollständiges Datum ein.",
+  "FormCheck.number": "Geben Sie eine Zahl ein.",
+  "FormCheck.wholeNumber": "Geben Sie eine ganze Zahl ein.",
+  "FormCheck.wholeNumberBetween": "Geben Sie eine ganze Zahl von {min} bis {max} ein.",
+  "FormCheck.wholeNumberAtLeast": "Geben Sie eine ganze Zahl ab {min} ein.",
+  "FormCheck.wholeNumberAtMost": "Geben Sie eine ganze Zahl bis {max} ein.",
+  "FormCheck.minLength": "Schreiben Sie mindestens {min} Zeichen.",
+  "FormCheck.format": "Prüfen Sie Ihre Eingabe hier."
 }

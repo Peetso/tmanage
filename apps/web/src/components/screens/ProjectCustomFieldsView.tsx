@@ -145,7 +145,7 @@ export function ProjectCustomFieldsView({
           {t('ProjectCustomFieldsView.definitionsHeading')}
         </h2>
 
-        <form className="tm-stack" onSubmit={onDefine}>
+        <form noValidate className="tm-stack" onSubmit={onDefine}>
           <Field
             label={t('ProjectCustomFieldsView.keyLabel')}
             hint={t('ProjectCustomFieldsView.keyHint')}

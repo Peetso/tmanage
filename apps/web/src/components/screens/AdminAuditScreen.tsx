@@ -331,6 +331,7 @@ export function AdminAuditScreen({
 
           <hr className="tm-cc-rule" />
           <form
+            noValidate
             className="tm-stack tm-stack--tight"
             onSubmit={onApply}
             aria-labelledby="tm-audit-filter-title"

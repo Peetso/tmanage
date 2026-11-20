@@ -247,7 +247,7 @@ function ImportCard({ api }: { api: ApiClient }) {
     <section className="tm-cc-card tm-stack">
       <h2 className="tm-cc-card__title">{copy('importTitle')}</h2>
       <p className="tm-cc-card__lead">{copy('importLead')}</p>
-      <form className="tm-stack tm-stack--tight" onSubmit={submit}>
+      <form noValidate className="tm-stack tm-stack--tight" onSubmit={submit}>
         <label className="tm-stack tm-stack--tight">
           <span className="tm-cc-eyebrow">{copy('fileLabel')}</span>
           <input type="file" accept=".csv,text/csv" onChange={pick} />

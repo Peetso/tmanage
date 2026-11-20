@@ -175,7 +175,7 @@ export function SearchPinsView({
         <h2 id="tm-pin-form" className="tm-sa-eyebrow">
           {t('SearchPinsView.pinFormHeading')}
         </h2>
-        <form ref={firstStep} className="tm-stack" onSubmit={onSubmit}>
+        <form noValidate ref={firstStep} className="tm-stack" onSubmit={onSubmit}>
           <div className="tm-sa-form__fields">
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-pin-type">

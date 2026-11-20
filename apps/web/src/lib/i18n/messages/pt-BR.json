@@ -21028,5 +21028,17 @@
   "WalkthroughForm.errorRateLimited": "Muitas solicitações desta rede. Tente novamente mais tarde.",
   "WalkthroughForm.errorInvalid": "Algo no formulário não está certo. Confira os horários e tente novamente.",
   "WalkthroughForm.errorNetwork": "Não conseguimos acessar o servidor. Tente novamente.",
-  "WalkthroughForm.errorGeneric": "Algo deu errado. Tente novamente."
+  "WalkthroughForm.errorGeneric": "Algo deu errado. Tente novamente.",
+  "FormCheck.fillIn": "Preencha este campo.",
+  "FormCheck.choose": "Escolha uma das opções.",
+  "FormCheck.email": "Digite um endereço de e-mail, como name@example.com.",
+  "FormCheck.link": "Digite um link completo que comece com https://",
+  "FormCheck.date": "Digite uma data completa.",
+  "FormCheck.number": "Digite um número.",
+  "FormCheck.wholeNumber": "Digite um número inteiro.",
+  "FormCheck.wholeNumberBetween": "Digite um número inteiro de {min} a {max}.",
+  "FormCheck.wholeNumberAtLeast": "Digite um número inteiro igual ou maior que {min}.",
+  "FormCheck.wholeNumberAtMost": "Digite um número inteiro igual ou menor que {max}.",
+  "FormCheck.minLength": "Escreva pelo menos {min} caracteres.",
+  "FormCheck.format": "Confira o que você digitou aqui."
 }

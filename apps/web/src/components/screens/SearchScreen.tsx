@@ -258,7 +258,7 @@ export function SearchScreen({
       title={t('SearchScreen.title')}
     >
       <div className="tm-sa-search tm-sa-headerless">
-        <form className="tm-sa-searchbar" onSubmit={onSubmit} role="search">
+        <form noValidate className="tm-sa-searchbar" onSubmit={onSubmit} role="search">
           <span className="tm-sa-searchbar__glyph" aria-hidden="true">
             ⌕
           </span>

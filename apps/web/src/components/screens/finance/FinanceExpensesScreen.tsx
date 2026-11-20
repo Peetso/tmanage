@@ -362,6 +362,7 @@ export function FinanceExpensesScreen({
                             ) : null}
                             {decidable && rejecting === expense.id ? (
                               <form
+                                noValidate
                                 className="tm-row tm-row--wrap"
                                 onSubmit={(event) => {
                                   event.preventDefault();

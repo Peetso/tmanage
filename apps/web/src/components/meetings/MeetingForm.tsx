@@ -384,6 +384,7 @@ export function MeetingForm({
 
   return (
     <form
+      noValidate
       id="tm-mtg-form"
       className="tm-mtg tm-mtg-form"
       onSubmit={submit}

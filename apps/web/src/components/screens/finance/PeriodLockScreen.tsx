@@ -196,6 +196,7 @@ export function PeriodLockScreen({
                           ) : null}
                           {reopening === row.id ? (
                             <form
+                              noValidate
                               className="tm-fin-form"
                               onSubmit={(event) => submitReopen(event, row.id)}
                             >
@@ -246,7 +247,7 @@ export function PeriodLockScreen({
                   'Time, expenses and invoices dated in it can no longer change.',
                 )}
               </p>
-              <form className="tm-stack tm-stack--tight" onSubmit={submitClose}>
+              <form noValidate className="tm-stack tm-stack--tight" onSubmit={submitClose}>
                 <Field
                   type="month"
                   label={tOr('PeriodLock.monthLabel', 'Month')}

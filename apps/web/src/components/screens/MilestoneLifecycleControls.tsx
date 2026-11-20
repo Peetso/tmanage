@@ -117,6 +117,7 @@ export function MilestoneLifecycleControls({
       ) : null}
 
       <form
+        noValidate
         className="tm-stack"
         onSubmit={(event) => {
           event.preventDefault();

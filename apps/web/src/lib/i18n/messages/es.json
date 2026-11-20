@@ -21030,5 +21030,17 @@
   "WalkthroughForm.errorRateLimited": "Demasiadas solicitudes desde esta red. Inténtalo más tarde.",
   "WalkthroughForm.errorInvalid": "Algo no está bien en el formulario. Revisa los horarios e inténtalo de nuevo.",
   "WalkthroughForm.errorNetwork": "No pudimos conectar con el servidor. Inténtalo de nuevo.",
-  "WalkthroughForm.errorGeneric": "Algo salió mal. Inténtalo de nuevo."
+  "WalkthroughForm.errorGeneric": "Algo salió mal. Inténtalo de nuevo.",
+  "FormCheck.fillIn": "Complete este campo.",
+  "FormCheck.choose": "Elija una de las opciones.",
+  "FormCheck.email": "Introduzca una dirección de correo electrónico, como name@example.com.",
+  "FormCheck.link": "Introduzca un enlace completo que empiece por https://",
+  "FormCheck.date": "Introduzca una fecha completa.",
+  "FormCheck.number": "Introduzca un número.",
+  "FormCheck.wholeNumber": "Introduzca un número entero.",
+  "FormCheck.wholeNumberBetween": "Introduzca un número entero de {min} a {max}.",
+  "FormCheck.wholeNumberAtLeast": "Introduzca un número entero de {min} o más.",
+  "FormCheck.wholeNumberAtMost": "Introduzca un número entero de {max} o menos.",
+  "FormCheck.minLength": "Escriba al menos {min} caracteres.",
+  "FormCheck.format": "Revise lo que introdujo aquí."
 }

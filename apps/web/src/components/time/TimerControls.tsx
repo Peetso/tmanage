@@ -165,7 +165,7 @@ function StopTimerDialog({
   };
   return (
     <TimerDialog title={tr('Timer.stopTitle', 'Stop timer')} onClose={onClose}>
-      <form className="tm-timer-dialog__form" onSubmit={submit}>
+      <form noValidate className="tm-timer-dialog__form" onSubmit={submit}>
         <p className="tm-timer-dialog__body">
           {tr('Timer.timedFor', 'Timed: {elapsed}').replace(
             '{elapsed}',

@@ -70,6 +70,7 @@ export function ProjectUpdateComposer({
       </h2>
 
       <form
+        noValidate
         className="tm-prj-form"
         onSubmit={(event) => {
           event.preventDefault();

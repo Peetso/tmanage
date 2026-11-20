@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { PlatformShell } from '../PlatformShell';
@@ -14,6 +14,7 @@ import { fetchPlatformMe, stepUpPlatform } from '../../../lib/api/platform-admin
 import type { PlatformMeView } from '../../../lib/api/platform-admin';
 import { PLATFORM_ME_QUERY_KEY } from './usePlatformPermissions';
 import { appLocale } from '../../../lib/i18n/app-locale';
+import { useFormCheck } from '../../../lib/forms/form-check';
 
 /**
  * The pieces every Platform admin screen shares, moved out of `PlatformAdminScreens.tsx`
@@ -189,10 +190,8 @@ export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) 
     },
   });
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    confirm.mutate();
-  }
+  // QA-FIX-S M2: an empty password or code is answered at the field, in the app's words.
+  const check = useFormCheck();
 
   return (
     <section className="tm-cc-card" aria-labelledby="tm-platform-step-up-heading">
@@ -212,10 +211,16 @@ export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) 
         )}
         {!needsCode && me.mfaEnabled ? ` ${t('PlatformAdminScreens.stepUpEmailTwoStepNote')}` : ''}
       </p>
-      <form className="tm-stack tm-stack--tight" onSubmit={submit}>
+      <form
+        noValidate
+        className="tm-stack tm-stack--tight"
+        {...check.handlers(() => confirm.mutate())}
+      >
         <Field
           label={t('PlatformAdminScreens.passwordLabel')}
           type="password"
+          name="password"
+          error={check.error('password')}
           autoComplete="current-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -228,6 +233,8 @@ export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) 
             dir="ltr"
             inputMode="numeric"
             autoComplete="one-time-code"
+            name="code"
+            error={check.error('code')}
             value={code}
             onChange={(event) => setCode(event.target.value)}
             required
@@ -293,6 +300,7 @@ export function ReasonAction({
 
   return (
     <form
+      noValidate
       className="tm-stack tm-stack--tight"
       onSubmit={(event) => {
         event.preventDefault();

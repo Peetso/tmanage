@@ -820,6 +820,7 @@ export function Composer({
 
   return (
     <form
+      noValidate
       className="tm-chat-composer"
       onSubmit={submit}
       {...(canAttach ? { 'data-dragging': dragging ? 'true' : 'false' } : {})}

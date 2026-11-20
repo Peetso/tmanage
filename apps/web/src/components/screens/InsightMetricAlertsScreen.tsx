@@ -15,6 +15,7 @@ import type {
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { FormCheckMessage, useFormCheck } from '../../lib/forms/form-check';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import type { MessageKey } from '../../lib/i18n/t';
 
@@ -88,6 +89,8 @@ export function InsightMetricAlertsScreen({
 
   const rows = alerts.data ?? [];
 
+  // QA-FIX-S M2: the constraints in the markup are reported here, in the app's words.
+  const check = useFormCheck();
   return (
     <AppShell
       organizationSlug={organizationSlug}
@@ -103,13 +106,7 @@ export function InsightMetricAlertsScreen({
             {t('InsightMetricAlertsScreen.heading')}
           </h2>
 
-          <form
-            className="tm-row"
-            onSubmit={(event) => {
-              event.preventDefault();
-              save.mutate();
-            }}
-          >
+          <form noValidate className="tm-row" {...check.handlers(() => save.mutate())}>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-alert-metric">
                 {t('InsightMetricAlertsScreen.metric')}
@@ -150,6 +147,8 @@ export function InsightMetricAlertsScreen({
               </label>
               <input
                 id="tm-alert-threshold"
+                required
+                {...check.control('tm-alert-threshold')}
                 className="tm-field__control"
                 type="number"
                 min={0}
@@ -158,6 +157,7 @@ export function InsightMetricAlertsScreen({
                 value={threshold}
                 onChange={(event) => setThreshold(event.target.value)}
               />
+              <FormCheckMessage check={check} name="tm-alert-threshold" />
             </div>
             <Button
               type="submit"

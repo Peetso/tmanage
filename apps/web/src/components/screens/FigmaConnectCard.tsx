@@ -199,6 +199,7 @@ export function FigmaConnectCard({
             )}
           </p>
           <form
+            noValidate
             className="tm-figma-connect__form"
             onSubmit={(event) => {
               event.preventDefault();

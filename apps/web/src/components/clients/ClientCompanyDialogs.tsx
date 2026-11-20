@@ -60,6 +60,7 @@ export function RenameCompanyDialog({
         </h2>
         <p className="cl-dialog__lead">{t('Clients.renameLead')}</p>
         <form
+          noValidate
           className="cl-dialog__form"
           onSubmit={(event) => {
             event.preventDefault();

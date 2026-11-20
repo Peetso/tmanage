@@ -21028,5 +21028,17 @@
   "WalkthroughForm.errorRateLimited": "来自此网络的请求过多，请稍后再试。",
   "WalkthroughForm.errorInvalid": "表单有误，请检查时间后重试。",
   "WalkthroughForm.errorNetwork": "无法连接服务器，请重试。",
-  "WalkthroughForm.errorGeneric": "出错了，请重试。"
+  "WalkthroughForm.errorGeneric": "出错了，请重试。",
+  "FormCheck.fillIn": "请填写此字段。",
+  "FormCheck.choose": "请选择一个选项。",
+  "FormCheck.email": "请输入电子邮件地址，例如 name@example.com。",
+  "FormCheck.link": "请输入以 https:// 开头的完整链接。",
+  "FormCheck.date": "请输入完整的日期。",
+  "FormCheck.number": "请输入数字。",
+  "FormCheck.wholeNumber": "请输入整数。",
+  "FormCheck.wholeNumberBetween": "请输入 {min} 到 {max} 之间的整数。",
+  "FormCheck.wholeNumberAtLeast": "请输入不小于 {min} 的整数。",
+  "FormCheck.wholeNumberAtMost": "请输入不大于 {max} 的整数。",
+  "FormCheck.minLength": "请至少输入 {min} 个字符。",
+  "FormCheck.format": "请检查此处输入的内容。"
 }

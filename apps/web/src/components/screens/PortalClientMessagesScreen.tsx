@@ -86,6 +86,7 @@ export function PortalClientMessagesScreen({
         ) : null}
 
         <form
+          noValidate
           className="tm-stack"
           onSubmit={(event) => {
             event.preventDefault();

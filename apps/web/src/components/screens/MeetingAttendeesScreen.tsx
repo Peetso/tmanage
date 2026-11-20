@@ -234,7 +234,7 @@ export function MeetingAttendeesScreen({
                 <h2 id="tm-attendees-invite" className="tm-cal-eyebrow">
                   {t('MeetingAttendeesScreen.inviteHeading')}
                 </h2>
-                <form ref={firstStep} className="tm-cal-form" onSubmit={submitInvite}>
+                <form noValidate ref={firstStep} className="tm-cal-form" onSubmit={submitInvite}>
                   <fieldset className="tm-fieldset tm-stack" disabled={members.isPending}>
                     <div className="tm-field">
                       <label className="tm-field__label" htmlFor="tm-attendees-member">

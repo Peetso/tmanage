@@ -109,6 +109,7 @@ export function InsightAnnotationsScreen({
     >
       <div className="tm-ins tm-ins-tool">
         <form
+          noValidate
           ref={firstStep}
           className="tm-panel tm-stack"
           aria-labelledby="tm-annotation-heading"

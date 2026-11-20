@@ -16,6 +16,7 @@ import type {
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { FormCheckMessage, useFormCheck } from '../../lib/forms/form-check';
 
 export interface PersonTimeOffViewProps {
   organizationSlug: string;
@@ -115,6 +116,8 @@ export function PersonTimeOffView({
 
   const list = entries.data ?? [];
 
+  // QA-FIX-S M2: the constraints in the markup are reported here, in the app's words.
+  const check = useFormCheck();
   return (
     <section className="tm-stack" aria-labelledby="tm-time-off-heading">
       <h2 id="tm-time-off-heading" className="tm-eyebrow">
@@ -123,12 +126,10 @@ export function PersonTimeOffView({
 
       {canManage ? (
         <form
+          noValidate
           className="tm-panel tm-stack"
           aria-labelledby="tm-time-off-add-heading"
-          onSubmit={(event) => {
-            event.preventDefault();
-            add.mutate();
-          }}
+          {...check.handlers(() => add.mutate())}
         >
           <h3 id="tm-time-off-add-heading" className="tm-eyebrow">
             {t('PersonTimeOffView.recordHeading')}
@@ -140,12 +141,14 @@ export function PersonTimeOffView({
             </label>
             <input
               id="tm-time-off-start"
+              {...check.control('tm-time-off-start')}
               className="tm-field__control"
               type="date"
               value={startsOn}
               required
               onChange={(event) => setStartsOn(event.target.value)}
             />
+            <FormCheckMessage check={check} name="tm-time-off-start" />
           </div>
 
           <div className="tm-field">
@@ -154,12 +157,14 @@ export function PersonTimeOffView({
             </label>
             <input
               id="tm-time-off-end"
+              {...check.control('tm-time-off-end')}
               className="tm-field__control"
               type="date"
               value={endsOn}
               required
               onChange={(event) => setEndsOn(event.target.value)}
             />
+            <FormCheckMessage check={check} name="tm-time-off-end" />
           </div>
 
           <div className="tm-field">

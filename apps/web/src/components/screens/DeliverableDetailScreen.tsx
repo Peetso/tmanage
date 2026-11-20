@@ -300,6 +300,7 @@ export function DeliverableDetailScreen({
                   {t('Deliverables.uploadHeading')}
                 </h2>
                 <form
+                  noValidate
                   className="tm-stack"
                   onSubmit={(event) => {
                     event.preventDefault();

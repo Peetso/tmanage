@@ -177,6 +177,7 @@ export function NewProjectFromTemplateDialog({
         </p>
 
         <form
+          noValidate
           className="tm-a9-form"
           aria-labelledby={titleId}
           onSubmit={(event) => {

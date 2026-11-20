@@ -114,6 +114,7 @@ export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumns
       ) : null}
 
       <form
+        noValidate
         ref={firstStep}
         className="tm-stack"
         onSubmit={submit}

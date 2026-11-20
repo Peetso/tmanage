@@ -397,6 +397,7 @@ export function FinanceTimesheetsScreen({
                             ) : null}
                             {decidable && id !== null && changing === id ? (
                               <form
+                                noValidate
                                 className="tm-row tm-row--wrap"
                                 onSubmit={(event) => {
                                   event.preventDefault();

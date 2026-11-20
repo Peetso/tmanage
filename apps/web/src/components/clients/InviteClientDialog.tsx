@@ -14,6 +14,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
 import { MoreOptions, useMyUserId } from '../forms/MoreOptions';
+import { useFormCheck } from '../../lib/forms/form-check';
 
 /** The Clients keys arrive with the i18n-Q1 fragment; cast until it is merged into en.json. */
 export type ClientsKey = `Clients.${string}`;
@@ -128,6 +129,8 @@ export function InviteClientDialog({
   }, [onClose]);
 
   const canSend = email.trim() !== '' && companyName.trim() !== '' && !send.isPending;
+  // QA-FIX-S M2: the address is checked here, in the app's words, before a company is created.
+  const check = useFormCheck();
 
   return (
     <div className="tm-command-palette__backdrop cl-backdrop">
@@ -138,15 +141,17 @@ export function InviteClientDialog({
         <p className="cl-dialog__lead">{t('Clients.dialogLead')}</p>
 
         <form
+          noValidate
           className="cl-dialog__form"
-          onSubmit={(event) => {
-            event.preventDefault();
+          {...check.handlers(() => {
             if (canSend) send.mutate();
-          }}
+          })}
         >
           <Field
             label={t('Clients.emailLabel')}
             type="email"
+            name="email"
+            error={check.error('email')}
             autoComplete="off"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
@@ -158,6 +163,8 @@ export function InviteClientDialog({
             hint={t('Clients.orgHint')}
             list={listId}
             autoComplete="off"
+            name="company"
+            error={check.error('company')}
             value={companyName}
             onChange={(event) => setCompanyName(event.target.value)}
             required

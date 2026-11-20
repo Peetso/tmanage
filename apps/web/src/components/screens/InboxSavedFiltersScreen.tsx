@@ -159,6 +159,7 @@ export function InboxSavedFiltersScreen({
 
         {dialogOpen ? (
           <form
+            noValidate
             ref={firstStep}
             className="tm-stack"
             onSubmit={(event) => {

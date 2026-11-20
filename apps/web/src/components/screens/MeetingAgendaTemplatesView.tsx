@@ -216,7 +216,7 @@ export function MeetingAgendaTemplatesView({
               <h2 id="tm-agenda-template-create" className="tm-cal-eyebrow">
                 {t('MeetingAgendaTemplatesView.createHeading')}
               </h2>
-              <form ref={firstStep} className="tm-cal-form" onSubmit={submitCreate}>
+              <form noValidate ref={firstStep} className="tm-cal-form" onSubmit={submitCreate}>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-agenda-template-name">
                     {t('MeetingAgendaTemplatesView.nameLabel')}
@@ -276,7 +276,7 @@ export function MeetingAgendaTemplatesView({
                 <h2 id="tm-agenda-template-apply" className="tm-cal-eyebrow">
                   {t('MeetingAgendaTemplatesView.applyHeading')}
                 </h2>
-                <form className="tm-cal-form" onSubmit={submitApply}>
+                <form noValidate className="tm-cal-form" onSubmit={submitApply}>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-agenda-template-apply-template">
                       {t('MeetingAgendaTemplatesView.templateLabel')}

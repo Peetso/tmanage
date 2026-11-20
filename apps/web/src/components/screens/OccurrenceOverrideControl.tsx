@@ -142,7 +142,7 @@ export function OccurrenceOverrideControl({
         </InlineAlert>
       ) : null}
 
-      <form className="tm-cal-form" onSubmit={submitSave}>
+      <form noValidate className="tm-cal-form" onSubmit={submitSave}>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-override-status">
             {t('OccurrenceOverrideControl.thisOccurrence')}

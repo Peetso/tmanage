@@ -250,6 +250,7 @@ export function EditMilestoneDialog({
         </h2>
 
         <form
+          noValidate
           className="tm-a9-form"
           aria-labelledby={titleId}
           onSubmit={(event) => {

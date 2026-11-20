@@ -337,7 +337,7 @@ export function RequestMessageThread({
         ) : null}
 
         {notFound ? null : (
-          <form className="tm-rq-reply" onSubmit={submit}>
+          <form noValidate className="tm-rq-reply" onSubmit={submit}>
             <label className="tm-rq-reply__label" htmlFor={composerId}>
               {tm('RequestMessages.yourReply')}
             </label>
@@ -464,7 +464,7 @@ export function RequestMessageThread({
       ) : null}
 
       {notFound ? null : (
-        <form className="tm-chat-composer" onSubmit={submit}>
+        <form noValidate className="tm-chat-composer" onSubmit={submit}>
           <label className="tm-visually-hidden" htmlFor={composerId}>
             {tm('RequestMessages.composerLabel')}
           </label>

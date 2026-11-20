@@ -53,7 +53,7 @@ export function LinkForm({ editor, onDone }: LinkFormProps) {
   }
 
   return (
-    <form className="tm-doced__linkform" onSubmit={apply}>
+    <form noValidate className="tm-doced__linkform" onSubmit={apply}>
       <input
         ref={input}
         type="text"

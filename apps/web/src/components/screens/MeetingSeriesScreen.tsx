@@ -312,7 +312,7 @@ export function MeetingSeriesScreen({
               <h2 id="tm-series-create" className="tm-cal-eyebrow">
                 {t('MeetingSeriesScreen.createHeading')}
               </h2>
-              <form ref={firstStep} className="tm-cal-form" onSubmit={submitCreate}>
+              <form noValidate ref={firstStep} className="tm-cal-form" onSubmit={submitCreate}>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-series-title">
                     {t('MeetingSeriesScreen.titleLabel')}

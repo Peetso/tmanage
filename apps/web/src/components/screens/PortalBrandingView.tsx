@@ -97,6 +97,7 @@ export function PortalBrandingView({
 
   return (
     <form
+      noValidate
       className="tm-panel tm-stack"
       aria-labelledby="tm-portal-branding-heading"
       onSubmit={(event) => {

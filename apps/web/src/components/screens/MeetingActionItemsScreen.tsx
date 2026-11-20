@@ -284,7 +284,7 @@ export function MeetingActionItemsScreen({
                 <h2 id="tm-action-items-capture" className="tm-cal-eyebrow">
                   {t('MeetingActionItemsScreen.captureHeading')}
                 </h2>
-                <form ref={firstStep} className="tm-cal-form" onSubmit={submitCapture}>
+                <form noValidate ref={firstStep} className="tm-cal-form" onSubmit={submitCapture}>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-action-item-title">
                       {t('MeetingActionItemsScreen.captureTitleLabel')}

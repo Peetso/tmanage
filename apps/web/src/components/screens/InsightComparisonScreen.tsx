@@ -119,6 +119,7 @@ export function InsightComparisonScreen({
           </h2>
 
           <form
+            noValidate
             className="tm-stack tm-stack--tight"
             onSubmit={(event) => {
               event.preventDefault();

@@ -516,6 +516,7 @@ function ThreadDetail({
       </ol>
       {canReply ? (
         <form
+          noValidate
           className="tm-support-stack"
           onSubmit={(event) => {
             event.preventDefault();

@@ -136,6 +136,7 @@ export function InsightDashboardLayoutScreen({
           </InlineAlert>
         ) : (
           <form
+            noValidate
             className="tm-panel tm-stack"
             aria-labelledby="tm-insight-layout-heading"
             onSubmit={(event) => {

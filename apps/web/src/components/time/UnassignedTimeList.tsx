@@ -241,6 +241,7 @@ function AssignForm({
 
   return (
     <form
+      noValidate
       className="tm-stack"
       onSubmit={(event) => {
         event.preventDefault();

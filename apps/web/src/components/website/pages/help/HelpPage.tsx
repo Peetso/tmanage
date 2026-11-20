@@ -39,6 +39,7 @@ export function HelpPage() {
           </h1>
           <p className="tm-web-help-hero__lede">{copy.lede}</p>
           <form
+            noValidate
             className="tm-web-help-search"
             role="search"
             onSubmit={(event) => event.preventDefault()}

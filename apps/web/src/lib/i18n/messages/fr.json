@@ -21028,5 +21028,17 @@
   "WalkthroughForm.errorRateLimited": "Trop de demandes depuis ce réseau. Réessayez plus tard.",
   "WalkthroughForm.errorInvalid": "Quelque chose ne va pas dans le formulaire. Vérifiez les créneaux et réessayez.",
   "WalkthroughForm.errorNetwork": "Impossible de joindre le serveur. Réessayez.",
-  "WalkthroughForm.errorGeneric": "Une erreur s'est produite. Réessayez."
+  "WalkthroughForm.errorGeneric": "Une erreur s'est produite. Réessayez.",
+  "FormCheck.fillIn": "Remplissez ce champ.",
+  "FormCheck.choose": "Choisissez l’une des options.",
+  "FormCheck.email": "Saisissez une adresse e-mail, par exemple name@example.com.",
+  "FormCheck.link": "Saisissez un lien complet qui commence par https://",
+  "FormCheck.date": "Saisissez une date complète.",
+  "FormCheck.number": "Saisissez un nombre.",
+  "FormCheck.wholeNumber": "Saisissez un nombre entier.",
+  "FormCheck.wholeNumberBetween": "Saisissez un nombre entier de {min} à {max}.",
+  "FormCheck.wholeNumberAtLeast": "Saisissez un nombre entier égal ou supérieur à {min}.",
+  "FormCheck.wholeNumberAtMost": "Saisissez un nombre entier égal ou inférieur à {max}.",
+  "FormCheck.minLength": "Écrivez au moins {min} caractères.",
+  "FormCheck.format": "Vérifiez ce que vous avez saisi ici."
 }

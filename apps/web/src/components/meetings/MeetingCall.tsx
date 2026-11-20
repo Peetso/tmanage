@@ -15,6 +15,7 @@ import {
 import { fillTemplate } from '../../lib/ai-approval-presentation';
 import { appDateLocale } from '../../lib/i18n/app-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { FormCheckMessage, useFormCheck } from '../../lib/forms/form-check';
 import { canJoin, clock, joinCapsule, providerName } from './meeting-join-model';
 import { useMeetingJoin, type JoinOutcome } from './use-meeting-join';
 
@@ -209,6 +210,12 @@ export function CallCard({
     void navigator.clipboard?.writeText(url).then(() => setCopied(true));
   };
   const error = save.error ?? quick.error;
+  const badLink = tOr(
+    'MeetingJoin.badLink',
+    'Use an https link from Google Meet, Teams, Zoom, Webex, Whereby or Jitsi.',
+  );
+  // QA-FIX-S M2: an empty or malformed link gets the card's own sentence, at the field.
+  const linkCheck = useFormCheck({ messages: { 'tm-mtg-call-url': badLink } });
   const startQuick = (
     <button
       type="button"
@@ -325,11 +332,9 @@ export function CallCard({
           </p>
           {adding ? (
             <form
+              noValidate
               className="tm-mtg-call__form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                save.mutate(draft);
-              }}
+              {...linkCheck.handlers(() => save.mutate(draft))}
             >
               <label className="tm-mtg-label" htmlFor="tm-mtg-call-url">
                 {tOr('MeetingJoin.linkLabel', 'Call link')}
@@ -343,7 +348,9 @@ export function CallCard({
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 required
+                {...linkCheck.control('tm-mtg-call-url')}
               />
+              <FormCheckMessage check={linkCheck} name="tm-mtg-call-url" />
               <button
                 type="submit"
                 className="tm-mtg-btn tm-mtg-btn--ink tm-mtg-btn--wide"

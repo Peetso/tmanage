@@ -168,6 +168,7 @@ function RequestSignatureSheet({
           {t('sheetIntro', { version: `v${version.versionNo ?? ''}` })}
         </p>
         <form
+          noValidate
           className="tm-stack"
           onSubmit={(event) => {
             event.preventDefault();

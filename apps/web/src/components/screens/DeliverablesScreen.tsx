@@ -148,6 +148,7 @@ export function DeliverablesScreen({
                 {t('Deliverables.newHeading')}
               </h2>
               <form
+                noValidate
                 className="tm-stack"
                 onSubmit={(event) => {
                   event.preventDefault();

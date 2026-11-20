@@ -69,7 +69,7 @@ export function NewChannelForm({ api, organizationSlug, channelHref }: NewChanne
       <h2 id="tm-chat-create-h" className="tm-chat-eyebrow">
         {tOr('ChatList.newChannel', 'New channel')}
       </h2>
-      <form className="tm-stack" onSubmit={submit}>
+      <form noValidate className="tm-stack" onSubmit={submit}>
         <fieldset className="tm-chat-create__fields" disabled={projects.isPending}>
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-chat-new-project">

@@ -43,7 +43,7 @@ export function InsertEmbedDialog({ editor, onClose }: InsertEmbedDialogProps) {
 
   return (
     <EditorDialog title={tOr('DocEditor.embedTitle', 'Embed a link')} onClose={onClose}>
-      <form onSubmit={insert} className="tm-doced__embedform">
+      <form noValidate onSubmit={insert} className="tm-doced__embedform">
         <label className="tm-docshare__label" htmlFor="tm-doc-embed-url">
           {tOr('DocEditor.embedLabel', 'Figma, YouTube or Vimeo link')}
         </label>

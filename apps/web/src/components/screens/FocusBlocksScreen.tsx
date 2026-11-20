@@ -204,6 +204,7 @@ export function FocusBlocksScreen({
 
           <div className="tm-cal-side">
             <form
+              noValidate
               ref={firstStep}
               className="tm-cal-card"
               aria-labelledby="tm-focus-heading"

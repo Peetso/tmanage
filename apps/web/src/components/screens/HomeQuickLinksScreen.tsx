@@ -130,6 +130,7 @@ export function HomeQuickLinksScreen({
       ) : (
         <div className="tm-stack">
           <form
+            noValidate
             ref={firstStep}
             className="tm-panel tm-stack"
             aria-labelledby="tm-quick-links-add-heading"

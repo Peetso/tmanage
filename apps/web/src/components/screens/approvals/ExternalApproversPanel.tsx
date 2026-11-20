@@ -123,6 +123,7 @@ function ExternalApproversCard({
         )}
       </p>
       <form
+        noValidate
         className="tm-stack"
         onSubmit={(event) => {
           event.preventDefault();

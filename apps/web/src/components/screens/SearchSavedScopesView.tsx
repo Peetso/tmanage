@@ -149,6 +149,7 @@ export function SearchSavedScopesView({
       ) : null}
 
       <form
+        noValidate
         ref={firstStep}
         className="tm-row"
         onSubmit={(event) => {

@@ -187,6 +187,7 @@ export function QuietHoursScreen({
         <div className="tm-prefs tm-prefs--a11y">
           <div className="tm-prefs__main">
             <form
+              noValidate
               className="tm-prefs-card"
               aria-labelledby="tm-quiet-heading"
               onSubmit={(event) => {

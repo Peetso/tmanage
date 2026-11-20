@@ -38,6 +38,7 @@ import {
   type DraftProblem,
   type QuoteDraft,
 } from './QuoteRules';
+import { useFormCheck } from '../../../lib/forms/form-check';
 import '../../../styles/screens/finance-ledger.css';
 import '../../../styles/screens/quotes.css';
 
@@ -129,6 +130,8 @@ export function QuoteEditorScreen({
         router.replace(`/${organizationSlug}/quotes/${encodeURIComponent(saved.id)}`);
     },
   });
+  // QA-FIX-S M2: the "Send to" address is checked in the app's words, never the browser bubble.
+  const sendCheck = useFormCheck();
   const send = useMutation({
     mutationFn: () => sendQuote(api, organizationSlug, quoteId ?? '', sendTo.trim()),
     onSuccess: (sent) => {
@@ -545,15 +548,15 @@ export function QuoteEditorScreen({
                   ) : null}
                   {quoteId !== null ? (
                     <form
+                      noValidate
                       className="tm-stack tm-stack--tight"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        send.mutate();
-                      }}
+                      {...sendCheck.handlers(() => send.mutate())}
                     >
                       <Field
                         label={tOr('Quotes.sendTo', 'Send to')}
                         type="email"
+                        name="sendTo"
+                        error={sendCheck.error('sendTo')}
                         dir="ltr"
                         value={sendTo}
                         maxLength={320}

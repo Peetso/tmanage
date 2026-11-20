@@ -217,7 +217,7 @@ function CreateRoleDialog({
       width={480}
       onClose={onClose}
     >
-      <form className="tm-stack" onSubmit={(event) => void submit(event)}>
+      <form noValidate className="tm-stack" onSubmit={(event) => void submit(event)}>
         <Field
           label={t('PermissionEditor.newRoleName')}
           name="role-name"

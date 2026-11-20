@@ -101,6 +101,7 @@ export function PortalSettingsScreen({
         </InlineAlert>
       ) : (
         <form
+          noValidate
           className="tm-panel tm-stack"
           aria-labelledby="tm-portal-settings-heading"
           onSubmit={(event) => {

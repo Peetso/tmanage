@@ -154,6 +154,7 @@ export function PmImportScreen({
       <div className="tm-pmi">
         {boards === null ? (
           <form
+            noValidate
             className="tm-pmi__panel"
             aria-label={tOr('PmImportScreen.connectTitle', 'Import from Trello or Asana')}
             onSubmit={(event) => {

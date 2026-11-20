@@ -95,7 +95,7 @@ export function ReferralPartnersCard({ api }: { api: ApiClient }) {
           </ul>
 
           <h3 className="tm-cc-card__title">{copy('partnersTitle')}</h3>
-          <form className="tm-stack tm-stack--tight" onSubmit={submit}>
+          <form noValidate className="tm-stack tm-stack--tight" onSubmit={submit}>
             <Field
               label={copy('partnerName')}
               value={name}

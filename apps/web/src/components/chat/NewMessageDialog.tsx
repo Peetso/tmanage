@@ -217,7 +217,7 @@ export function NewMessageDialog({
           {tOr('NewMessageDialog.lede', 'Start a direct message with someone you work with.')}
         </p>
         {extraAction ?? null}
-        <form onSubmit={submit} className="tm-newdm__form">
+        <form noValidate onSubmit={submit} className="tm-newdm__form">
           <label htmlFor={toId} className="tm-newdm__label">
             {tOr('NewMessageDialog.to', 'To')}
           </label>

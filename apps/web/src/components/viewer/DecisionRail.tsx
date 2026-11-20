@@ -175,6 +175,7 @@ export function DecisionRail({
           </div>
           {asking ? (
             <form
+              noValidate
               id={`${id}-changes`}
               className="tm-decision__form"
               onSubmit={(event) => {

@@ -236,6 +236,7 @@ function InstallCard({
   const [apiKey, setApiKey] = useState('');
   return (
     <form
+      noValidate
       className="tm-connectors__install"
       aria-labelledby={labelledBy}
       onSubmit={(event) => {

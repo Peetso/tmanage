@@ -99,6 +99,7 @@ export function OrgBrandingView({
         </InlineAlert>
       ) : (
         <form
+          noValidate
           className="tm-panel tm-stack"
           aria-labelledby="tm-org-branding-heading"
           onSubmit={(event) => {
