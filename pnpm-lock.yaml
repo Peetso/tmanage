@@ -13,6 +13,7 @@ overrides:
   fast-uri@>=4 <4.2.3: ^4.2.3
   fastify: 5.12.7
   '@fastify/middie@<9.3.7': ^9.3.7
+  express-rate-limit@<8.7.5: ^8.7.5
   hono@<4.13.16: ^4.13.16
   '@hono/node-server@>=2 <2.1.6': ^2.1.6
   js-yaml@>=4 <4.3.2: ^4.3.2
@@ -107,8 +108,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
       ag-psd:
-        specifier: 31.0.3
-        version: 31.0.3
+        specifier: 34.2.2
+        version: 34.2.2
       bidi-js:
         specifier: 1.1.0
         version: 1.1.0
@@ -2451,8 +2452,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ag-psd@31.0.3:
-    resolution: {integrity: sha512-THDYK+WK1F5GOH4G0l4wkQRc0Cyq5tnxIwBezACKwa6idKygphnGgMISr4lmW6n0Q89ceoqpdPZQF3Y7TL1pgg==}
+  ag-psd@34.2.2:
+    resolution: {integrity: sha512-iT36+prHtStdlAEPrO/+BfwcZttQsVq8uU3zREgxGFv9bLPHBwEYCV0dEYsgDZOQueR3iCz29u+Z4VZBkDgbYg==}
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -3290,8 +3291,8 @@ packages:
   exponential-backoff@3.1.3:
     resolution: {integrity: sha512-ZgEeZXj30q+I0EN+CbSSpIyPaJ5HVQD18Z1m+u1FXbAeT94mr1zw50q4q6jiiC447Nl/YTcIYSAftiGqetwXCA==}
 
-  express-rate-limit@8.7.1:
-    resolution: {integrity: sha512-2FXbqkygil3mZiXzEtM0IjE/UBmBNot0J1GEVrJT4JbrvwOSoEtqtO+wHbiMQELWe1eNvHoYRg2dkjOid+6JkA==}
+  express-rate-limit@8.7.5:
+    resolution: {integrity: sha512-wi+v38cx2EqD0JnhE/e74o5tFqKWUOAPFJIgyEiqJ8v2MNpoOAA3kI2hXYOI+YM+HE5yqbdAlVxm2GqOIeYOgA==}
     engines: {node: '>= 16'}
     peerDependencies:
       express: '>= 4.11'
@@ -6002,7 +6003,7 @@ snapshots:
       eventsource: 3.0.7
       eventsource-parser: 3.1.1
       express: 5.3.0
-      express-rate-limit: 8.7.1(express@5.3.0)
+      express-rate-limit: 8.7.5(express@5.3.0)
       hono: 4.13.18
       jose: 6.2.12
       json-schema-typed: 8.0.2
@@ -7110,7 +7111,7 @@ snapshots:
 
   acorn@8.18.0: {}
 
-  ag-psd@31.0.3:
+  ag-psd@34.2.2:
     dependencies:
       base64-js: 1.5.1
       pako: 2.1.0
@@ -8053,7 +8054,7 @@ snapshots:
 
   exponential-backoff@3.1.3: {}
 
-  express-rate-limit@8.7.1(express@5.3.0):
+  express-rate-limit@8.7.5(express@5.3.0):
     dependencies:
       debug: 4.4.3
       express: 5.3.0

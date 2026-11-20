@@ -41,7 +41,7 @@
     "@tmanage/mail": "workspace:*",
     "@tmanage/mcp-server": "workspace:*",
     "@tmanage/storage": "workspace:*",
-    "ag-psd": "31.0.3",
+    "ag-psd": "34.2.2",
     "bidi-js": "1.1.0",
     "docx": "9.15.1",
     "dompurify": "^3.4.17",
