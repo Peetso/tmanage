@@ -17,9 +17,9 @@ tables_owned: []
 rules:
   [SE-2, HT-2, HT-3, AR-8, AR-9, AR-3, AR-10, AR-12, ST-1, RT-4, PR-1, PR-3, IP-9, IP-10, IP-13]
 ux_rules: [UX-3, UX-4, UX-8, UX-9, UX-10, UX-14, UX-15, UX-17, UX-23, UX-24]
-last_verified_commit: 3b7e4fa70eb6facff3f1dccc65c0867f0707a0a6
+last_verified_commit: 954d80b32e5fbe6379a1c4e71bb45a616aa9ce65
 last_verified_date: 2026-11-20
-last_verified_by: Claude Opus 5.5 (lane E)
+last_verified_by: Claude Opus 5.5 (lane G)
 ---
 
 # web-shared/session
@@ -182,7 +182,7 @@ no blank wait). **UX-4** (axe on these cards: not found in `tests/session-check.
 | --- | --- | --- |
 | SE-2 tri-state, one owner | implemented (`session-check.ts:21-62`) and used by every signed-in layout (§1) | ADR-0009 accepted; audience added (DC-6) |
 | HT-2 one outcome classifier | **two copies**: `session-check.ts:35-38` and `apps/server/platform-gate.mjs:72-73` | one ESM classifier in `packages/contracts` (ADR-0009), both import it; lint bans ad-hoc `status >= 500` |
-| HT-3 no silent collapse | non-401 → `unknown`, never `signed-out` | keep; extend the same rule to sign-in providers (`lib/api/google-auth.ts`, `microsoft-auth.ts`, other part) |
+| HT-3 no silent collapse | non-401 → `unknown`, never `signed-out`; the sign-in provider probes follow it since `d1b06266` (`lib/api/provider-availability.ts`: only 404 or `available:false` hides a button; unknown keeps it and re-probes on `retryDelay`; a failed start is classified by `isTransientFailure`) | keep |
 | HT-1 | refresh 403 → `ended` (`client.ts:353`) | treat 403 as `unknown` or prove the API never sends it for refresh |
 | AR-8 / AR-9 | the gate reads the server's answer; no policy derived | keep; never default a decision with `??` here |
 | AR-3 | reaches the API only over HTTP via `ApiClient` | keep |
@@ -234,7 +234,7 @@ no blank wait). **UX-4** (axe on these cards: not found in `tests/session-check.
 | SS-3 | ST-1 | refresh request has no timeout (`lib/api/client.ts:338-341`) | P1 | `AbortSignal.timeout` |
 | SS-4 | HT-1 | refresh 403 → `ended` (`lib/api/client.ts:353`) | P2 | map 403 to `unknown` |
 | SS-5 | PR-1 | missing tests for S-3, S-4, S-6, 429/408 rows and the 503 e2e journey; FITNESS-FUNCTIONS names a wrong path | P0 (e2e), P1 | §10 |
-| SS-6 | DC-2 (neighbour) | `?? false` on `reauthNeedsAuthenticatorCode` at `components/screens/PreferencesScreen.tsx:562`, `SignInSecurityScreen.tsx:329` — same class, outside this folder | P0 | owner: those screens |
+| SS-6 | DC-2 (neighbour) | **Fixed `fe4db511`:** both screens read `stepUpDecision()` (`lib/step-up-decision.ts`: known / loading / unknown) and cannot submit until known; `StepUpDecisionNotice` shows checking or cannot-reach-retry. Test: `tests/sign-in-security.test.tsx` (factors 503 → unknown, no `/v1/auth/reauth`). Sweep of `?? false` / `?? true` in `apps/web/src`: no other hit defaults a security decision open | closed | — |
 | SS-7 | risk | retries have no jitter: after a restart every open tab re-checks on the same 1/2/4/8 s ticks | P2 | add ± jitter |
 
 ADR-0009 (tri-state + one classifier) is **Proposed**; ADR-0010 (overlapping instances) is the

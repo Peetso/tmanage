@@ -44,9 +44,9 @@ rules:
     PR-5,
   ]
 ux_rules: []
-last_verified_commit: 3b7e4fa70eb6facff3f1dccc65c0867f0707a0a6
+last_verified_commit: 954d80b32e5fbe6379a1c4e71bb45a616aa9ce65
 last_verified_date: 2026-11-20
-last_verified_by: Claude Opus 5.5 (lane E)
+last_verified_by: Claude Opus 5.5 (lane G)
 ---
 
 # app/server: the single Hostinger process
@@ -108,7 +108,7 @@ The part owns **no tables** and writes no SQL itself (AR-4). It runs the migrato
 
 | File | Purpose | Growth control (ST-6) |
 | --- | --- | --- |
-| `.run/web.sock` (0600, dir 0700) | the web child's socket | unlinked on start and exit (`web-transport.mjs:95-121`) |
+| `.run/web-<pid>.sock` (0600, dir 0700) | this instance's web child socket | own path unlinked on start and exit; sockets of dead pids cleared at prepare (`prepareWebTransport`) |
 | `OUTBOX_HEARTBEAT_FILE` | the relay's last clean pass; read by `/healthz/deep` | overwritten (`job-alerts.mjs:56-60`) |
 | `.crash-alert.json` | crash-mail throttle across restarts | overwritten (`server.mjs:704-709`) |
 
@@ -121,7 +121,7 @@ The part owns **no tables** and writes no SQL itself (AR-4). It runs the migrato
 
 ## Runtime, background work and failure modes
 
-**Boot** (`server.mjs:564-730`): resolve transport → listen → install signal handlers → resolve DB env → `loadEnv` → migrations → `createApi` → crash alerts → `startWeb` → in-process relay (if `WORKER_INPROCESS=1`, `:714-723`) → sweeps (`:725`) → `state.ready` (`:728`).
+**Boot** (`server.mjs:564-730`): resolve transport → listen → install signal handlers → resolve DB env → `loadEnv` → migrations → `createApi` → crash alerts → `startWeb` → `state.ready` → in-process relay (if `WORKER_INPROCESS=1`) → sweeps, through `becomeReady` (`web-transport.mjs`; RT-4, `954d80b3`).
 
 **Pools (ST-5 bulkheads):** the API pool belongs to Nest. The relay has its own pool of ≤ 2 connections (`server.mjs:382-387`). The minute sweeps have their own 1-connection pool (`:504-509`), the jobs another (`:542-547`), and the sweep locks a third (`:511`; `sweep-lock.ts:72-80`). A nightly rebuild therefore cannot hold the minute sweeps' connection.
 
@@ -131,8 +131,8 @@ The part owns **no tables** and writes no SQL itself (AR-4). It runs the migrato
 
 | Failure | Behaviour today | Pattern / rule | Gap |
 | --- | --- | --- | --- |
-| Request during boot | held ≤ 30 s, then 503 + Retry-After | ST-5 (bounded queue), HT-1 | readiness waits for relay and sweeps (`:714-728`), so the window is longer than serving needs (**RT-4**) |
-| Second process (restart overlap, on-demand spawn) | fixed socket `.run/web.sock`: the new instance unlinks the old instance's socket (`web-transport.mjs:83-86`, `:105`; `web-socket-preload.mjs:40`), and the exiting one unlinks the shared path (`:111-121`) → 502 | RT-2 | **DC-3 P0 open** |
+| Request during boot | held ≤ 30 s, then 503 + Retry-After | ST-5 (bounded queue), HT-1 | fixed `954d80b3`: ready after API + web child; relay and sweeps start after (RT-4) |
+| Second process (restart overlap, on-demand spawn) | per-process socket `.run/web-<pid>.sock`: neither instance unlinks the other's (`954d80b3`) | RT-2 | socket part fixed; leader lease still open (SRV-3) |
 | Singleton duties on 2 instances | sweeps/jobs: named lock per pass (ok). Relay: SKIP LOCKED (ok). Realtime hub: per process, so pushes are lost across instances (`realtime-inprocess.mjs:92-112`). No leader lease. | RT-3 | **DC-3 P1 open** |
 | In-memory throttles | `purgeJob` and `storageRootJob` keep `last` in memory (`scheduled-sweeps.mjs:647-675`); each instance runs them hourly (the lock only prevents running _at the same time_) | AS-4 | **open P1** |
 | Lock query error | `GET_LOCK` NULL looks the same as "held" (`sweep-lock.ts:51`), so the pass is skipped silently; a thrown error is logged by the scheduler (`scheduled-sweeps.mjs:588-590`) | AS-4 ("held" ≠ "failed") | **open P1** |
@@ -154,9 +154,9 @@ n/a — the part renders no screen. Its only user-visible output is the 503 `sta
 | Rule | Today | Target |
 | --- | --- | --- |
 | RT-1 | Env validated by `loadEnv` (zod, `@tmanage/config`); secrets only reach the log as notes (`server.mjs:678-683`) | met |
-| RT-2 | Fixed socket path shared by every instance (`web-transport.mjs:83-86`) | `mkdtemp` per instance, the `temp: true` branch already exists (`:88`, `:98-100`); unlink only its own path (ADR-0010 staged) |
+| RT-2 | Socket per process (`web-<pid>.sock`, `954d80b3`); throttles, realtime hub and heartbeat still per process | DB-held throttles, realtime via DB/outbox (SRV-3, SRV-4) |
 | RT-3 | Named lock per pass; no leader lease; realtime per process | `GET_LOCK('tmanage:leader')` on a dedicated connection for relay, sweeps and realtime source |
-| RT-4 | `ready` set after relay and sweeps (`:714-728`) | ready after API and web child; start relay and sweeps after |
+| RT-4 | met (`becomeReady`, `954d80b3`) | keep |
 | RT-5 | Only `/healthz` (= ready) and the API's `/healthz/deep` | add `/livez` (200 once listening) |
 | RT-6 | close, then exit, with no drain budget | drain ≤ 10 s (proposed), `closeIdleConnections()`, release lease |
 | RT-7 | text lines on stderr | one JSON event per line with instance id and correlation id |
@@ -197,14 +197,14 @@ n/a — the part renders no screen. Its only user-visible output is the 503 `sta
 | `process-alerts.test.mjs`, `job-alerts.test.mjs` | crash and job alert throttles, heartbeat |
 | `database-env.test.mjs`, `page-limit.test.mjs`, `csp-report.test.mjs`, `security-txt.test.mjs`, `cache-headers.test.mjs`, `realtime-inprocess.test.mjs`, `brand-icons.test.mjs` | their modules |
 
-Missing (PR-1): a two-instance test (stop A, B serves, no 502); a slow-worker boot test for RT-4; a SIGTERM test with a keep-alive client for RT-6/ST-3; a test that `GET_LOCK` NULL is reported as an error.
+Added in `954d80b3` (`web-transport.test.mjs`): two-instance socket ownership (DC-3) and ready-before-slow-worker (RT-4). Missing (PR-1): a live two-process serve test (stop A, B serves, no 502); a SIGTERM test with a keep-alive client for RT-6/ST-3; a test that `GET_LOCK` NULL is reported as an error.
 
 ## Open defects, decisions and risks
 
 | Id | Class | Defect | Pri | Exit |
 | --- | --- | --- | --- | --- |
-| SRV-1 | DC-3 | The fixed socket path collides between two instances (`web-transport.mjs:83-86`, `:105`, `:111-121`; `web-socket-preload.mjs:40`). | P0 | per-instance `mkdtemp` + two-instance test |
-| SRV-2 | DC-3/DC-1 | Readiness waits for the relay and the sweeps (`server.mjs:714-728`), which lengthens the 503 window. | P0 | RT-4 reorder + slow-worker test |
+| SRV-1 | DC-3 | **Fixed `954d80b3`:** socket `.run/web-<pid>.sock`; prepare clears only its own path and dead pids' sockets; cleanup only its own. Test: `web-transport.test.mjs` "two overlapping instances". | closed | — |
+| SRV-2 | DC-3/DC-1 | **Fixed `954d80b3`:** `becomeReady` marks ready after API + web, then starts relay and sweeps. Test: `web-transport.test.mjs` "RT-4". | closed | — |
 | SRV-3 | DC-3 | No leader lease. The realtime hub is per process. | P1 | ADR-0010 (staged in `D:/TManage/work/pass-2026-11-20/adr-staged`) |
 | SRV-4 | DC-3 | The hourly throttles for purge and storage root are in memory (`scheduled-sweeps.mjs:647-675`). | P1 | throttle row in DB |
 | SRV-5 | DC-1 | A `GET_LOCK` NULL (error) is treated as "held" (`sweep-lock.ts:51`). | P1 | three outcomes `ran / held / error` |

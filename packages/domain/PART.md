@@ -10,9 +10,9 @@ consumes_api: []
 tables_owned: []
 rules: [AR-1, AR-8, AR-9, AR-11, AR-12, DA-10, AS-2, QM-2, PR-1]
 ux_rules: [UX-15]
-last_verified_commit: 3b7e4fa70eb6facff3f1dccc65c0867f0707a0a6
+last_verified_commit: 954d80b32e5fbe6379a1c4e71bb45a616aa9ce65
 last_verified_date: 2026-11-20
-last_verified_by: Claude Opus 5.5 (lane E)
+last_verified_by: Claude Opus 5.5 (lane G)
 ---
 
 # package/domain
@@ -73,7 +73,7 @@ This package **is** the permission model: role → capability ceilings, client c
 
 | Decision | Where it is decided today | Divergence |
 | --- | --- | --- |
-| Password minimum length | API `apps/api/src/modules/identity/password.ts:88` `PASSWORD_MIN_LENGTH = 8`; web `apps/web/src/lib/public-signup.ts:66` `GETTING_IN_MIN_PASSWORD = 12`; no password policy in `packages/domain` (grep "password" finds only legal text and an audit label) | **8 vs 12** |
+| Password minimum length | `src/security/password-policy.ts`: `PASSWORD_POLICY = { minLength: 15, maxLength: 256 }` (NIST SP 800-63B-4 §3.1.1.2), `passwordLength`, `passwordTooShort`; read by `apps/api/src/modules/identity/password.ts` and the web forms (`363cdfac`) | one value |
 | "Admin roles" set | domain `TWO_STEP_ADMIN_ROLES` (`sign-in-policy.ts:27-31`) and again `apps/api/src/modules/tenancy/org-policy.ts:18`; web `CalendarConnections.tsx:61` `{owner, org_admin, admin}` | web copy wrong (`admin` is not a role) |
 | Org-wide default roles | `apps/api/src/modules/tenancy/principal.repository.ts:42` | not shared |
 | Billing-granting roles | `apps/api/src/modules/oauth/consent.ts:24` | not shared |
@@ -91,7 +91,7 @@ n/a — reason: no screens. One UI-facing asset: `src/i18n/glossary.json` is the
 | Rule | Today | Target |
 | --- | --- | --- |
 | AR-1 | Met: lint `eslint.config.js:72-100`; no runtime dependencies. `node:*` builtins are not in the banned list; only 3 server-only files use `node:crypto`. | Add `node:*` (except `node:crypto` on the 3 subpaths) to the ban so the rule is mechanical. |
-| AR-8 | Partial: permissions, two-step, money, flags, audience live here; password policy and several role sets do not (§5). | Export `PASSWORD_POLICY` and named role sets; API returns them as decisions; AR-8 lint on literals. |
+| AR-8 | Partial: permissions, two-step, money, flags, audience and the password policy live here; several role sets do not (§5). | Named role sets; AR-8 lint on literals. |
 | AR-9 | `AuthorizationDecision` is a required, explicit allow/deny (`authorize.ts:196-203`). | Keep; never add an optional decision field. |
 | AR-11 | `invitationStateMachine`, `offboardingStateMachine`, `deliverableStateMachine` have 0 importers in `apps/` (grep). | Wire them into the owning services or delete them. |
 | AR-12 | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` (`tsconfig.base.json:10-12`); 0 `any` and 0 `as unknown as` in non-test source. | Keep. |
@@ -118,7 +118,7 @@ n/a — reason: no screens. One UI-facing asset: `src/i18n/glossary.json` is the
 
 | Id | Class | Finding | Pri | Exit |
 | --- | --- | --- | --- | --- |
-| DOM-D1 | DC-2 | Password minimum decided in API (8) and web (12), not here. | P1 | `PASSWORD_POLICY` here; web reads the API's `passwordPolicy`. |
+| DOM-D1 | DC-2 | **Fixed `363cdfac`:** `PASSWORD_POLICY` here (15), used by API and web; test `src/security/password-policy.test.ts`. | closed | — |
 | DOM-D2 | DC-2 | Admin-role set duplicated (`sign-in-policy.ts:27`, tenancy `org-policy.ts:18`, web literal wrong). | P1 | One named export; delete the copies. |
 | DOM-D3 | AR-11 | Three state machines unused by any app. | P2 | Adopt or delete. |
 | DOM-D4 | IP-15 | No property-based tests for the highest-blast-radius rules. | P2 | fast-check suites for authorize and money. |

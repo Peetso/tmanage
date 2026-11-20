@@ -74,9 +74,9 @@ rules:
     PR-3,
   ]
 ux_rules: []
-last_verified_commit: 3b7e4fa70eb6facff3f1dccc65c0867f0707a0a6
+last_verified_commit: 954d80b32e5fbe6379a1c4e71bb45a616aa9ce65
 last_verified_date: 2026-11-20
-last_verified_by: Claude Opus 5.5 (lane E)
+last_verified_by: Claude Opus 5.5 (lane G)
 ---
 
 # api/identity
@@ -157,7 +157,7 @@ ledger → revoke the whole session, `reuse_detected`. Otherwise `unknown_token`
 | I-4 | A session idle longer than its stamped limit is revoked on its next refresh, in the same transaction. No limit stamped → never idle. | `session.service.ts:74-82,418-424` | `apps/api/src/common/http/guards/r3-idle-signout.test.ts:29,46` |
 | I-5 | Re-authentication requires an authenticator code **iff** the person has a confirmed TOTP factor; the same function feeds the enforcement and every read that tells a screen. | `reauthentication-code.ts:14-27`; enforce `authentication.service.ts:1128`; expose `authentication.controller.ts:753`, `authentication.service.ts:1774-1782` → `platform-admin.service.ts:168` | `reauthentication-code.test.ts`, `authentication.enrolment-reauth.test.ts` |
 | I-6 | The development sign-in route does not exist in production (not registered, so 404 like any path). | `identity.module.ts:53-66` comment + conditional controller list | `apps/api/test/http-pipeline.db.test.ts` |
-| I-7 | Passwords: min 8, max 256, no composition rules (NIST 800-63B), Argon2id. | `password.ts:88-89,97` | `password.test.ts` |
+| I-7 | Passwords: min 15, max 256 from `PASSWORD_POLICY` (`@tmanage/domain`; NIST SP 800-63B-4 §3.1.1.2: 15 when the password may be the only factor), code points after NFKC, no composition rules, Argon2id. Sign-in never checks length. | `password.ts:89-90`, `packages/domain/src/security/password-policy.ts` | `password.test.ts`, `password-policy.test.ts` |
 | I-8 | Refresh token, recovery code, passkey credential and reset token are stored as hashes with a UNIQUE key. | `0003_session_rotation.sql:70`, `0004_credentials.sql:146`, `0329_user_passkeys.sql:44`, `0204_password_reset_tokens.sql:32` | `sessions.db.test.ts`, `recovery-codes.test.ts`, `acc-02-password-reset.db.test.ts` |
 | I-9 | Source-based abuse control is asked **before** the user read, Argon2 and the event row; refusals charge only the refusing key. | `sign-in-abuse-control.ts:8-60,470` | `sign-in-abuse-control.test.ts` |
 | I-10 | `GET /v1/sessions/current` names the person only (email, displayName) — never an id or token. | `session.controller.ts:169-185`, `session.service.ts:233-235` | contract `e2e/contracts/api-web-shapes.ts:2983` |
@@ -204,7 +204,7 @@ or invalid credentials, 403 refusal, 404 hidden, 409 conflict, 429 rate limit.
 **Exported services.** `SESSION_SERVICE` (`SessionService`), `AUTHENTICATION_SERVICE`,
 `PASSWORD_RESET_SERVICE`, `EMAIL_CONFIRMATION_SERVICE`, `SIGN_IN_POLICY_SERVICE`, `IP_INTELLIGENCE`
 (`identity.module.ts:22-51`). Pure exports other modules may import: `reauthenticationNeedsAuthenticatorCode`,
-`PASSWORD_MIN_LENGTH`/`MAX` (`password.ts:88-89`).
+`PASSWORD_MIN_LENGTH`/`MAX` (`password.ts:89-90`, aliases of `PASSWORD_POLICY`).
 
 **Events.** No outbox events published. Credential-change mails go through the
 `credential_change_notices` table (declared on every identity unit of work,
@@ -246,7 +246,7 @@ never the body (DA-12 spirit).
 | Step-up for sensitive changes | `x-reauth-token` header (D05) issued by `POST /v1/auth/reauth`, TTL 300 s | factor, password, recovery-code routes |
 | Org sign-in policy | `SignInPolicyService` (+ SSO enforcement gate) | `sign-in-policy.controller.ts:38,47` (`org.security.manage`) |
 | Admin session revoke | `AdminSessionsService` | `org.manage` (`admin-sessions.controller.ts:89,106,127`) |
-| Password policy | `password.ts:88-89` | web **copies** it (DC-2, §11) |
+| Password policy | `PASSWORD_POLICY` in `@tmanage/domain`, read by `password.ts` and every web form (`363cdfac`) | one decision (AR-8) |
 
 Trust zones: identity serves both staff and client principals; it does **not** today return an
 audience (staff | client) on `GET /v1/sessions/current` (`session.service.ts:233-235`), see DC-6 §11.
@@ -286,7 +286,7 @@ AR-9: every decision a screen needs is a **required** field (`reauthNeedsAuthent
 | SE-6 STRIDE row per boundary | passkey, e-mail code, SSO gate rows: not verified here | add rows in `docs/security/threat-model.md` before new factors |
 | AR-5 / AR-7 contexts via services | **breach**: raw SQL on tenancy tables `sign-in-policy.repository.ts:45-124` | tenancy publishes a membership/policy read service; identity calls it |
 | AR-6 controllers import services only | **breach**: `authentication.controller.ts:38,299-304` calls `countRecentAttemptsByIp` with a DB handle; `passkeys.controller.ts:32,345` builds a repository (composition-root use) | move the count into `AuthenticationService`; move wiring into `identity.module.ts` |
-| AR-8 one decision one place | re-auth rule shared; **password minimum copied in web as 12** (`apps/web/src/lib/public-signup.ts:66`) vs 8 here | API returns `passwordPolicy` or `@tmanage/domain` exports it |
+| AR-8 one decision one place | re-auth rule shared; password policy shared from `@tmanage/domain` (`363cdfac`) | AR-8 lint on `MIN_PASSWORD` / `PASSWORD_MIN` identifiers in `apps/web` (not built yet) |
 | AR-9 decisions required, never defaulted | API side required; web defaults `?? false` (`PreferencesScreen.tsx:562`, `SignInSecurityScreen.tsx:329`) | fix in web; AR-9 lint |
 | AR-10 paired shapes | `Assert<Exact>` pairs present (§3) | keep for every new view |
 | AR-12 exact types | no `any` found in non-test files (grep) | keep |
@@ -345,7 +345,7 @@ AR-9: every decision a screen needs is a **required** field (`reauthNeedsAuthent
 
 | Id | Class | Finding (verified at 3b7e4fa7) | Pri | Exit |
 | --- | --- | --- | --- | --- |
-| ID-1 | DC-2 | Web password minimum 12 (`apps/web/src/lib/public-signup.ts:66`) vs API 8 (`password.ts:88`) | P1 | API returns `passwordPolicy`; delete web literal |
+| ID-1 | DC-2 | **Fixed `363cdfac`:** one `PASSWORD_POLICY` (15 / 256) in `@tmanage/domain`; web literals 12 and 8 removed; copy uses `{min}` in all 8 catalogs | closed | — |
 | ID-2 | DC-2 / AR-9 | `?? false` on `reauthNeedsAuthenticatorCode` remains at `PreferencesScreen.tsx:562`, `SignInSecurityScreen.tsx:329` (web side of this decision) | P0 | render pending/unknown until loaded |
 | ID-3 | DC-6 | `CurrentSessionView` has no `audience` (`session.service.ts:233-235`); layouts cannot branch on staff vs client from the server answer | P1 | add required `audience: 'staff' \| 'client'` |
 | ID-4 | AR-5/AR-7 | `sign-in-policy.repository.ts:45-124` reads `org_policies`, `memberships`, `client_memberships`, `user_identities` directly | P1 | tenancy read service |
