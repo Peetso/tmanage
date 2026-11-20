@@ -1484,6 +1484,10 @@ html[lang^='zh'] body {
 /* The row header. It carries the link, so it is the cell a keyboard lands in. */
 .tm-table__title {
   font-weight: 500;
+  /* QA-FIX-R L3: the row header is almost always text a person typed (a title, a name), and
+     its direction is its own: an English title in an Arabic table keeps its trailing "?" or "."
+     at its own end (CSS Writing Modes 4 'plaintext', the CSS form of dir=auto). */
+  unicode-bidi: plaintext;
 }
 
 /*

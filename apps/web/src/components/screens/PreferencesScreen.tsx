@@ -36,6 +36,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import type { MessageKey } from '../../lib/i18n/t';
 import { stepUpDecision, type StepUpDecision } from '../../lib/step-up-decision';
 import { StepUpDecisionNotice } from './StepUpDecisionNotice';
+import { UnsavedChangesGuard } from '../permissions/UnsavedChangesGuard';
 import '../../styles/screens/preferences.css';
 
 export interface PreferencesScreenProps {
@@ -258,7 +259,9 @@ type ProfileKey =
   | 'Profile.couldNotSave'
   | 'Profile.networkError'
   | 'Profile.genericError'
-  | 'Profile.freshSignInRequired';
+  | 'Profile.freshSignInRequired'
+  | 'Profile.unsavedNote'
+  | 'Profile.unsavedLeaveBody';
 
 type ProfileTranslate = (key: ProfileKey) => string;
 
@@ -315,7 +318,7 @@ const S = {
   },
   pillMark: { inlineSize: '8px', blockSize: '8px', background: 'var(--ink-950)' },
   capsule: { minBlockSize: '48px', paddingInline: 'var(--s5)', fontSize: 'var(--t-body-md)' },
-  footer: { display: 'flex', justifyContent: 'flex-end' },
+  footer: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' },
   passwordForm: { display: 'flex', flexDirection: 'column', gap: 'var(--s3)' },
 } satisfies Record<string, CSSProperties>;
 
@@ -411,6 +414,15 @@ export function PreferencesScreen({
 
   const loading = profile.isPending || prefs.isPending;
   const canSave = Boolean(profile.data || prefs.data);
+  // QA-FIX-R L2: a language picked here applies only on "Save changes". Without a sign of that,
+  // a person who picked العربية saw nothing happen and lost the pick on the next link. The form
+  // now says it holds unsaved changes, and leaving asks first (NN/g heuristic 1, visibility of
+  // system status; the same guard the role editor and alert settings use).
+  const dirty =
+    (profile.data !== undefined &&
+      (displayName !== profile.data.displayName || jobTitle !== (profile.data.jobTitle ?? ''))) ||
+    (prefs.data !== undefined &&
+      (language !== languageOfLocale(prefs.data.locale) || timezone !== prefs.data.timezone));
   const twoStepOn = Array.isArray(factors.data?.factors)
     ? factors.data.factors.some((factor) => factor.confirmedAt !== null)
     : false;
@@ -582,6 +594,11 @@ export function PreferencesScreen({
 
           {canSave ? (
             <div style={S.footer}>
+              {dirty && !save.isPending ? (
+                <p className="tm-prefs-unsaved" role="status">
+                  {t('Profile.unsavedNote')}
+                </p>
+              ) : null}
               <Button
                 type="submit"
                 tone="ink"
@@ -593,6 +610,11 @@ export function PreferencesScreen({
               </Button>
             </div>
           ) : null}
+          <UnsavedChangesGuard
+            when={dirty && !save.isPending}
+            body={t('Profile.unsavedLeaveBody')}
+            changes={[]}
+          />
         </form>
       </div>
     </SettingsShell>

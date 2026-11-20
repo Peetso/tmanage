@@ -602,6 +602,23 @@ export function InvoiceEditorScreen({
                     {describe(save.error)}
                   </InlineAlert>
                 ) : null}
+                {/* QA-FIX-R L14: the lines sit far from Save draft, so a refused line (a tax of
+                    250 %) showed its message only up there while Save looked like it did nothing
+                    and the total read 0.00. The reason is repeated beside the button, with the
+                    line it is on (GOV.UK error summary; NN/g: say what went wrong and where). */}
+                {lineProblem !== null || problem === 'client' || problem === 'dueDate' ? (
+                  <InlineAlert
+                    tone="danger"
+                    title={tOr('InvoiceEditor.notSavedTitle', 'The draft was not saved')}
+                    live
+                  >
+                    {lineProblem !== null
+                      ? tOr('InvoiceEditor.lineProblem', 'Line {n}: {problem}')
+                          .replace('{n}', String(lineProblem.index + 1))
+                          .replace('{problem}', tOr(...PROBLEM_WORDS[lineProblem.field]!))
+                      : tOr(...PROBLEM_WORDS[problem ?? 'client']!)}
+                  </InlineAlert>
+                ) : null}
                 <div>
                   <Button
                     type="submit"

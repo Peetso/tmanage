@@ -905,7 +905,7 @@ export function WorkListScreen({
                                 </abbr>
                               </td>
                               <th scope="row" className="tm-table__title" title={item.title}>
-                                <Link href={`/${organizationSlug}/work/${item.id}`}>
+                                <Link dir="auto" href={`/${organizationSlug}/work/${item.id}`}>
                                   {item.title}
                                 </Link>
                               </th>

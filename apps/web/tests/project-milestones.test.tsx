@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProjectMilestonesScreen } from '../src/components/screens/ProjectMilestonesScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
@@ -133,7 +133,14 @@ function rowOf(name: string): HTMLElement {
 }
 
 describe('ProjectMilestonesScreen', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('draws each milestone with its date, client chip and state pill', async () => {
+    // Before "Design sign-off" (14 Nov) has passed: the plain "Due" line.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 10, 12));
     const { view } = mount();
     await screen.findByText('Discovery');
 
@@ -152,6 +159,16 @@ describe('ProjectMilestonesScreen', () => {
 
     expect(await screen.findByText('Website relaunch', { selector: 'p' })).toBeTruthy();
     await expectNoAxeViolations(view.container);
+  });
+
+  it('QA-FIX-R L12: an open milestone past its day says it is late', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 20, 12));
+    mount();
+    await screen.findByText('Discovery');
+    expect(within(rowOf('Design sign-off')).getByText('Late: was due Sat 14 Nov')).toBeTruthy();
+    expect(within(rowOf('Discovery')).getByText('Done on Sat 17 Oct')).toBeTruthy();
+    expect(within(rowOf('Build and content')).queryByText(/^Late/)).toBeNull();
   });
 
   it('a new milestone waits for the plan, then starts on the client timeline', async () => {

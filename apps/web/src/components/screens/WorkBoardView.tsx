@@ -444,6 +444,9 @@ export function WorkBoardView({
                     >
                       <Link
                         className="tm-wk-card-tile__title"
+                        // QA-FIX-R L3: a title's direction is its own, not the page's (W3C
+                        // dir=auto for user text), so "Friday?" keeps its "?" in an Arabic board.
+                        dir="auto"
                         href={`/${organizationSlug}/work/${item.id}`}
                       >
                         {item.title}

@@ -9,6 +9,11 @@ import { activeLocale } from '../src/lib/i18n/locale-store';
 // The shell's ThemeSync reads the same `['display-preferences', slug]` query through the browser
 // client; here the screen's own test client must be the one that answers it.
 vi.mock('../src/components/shell/ThemeSync', () => ({ ThemeSync: () => null }));
+// QA-FIX-R L2: the leave-without-saving guard reads the router.
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/northstar/settings/preferences',
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 // The Profile.* strings land in the catalogs from this slice's i18n fragment; until the merge, the
 // ones these tests read by name are supplied here (a no-op once the catalog has them).
@@ -154,6 +159,19 @@ describe('PreferencesScreen (t2-b)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(document.documentElement.dir).toBe('rtl'));
     expect(activeLocale.get()).toBe('ar-EG');
+  });
+
+  it('QA-FIX-R L2: a language picked but not saved is shown as an unsaved change', async () => {
+    mount();
+    const arabic = await screen.findByLabelText('العربية');
+    expect(screen.queryByText('You have changes that are not saved yet.')).toBeNull();
+    fireEvent.click(arabic);
+    expect(screen.getByText('You have changes that are not saved yet.')).toHaveAttribute(
+      'role',
+      'status',
+    );
+    fireEvent.click(screen.getByLabelText('English'));
+    expect(screen.queryByText('You have changes that are not saved yet.')).toBeNull();
   });
 
   it('the two-step row reflects the enrolled factors', async () => {

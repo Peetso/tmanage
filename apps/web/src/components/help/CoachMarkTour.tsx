@@ -277,8 +277,19 @@ export function CoachMarkTour({
 
   return (
     <div className="tm-coach-layer" data-anchored={anchored || undefined}>
-      {/* Blocks the page while the step is open; dims it when there is no target to cut out. */}
-      <div className="tm-coach-scrim" aria-hidden="true" />
+      {/*
+        Blocks the page while the step is open; dims it when there is no target to cut out.
+        QA-FIX-R M1: a click on the dimmed page used to do nothing, so a person pressing a view
+        switch behind the tour saw no response and no reason. It now ends the tour as skipped,
+        the same outcome as Escape, and the page is theirs again at once. The scrim stays out of
+        the accessibility tree: keyboard and screen-reader users have Escape and "Skip tour".
+      */}
+      <div
+        className="tm-coach-scrim"
+        aria-hidden="true"
+        data-testid="coach-scrim"
+        onClick={() => finish('skipped')}
+      />
       {anchored && spotlightStyle !== undefined ? (
         <div className="tm-coach-spotlight" aria-hidden="true" style={spotlightStyle} />
       ) : null}

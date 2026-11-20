@@ -313,13 +313,16 @@ export function FilesHubScreen({
               type="button"
               className="tm-chip"
               aria-pressed={project.id === projectId}
+              title={project.name}
               onClick={() => {
                 setProjectId(project.id);
                 setNeedsProject(false);
                 if (held.length > 0) sendTo(project.id, held);
               }}
             >
-              {project.name}
+              <span className="tm-chip__label" dir="auto">
+                {project.name}
+              </span>
             </button>
           ))}
         </div>

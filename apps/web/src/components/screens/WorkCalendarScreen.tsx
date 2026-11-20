@@ -402,6 +402,7 @@ export function WorkCalendarScreen({
                               key={item.id}
                               href={`/${organizationSlug}/work/${item.id}`}
                               className={`wp-cal__item ${itemClass(item, now)}`}
+                              dir="auto"
                               title={`${item.title} · ${stateLabel(item.state)}`}
                               aria-label={`${item.title}, ${stateLabel(item.state)}`}
                               data-dragging={dragging?.id === item.id || undefined}

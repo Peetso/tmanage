@@ -76,6 +76,14 @@ export function ProjectMilestonesScreen({
       );
     }
     if (milestone.dueOn === null) return tOr('ProjectMilestones.noDate', 'No date yet');
+    // QA-FIX-R L12: an open milestone whose day has passed read "Due 3 Nov" like any other; the
+    // client portal already marks it late, so the team's own list says so too.
+    if (milestone.dueOn < localDayKey(new Date())) {
+      return tOr('ProjectMilestones.lateSince', 'Late: was due {date}').replace(
+        '{date}',
+        shortDay(milestone.dueOn, locale),
+      );
+    }
     return tOr('ProjectMilestones.due', 'Due {date}').replace(
       '{date}',
       shortDay(milestone.dueOn, locale),
@@ -212,4 +220,11 @@ export function ProjectMilestonesScreen({
       ) : null}
     </AppShell>
   );
+}
+
+/** Today's calendar day where the person is, as `YYYY-MM-DD` (the shape `dueOn` is stored in). */
+function localDayKey(now: Date): string {
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${String(now.getFullYear())}-${month}-${day}`;
 }

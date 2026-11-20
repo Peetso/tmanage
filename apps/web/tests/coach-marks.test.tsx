@@ -75,6 +75,14 @@ describe('first-visit tours (55-09)', () => {
     );
   });
 
+  it('QA-FIX-R M1: a click on the dimmed page ends the tour instead of doing nothing', async () => {
+    const puts = mount(UNSEEN);
+    expect(await screen.findByText('1 of 3')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('coach-scrim'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(puts).toEqual([{ tour: 'my_day', outcome: 'skipped' }]));
+  });
+
   it('lets a modal opened over it (the command palette) keep focus and its keys', async () => {
     mount(UNSEEN);
     expect(await screen.findByText('1 of 3')).toBeTruthy();

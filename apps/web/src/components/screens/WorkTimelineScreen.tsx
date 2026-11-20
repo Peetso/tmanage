@@ -760,6 +760,7 @@ export function WorkTimelineScreen({
                     <div className="wp-gantt__label">
                       <Link
                         className="wp-gantt__title"
+                        dir="auto"
                         href={`/${organizationSlug}/work/${row.id}`}
                       >
                         {row.title}
@@ -1104,7 +1105,11 @@ export function WorkTimelineScreen({
               {rows.map((item) => (
                 <tr key={item.id}>
                   <th scope="row">
-                    <Link className="wp-row-title" href={`/${organizationSlug}/work/${item.id}`}>
+                    <Link
+                      className="wp-row-title"
+                      dir="auto"
+                      href={`/${organizationSlug}/work/${item.id}`}
+                    >
                       {item.title}
                     </Link>
                   </th>

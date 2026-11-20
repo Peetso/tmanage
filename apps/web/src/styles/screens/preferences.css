@@ -1362,3 +1362,12 @@ button.tm-prefs-kbd:focus-visible {
   background-color: var(--paper-0);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
 }
+
+/* QA-FIX-R L2: the footer says the form holds changes that "Save changes" has not applied yet. */
+.tm-prefs-unsaved {
+  align-self: center;
+  margin: 0;
+  margin-inline-end: var(--s3);
+  font-size: var(--t-ui-sm);
+  color: var(--ink-650);
+}

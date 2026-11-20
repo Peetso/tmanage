@@ -1310,6 +1310,11 @@ button.tm-wk-chip[aria-expanded='true'] {
   font: inherit;
   text-align: start;
   cursor: pointer;
+  /* QA-FIX-R L9/L16: a select sizes itself to its longest option, so one long project name made
+     the chip, and with it the Record-as-decision dialog, wider than the screen (a sideways
+     scroll and a clipped Project field). The chip now stops at its row and the value is cut. */
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .tm-wk-fact:hover {
@@ -1320,6 +1325,7 @@ button.tm-wk-chip[aria-expanded='true'] {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-inline-size: 0;
 }
 
 .tm-wk-fact__label {
@@ -1332,6 +1338,8 @@ button.tm-wk-chip[aria-expanded='true'] {
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tm-wk-fact__caret {
@@ -1350,6 +1358,9 @@ button.tm-wk-chip[aria-expanded='true'] {
   font-size: var(--t-ui-md);
   appearance: none;
   cursor: pointer;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tm-wk-orb {

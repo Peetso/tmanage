@@ -517,6 +517,23 @@ export function QuoteEditorScreen({
                   >
                     {tOr('Quotes.saveDraft', 'Save draft')}
                   </Button>
+                  {/* QA-FIX-R L14: the same reason as at the field, beside the button. */}
+                  {problem !== null ? (
+                    <InlineAlert
+                      tone="danger"
+                      title={tOr('Quotes.saveFailed', 'The draft was not saved')}
+                      live
+                    >
+                      {typeof problem === 'string'
+                        ? tOr(...(PROBLEM_WORDS[problem] ?? PROBLEM_WORDS['lines']!))
+                        : tOr('InvoiceEditor.lineProblem', 'Line {n}: {problem}')
+                            .replace('{n}', String(problem.line + 1))
+                            .replace(
+                              '{problem}',
+                              tOr(...(PROBLEM_WORDS[problem.field] ?? PROBLEM_WORDS['lines']!)),
+                            )}
+                    </InlineAlert>
+                  ) : null}
                   {save.isError ? (
                     <InlineAlert
                       tone="danger"

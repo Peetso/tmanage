@@ -96,6 +96,12 @@ describe('A6 board view', () => {
     expect(columnOf('archived')).toBeNull();
   });
 
+  it('QA-FIX-R L3: a card title takes its direction from its own text, not the page', () => {
+    renderBoard();
+    const title = within(column('WorkBoard.done')).getByRole('link');
+    expect(title).toHaveAttribute('dir', 'auto');
+  });
+
   it('filters the cards by owner', async () => {
     renderBoard();
     await userEvent.selectOptions(screen.getByLabelText(L('WorkBoard.ownerFilter')), 'u-mona');
