@@ -1,0 +1,202 @@
+# Fitness functions
+
+An architecture fitness function is an objective check of how well the system meets an architectural characteristic (Ford, Parsons, Kua, Sadalage, _Building Evolutionary Architectures_ 2nd ed., Ch. 2; S22). Each rule in `ENGINEERING-STANDARD.md` maps to one row here.
+
+**Status key**
+
+- **E**: the check exists and runs.
+- **E+B**: part of the rule is checked; the rest still has to be built.
+- **B**: to build.
+- **M**: manual (review or process). A manual check is allowed only where no automated one is reasonable.
+
+**Where it runs**
+
+- **lint**: `pnpm lint`
+- **unit**: `pnpm test`
+- **db**: `pnpm test:db`, MariaDB 11.8 in the CI `database` job
+- **e2e**: `pnpm test:e2e`
+- **script**: a step in `pnpm verify`
+- **deploy**: `deploy/hostinger/build.mjs` / `smoke.mjs`
+- **CI**: `.github/workflows/ci.yml`
+
+GitHub Actions cannot start until billing is fixed, so today `pnpm verify` and `pnpm verify:full` are the real gates (PR-4).
+
+**Totals for the engineering standard (2026-11-20):** 76 rules: **17 E**, **10 E+B**, **41 B**, **8 M**. The 74 below plus RT-11 and PR-5 at the end. Totals for all standards are at the end of this file.
+
+| Rule  | Check (path or spec)                                                                                                                                                                        | Runs in        | Status |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------ |
+| QM-1  | `scripts/arch/design-checklist.mjs`: every `BRIEF*.md`/ADR has `QA-` ids + a checklist block                                                                                                | script         | B      |
+| QM-2  | ADR review                                                                                                                                                                                  | —              | M      |
+| AR-1  | `eslint.config.js:72` domain import ban                                                                                                                                                     | lint           | E      |
+| AR-2  | `eslint.config.js:136-148`                                                                                                                                                                  | lint           | E      |
+| AR-3  | `eslint.config.js:160-190`                                                                                                                                                                  | lint           | E      |
+| AR-4  | `eslint.config.js:218-240`, `:265-272`                                                                                                                                                      | lint           | E      |
+| AR-4b | DDL verbs added to the `:266`/`:272` selectors                                                                                                                                              | lint           | B      |
+| AR-5  | `scripts/arch/module-boundaries.mjs` + `docs/architecture/baselines/module-boundaries.json` (ratchet; baseline 521 foreign-repository imports)                                              | script         | B      |
+| AR-6  | ESLint override `**/*.controller.ts` bans `**/*.repository*` imports, with a shrinking allowlist (baseline 144 files)                                                                       | lint           | B      |
+| AR-7  | `scripts/arch/table-ownership.mjs` + `docs/architecture/table-owners.json`                                                                                                                  | script         | B      |
+| AR-8  | ESLint `no-restricted-syntax` in `apps/web/**`: role-name literals, password-length identifiers                                                                                             | lint           | B      |
+| AR-9  | ESLint `no-restricted-syntax` in `apps/web/**`: `??` with a literal on `needs*/requires*/can*/may*/allowed*`                                                                                | lint           | B      |
+| AR-10 | `scripts/contracts-check.mjs` (E); add to CI `static` (B)                                                                                                                                   | script, CI     | E+B    |
+| AR-11 | Checklist §B; optional dead-export report                                                                                                                                                   | —              | M      |
+| AR-12 | typescript-eslint `no-explicit-any`; `pnpm typecheck`                                                                                                                                       | lint, unit     | E      |
+| HT-1  | `deploy/hostinger/smoke.mjs:300-311`; `apps/server/web-transport.test.mjs`                                                                                                                  | deploy, unit   | E      |
+| HT-2  | Shared `http-outcome` module + table test against the standard's §4 table; lint ban on ad-hoc `status >= 500`                                                                               | unit, lint     | B      |
+| HT-3  | ESLint: single-statement `catch` returning `null`/`false`/`[]` and `.catch(() => literal)` in `apps/web/src/{lib/api,components}/**`                                                        | lint           | B      |
+| HT-4  | Route census column `idempotency`; `sdlc-census.test.ts` fails on an unsafe route without a value                                                                                           | unit           | B      |
+| HT-5  | Unit test of `apps/web/src/lib/sign-in-return.ts` (`//x`, `https://x`, `/\x`)                                                                                                               | unit           | B      |
+| DA-1  | `apps/api/test/t1-1119-ai-budget.db.test.ts` (E); the same N-racer test for document sequences, time locks, approvals (B)                                                                   | db             | E+B    |
+| DA-2  | Grep check: `1020\|1213\|1205\|ER_CHECKREAD\|ER_LOCK_DEADLOCK` only in `common/database/write-conflict.ts`; CI MariaDB keeps `innodb_snapshot_isolation=ON`                                 | script, db     | B      |
+| DA-3  | ESLint in `*.repository.ts`: SQL template literals with expressions (non-`sql` tag)                                                                                                         | lint           | B      |
+| DA-4  | `deploy/hostinger/pinned-migrations.test.mjs`; `schema-drift.test.ts`                                                                                                                       | deploy, unit   | E      |
+| DA-5  | `scripts/check-mariadb-compat.mjs` + `mariadb-compat.test.ts`; CI migrates on 11.8 (E); `check:mariadb` into CI (B)                                                                         | script, db, CI | E+B    |
+| DA-6  | `check-mariadb-compat.mjs`: destructive DDL needs `-- contract-of: NNNN`, and NNNN must already be deployed                                                                                 | script         | B      |
+| DA-7  | `check-mariadb-compat.mjs`: `ALTER TABLE <hot>` needs `LOCK=` (list in `hot-tables.json`)                                                                                                   | script         | B      |
+| DA-8  | `apps/api/test/migrator-resume.db.test.ts`                                                                                                                                                  | db             | E      |
+| DA-9  | `users-sql.test.ts`, `grants.test.ts`, `test/least-privilege.db.test.ts`                                                                                                                    | unit, db       | E      |
+| DA-10 | Extend `schema-conventions.test.ts`: money column types; no `NOW()`/`CURRENT_TIMESTAMP` in INSERT values                                                                                    | unit           | B      |
+| DA-11 | INSERT-only grant proven in `least-privilege.db.test.ts`                                                                                                                                    | db             | E      |
+| DA-12 | `test/tenant-isolation.db.test.ts`, `sec-001-bola-corpus.db.test.ts`                                                                                                                        | db             | E      |
+| AS-1  | `apps/worker/src/outbox/*.test.ts` (E); lint: no `@tmanage/mail`/`fetch` in controllers or services outside adapters (B)                                                                    | unit, lint     | E+B    |
+| AS-2  | `schema-conventions.test.ts`: `*dedupe*` unique keys without timestamps (would flag `0291_budget_burn.sql:83`)                                                                              | unit           | B      |
+| AS-3  | db test: same outbox `dedupe_key` twice → one row                                                                                                                                           | db             | B      |
+| AS-4  | `createSweepLock` unit test: NULL → `error`; db test: two processes, one hourly run                                                                                                         | unit, db       | B      |
+| AS-5  | `design-checklist.mjs`: a saga entry is required when "writes" spans more than one context                                                                                                  | script         | B      |
+| AS-6  | Outbox `backoff.test.ts`, `health.test.ts` (E); sweep census test (budget + run record per sweep) (B)                                                                                       | unit           | E+B    |
+| ST-1  | ESLint `CallExpression[callee.name='fetch'][arguments.length<2]` in `apps/api/**`, `apps/worker/**` (would flag `tor-exit-list.ts:16`, `import.module.ts:59,66`, `import.controller.ts:97`) | lint           | B      |
+| ST-2  | Pool factory test: `queueLimit` and acquire deadline set                                                                                                                                    | unit           | B      |
+| ST-3  | `apps/server` test: `requestTimeout`, `headersTimeout`, `keepAliveTimeout` set                                                                                                              | unit           | B      |
+| ST-4  | Breaker module + test; lint that adapter modules import it                                                                                                                                  | unit, lint     | B      |
+| ST-5  | `web-transport.test.mjs` hold cap (E); pool-sum ≤ 70 % of the DB connection cap (B)                                                                                                         | unit           | E+B    |
+| ST-6  | `table-ownership.mjs` requires a `retention` per table                                                                                                                                      | script         | B      |
+| ST-7  | `packages/config` env tests; `schema-drift.test.ts`                                                                                                                                         | unit           | E      |
+| ST-8  | `security/sdlc-census.test.ts` (guard registration)                                                                                                                                         | unit           | E      |
+| RT-1  | `packages/config` tests; `ci.yml` security job (gitleaks, `secrets-census.mjs`)                                                                                                             | unit, CI       | E      |
+| RT-2  | `apps/server` two-instance test: both serve; stopping A leaves B serving (no 502)                                                                                                           | unit           | B      |
+| RT-3  | db test: leader lease → only one sweep pass; takeover within one lease period                                                                                                               | db             | B      |
+| RT-4  | `apps/server` boot test with a slow fake worker: pages served before the worker resolves                                                                                                    | unit           | B      |
+| RT-5  | `web-transport.test.mjs`: `/livez` 200 during boot, `/healthz` 503 during boot                                                                                                              | unit           | B      |
+| RT-6  | `apps/server` test: SIGTERM with an open keep-alive client → exit within budget                                                                                                             | unit           | B      |
+| RT-7  | `redact.test.ts` (E); `instance` field test (B)                                                                                                                                             | unit           | E+B    |
+| RT-8  | —                                                                                                                                                                                           | —              | M      |
+| RT-9  | `deploy/hostinger/*.test.mjs`; `pnpm deploy:hostinger:smoke`                                                                                                                                | deploy         | E      |
+| RT-10 | Covered by the RT-2 test; runbook step removed when green                                                                                                                                   | unit           | B      |
+| OB-1  | `scripts/ops/sli-report.mjs` over the access log                                                                                                                                            | script (ops)   | B      |
+| OB-2  | Unit: `OTEL_ENABLED` → span with correlation id                                                                                                                                             | unit           | B      |
+| OB-3  | RED/USE metrics present (with OB-2)                                                                                                                                                         | unit           | B      |
+| OB-4  | db test: correlation id from request → outbox → dispatcher log                                                                                                                              | db             | B      |
+| SE-1  | `route-census.ts`, `sdlc-census.test.ts`, `permission-map-census.test.ts`                                                                                                                   | unit           | E      |
+| SE-2  | `apps/web/src/lib/session-check.test.ts` (each §4 row) + e2e "API 503 for 20 s → unknown, then signed-in"                                                                                   | unit, e2e      | B      |
+| SE-3  | `reauthentication-code.test.ts` (E); e2e: no TOTP → no code field (B)                                                                                                                       | unit, e2e      | E+B    |
+| SE-4  | Config test of session lifetimes vs NIST 800-63B-4 §5.2, or an ADR                                                                                                                          | unit           | B      |
+| SE-5  | `common/http/csrf.test.ts`                                                                                                                                                                  | unit           | E      |
+| SE-6  | `design-checklist.mjs` requires a `T-` id for new routes or connectors                                                                                                                      | script         | B      |
+| SE-7  | `security:supply-chain`, `security:licenses`, `audit:prod` in `verify` (E); add to CI (B)                                                                                                   | script, CI     | E+B    |
+| SE-8  | `ai-budget.service.test.ts` (E); MCP tool → route census mapping test (B)                                                                                                                   | unit           | E+B    |
+| PR-1  | This table, reviewed every pass                                                                                                                                                             | —              | M      |
+| PR-2  | ADR review                                                                                                                                                                                  | —              | M      |
+| PR-3  | Checklist §G                                                                                                                                                                                | —              | M      |
+| PR-4  | `ci.yml` `static` runs the `verify` scripts                                                                                                                                                 | CI             | B      |
+| CO-1  | —                                                                                                                                                                                           | —              | M      |
+| CO-2  | `design-checklist.mjs` (with QM-1)                                                                                                                                                          | —              | M      |
+
+## Build order for the B checks (ranked)
+
+| Rank | Checks                 | Why first                                                                                |
+| ---- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| 1    | HT-2, HT-3, SE-2       | DC-1 reached a live user on 2026-11-20; the fix is uncommitted and untested              |
+| 2    | RT-2, RT-3, RT-4       | DC-3 hits every deploy; two instances break the socket and double-run duties             |
+| 3    | AR-8, AR-9             | DC-2 is still present (`?? false` at two screens; role sets already differ)              |
+| 4    | ST-1, ST-3             | A hung outbound call or slow client holds the single process                             |
+| 5    | AR-5, AR-6 (ratchet)   | 521 / 144 baseline: stop growth now, shrink per pass                                     |
+| 6    | DA-6, DA-2, AS-2, AS-4 | Overlapping instances and rollbacks make expand–contract and dedupe correctness-critical |
+
+## Added 2026-11-20 (second brief): benchmark rules, UI/UX, implementation patterns, part docs
+
+### Engineering rules added from the benchmark
+
+| Rule  | Check (path or spec)                                                                | Runs in | Status |
+| ----- | ----------------------------------------------------------------------------------- | ------- | ------ |
+| RT-11 | `deep-health.test.ts`: scanner down → `degraded` (200); DB down → `unhealthy` (503) | unit    | B      |
+| PR-5  | `design-checklist.mjs`: a brief that adds a table, job or connector needs §J (PRR)  | script  | B      |
+
+### §UX: UI-UX-DESIGN-STANDARD (24 rules)
+
+| Rule  | Check (path or spec)                                                                                                                                               | Runs in         | Status |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- | ------ |
+| UX-1  | `design-checklist.mjs`: UI briefs need §H (persona, journey, Figma node id)                                                                                        | script          | B      |
+| UX-2  | Design review against ISO 9241-110 and H1–H10 (Fable 5.2)                                                                                                          | —               | M      |
+| UX-3  | Norman vocabulary in findings                                                                                                                                      | —               | M      |
+| UX-4  | `e2e/tests/a11y-audit.spec.ts:50`, `apps/web/tests/axe.ts`, `packages/ui/tests/axe.ts`, jsx-a11y (`eslint.config.js:117-126`) (E); audit every route and story (B) | e2e, unit, lint | E+B    |
+| UX-5  | Playwright target-size measure per story (≥ 24×24); lint on `min-block-size` < 24px outside tokens                                                                 | vr, lint        | B      |
+| UX-6  | e2e keyboard walk: focus indicator present and not covered by sticky/fixed elements                                                                                | e2e             | B      |
+| UX-7  | `packages/ui/tests/contrast.test.ts`; e2e axe colour-contrast                                                                                                      | unit, e2e       | E      |
+| UX-8  | e2e: `autocomplete` values and paste allowed on sign-in, step-up and recovery                                                                                      | e2e             | B      |
+| UX-9  | unit axe (E); one APG keyboard-contract test per composite (B)                                                                                                     | unit            | E+B    |
+| UX-10 | e2e: single-pointer alternative for drag surfaces                                                                                                                  | e2e             | B      |
+| UX-11 | `packages/ui/tests/tokens.drift.test.ts` (E); `scripts/lint/design-tokens.mjs` literal-colour ratchet (baseline ~199) (B)                                          | unit, script    | E+B    |
+| UX-12 | DTCG 2025.10 schema validation of `tokens.json` in the drift test                                                                                                  | unit            | B      |
+| UX-13 | `scripts/design/figma-variables-diff.mjs` (manual, needs the Figma MCP)                                                                                            | manual script   | B      |
+| UX-14 | RTL VR + `e2e/tests/ar-public-pages.spec.ts:202` (E); `scripts/lint/logical-css.mjs` ratchet (baseline 30 CSS + ~23 inline) (B)                                    | vr, e2e, script | E+B    |
+| UX-15 | `pnpm lint:copy` (E, en+ar); all 8 catalogs (B)                                                                                                                    | script          | E+B    |
+| UX-16 | `scripts/lint/motion.mjs`                                                                                                                                          | script          | B      |
+| UX-17 | `useReportWebVitals` sink + e2e `perf-budget.spec.ts` (LCP ≤ 2.5 s, CLS ≤ 0.1, INP proxy ≤ 200 ms; proposed)                                                       | e2e, field      | B      |
+| UX-18 | `pnpm test:vr` (108 baselines)                                                                                                                                     | vr              | E      |
+| UX-19 | `scripts/arch/ux-eval-check.mjs`: `UX-EVAL-*.md` with 3 scores per persona (EN and AR)                                                                             | script          | B      |
+| UX-20 | `part-docs-check.mjs` component heading set (`kind: ds-area`)                                                                                                      | script          | B      |
+| UX-21 | drift test: every token has a tier; `design-tokens.mjs`: no palette tokens in `components/**`                                                                      | unit, script    | B      |
+| UX-22 | `design-checklist.mjs`: a new component needs §H with the five criteria; plus design review                                                                        | script          | B      |
+| UX-23 | Story naming `<Screen>/Loading\|Empty\|Error\|Unknown` checked by a script, plus VR shots                                                                          | script, vr      | B      |
+| UX-24 | `copy-lint.mjs`: Title Case labels; context-free link text                                                                                                         | script          | B      |
+
+### §IP: IMPLEMENTATION-PATTERNS (17 patterns)
+
+| Rule  | Check (path or spec)                                                                                                               | Runs in    | Status |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------ |
+| IP-1  | `pnpm typecheck`, `no-explicit-any` (E); `@typescript-eslint/no-unsafe-type-assertion` ratchet (B, rule present in installed 8.67) | lint       | E+B    |
+| IP-2  | ESLint: `@Body/@Query/@Headers` parameters must be `unknown` (ratchet from 337)                                                    | lint       | B      |
+| IP-3  | AR-1 lint (E); AR-8 lint and IP-15 property tests (B)                                                                              | lint, unit | E+B    |
+| IP-4  | Ratchets: `throw new Error` in modules (~197), bare `catch` without reason (~643); `@typescript-eslint/only-throw-error`           | lint       | B      |
+| IP-5  | AR-4 lint, tenant-guard tests (E); AR-5 script (B)                                                                                 | lint, db   | E+B    |
+| IP-6  | ST-1 fetch-signal lint; ST-4 breaker import rule                                                                                   | lint       | B      |
+| IP-7  | `apps/api/src/common/http/nest-di.test.ts`                                                                                         | unit       | E      |
+| IP-8  | `apps/api/src/security/sdlc-census.test.ts`                                                                                        | unit       | E      |
+| IP-9  | `scripts/arch/client-boundary.mjs`: `'use client'` count ratchet (1076)                                                            | script     | B      |
+| IP-10 | `react-hooks/set-state-in-effect` (shipped in installed plugin 7.1.1), warn → ratchet                                              | lint       | B      |
+| IP-11 | Code review (refactor commits separate, catalog names)                                                                             | —          | M      |
+| IP-12 | Design review                                                                                                                      | —          | M      |
+| IP-13 | `pnpm verify` / `verify:full`                                                                                                      | all        | E      |
+| IP-14 | `vi.mock(` file-count ratchet (78); shared fakes in `packages/test-kit`                                                            | script     | B      |
+| IP-15 | `*.property.test.ts` (fast-check 4.10) for authorize, money, state machines, the HTTP outcome classifier                           | unit       | B      |
+| IP-16 | StrykerJS 10.1 (vitest runner) on the risk files; `baselines/mutation.json` (proposed ≥ 80 %, may only rise)                       | per pass   | B      |
+| IP-17 | AS-4 / AS-6 sweep census tests                                                                                                     | unit, db   | B      |
+
+### §PD: PART-DOCS (`scripts/arch/part-docs-check.mjs` + the edit gate)
+
+| Check | Spec                                                                                                                                                                         | Runs in          | Status |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------ |
+| PD-1  | Every registry part has `PART.md` + `CLAUDE.md` (`@PART.md`); missing-docs baseline only shrinks; P0 parts never in it                                                       | script           | B      |
+| PD-2  | Front-matter schema; `part` = registry id; `context` in VIEWS §4                                                                                                             | script           | B      |
+| PD-3  | Required headings present, in order, non-empty or `n/a — reason`                                                                                                             | script           | B      |
+| PD-4  | Every cited rule ID exists in the three standards                                                                                                                            | script           | B      |
+| PD-5  | Stale: more than N = 15 (proposed) commits on the part's paths since `last_verified_commit`                                                                                  | script           | B      |
+| PD-6  | Production part changed without its `PART.md` while already at N/2                                                                                                           | committer        | B      |
+| PD-7  | `PART.md` ≤ 30,000 characters (on-demand truncation is at 40,000)                                                                                                            | script           | B      |
+| PD-8  | `tables_owned` matches `table-owners.json`; `provides_api` is in the route census                                                                                            | script           | B      |
+| GATE  | `.claude/settings.json`: PostToolUse(Read) records `PART.md` reads; PreToolUse(Edit\|Write\|NotebookEdit) denies edits to a part without a recorded read; `onFailure: block` | Claude Code hook | B      |
+
+### Totals across all standards (2026-11-20)
+
+| Standard                | Rows | E   | E+B | B   | M   |
+| ----------------------- | ---- | --- | --- | --- | --- |
+| ENGINEERING-STANDARD    | 76   | 17  | 10  | 41  | 8   |
+| UI-UX-DESIGN-STANDARD   | 24   | 2   | 5   | 15  | 2   |
+| IMPLEMENTATION-PATTERNS | 17   | 3   | 3   | 9   | 2   |
+| PART-DOCS (checks)      | 8    | 0   | 0   | 8   | 0   |
+| **All**                 | 125  | 22  | 18  | 73  | 12  |
+
+The edit gate (GATE) is counted separately: it is the enforcement mechanism, not a rule.
+
+### Build order, updated
+
+The order is: 1, then GATE + PD-1…PD-4 (so part docs can start), then 2–6 above, then UX-14/UX-11 ratchets, UX-17 measurement, and IP-15/IP-16 on the P0 risk files.
