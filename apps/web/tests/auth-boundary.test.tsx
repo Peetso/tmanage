@@ -38,6 +38,12 @@ function pairOfChannels(): [AuthChannel, AuthChannel, (raw: unknown) => void] {
 }
 
 describe('AuthBoundary', () => {
+  it('QA-FIX-R: a test file is one tab; no channel reaches the other test threads', () => {
+    // Node's BroadcastChannel crosses worker threads, so one file's sign-out reached another
+    // file's module-level boundary (setup.ts removes the global for every file).
+    expect(typeof globalThis.BroadcastChannel).toBe('undefined');
+  });
+
   it('delivers a local announcement synchronously, then to the other tab as remote', () => {
     const [mine, theirs] = pairOfChannels();
     const here = new AuthBoundary(mine);

@@ -15,6 +15,17 @@ import { afterEach } from 'vitest';
  */
 configure({ asyncUtilTimeout: 5_000 });
 
+/*
+ * QA-FIX-R: test files run in worker threads of one process (vitest.config.ts `pool: 'threads'`),
+ * and Node's `BroadcastChannel` reaches every thread of the process. So the app's module-level
+ * `authBoundary` (`src/lib/auth-boundary.ts`) in one file heard another file's sign-out as a
+ * "remote tab" notice, and a test asserting "no auth notice" (chat-flow "revoked channel") failed
+ * whenever a sign-out test ran at the same moment. Each file is one browser tab with no other
+ * tabs: the global goes, `browserChannel()` then returns no channel, and the tests of cross-tab
+ * behaviour keep handing in their own fake channel (auth-boundary.test.tsx).
+ */
+Reflect.deleteProperty(globalThis, 'BroadcastChannel');
+
 afterEach(() => {
   cleanup();
   // The language switch saves the locale in a cookie as well as localStorage (locale-cookie.ts).
