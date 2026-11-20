@@ -128,7 +128,7 @@ export function parseBackupConfig(env: OffsiteBackupEnv): ParsedBackupConfig {
 
   const maxBytes = env.BACKUP_OCI_MAX_BYTES ?? DEFAULT_OFFSITE_MAX_BYTES;
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > FREE_TIER_BYTES) {
-    problems.push('BACKUP_OCI_MAX_BYTES must be a positive byte count within the 20 GB free tier');
+    problems.push('BACKUP_OCI_MAX_BYTES must be a positive byte count within the 10 GiB free tier');
   }
 
   if (

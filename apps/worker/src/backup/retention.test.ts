@@ -71,7 +71,9 @@ describe('planRetention: 7 daily + 4 weekly, inside the free-tier budget', () =>
     expect(isoWeek(new Date('2026-11-20T00:00:00Z'))).toBe('2026-W47');
   });
 
-  it('the default budget leaves a quarter of the 20 GB free tier unused', () => {
-    expect(DEFAULT_OFFSITE_MAX_BYTES).toBeLessThanOrEqual(FREE_TIER_BYTES * 0.75);
+  it('the default budget is 8 GiB inside the 10 GiB Standard-tier free limit', () => {
+    expect(FREE_TIER_BYTES).toBe(10_737_418_240);
+    expect(DEFAULT_OFFSITE_MAX_BYTES).toBe(8_589_934_592);
+    expect(FREE_TIER_BYTES - DEFAULT_OFFSITE_MAX_BYTES).toBeGreaterThanOrEqual(2 * 1024 ** 3);
   });
 });

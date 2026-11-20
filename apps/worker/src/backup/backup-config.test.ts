@@ -37,7 +37,7 @@ describe('parseBackupConfig (OFFSITE-BACKUP)', () => {
       'https://axaxnpcrorw5.compat.objectstorage.ca-montreal-1.oci.customer-oci.com/',
     );
     expect(parsed.config.region).toBe('ca-montreal-1');
-    expect(parsed.config.maxBytes).toBe(15_000_000_000);
+    expect(parsed.config.maxBytes).toBe(8_589_934_592);
     expect(parsed.config.databaseUrl).toBe(FULL.DATABASE_MIGRATION_URL);
   });
 
@@ -68,7 +68,19 @@ describe('parseBackupConfig (OFFSITE-BACKUP)', () => {
       'BACKUP_OCI_SECRET_ACCESS_KEY is not set',
       'BACKUP_OCI_NAMESPACE is not set',
       'BACKUP_AGE_RECIPIENT is not an age1… public key',
-      'BACKUP_OCI_MAX_BYTES must be a positive byte count within the 20 GB free tier',
+      'BACKUP_OCI_MAX_BYTES must be a positive byte count within the 10 GiB free tier',
+    ]);
+  });
+
+  it('accepts a budget of exactly 10 GiB and refuses one byte more (Standard-tier free limit)', () => {
+    expect(parseBackupConfig({ ...FULL, BACKUP_OCI_MAX_BYTES: 10_737_418_240 }).status).toBe(
+      'ready',
+    );
+    const over = parseBackupConfig({ ...FULL, BACKUP_OCI_MAX_BYTES: 10_737_418_241 });
+    expect(over.status).toBe('invalid');
+    if (over.status !== 'invalid') return;
+    expect(over.problems).toEqual([
+      'BACKUP_OCI_MAX_BYTES must be a positive byte count within the 10 GiB free tier',
     ]);
   });
 

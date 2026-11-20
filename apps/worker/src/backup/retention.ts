@@ -10,19 +10,19 @@
  * - **incomplete** backups (a dump without its manifest: the upload of the manifest is the
  *   commit point) are deleted once they are older than a day, and never count as kept.
  *
- * Oracle's Always Free tier holds 20 GB of Object Storage across Standard, Infrequent Access and
- * Archive, and 50,000 Object Storage API requests a month (Oracle, *Always Free Resources*). The
- * default budget, {@link DEFAULT_OFFSITE_MAX_BYTES}, leaves a quarter of that free for the peak
- * of a run (the new backup is uploaded before the old ones are deleted) and for anything else in
- * the tenancy.
+ * The OCI console states this tenancy's Always Free limit as "10 GiB of Object Storage and 10 GiB
+ * of Archive Storage" (20 GiB combined), plus 50,000 Object Storage API requests a month. The
+ * bucket is Standard tier, so only the 10 GiB of Object Storage applies. The default budget,
+ * {@link DEFAULT_OFFSITE_MAX_BYTES}, is 8 GiB: it leaves 2 GiB free for the peak of a run (the
+ * new backup is uploaded before the old ones are deleted) and for anything else in the tenancy.
  */
 
 export const RETAIN_DAILY = 7;
 export const RETAIN_WEEKLY = 4;
-/** 15 GB: three quarters of the 20 GB Always Free allowance. */
-export const DEFAULT_OFFSITE_MAX_BYTES = 15 * 1000 ** 3;
-/** The Always Free Object Storage allowance, 20 GB (Oracle states GB; read as decimal). */
-export const FREE_TIER_BYTES = 20 * 1000 ** 3;
+/** 8 GiB (8,589,934,592 bytes): four fifths of the 10 GiB Standard-tier allowance. */
+export const DEFAULT_OFFSITE_MAX_BYTES = 8 * 1024 ** 3;
+/** The Always Free Standard-tier Object Storage allowance, 10 GiB (10,737,418,240 bytes). */
+export const FREE_TIER_BYTES = 10 * 1024 ** 3;
 /** The Always Free Object Storage API allowance per month. */
 export const FREE_TIER_REQUESTS_PER_MONTH = 50_000;
 

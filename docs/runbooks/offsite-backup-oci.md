@@ -17,7 +17,7 @@ entry, no shell, and no `mysqldump` binary involved. The host-side scripts in
 
 | Fact                                                                                                                                                                                                                                                                                                                             | Source                                                                                                                                                                                                                                     |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Always Free Object Storage: 20 GB combined Standard + Infrequent Access + Archive, 50,000 Object Storage API requests a month, once the trial has ended and the account is Always Free only. More than 20 GB stored when the trial ends: all objects are deleted.                                                                | Oracle, _Always Free Resources_ https://docs.oracle.com/iaas/Content/FreeTier/resourceref.htm                                                                                                                                              |
+| Always Free Object Storage, as the OCI console states it for this tenancy (2026-11-20): "10 GiB of Object Storage and 10 GiB of Archive Storage" (20 GiB combined), so a Standard-tier bucket holds at most **10 GiB**; 50,000 Object Storage API requests a month. Over the limit when the trial ends: all objects are deleted. | OCI console, Limits for the tenancy; Oracle, _Always Free Resources_ https://docs.oracle.com/iaas/Content/FreeTier/resourceref.htm                                                                                                         |
 | S3-compatible endpoint, path style: `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com/<bucket>/<object>` (dedicated, recommended "for the strongest security posture"). The legacy `<namespace>.compat.objectstorage.<region>.oraclecloud.com` still works ("Your existing … endpoints continue to work"). | Oracle, _Amazon S3 Compatibility API_ https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/s3compatibleapi.htm ; _Object Storage Dedicated Endpoints_ https://docs.oracle.com/en-us/iaas/Content/Object/Concepts/dedicatedendpoints.htm |
 | Authentication by a Customer Secret Key (access key + secret key); SigV4 only, SigV2 not supported; region must be the bucket's region.                                                                                                                                                                                          | Oracle, _Amazon S3 Compatibility API Support_ https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/s3compatibleapi_topic-Amazon_S3_Compatibility_API_Support.htm                                                                        |
 | Supported calls include PutObject, GetObject, DeleteObject, ListObjects; **ListObjectsV2 is not in Oracle's list**, so the client uses ListObjects (v1).                                                                                                                                                                         | same page                                                                                                                                                                                                                                  |
@@ -57,7 +57,8 @@ kept and is deleted after a day.
 
 **Retention and the free limit.** The newest backup of each of the last 7 UTC days, plus the
 newest of each of the last 4 ISO weeks (at most 11 kept). The total is capped by
-`BACKUP_OCI_MAX_BYTES` (default 15 GB, three quarters of the 20 GB allowance; the oldest kept
+`BACKUP_OCI_MAX_BYTES` (default 8 GiB, leaving 2 GiB of the 10 GiB Standard-tier allowance free; values above
+10 GiB are refused; the oldest kept
 copies go first, the newest never). Old copies are deleted only **after** the new one is
 verified, unless the cap needs room first. A run makes about 7 API calls (list, 2 puts, 2
 read-backs, a few deletes), so about 220 a month. A broken setup retries at most hourly, which is
@@ -76,7 +77,7 @@ Do this as the account owner, in a browser.
 1. **Account.** Sign up for Oracle Cloud Free Tier with **home region Canada Southeast (Montreal),
    `ca-montreal-1`**. The home region cannot be changed later. Never press _Upgrade to Pay As You
    Go_. Keep the account Always Free only. If you are still in the 30-day trial, stay well under
-   20 GB: at the end of the trial, an account holding more than 20 GB loses **all** its objects.
+   10 GiB: at the end of the trial, an account over the limit loses **all** its objects.
 2. **Namespace.** Profile menu → _Tenancy: <name>_ → **Object Storage namespace** (a short
    lowercase string). It is also shown on every bucket's details page. Write it down.
 3. **Bucket.** Storage → Object Storage & Archive Storage → Buckets, compartment **root** (the
@@ -85,7 +86,7 @@ Do this as the account owner, in a browser.
    - Default storage tier: **Standard**. Do not use Archive: an archived object must be restored
      before it can be read, and the job reads every upload back.
    - Auto-tiering: off. **Object versioning: off.** With versioning on, pruned backups stay as old
-     versions and keep counting against the 20 GB.
+     versions and keep counting against the 10 GiB.
    - Encryption: Oracle-managed keys (the default; the data is already age-encrypted).
    - Visibility stays **Private**. Create no pre-authenticated requests.
 4. **A user that can only touch this bucket.** Identity & Security → Domains → _Default_:
@@ -126,7 +127,7 @@ restart the app quietly (memory "Restart Hostinger quietly").
 | `BACKUP_OCI_ACCESS_KEY_ID`     | the Access key from step 5 (secret)        |
 | `BACKUP_OCI_SECRET_ACCESS_KEY` | the Secret key from step 5 (secret)        |
 | `BACKUP_AGE_RECIPIENT`         | the `age1…` public key from step 6         |
-| `BACKUP_OCI_MAX_BYTES`         | optional; leave unset for 15 GB            |
+| `BACKUP_OCI_MAX_BYTES`         | optional; leave unset for 8 GiB            |
 | `BACKUP_OCI_ENDPOINT`          | optional; leave unset                      |
 
 `DATABASE_MIGRATION_URL` is already set on live, and the dump reads with it. Nothing else changes.

@@ -635,7 +635,10 @@ export const envSchema = z
      * Default `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.
      */
     BACKUP_OCI_ENDPOINT: optionalTrimmed(),
-    /** Bytes the bucket may hold; default 15 GB, at most the 20 GB free tier. */
+    /**
+     * Bytes the bucket may hold; default 8 GiB (8589934592), at most 10 GiB (10737418240),
+     * the Always Free Standard-tier Object Storage limit.
+     */
     BACKUP_OCI_MAX_BYTES: z.preprocess(
       (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
       positiveInt.optional(),

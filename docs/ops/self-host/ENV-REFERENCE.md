@@ -100,7 +100,7 @@ one credential, so a one-user install sets only the database connection.
 | `BACKUP_OCI_ACCESS_KEY_ID` | no |  | yes |  | Access key of the backup user's OCI Customer Secret Key. |
 | `BACKUP_OCI_SECRET_ACCESS_KEY` | no |  | yes |  | Secret key of that Customer Secret Key (shown once by the OCI console). |
 | `BACKUP_OCI_ENDPOINT` | no |  | no |  | Optional override of the S3-compatible endpoint, a bare `https://` origin. |
-| `BACKUP_OCI_MAX_BYTES` | no |  | no |  | Bytes the bucket may hold; default 15 GB, at most the 20 GB free tier. |
+| `BACKUP_OCI_MAX_BYTES` | no |  | no |  | Bytes the bucket may hold; default 8 GiB (8589934592), at most 10 GiB (10737418240), the Always Free Standard-tier Object Storage limit. |
 | `BACKUP_AGE_RECIPIENT` | no |  | no |  | The age public key (`age1…`, comma list for several) every backup is encrypted to before it leaves the host; the private key never reaches the server. |
 | `GEOIP_DB_PATH` | no |  | no |  |  |
 | `GEOIP_ASN_DB_PATH` | no |  | no |  |  |
