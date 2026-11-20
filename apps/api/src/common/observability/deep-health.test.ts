@@ -32,6 +32,7 @@ describe('evaluateDeepHealth', () => {
         schema: 'not_configured',
         backups: 'not_configured',
         origin_tls: { state: 'not_configured' },
+        growth: 'not_configured',
         realtime: 'not_configured',
       },
       checkedAt: NOW.toISOString(),

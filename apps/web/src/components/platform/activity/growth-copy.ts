@@ -37,7 +37,12 @@ export const GROWTH_COPY = {
   colPeople: 'People',
   weekShort: 'W',
   emptyTitle: 'No growth figures yet',
-  emptyBody: 'The nightly job has not produced figures for this period yet.',
+  // GROWTH-FIX: honest about what happens next, and about stale figures (no promise it cannot keep).
+  emptyBody:
+    'The figures are worked out in the background, usually within an hour of the app starting. If this page stays empty, the background job is not running.',
+  updatedAt: 'Figures as of {date}.',
+  staleBody:
+    'These figures were last updated on {date} and have not been refreshed since, so the newest sign-ups are missing.',
   // ── 62-A3 (B14) · Figma 758:43241 EN / 758:43432 AR ──
   periodHint: 'Sets the period of the sign-up figures below.',
   sectionActivation: 'Activation',

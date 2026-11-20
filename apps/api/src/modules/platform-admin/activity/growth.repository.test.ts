@@ -45,8 +45,10 @@ describe('platform growth view (57-14)', () => {
         r('2026-10-01', 'gtm_report_sent', '', 1, 1),
       ],
       figures,
+      now,
     );
     expect(view.tiles.signups).toBe(10);
+    expect(view.freshness).toBe('fresh');
     expect(view.tiles.activationRate7d).toBe(0.2);
     expect(view.tiles.mrr).toMatchObject({ source: 'subscriptions', cents: 6800 });
     expect(view.tiles.mrr.churn.available).toBe(false);
@@ -57,6 +59,21 @@ describe('platform growth view (57-14)', () => {
     expect(
       growthToCsv('month', [r('2026-10-01', 'gtm_report_sent', '', 1)]).split('\r\n'),
     ).toHaveLength(2);
+  });
+
+  it('says when the figures are stale or were never computed (GROWTH-FIX)', () => {
+    const figures = buildGrowthFigures(
+      { rows: [], unitCosts: null },
+      { billingMode: 'beta_free', platformCapMicroUsd: 100_000_000, now },
+    );
+    const query = parseGrowthQuery({}, now);
+    const later = new Date('2026-11-04T08:00:00Z');
+    const rows = [r('2026-10-01', 'signups', '', 6, 6)];
+    expect(buildGrowthView(query, rows, figures, later).freshness).toBe('stale');
+    expect(buildGrowthView(query, [], figures, now)).toMatchObject({
+      computedAt: null,
+      freshness: 'none',
+    });
   });
 });
 

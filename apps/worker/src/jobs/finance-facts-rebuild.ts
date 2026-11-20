@@ -83,30 +83,3 @@ export async function runFinanceFactsRebuild(
   }
   return { organizations: organizations.length, rows, failed };
 }
-
-export async function runFinanceFactsLoop(
-  deps: FinanceFactsDeps,
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) =>
-    console.error('[worker] finance facts loop failed', error),
-  tickMs = FINANCE_FACTS_TICK_MS,
-): Promise<void> {
-  while (!signal.aborted) {
-    try {
-      const now = (deps.now ?? (() => new Date()))();
-      if (financeFactsDue(await deps.store.lastComputedAt(), now)) {
-        const result = await runFinanceFactsRebuild(deps);
-        console.warn(
-          `[worker] finance facts: ${String(result.organizations)} organization(s), ` +
-            `${String(result.rows)} row(s), ${String(result.failed)} failed`,
-        );
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, tickMs);
-      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
-    });
-  }
-}

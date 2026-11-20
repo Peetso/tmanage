@@ -289,32 +289,3 @@ export async function runApprovalChainWalk(
   );
   return { organizations: organizations.length, ...tally, pruned };
 }
-
-/** The walk's last run is the newest persisted verdict (0355), so a restart does not walk again. */
-export async function runApprovalChainLoop(
-  deps: ApprovalChainDeps,
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) =>
-    console.error('[worker] approval chain loop failed', error),
-  tickMs = APPROVAL_CHAIN_TICK_MS,
-): Promise<void> {
-  while (!signal.aborted) {
-    try {
-      const now = (deps.now ?? (() => new Date()))();
-      if (approvalChainWalkDue(await deps.store.latestCheckedAt(), now)) {
-        const r = await runApprovalChainWalk(deps);
-        console.warn(
-          `[worker] approval chain: ${String(r.organizations)} organization(s), ` +
-            `${String(r.ok)} ok, ${String(r.broken)} broken, ${String(r.empty)} empty, ` +
-            `${String(r.failed)} failed, ${String(r.pruned)} pruned`,
-        );
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, tickMs);
-      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
-    });
-  }
-}

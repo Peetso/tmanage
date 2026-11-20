@@ -603,35 +603,3 @@ export async function runSecurityDetector(deps: DetectorDeps): Promise<DetectorR
   const { mailed, suppressed } = await dispatchSignals(deps, now);
   return { detected, mailed, suppressed };
 }
-
-/** Loop mode: one pass now and one every 5 minutes until the signal aborts; failures are logged. */
-export async function runSecurityDetectorLoop(
-  deps: DetectorDeps,
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) => {
-    console.error('[worker] security detector failed', error);
-  },
-  intervalMs = SECURITY_DETECTOR_INTERVAL_MS,
-): Promise<void> {
-  while (!signal.aborted) {
-    try {
-      const result = await runSecurityDetector(deps);
-      if (result.mailed > 0) {
-        console.warn(`[worker] security signals: ${String(result.mailed)} alert mail(s) queued`);
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, intervalMs);
-      signal.addEventListener(
-        'abort',
-        () => {
-          clearTimeout(timer);
-          resolve();
-        },
-        { once: true },
-      );
-    });
-  }
-}

@@ -564,3 +564,6 @@ export * from './activity/activity-catalog.js';
 // Signals engine, and the per-organization flag chain its sweep shares with the API — 62-27 (B05)
 export * from './signals/index.js';
 export * from './flags/flag-chain.js';
+
+// Growth figures: when they count as current (57-14, GROWTH-FIX)
+export * from './growth/freshness.js';

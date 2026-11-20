@@ -176,30 +176,3 @@ export async function runDailyAnchors(deps: {
   }
   return { day, anchored, platformAnchored, signed: signer.status === 'configured' };
 }
-
-/** Loop mode: backfill, then anchor, every {@link AUDIT_ANCHOR_INTERVAL_MS}; stops on `signal`. */
-export async function runAuditAnchorLoop(
-  deps: { readonly store: AuditAnchorStore; readonly signer: AnchorSigning },
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) =>
-    console.error('[worker] audit anchor failed', error),
-): Promise<void> {
-  if (deps.signer.status !== 'configured') {
-    console.warn(`[worker] AUDIT_ANCHOR_KEY is ${deps.signer.status}: audit anchors are unsigned`);
-  }
-  while (!signal.aborted) {
-    try {
-      await runAuditBackfill(deps.store);
-      const result = await runDailyAnchors({ ...deps, now: new Date() });
-      if (result.anchored > 0) {
-        console.warn(`[worker] audit anchors for ${result.day}: ${result.anchored} organizations`);
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, AUDIT_ANCHOR_INTERVAL_MS);
-      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
-    });
-  }
-}

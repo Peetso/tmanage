@@ -14,7 +14,11 @@ import {
   reconcileIntervalMs,
   startActivityProjector,
   startBudgetBurn,
+  NO_JOB_MAIL,
+  STANDALONE_ONLY_LOOPS,
+  WORKER_LOOPS_IN_APP,
   startRetainerRoll,
+  startScheduledJobs,
   startSignalsSweep,
   startChannelPosts,
   startWebhookDeliveries,
@@ -365,7 +369,7 @@ test('server.mjs runs both API passes in-process, behind the same SWEEPS_INPROCE
   assert.match(server, /jobs: apiReconcileJobs\(api, app\),\s+intervalMs: reconcileIntervalMs\(/);
   assert.match(
     server,
-    /if \(sweepsEnabled\(process\.env\)\) stopSweeps = await startScheduledSweeps\(env, app\)/,
+    /if \(sweepsEnabled\(process\.env\)\) stopSweeps = await startScheduledSweeps\(env, app, jobMail\)/,
   );
   const exports = readFileSync(join(HERE, '../api/src/hostinger-exports.ts'), 'utf8');
   for (const name of [
@@ -539,4 +543,75 @@ test('51-17: the storage-root check runs at most once an hour', async () => {
   clock = 61 * 60 * 1000;
   await job.run();
   assert.equal(runs, 2);
+});
+
+// ---- GROWTH-FIX ---- the class "a standalone-worker loop with no in-process twin" (PR-1, PR-3).
+test('every job loop the standalone worker starts runs in this app or is standalone-only with a reason', () => {
+  const main = readFileSync(join(HERE, '../worker/src/main.ts'), 'utf8');
+  const started = [...new Set([...main.matchAll(/\b(run[A-Z]\w*Loop)\(/g)].map((m) => m[1]))];
+  const covered = { ...WORKER_LOOPS_IN_APP, ...STANDALONE_ONLY_LOOPS };
+  const missing = started.filter((loop) => !(loop in covered));
+  assert.deepEqual(missing, [], `worker loops with no in-app twin: ${missing.join(', ')}`);
+  for (const loop of Object.keys(covered)) assert.ok(started.includes(loop), `stale entry ${loop}`);
+  for (const loop of Object.keys(WORKER_LOOPS_IN_APP)) {
+    assert.ok(!(loop in STANDALONE_ONLY_LOOPS), `${loop} is listed twice`);
+  }
+  for (const reason of Object.values(STANDALONE_ONLY_LOOPS)) assert.ok(reason.length >= 40, reason);
+  const app =
+    readFileSync(join(HERE, 'server.mjs'), 'utf8') +
+    readFileSync(join(HERE, 'scheduled-sweeps.mjs'), 'utf8');
+  for (const [loop, call] of Object.entries(WORKER_LOOPS_IN_APP)) {
+    const calls = app.split(`${call}(`).length - 1;
+    assert.ok(calls >= 1, `${loop}: this app never calls ${call}(`);
+  }
+  // The scheduled jobs start beside the other sweeps and stop with them.
+  const server = readFileSync(join(HERE, 'server.mjs'), 'utf8');
+  assert.match(server, /const stopJobs = startScheduledJobs\(worker, jobsDatabase, env, mail,/);
+  assert.match(server, /stopJobs\?\.\(\)/);
+});
+
+test('each scheduled job gets its own scheduler at its cadence, under its own lock name', async () => {
+  const lines = [];
+  const locked = [];
+  const passes = [];
+  const given = [];
+  const worker = {
+    createScheduledJobs: (database, env, mail) => {
+      given.push({ database, env, mail });
+      return [
+        {
+          name: 'growth-rollup',
+          intervalMs: 3_600_000,
+          run: async () => (passes.push('g'), 'rows'),
+        },
+        { name: 'finance-facts', intervalMs: 900_000, run: async () => (passes.push('f'), null) },
+      ];
+    },
+  };
+  const lock = {
+    run: async (name, work) => {
+      locked.push(name);
+      return name === 'finance-facts' ? { ran: false } : { ran: true, result: await work() };
+    },
+  };
+  const stop = startScheduledJobs(
+    worker,
+    { pool: 1 },
+    { env: 1 },
+    undefined,
+    (l) => lines.push(l),
+    String,
+    lock,
+  );
+  await stop();
+  assert.equal(given[0].mail, NO_JOB_MAIL);
+  assert.deepEqual(locked.sort(), ['finance-facts', 'growth-rollup']);
+  assert.deepEqual(passes, ['g']);
+  assert.ok(lines.includes('sweep growth-rollup: rows'));
+  assert.ok(lines.some((l) => l.includes('every 3600000ms')));
+  assert.ok(lines.some((l) => l.includes('every 900000ms')));
+  assert.equal(
+    startScheduledJobs({}, {}, {}, null, () => undefined),
+    null,
+  );
 });

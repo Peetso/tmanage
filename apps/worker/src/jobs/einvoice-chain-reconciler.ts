@@ -207,31 +207,3 @@ export async function runEinvoiceChainReconcile(
   );
   return { organizations: organizations.length, ...tally, pruned };
 }
-
-export async function runEinvoiceChainLoop(
-  deps: EinvoiceChainDeps,
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) =>
-    console.error('[worker] e-invoice chain loop failed', error),
-  tickMs = EINVOICE_CHAIN_TICK_MS,
-): Promise<void> {
-  while (!signal.aborted) {
-    try {
-      const now = (deps.now ?? (() => new Date()))();
-      if (chainCheckDue(await deps.store.latestCheckedAt(), now)) {
-        const r = await runEinvoiceChainReconcile(deps);
-        console.warn(
-          `[worker] e-invoice chain: ${String(r.organizations)} organization(s), ` +
-            `${String(r.ok)} ok, ${String(r.broken)} broken, ${String(r.empty)} empty, ` +
-            `${String(r.failed)} failed, ${String(r.pruned)} pruned`,
-        );
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, tickMs);
-      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
-    });
-  }
-}

@@ -200,27 +200,3 @@ export async function runKeyRotation(deps: {
   await store.pause(job.id);
   return { rotationId: job.id, status: 'paused', counts: { done, skipped, failed } };
 }
-
-/** Loop mode: drain queued rotations, then wait {@link ROTATION_INTERVAL_MS}; stops on `signal`. */
-export async function runKeyRotationLoop(
-  deps: { readonly store: RotationStore; readonly cipher: RotationCipher },
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) =>
-    console.error('[worker] key rotation failed', error),
-): Promise<void> {
-  const log = (line: string): void => console.warn(`[worker] ${line}`);
-  while (!signal.aborted) {
-    try {
-      let result = await runKeyRotation({ ...deps, maxBatches: 20, log });
-      while (result.status !== 'idle' && !signal.aborted) {
-        result = await runKeyRotation({ ...deps, maxBatches: 20, log });
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, ROTATION_INTERVAL_MS);
-      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
-    });
-  }
-}

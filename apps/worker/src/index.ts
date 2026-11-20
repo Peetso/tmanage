@@ -257,12 +257,11 @@ export {
 } from './jobs/budget-burn-sweeper.js';
 export type { BudgetBurnSweepResult } from './jobs/budget-burn-sweeper.js';
 export { createBudgetBurnStore } from './common/database/budget-burn-store.js';
-// R17-a (52-14) — the nightly finance facts rebuild loop, exported for an in-process host.
+// R17-a (52-14) — the nightly finance facts rebuild (scheduled through `createScheduledJobs`).
 export {
   FINANCE_FACTS_TICK_MS,
   financeFactsDue,
   financeFactsWindow,
-  runFinanceFactsLoop,
   runFinanceFactsRebuild,
 } from './jobs/finance-facts-rebuild.js';
 export type {
@@ -304,3 +303,12 @@ export {
 } from './jobs/signals-sweeper.js';
 export type { SignalsSweepResult, SignalsSweepStore } from './jobs/signals-sweeper.js';
 export { createSignalsStore } from './common/database/signals-store.js';
+// GROWTH-FIX — the recurring jobs both hosts run (growth rollups, finance facts, chain checks,
+// digests, anchors, purges, key rotation, timers, security detector), defined once; the single
+// Hostinger app starts them through `startScheduledJobs` (apps/server/scheduled-sweeps.mjs).
+export {
+  SCHEDULED_JOB_NAMES,
+  createScheduledJobs,
+  runScheduledJobLoop,
+} from './jobs/scheduled-jobs.js';
+export type { ScheduledJob, ScheduledJobEnv, ScheduledJobMail } from './jobs/scheduled-jobs.js';

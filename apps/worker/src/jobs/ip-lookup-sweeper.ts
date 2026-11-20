@@ -44,28 +44,3 @@ export async function sweepIpLookups(deps: {
   }
   return { deleted, cutoff: cutoff.toISOString(), capped: true };
 }
-
-/** Loop mode: one pass now and one every {@link IP_LOOKUP_SWEEP_INTERVAL_MS}; stops on `signal`. */
-export async function runIpLookupSweepLoop(
-  store: IpLookupSweepStore,
-  retentionDays: number,
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) =>
-    console.error('[worker] IP lookup sweep failed', error),
-  intervalMs = IP_LOOKUP_SWEEP_INTERVAL_MS,
-): Promise<void> {
-  while (!signal.aborted) {
-    try {
-      const result = await sweepIpLookups({ store, retentionDays });
-      if (result.deleted > 0) {
-        console.warn(`[worker] IP lookup sweep: ${String(result.deleted)} row(s) removed`);
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, intervalMs);
-      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
-    });
-  }
-}

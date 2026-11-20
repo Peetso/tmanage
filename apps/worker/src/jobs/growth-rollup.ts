@@ -32,6 +32,7 @@
  * report to `ALERT_EMAILS` once (`gtm_report_sent` marks it). This file holds no SQL;
  * `common/database/growth-rollup-store.ts` does.
  */
+import { GROWTH_STALE_MS } from '@tmanage/domain';
 import type { GtmRollupCsvRow, Mailer, MonthlyGtmReportInput } from '@tmanage/mail';
 
 export type GrowthPeriodKind = 'week' | 'month';
@@ -123,7 +124,8 @@ export interface GrowthRollupStore {
 }
 
 export const GROWTH_RUN_HOUR_UTC = 2;
-export const GROWTH_STALE_MS = 26 * 60 * 60 * 1000;
+/** The domain's freshness window (`@tmanage/domain` growth/freshness): the API reads the same. */
+export { GROWTH_STALE_MS };
 export const GROWTH_TICK_MS = 60 * 60 * 1000;
 export const GROWTH_MONTHS_KEPT = 13;
 export const RETENTION_WEEKS = 8;
@@ -695,32 +697,4 @@ export async function runGrowthRollup(deps: GrowthRunDeps): Promise<GrowthRunRes
     );
   }
   return { rows: written, deleted, reportSentTo };
-}
-
-/** Loop mode: checks hourly; runs on boot when stale and nightly after 02:00 UTC. */
-export async function runGrowthRollupLoop(
-  deps: GrowthRunDeps,
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) =>
-    console.error('[worker] growth rollup failed', error),
-  tickMs = GROWTH_TICK_MS,
-): Promise<void> {
-  while (!signal.aborted) {
-    try {
-      const now = (deps.now ?? (() => new Date()))();
-      if (growthRunDue(await deps.store.lastComputedAt(), now)) {
-        const result = await runGrowthRollup(deps);
-        console.warn(
-          `[worker] growth rollup: ${String(result.rows)} row(s) written, ` +
-            `${String(result.deleted)} removed, report to ${String(result.reportSentTo)}`,
-        );
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, tickMs);
-      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
-    });
-  }
 }

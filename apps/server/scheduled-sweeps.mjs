@@ -490,6 +490,77 @@ export function startSignalsSweep(
   return () => scheduler.stop();
 }
 
+/** GROWTH-FIX — what the scheduled jobs mail through when this app runs no relay: nothing. */
+export const NO_JOB_MAIL = Object.freeze({ alerts: null, notice: () => null });
+
+/**
+ * GROWTH-FIX — the worker's recurring jobs (`createScheduledJobs`, `apps/worker/src/jobs/
+ * scheduled-jobs.ts`: growth rollups, finance facts, both chain checks, notification digests,
+ * audit anchors, the two purges, key rotation, forgotten timers, the security detector), one
+ * scheduler each at the job's own cadence (one pass now). Each pass runs under the named lock of
+ * the job's name, the name the standalone worker's `runScheduledJobLoop` takes too (AS-4 / RT-3),
+ * and a job with a schedule checks it inside the pass, against database state, so a second
+ * process that gets the lock later finds the work done. `mail` is the in-process relay's mail
+ * ({@link NO_JOB_MAIL} without one). Returns `stop`, or `null` when the worker module does not
+ * offer the jobs.
+ */
+export function startScheduledJobs(
+  worker,
+  database,
+  env,
+  mail,
+  log,
+  describeError = String,
+  lock = undefined,
+) {
+  if (typeof worker.createScheduledJobs !== 'function') return null;
+  const schedulers = worker.createScheduledJobs(database, env, mail ?? NO_JOB_MAIL).map((job) =>
+    createSweepScheduler({
+      jobs: [
+        {
+          name: job.name,
+          run: () => job.run(),
+          describe: (line) => line,
+          changed: (line) => line !== null,
+        },
+      ],
+      intervalMs: job.intervalMs,
+      log,
+      describeError,
+      lock,
+    }),
+  );
+  for (const scheduler of schedulers) scheduler.start();
+  return async () => {
+    await Promise.all(schedulers.map((scheduler) => scheduler.stop()));
+  };
+}
+
+/**
+ * GROWTH-FIX fitness map (ENGINEERING-STANDARD PR-1 / PR-3): every job loop the standalone worker
+ * starts in `apps/worker/src/main.ts`, against the call that runs the same work in this app. The
+ * unit suite parses main.ts and fails on a loop missing here or from {@link STANDALONE_ONLY_LOOPS},
+ * and on a value this app's sources never call.
+ */
+export const WORKER_LOOPS_IN_APP = Object.freeze({
+  runOutboxLoop: 'runOutboxBatch',
+  runQueueLoop: 'runQueueBatch',
+  runSupportSessionSweepLoop: 'worker.sweepSupportSessions',
+  runExportJobsLoop: 'worker.runExportJobs',
+  runActivityProjectorLoop: 'startActivityProjector',
+  runSignalsSweepLoop: 'startSignalsSweep',
+  runWebhookRetrySweepLoop: 'startWebhookDeliveries',
+  runScheduledJobLoop: 'startScheduledJobs',
+});
+
+/** The worker loops this app deliberately does not run, each with the reason. */
+export const STANDALONE_ONLY_LOOPS = Object.freeze({
+  runPersonMailLoop:
+    'tips are signed by the member’s assigned person through the sender-resolving mail stack (EMAILBUILD, 0371), which this app does not build; run here they would go out under the wrong sender',
+  runMailDrainLoop:
+    'drains mail_queue, which only the standalone worker fills (MAIL_QUEUE=on); this app sends through its own transport and never enqueues',
+});
+
 /**
  * A small interval scheduler over a list of jobs. Each tick runs every job in order; one job's
  * failure is logged and does not stop the others. A tick that fires while the previous one is

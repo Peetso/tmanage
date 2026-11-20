@@ -22,6 +22,8 @@ export interface GrowthView {
   readonly from: string;
   readonly to: string;
   readonly computedAt: string | null;
+  /** GROWTH-FIX: the server's verdict on `computedAt` (26 h window); `none` before the first run. */
+  readonly freshness: 'fresh' | 'stale' | 'none';
   readonly tiles: {
     readonly signups: number;
     readonly activationRate7d: number | null;

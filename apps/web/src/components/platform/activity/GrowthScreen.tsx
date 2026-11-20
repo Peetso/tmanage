@@ -19,7 +19,7 @@ import { PlatformGate } from '../shared/platform-kit';
 import { PlatformPageState } from '../shared/PlatformPageState';
 import { ACTIVITY_KEY } from './ActivityFrame';
 import { GrowthFigures } from './GrowthFigures';
-import { useGrowthCopy } from './growth-copy';
+import { fillCopy, useGrowthCopy } from './growth-copy';
 import { PricingAnswersCard } from './PricingAnswersCard';
 import { ReferralPartnersCard } from './ReferralPartnersCard';
 import type { GrowthCopyKey } from './growth-copy';
@@ -104,10 +104,28 @@ function GrowthBody({ api, period }: { api: ApiClient; period: GrowthPeriod }) {
       <PlatformPageState state="error" error={growth.error} onRetry={() => void growth.refetch()} />
     );
   }
-  if (growth.data.computedAt === null) {
+  if (growth.data.computedAt === null || growth.data.freshness === 'none') {
     return <PlatformPageState state="empty" title={copy('emptyTitle')} body={copy('emptyBody')} />;
   }
   return <Growth view={growth.data} />;
+}
+
+/**
+ * GROWTH-FIX: when the figures are from, and a plain warning when the server calls them stale
+ * (`freshness`, the domain's 26 h window), so an old page never passes for a current one.
+ */
+export function GrowthAsOf({ view }: { view: Pick<GrowthView, 'computedAt' | 'freshness'> }) {
+  const copy = useGrowthCopy();
+  const format = useDisplayFormatters();
+  if (view.computedAt === null) return null;
+  const stale = view.freshness === 'stale';
+  return (
+    <p className="tm-r44-sub" role={stale ? 'status' : undefined}>
+      {fillCopy(copy(stale ? 'staleBody' : 'updatedAt'), {
+        date: format.dateTime(view.computedAt),
+      })}
+    </p>
+  );
 }
 
 function Growth({ view }: { view: GrowthView }) {
@@ -156,6 +174,7 @@ function Growth({ view }: { view: GrowthView }) {
       : format.day(`${start}T00:00:00Z`, { day: 'numeric', month: 'short' });
   return (
     <div className="tm-stack">
+      <GrowthAsOf view={view} />
       <GrowthFigures figures={view.figures} />
       <ul className="tm-cc-metrics tm-r44-kpis" aria-label={copy('kpiLabel')}>
         {tiles.map((tile) => (

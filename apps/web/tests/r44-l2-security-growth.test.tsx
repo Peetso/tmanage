@@ -11,6 +11,7 @@ import { signalQuery } from '../src/lib/api/admin-security-signals';
 import { barHeights, funnelPercents, growthPath, percent } from '../src/lib/api/platform-growth';
 import type { GrowthFigures as Figures } from '../src/lib/api/platform-growth';
 import { GrowthFigures } from '../src/components/platform/activity/GrowthFigures';
+import { GrowthAsOf } from '../src/components/platform/activity/GrowthScreen';
 
 /** R44 L2: 56-06 Blocked files, 56-23 Security signals (owner), 57-09 Growth helpers. */
 
@@ -199,6 +200,20 @@ describe('62-A3 Growth figures (B14)', () => {
     expect(screen.getByText('Not set')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Set unit costs' }).getAttribute('href')).toBe(
       '/platform/settings#unit-costs',
+    );
+  });
+});
+
+describe('GROWTH-FIX Growth freshness line', () => {
+  it('dates fresh figures quietly and warns, with the last date, when they are stale', () => {
+    const computedAt = '2026-11-18T02:00:00.000Z';
+    const { unmount } = render(<GrowthAsOf view={{ computedAt, freshness: 'fresh' }} />);
+    expect(screen.getByText(/^Figures as of /u)).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+    unmount();
+    render(<GrowthAsOf view={{ computedAt, freshness: 'stale' }} />);
+    expect(screen.getByRole('status').textContent).toMatch(
+      /last updated on .*2026.* not been refreshed/u,
     );
   });
 });

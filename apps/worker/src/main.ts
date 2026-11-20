@@ -10,7 +10,6 @@ import {
   SmtpMailer,
   SmtpRefusalMailer,
   createIdentityMailers,
-  composeSecurityAlertDigest,
   deriveBounceKey,
   deriveUnsubscribeKey,
   withTemplateKey,
@@ -85,50 +84,23 @@ import './jobs/purge-organizations.js';
 import { exportWriterFor, runExportJobsLoop, runExportJobsOnce } from './jobs/export-jobs.js';
 import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
 import { createRotationStore } from './common/database/field-cipher-rotation-store.js';
-import { runKeyRotation, runKeyRotationLoop } from './jobs/field-cipher-rotation.js';
-// ---- 56-17 follow-up ---- the 24-month security_reports purge, daily in loop mode.
-import { createSecurityReportPurgeStore } from './common/database/security-report-purge-store.js';
-import { runSecurityReportPurgeLoop } from './jobs/security-report-purge.js';
-import { createIpLookupSweepStore } from './common/database/ip-lookup-sweeper-store.js';
-import { runIpLookupSweepLoop } from './jobs/ip-lookup-sweeper.js';
+import { runKeyRotation } from './jobs/field-cipher-rotation.js';
 // ---- R13-s2 ---- outbound webhooks: the delivery sweep (staging rides the registry).
 import {
   createWebhookDeliveryStore,
   runWebhookDeliveryPass,
 } from './consumers/webhook-deliveries.js';
 import { runWebhookRetrySweepLoop } from './jobs/webhook-retry-sweeper.js';
-import { createAuditAnchorStore } from './common/database/audit-anchor-store.js';
-import { anchorSignerFromEnv, runAuditAnchorLoop } from './jobs/audit-anchor.js';
 import { createPersonMailStore } from './common/database/person-mail-store.js';
 import { createSweepLockDatabase } from './common/database/sweep-lock.js';
 import { runPersonMailLoop } from './jobs/person-mail-sweep.js';
+// ---- GROWTH-FIX ---- the recurring jobs both hosts run, defined once.
+import { createScheduledJobs, runScheduledJobLoop } from './jobs/scheduled-jobs.js';
 // ---- 62-A2 / 62-27 ---- the activity projector and the signals sweep (no model call).
 import { createActivityProjectorStore } from './common/database/activity-projector-store.js';
 import { runActivityProjectorLoop } from './jobs/activity-projector.js';
 import { createSignalsStore } from './common/database/signals-store.js';
 import { runSignalsSweepLoop } from './jobs/signals-sweeper.js';
-// ---- 52-01 ---- forgotten-timer auto-stop.
-import { createTimerAutostopStore } from './common/database/timer-autostop-store.js';
-import { runTimerAutostopLoop } from './jobs/timer-autostop.js';
-// ---- 56-23 ---- the security detector and its signal store.
-import { createSecuritySignalStore } from './common/database/security-signal-store.js';
-import { runSecurityDetectorLoop } from './jobs/security-detector.js';
-// ---- R13 slice 5 · 57-14 ---- the nightly growth rollups and the monthly GTM report mail.
-import { composeMonthlyGtmReport } from '@tmanage/mail';
-import { createGrowthRollupStore } from './common/database/growth-rollup-store.js';
-import { runGrowthRollupLoop } from './jobs/growth-rollup.js';
-// ---- R17-a · 52-14 ---- the nightly finance facts rebuild behind the profitability reports.
-import { createFinanceFactsStore } from './common/database/finance-facts-store.js';
-import { runFinanceFactsLoop } from './jobs/finance-facts-rebuild.js';
-import { createEinvoiceChainStore } from './common/database/einvoice-chain-store.js';
-import { runEinvoiceChainLoop } from './jobs/einvoice-chain-reconciler.js';
-// ---- 52-19 ---- the nightly approval record chain walk.
-import { createApprovalChainStore } from './common/database/approval-chain-store.js';
-import { recordSignatureCheckFromEnv, runApprovalChainLoop } from './jobs/approval-chain-walk.js';
-// ---- 53-15 ---- the notification digest e-mail, every 15 minutes (claims one send per window).
-import { createNotificationDigestStore } from './common/database/notification-digest-store.js';
-import { runNotificationDigestLoop } from './jobs/notification-digest.js';
-import { DigestMailer } from './notifications/digest-mailer.js';
 
 /**
  * The worker process entry point.
@@ -729,13 +701,6 @@ async function main(): Promise<void> {
   // relay. It borrows a pool connection only while it runs, logs its own failures and stops with
   // the same signal.
   const supportSweep = runSupportSessionSweepLoop(database, controller.signal);
-  // ---- 52-01 ---- stop forgotten timers (org limit 4..24 h, default 12), every 5 minutes.
-  const timerAutostop = runTimerAutostopLoop(createTimerAutostopStore(database), controller.signal);
-  // ---- 56-11 ---- audit chain start backfill + daily anchors, hourly beside the relay.
-  const auditAnchors = runAuditAnchorLoop(
-    { store: createAuditAnchorStore(database), signer: anchorSignerFromEnv(process.env) },
-    controller.signal,
-  );
   // ---- EMAILBUILD2 ---- the person-mail sweep, hourly beside the relay: at most 100 members per
   // run, at most one mail each, through the notification transport (List-Unsubscribe, settings
   // link) under template key 'tip', so the sender resolver signs it with the member's person.
@@ -764,52 +729,11 @@ async function main(): Promise<void> {
     { store: createSignalsStore(database), lock: sweepLock },
     controller.signal,
   );
-  // ---- 56-23 ---- security detector every 5 minutes; at most one digest per 15 minutes to
-  // ALERT_EMAILS (and own-org high signals to owners), through the same transport (mail_queue
-  // when MAIL_QUEUE=on). No transport → signals are still recorded, nothing is mailed.
-  const securityDetector = runSecurityDetectorLoop(
-    {
-      store: createSecuritySignalStore(database),
-      mailer: transport,
-      alertEmails: (env.ALERT_EMAILS ?? '')
-        .split(',')
-        .map((address) => address.trim())
-        .filter((address) => address.includes('@')),
-      composeDigest: composeSecurityAlertDigest,
-    },
-    controller.signal,
-  );
   // ---- platform-admin v2 · PA-09 ---- the export job, every 30 seconds beside the relay.
   const exportJobs = runExportJobsLoop(database, exportWriterFor(env), controller.signal);
-  // ---- 56-02 FieldCipher ---- queued key rotations, every minute beside the relay. Keyless,
-  // every queued rotation fails with "key … is not the newest key" — nothing is rewritten.
   // ---- 56-31 ---- the mail drainer, every 5 seconds beside the relay (only with MAIL_QUEUE=on).
   const mailDrain =
     drainer === null ? Promise.resolve() : runMailDrainLoop(drainer, controller.signal);
-  const keyRotations = runKeyRotationLoop(
-    {
-      store: createRotationStore(database),
-      cipher: createFieldCipher(loadFieldCipherKeyring(env)),
-    },
-    controller.signal,
-  );
-  // ---- 56-17 follow-up ---- security reports older than 24 months, once a day beside the relay.
-  const securityReportPurge = runSecurityReportPurgeLoop(
-    createSecurityReportPurgeStore(database),
-    controller.signal,
-  );
-  // ---- R12 ---- IP-cache rows unseen for GEOIP_RETENTION_DAYS (default 400), once a day.
-  const ipLookupSweep = runIpLookupSweepLoop(
-    createIpLookupSweepStore(database),
-    env.GEOIP_RETENTION_DAYS,
-    controller.signal,
-  );
-  // ---- 53-15 ---- the daily / weekly notification digest.
-  const notificationDigest = runNotificationDigestLoop(
-    createNotificationDigestStore(database),
-    new DigestMailer(notice('digest'), env.WEB_PUBLIC_URL),
-    controller.signal,
-  );
   // ---- R13-s2 ---- outbound webhooks: due attempts every 10 s, one in flight per endpoint,
   // through the delivery-time egress guard. Keyless, every attempt is cancelled as needs_rotation.
   const webhookOwnHosts = [env.API_PUBLIC_URL, env.WEB_PUBLIC_URL].flatMap((raw) => {
@@ -828,42 +752,15 @@ async function main(): Promise<void> {
     const outcome = await sweepLock.run('webhooks', () => runWebhookDeliveryPass(webhookDeps));
     return outcome.ran ? outcome.result : { delivered: 0, failed: 0 };
   }, controller.signal);
-  // ---- R13 slice 5 · 57-14 ---- growth rollups nightly (02:00 UTC) and on boot when the last
-  // run is over 26 h old; on the 1st the previous month's report goes to ALERT_EMAILS through
-  // the same transport (mail_queue when MAIL_QUEUE=on). Empty ALERT_EMAILS → no mail.
-  const growthRollups = runGrowthRollupLoop(
-    {
-      store: createGrowthRollupStore(database),
-      mailer: transport,
-      alertEmails: (env.ALERT_EMAILS ?? '')
-        .split(',')
-        .map((address) => address.trim())
-        .filter((address) => address.includes('@')),
-      composeReport: composeMonthlyGtmReport,
-    },
-    controller.signal,
-  );
-  // ---- R17-a · 52-14 ---- finance facts nightly (02:30 UTC) and on boot when the newest
-  // `computed_at` is over 26 h old: every organization's last 90 days, one transaction each.
-  const financeFacts = runFinanceFactsLoop(
-    { store: createFinanceFactsStore(database) },
-    controller.signal,
-  );
-  // ---- R22-b · 52-12 ---- e-invoice chain reconciler nightly (03:00 UTC) and on boot when the
-  // newest `checked_at` is over 26 h old: every zatca organization's ICV/PIH chain, one verdict each.
-  const einvoiceChain = runEinvoiceChainLoop(
-    { store: createEinvoiceChainStore(database) },
-    controller.signal,
-  );
-  // ---- 52-19 ---- approval record chain walk nightly (03:30 UTC) and once on boot: every
-  // organization's sealed decision/signature records re-verified; a break is a security signal.
-  const approvalChain = runApprovalChainLoop(
-    {
-      store: createApprovalChainStore(database),
-      verifySignature: recordSignatureCheckFromEnv(process.env),
-    },
-    controller.signal,
-  );
+
+  // GROWTH-FIX ---- the recurring jobs both hosts run (`jobs/scheduled-jobs.ts`): timers,
+  // audit anchors, security detector, key rotation, the two purges, notification digest, growth
+  // rollups, finance facts and both chain checks. Each pass runs under the job's named lock, the
+  // same name the single app's `startScheduledJobs` takes, so the two never run one at once.
+  const scheduledJobs = createScheduledJobs(database, env, {
+    alerts: transport,
+    notice,
+  }).map((job) => runScheduledJobLoop(job, controller.signal, sweepLock));
 
   // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
   // socket open — and only when a port is configured; 0 is the honest default on a host
@@ -956,38 +853,19 @@ async function main(): Promise<void> {
     // ---- platform-admin v2 · PA-05 ---- let the sweep finish its pass before the pool closes.
     controller.abort();
     await supportSweep;
-    // ---- 52-01 ----
-    await timerAutostop;
     // ---- platform-admin v2 · PA-09 ----
     await exportJobs;
-    await keyRotations;
-    // ---- 56-17 follow-up ----
-    await securityReportPurge;
-    // ---- R12 ----
-    await ipLookupSweep;
-    // ---- 53-15 ----
-    await notificationDigest;
     // ---- R13-s2 ----
     await webhookDeliveries;
-    // ---- R13 slice 5 ----
-    await growthRollups;
-    // ---- R17-a ----
-    await financeFacts;
-    // ---- R22-b ----
-    await einvoiceChain;
-    // ---- 52-19 ----
-    await approvalChain;
-    // ---- 56-11 ----
-    await auditAnchors;
     // ---- EMAILBUILD2 ----
     await personMail;
     // ---- 62-A2 / 62-27 ----
     await activityProjector;
     await signalsSweep;
-    // ---- 56-23 ----
-    await securityDetector;
     // ---- 56-31 ----
     await mailDrain;
+    // ---- GROWTH-FIX ----
+    await Promise.all(scheduledJobs);
     await Promise.all([database.end(), sweepLock.end()]);
   }
 }

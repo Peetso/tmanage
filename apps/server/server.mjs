@@ -96,6 +96,7 @@ import {
   startActivityProjector,
   startBudgetBurn,
   startRetainerRoll,
+  startScheduledJobs,
   startSignalsSweep,
   sweepsEnabled,
   workerSweepJobs,
@@ -331,7 +332,7 @@ function proxyToWeb(req, res, transport) {
  * keep a third Node process alive still delivers mail and notifications. Limitation (documented):
  * when Hostinger sleeps the app, the timer sleeps too, so delivery resumes on the next request.
  */
-async function startInProcessWorker(env, attachRealtime) {
+async function startInProcessWorker(env, attachRealtime, shareMail = () => undefined) {
   const worker = await import('@tmanage/worker');
   const {
     createWorkerDatabase,
@@ -358,6 +359,7 @@ async function startInProcessWorker(env, attachRealtime) {
     SmtpMailer,
     deriveBounceKey,
     deriveUnsubscribeKey,
+    withTemplateKey,
   } = await import('@tmanage/mail');
 
   const from = { fromAddress: env.EMAIL_FROM_ADDRESS, fromName: env.EMAIL_FROM_NAME };
@@ -402,6 +404,13 @@ async function startInProcessWorker(env, attachRealtime) {
           key: deriveUnsubscribeKey(env.SESSION_SECRET),
           suppressions: createEmailSuppressionLookup(database),
         });
+  // GROWTH-FIX: the scheduled jobs (growth report, security alerts, digests) mail through this
+  // same stack, so the one in-memory send ceiling counts every mail this process sends.
+  shareMail({
+    alerts: transport,
+    notice: (key) =>
+      notificationTransport === null ? null : withTemplateKey(notificationTransport, key),
+  });
   const relayHandlers = createWorkerOutboxHandlers({
     clientRequestMailer: new ClientRequestMailer(notificationTransport, env.WEB_PUBLIC_URL),
     usageThresholdMailer: new UsageThresholdMailer(notificationTransport),
@@ -490,7 +499,7 @@ async function startInProcessWorker(env, attachRealtime) {
  * pool on the worker's credential, so they run with or without the relay; the API passes run on
  * the in-process API application `app`, exactly as `sweep.ts` and `reconcile.ts` compose it.
  */
-async function startScheduledSweeps(env, app) {
+async function startScheduledSweeps(env, app, mail) {
   const worker = await import('@tmanage/worker');
   const database = worker.createWorkerDatabase({
     url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
@@ -527,6 +536,16 @@ async function startScheduledSweeps(env, app) {
   const stopActivity = startActivityProjector(worker, database, env, log, serializeForLog, lock);
   // 62-27: the hourly signals sweep, only where `business_briefing` is on.
   const stopSignals = startSignalsSweep(worker, database, env, log, serializeForLog, lock);
+  // GROWTH-FIX: the worker's recurring jobs (growth rollups, finance facts, chain checks, digests,
+  // anchors, purges, key rotation, timers, security detector) on a one-connection pool of their
+  // own, so a long nightly rebuild never holds the minute sweeps' connection (ST-5).
+  const jobsDatabase = worker.createWorkerDatabase({
+    url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
+    connectionLimit: 1,
+    statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
+    onConnectionError: (error) => log(`jobs connection rejected: ${serializeForLog(error)}`),
+  });
+  const stopJobs = startScheduledJobs(worker, jobsDatabase, env, mail, log, serializeForLog, lock);
   return async () => {
     await Promise.all([
       scheduler.stop(),
@@ -536,8 +555,9 @@ async function startScheduledSweeps(env, app) {
       stopRetainerRoll?.(),
       stopActivity?.(),
       stopSignals?.(),
+      stopJobs?.(),
     ]);
-    await Promise.all([database.end(), lock.end()]);
+    await Promise.all([database.end(), jobsDatabase.end(), lock.end()]);
   };
 }
 
@@ -620,6 +640,8 @@ async function main() {
   // Shutdown works at any point of the boot: whatever has started is stopped.
   let app;
   let stopWorker;
+  /** GROWTH-FIX: the relay's mail, shared with the scheduled jobs; `undefined` without a relay. */
+  let jobMail;
   let stopSweeps;
   // A signal during the migrations waits for the file in progress (bounded) before exiting.
   const migrationGate = createMigrationGate({ log });
@@ -640,8 +662,9 @@ async function main() {
     void (async () => {
       try {
         await migrationGate.settle();
-        await stopWorker?.();
+        // The sweeps first: their jobs mail through the relay's transport and pool.
         await stopSweeps?.();
+        await stopWorker?.();
         await app?.close();
       } finally {
         process.exit(0);
@@ -689,11 +712,17 @@ async function main() {
   await startWeb(transport, nominalPort);
 
   if (process.env['WORKER_INPROCESS'] === '1') {
-    stopWorker = await startInProcessWorker(env, (realtime) => {
-      realtimeServer = realtime;
-    });
+    stopWorker = await startInProcessWorker(
+      env,
+      (realtime) => {
+        realtimeServer = realtime;
+      },
+      (mail) => {
+        jobMail = mail;
+      },
+    );
   }
-  if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env, app);
+  if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env, app, jobMail);
   else log('scheduled sweeps off (SWEEPS_INPROCESS)');
 
   state.ready = { fastify: api.fastify };

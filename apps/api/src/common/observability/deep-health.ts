@@ -21,6 +21,8 @@ import {
 } from './schema-drift.js';
 import type { SchemaDriftMode, SchemaDriftState } from './schema-drift.js';
 import { readBackupHealth } from './backup-health.repository.js';
+import { readGrowthHealth } from './growth-health.repository.js';
+import type { GrowthCheckState } from './growth-health.js';
 import type { BackupCheckState } from './backup-health.js';
 import { ALERT_NOTIFIER } from './alerts.js';
 import type { AlertNotifier } from './alerts.js';
@@ -47,6 +49,8 @@ import type { OriginTlsCheck } from './origin-tls.js';
  *   it has more than 14 days left, `fail` at 14 or fewer or when unreadable, `not_configured`
  *   without `ORIGIN_TLS_PROBE_ADDRESS`. Reported only (plus a daily operator alert), never a 503:
  *   the API answering here is itself proof the origin serves, and a 503 would not renew anything.
+ * - **growth** — GROWTH-FIX: the platform growth figures' age (`growth-health.ts`): `ok` inside
+ *   26 h, `stale` past it or never computed, `not_configured` when unreadable. Reported only.
  * - **realtime** — `ok` when the in-process socket is attached (`realtimeSocketUrl` set), else
  *   `not_configured`. Reported only.
  *
@@ -71,6 +75,7 @@ export interface DeepHealthReport {
     readonly schema: CheckState;
     readonly backups: BackupCheckState;
     readonly origin_tls: OriginTlsCheck;
+    readonly growth: GrowthCheckState;
     readonly realtime: 'ok' | 'not_configured';
   };
   readonly checkedAt: string;
@@ -116,6 +121,7 @@ export async function evaluateDeepHealth(
   schema: SchemaDriftState = 'not_configured',
   backups: BackupCheckState = 'not_configured',
   originTls: OriginTlsCheck = { state: 'not_configured' },
+  growth: GrowthCheckState = 'not_configured',
 ): Promise<DeepHealthReport> {
   let database: CheckState = 'ok';
   let migrations: CheckState = 'ok';
@@ -144,7 +150,8 @@ export async function evaluateDeepHealth(
 
   const realtime = config.realtimeSocketUrl ? 'ok' : 'not_configured';
 
-  // By design only these four decide the 503; origin_tls, backups, scanner and realtime report.
+  // By design only these four decide the 503; origin_tls, backups, growth, scanner and realtime
+  // report.
   const failed = [database, migrations, worker, schema].includes('fail');
   return {
     status: failed ? 'fail' : 'ok',
@@ -156,6 +163,7 @@ export async function evaluateDeepHealth(
       schema,
       backups,
       origin_tls: originTls,
+      growth,
       realtime,
     },
     checkedAt: now.toISOString(),
@@ -252,6 +260,7 @@ export class DeepHealthController {
       const schema = await this.schemaDrift.fresh();
       const backups = await readBackupHealth(this.database, new Date(now));
       const originTls = await this.originTls.check(new Date(now));
+      const growth = await readGrowthHealth(this.database, new Date(now));
       this.cached = {
         at: now,
         report: await evaluateDeepHealth(
@@ -261,6 +270,7 @@ export class DeepHealthController {
           schema.state,
           backups,
           originTls,
+          growth,
         ),
       };
     }

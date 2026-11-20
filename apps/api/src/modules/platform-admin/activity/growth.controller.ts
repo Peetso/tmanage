@@ -65,7 +65,7 @@ export class PlatformGrowthController {
       platformCapMicroUsd: this.capMicroUsd,
       now,
     });
-    return buildGrowthView(query, rows, figures);
+    return buildGrowthView(query, rows, figures, now);
   }
 
   @Get('export.csv')

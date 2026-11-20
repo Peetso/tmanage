@@ -1,4 +1,6 @@
 import type { RowDataPacket } from 'mysql2';
+import { growthFreshness } from '@tmanage/domain';
+import type { GrowthFreshness } from '@tmanage/domain';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
 import { ApiError } from '../../../common/http/errors.js';
 import { escapeCsvCell } from '../../audit/audit-export-csv.js';
@@ -68,6 +70,11 @@ export interface GrowthView {
   readonly to: string;
   /** When the newest row in range was computed; `null` before the first run. */
   readonly computedAt: string | null;
+  /**
+   * GROWTH-FIX: whether `computedAt` is current (the domain's 26 h window); `none` before the
+   * first run. The server decides it, so the page never guesses from a clock (§1.2).
+   */
+  readonly freshness: GrowthFreshness;
   readonly tiles: {
     readonly signups: number;
     readonly activationRate7d: number | null;
@@ -320,6 +327,7 @@ export function buildGrowthView(
   query: GrowthQuery,
   all: readonly GrowthRollup[],
   figures: GrowthFigures,
+  now: Date,
 ): GrowthView {
   const rows = all.filter((r) => !HIDDEN_METRICS.includes(r.metric));
   const of = (metric: string, dimension?: string) =>
@@ -385,6 +393,10 @@ export function buildGrowthView(
     from: query.from,
     to: query.to,
     computedAt: computed[computed.length - 1] ?? null,
+    freshness: growthFreshness(
+      computed.length === 0 ? null : new Date(computed[computed.length - 1] as string),
+      now,
+    ),
     tiles: {
       signups: total('signups', ''),
       activationRate7d: weighted(of('activation_7d_rate', '')),

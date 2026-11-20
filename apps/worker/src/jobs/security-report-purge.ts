@@ -90,27 +90,3 @@ export async function purgeSecurityReports(deps: {
   await deps.store.audit(deleted, cutoff);
   return { deleted, cutoff: cutoff.toISOString(), capped };
 }
-
-/** Loop mode: one pass now and one every {@link SECURITY_REPORT_PURGE_INTERVAL_MS}; stops on `signal`. */
-export async function runSecurityReportPurgeLoop(
-  store: SecurityReportPurgeStore,
-  signal: AbortSignal,
-  onError: (error: unknown) => void = (error) =>
-    console.error('[worker] security report purge failed', error),
-  intervalMs = SECURITY_REPORT_PURGE_INTERVAL_MS,
-): Promise<void> {
-  while (!signal.aborted) {
-    try {
-      const result = await purgeSecurityReports({ store });
-      if (result.deleted > 0) {
-        console.warn(`[worker] security report purge: ${String(result.deleted)} row(s) removed`);
-      }
-    } catch (error) {
-      onError(error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, intervalMs);
-      signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
-    });
-  }
-}

@@ -147,31 +147,3 @@ export async function sweepNotificationDigests(
   }
   return { recipients: recipients.length, due, sent, failed };
 }
-
-/** Loop mode: one sweep every {@link DIGEST_INTERVAL_MS} until `signal` aborts. */
-export async function runNotificationDigestLoop(
-  store: NotificationDigestStore,
-  mailer: DigestMailer,
-  signal: AbortSignal,
-): Promise<void> {
-  while (!signal.aborted) {
-    try {
-      await sweepNotificationDigests(store, mailer, new Date(), (error) =>
-        console.error('[worker] notification digest: one member failed', error),
-      );
-    } catch (error) {
-      console.error('[worker] notification digest sweep failed', error);
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, DIGEST_INTERVAL_MS);
-      signal.addEventListener(
-        'abort',
-        () => {
-          clearTimeout(timer);
-          resolve();
-        },
-        { once: true },
-      );
-    });
-  }
-}
