@@ -149,6 +149,8 @@ GitHub Actions cannot start until billing is fixed, so today `pnpm verify` and `
 | UX-23 | Story naming `<Screen>/Loading\|Empty\|Error\|Unknown` checked by a script, plus VR shots                                                                          | script, vr      | B      |
 | UX-24 | `copy-lint.mjs`: Title Case labels; context-free link text                                                                                                         | script          | B      |
 
+UX-23 also has one **E** check since QA-FIX-S (2026-11-20), for form errors: `eslint.config.js` (forms block) fails any `<form>` in `apps/web/src` or `packages/ui/src` without `noValidate`, so the browser's untranslated, unlinked bubble can never pre-empt the app's own message (WCAG 2.2 Understanding 3.3.1, "User agent native HTML form validation"; GOV.UK Design System, Validation). A form whose markup constraints were its only check reports them through `apps/web/src/lib/forms/form-check.tsx` (`aria-invalid`, `aria-describedby`, focus on the first field; test `apps/web/tests/m2-form-check.test.tsx`).
+
 ### §IP: IMPLEMENTATION-PATTERNS (17 patterns)
 
 | Rule  | Check (path or spec)                                                                                                               | Runs in    | Status |

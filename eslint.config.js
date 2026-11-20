@@ -200,6 +200,38 @@ export default tseslint.config(
     },
   },
 
+  // ── Forms: the app reports its own validation, never the browser's bubble ────
+  //
+  // QA-FIX-S (M2 class). A `<form>` without `noValidate` lets the browser's own check stop the
+  // submit: its bubble is in the browser's language rather than the page's, is not linked to
+  // the field, does not scale with zoom, and blocks the app's own message (WCAG 2.2
+  // Understanding 3.3.1, "User agent native HTML form validation"; GOV.UK Design System,
+  // Validation, "Turn off HTML5 validation"). Constraints stay in the markup; a form with no
+  // check of its own reports them through `apps/web/src/lib/forms/form-check.tsx`.
+  // `no-restricted-syntax` replaces rather than extends the workspace rule, so the
+  // browser-storage selector is restated here.
+  {
+    files: ['apps/web/src/**/*.tsx', 'packages/ui/src/**/*.tsx'],
+    ignores: ['**/*.test.tsx', '**/*.stories.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.name='localStorage'], MemberExpression[object.name='sessionStorage']",
+          message:
+            'Browser storage is never authoritative business state (15-AI-EXECUTION-HANDBOOK §8). Use the API and TanStack Query cache.',
+        },
+        {
+          selector:
+            "JSXOpeningElement[name.name='form']:not(:has(JSXAttribute[name.name='noValidate']))",
+          message:
+            'Every <form> carries noValidate, so the app shows its own translated, linked error messages instead of the browser bubble (QA-FIX-S M2; WCAG 3.3.1; GOV.UK validation pattern). A form with no check of its own uses useFormCheck from lib/forms/form-check.',
+        },
+      ],
+    },
+  },
+
   // ── Boundary: the database handle is unreachable from feature code ──────────
   //
   // 25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC §6, and layer 4 of ADR-0001:
