@@ -888,6 +888,14 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'approval',
     clause: '§12 — a newer version cancelled an approval still waiting on an older one',
   },
+  /**
+   * QA-FIX-O H1. "Resend email" on a pending approval: the approval-request e-mail was queued
+   * again for its approvers (ids only: the send's id and how many approvers).
+   */
+  'approval.email_resent': {
+    objectType: 'approval',
+    clause: '§12 disclosure — e-mailing a client person again about a version to decide',
+  },
   /** 52-19. An approval's evidence bundle (record PDF, approved file, chain proof) was downloaded. */
   'approval.evidence_exported': {
     objectType: 'approval',
@@ -1919,6 +1927,7 @@ const AUDIT_ACTION_LABELS = {
   'approval.changes_requested': 'Requested changes on a deliverable',
   'approval.invalidated': 'Cancelled an approval after a new version',
   'approval.evidence_exported': 'Downloaded the evidence of an approval',
+  'approval.email_resent': 'Sent the approval e-mail again',
   'member.password_reset_sent': 'Sent a member a password reset',
   'member.profile_updated': 'Updated their own profile',
   'document.renamed': 'Renamed a document',

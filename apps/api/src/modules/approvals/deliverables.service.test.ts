@@ -47,6 +47,8 @@ const pending = {
   projectId: 'p-1',
 };
 
+const NOW = new Date('2026-11-20T08:20:00.000Z');
+
 function build(sharingRefuses = false) {
   const db = {
     transaction: (_c: unknown, w: (tx: never) => unknown) => w({} as never),
@@ -74,6 +76,7 @@ function build(sharingRefuses = false) {
         {
           userId: 'c-1',
           displayName: 'Youssef',
+          email: 'youssef+atlas@example.com',
           role: 'client_reviewer',
           clientOrganizationName: 'Atlas',
         },
@@ -109,6 +112,11 @@ function build(sharingRefuses = false) {
       })),
     },
     outbox: { append: vi.fn() },
+    // QA-FIX-O H1: the per-approver e-mail rows (0387).
+    emailSends: {
+      insertQueued: vi.fn(async (_t: unknown, _c: unknown, _rows: readonly object[]) => undefined),
+      listForApprovals: vi.fn(async (): Promise<readonly object[]> => []),
+    },
     projects: { findById: vi.fn(async () => ({ id: 'p-1', archivedAt: null })) },
     // Q3: the real metadata rule runs, so an unsafe key or value fails the test.
     audit: {
@@ -139,6 +147,8 @@ function build(sharingRefuses = false) {
           ? Promise.reject(new ApiError(409, 'conflict', 'not shareable'))
           : Promise.resolve(),
     } as never,
+    repos.emailSends as never,
+    () => NOW,
   );
   return { service, ...repos };
 }
@@ -396,7 +406,139 @@ describe('DeliverablesService (0211)', () => {
         approval_id: 'a-2',
         reviewer_count: 1,
         due_date: '2026-08-18',
+        notify: false,
       },
     });
+  });
+});
+
+describe('approval e-mail delivery state and "Resend email" (QA-FIX-O H1)', () => {
+  const pendingOnV2 = {
+    id: 'a-2',
+    state: 'requested',
+    version: 3,
+    deliverableId: 'd-1',
+    deliverableVersionId: 'v-2',
+    projectId: 'p-1',
+    reviewerIds: ['c-1'],
+    feedback: null,
+    decidedAt: null,
+  };
+  const row = (state: string, createdAt: Date, extra: object = {}) => ({
+    id: `s-${state}`,
+    approvalId: 'a-2',
+    sendId: 'send-1',
+    recipientUserId: 'c-1',
+    requestedByUserId: 'u-1',
+    state,
+    cause: null,
+    createdAt,
+    settledAt: state === 'queued' ? null : NOW,
+    ...extra,
+  });
+
+  it('a re-send of v2 with "Email the approver now" queues one row per approver and names it on the event', async () => {
+    const { service, emailSends, outbox, audit } = build();
+    await service.send(ctx, admin, 'd-1', 'v-2', {
+      approverIds: ['c-1'],
+      dueDate: null,
+      checkNote: null,
+      notify: true,
+    });
+    const rows = emailSends.insertQueued.mock.calls[0]?.[2] as unknown as readonly {
+      id: string;
+      recipientUserId: string;
+      approvalId: string;
+    }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ approvalId: 'a-2', recipientUserId: 'c-1' });
+    expect(outbox.append.mock.calls[0]?.[2]).toMatchObject({
+      type: 'approval.requested.v1',
+      payload: { approvalId: 'a-2', emailSendIds: { 'c-1': rows[0]?.id } },
+    });
+    expect(audit.record.mock.calls.at(-1)?.[2]).toMatchObject({ metadata: { notify: true } });
+  });
+
+  it('without "Email the approver now" no row and no event are written', async () => {
+    const { service, emailSends, outbox } = build();
+    await service.send(ctx, admin, 'd-1', 'v-2', {
+      approverIds: ['c-1'],
+      dueDate: null,
+      checkNote: null,
+      notify: false,
+    });
+    expect(emailSends.insertQueued).not.toHaveBeenCalled();
+    expect(outbox.append).not.toHaveBeenCalled();
+  });
+
+  it('the deliverable page names the approver, their address and what happened to the e-mail', async () => {
+    const { service, deliverables, versions, emailSends } = build();
+    deliverables.approvalsFor.mockResolvedValue([pendingOnV2] as never);
+    versions.listForDeliverable.mockResolvedValue([v2]);
+    emailSends.listForApprovals.mockResolvedValue([
+      row('failed', new Date('2026-11-20T08:11:00.000Z')),
+    ]);
+    const detail = await service.detail(ctx, admin, 'd-1');
+    expect(detail.versions[0]?.approval).toMatchObject({
+      reviewers: [
+        {
+          userId: 'c-1',
+          displayName: 'Youssef',
+          email: 'youssef+atlas@example.com',
+          emailState: 'failed',
+        },
+      ],
+      canResendEmail: true,
+    });
+    // A member who may only read sees the state, never the address, and is offered no resend.
+    const reader = { ...admin, role: 'member', hasOrgWideScope: false } as Principal;
+    const read = await service.detail(ctx, reader, 'd-1');
+    expect(read.versions[0]?.approval).toMatchObject({
+      reviewers: [{ email: null, emailState: 'failed' }],
+      canResendEmail: false,
+    });
+  });
+
+  it('a send still on its way blocks a resend (409); once settled, a resend queues a new send', async () => {
+    const queued = build();
+    Object.assign(queued.approvals, { findById: vi.fn(async () => pendingOnV2) });
+    queued.emailSends.listForApprovals.mockResolvedValue([
+      row('queued', new Date(NOW.getTime() - 60_000)),
+    ]);
+    await expect(queued.service.resendEmail(ctx, admin, 'd-1', 'a-2')).rejects.toMatchObject({
+      status: 409,
+      auditCode: 'approval_email_in_flight',
+    });
+    expect(queued.emailSends.insertQueued).not.toHaveBeenCalled();
+
+    const failed = build();
+    const touch = vi.fn(async () => pendingOnV2);
+    Object.assign(failed.approvals, { findById: vi.fn(async () => pendingOnV2), touch });
+    failed.versions.findById.mockResolvedValue(v2);
+    failed.deliverables.approvalsFor.mockResolvedValue([pendingOnV2] as never);
+    failed.emailSends.listForApprovals.mockResolvedValue([
+      row('failed', new Date('2026-11-20T08:11:00.000Z')),
+    ]);
+    await failed.service.resendEmail(ctx, admin, 'd-1', 'a-2');
+    expect(touch).toHaveBeenCalledWith(expect.anything(), ctx, 'a-2', 3);
+    expect(failed.emailSends.insertQueued).toHaveBeenCalledOnce();
+    expect(failed.outbox.append.mock.calls[0]?.[2]).toMatchObject({
+      type: 'approval.requested.v1',
+      payload: { approvalId: 'a-2', reviewerUserIds: ['c-1'] },
+    });
+    expect(failed.audit.record.mock.calls.at(-1)?.[2]).toMatchObject({
+      action: 'approval.email_resent',
+    });
+  });
+
+  it('a decided approval is not resent', async () => {
+    const { service, approvals, emailSends } = build();
+    Object.assign(approvals, {
+      findById: vi.fn(async () => ({ ...pendingOnV2, state: 'approved' })),
+    });
+    await expect(service.resendEmail(ctx, admin, 'd-1', 'a-2')).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(emailSends.insertQueued).not.toHaveBeenCalled();
   });
 });

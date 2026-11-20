@@ -45,6 +45,8 @@ export interface CreateDeliverableInput {
 export interface ClientPersonRow {
   readonly userId: string;
   readonly displayName: string;
+  /** QA-FIX-O H1: the address an approval request is mailed to, for the deliverable page. */
+  readonly email: string;
   readonly role: string;
   readonly clientOrganizationId: string;
   readonly clientOrganizationName: string;
@@ -212,6 +214,7 @@ export class DeliverablesRepository {
       .selectDistinct({
         userId: clientMemberships.userId,
         displayName: users.displayName,
+        email: users.email,
         role: clientMemberships.role,
         clientOrganizationId: clientMemberships.clientOrganizationId,
         clientOrganizationName: clientOrganizations.name,

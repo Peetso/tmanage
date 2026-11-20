@@ -302,6 +302,17 @@ export const approvalsDetails: readonly AiActionDetail[] = [
       },
     ],
   }),
+  det({
+    id: 'approvals.deliverables.resend_email.create',
+    title: 'Resend the approval e-mail',
+    description:
+      'E-mail the approvers of a version that is still waiting for the client again. Refused ' +
+      'while the previous e-mail is still on its way or once the client decided. Confirm-class.',
+    input: pathOnly('deliverableId', 'approvalId'),
+    redact: 'client_safe',
+    notifies: true,
+    examples: [{ summary: 'Resend', args: { deliverableId: 'dlv_1', approvalId: 'apr_1' } }],
+  }),
   // 52-26: simple e-sign. Requests are created and cancelled only with confirmation; the
   // signature itself is never an AI op.
   det({

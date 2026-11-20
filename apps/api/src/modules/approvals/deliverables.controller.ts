@@ -181,4 +181,20 @@ export class DeliverablesController {
       notify: body['notify'] !== false,
     });
   }
+
+  /**
+   * QA-FIX-O H1 — "Resend email": mail the approvers of a pending approval again. 409 while the
+   * previous e-mail is still on its way or once the approval is decided.
+   */
+  @Post(':deliverableId/approvals/:approvalId/resend-email')
+  @HttpCode(201)
+  @RequireCapability('deliverable.publish')
+  async resendEmail(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('deliverableId') deliverableId: string,
+    @Param('approvalId') approvalId: string,
+  ): Promise<DeliverableVersionView> {
+    return this.deliverables.resendEmail(context, principal, deliverableId, approvalId);
+  }
 }

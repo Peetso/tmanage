@@ -2688,6 +2688,13 @@ GRANT SELECT ON `tmanage`.`membership_permission_overrides` TO 'tmanage_worker'@
 -- row on shutdown (UPDATE). No DELETE: the row is reused for ever. The app only reads the holder
 -- tag for `/healthz/deep` (database-wide read). Global table, nothing for `tmanage_erasure`.
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`runtime_leases` TO 'tmanage_worker'@'%';
+-- 0387 (QA-FIX-O H1). `approval_email_sends` (tenant): the delivery state of each approval-request
+-- e-mail. The app inserts one `queued` row per approver beside the `approval.requested.v1` outbox
+-- event (send for approval, resend); it reads the rows for the deliverable page (database-wide
+-- read). The worker settles each row once by a conditional UPDATE (`WHERE … AND state = 'queued'`,
+-- so SELECT beside it). No DELETE for either; the company erasure deletes on `tmanage_erasure`.
+GRANT INSERT ON `tmanage`.`approval_email_sends` TO 'tmanage_app'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`approval_email_sends` TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Erasure user — the company and account erasures, and nothing else
@@ -2731,6 +2738,7 @@ GRANT SELECT, DELETE ON `tmanage`.`ai_workspace_periods` TO 'tmanage_erasure'@'%
 GRANT SELECT, DELETE ON `tmanage`.`ai_workspace_settings` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approval_chain_checks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approval_delegations` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`approval_email_sends` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approval_records` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approval_reviewer_decisions` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`approval_steps` TO 'tmanage_erasure'@'%';

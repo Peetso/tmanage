@@ -4,6 +4,7 @@ import { expectedCeilingGrants } from '@tmanage/test-kit';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import {
+  createCollaborationNotices,
   mayBeTold,
   planApprovalDecidedNotices,
   planApprovalRequestedNotices,
@@ -239,8 +240,15 @@ describe('planApprovalRequestedNotices (NT1)', () => {
       tx,
       null,
     );
-    expect(notices.map((notice) => notice.recipientUserId)).toEqual(['rami']);
-    expect(notices[0]).toMatchObject({
+    const told = notices.filter((notice) => notice.blocked === undefined);
+    expect(told.map((notice) => notice.recipientUserId)).toEqual(['rami']);
+    // QA-FIX-O H1: the picked viewer may not decide, so is told nothing; only their row settles.
+    expect(notices.find((notice) => notice.recipientUserId === 'vera')).toMatchObject({
+      blocked: 'no_access',
+      inApp: null,
+      mailKind: null,
+    });
+    expect(told[0]).toMatchObject({
       mailKind: 'approval_requested',
       inApp: {
         objectType: 'deliverable_version',
@@ -248,6 +256,97 @@ describe('planApprovalRequestedNotices (NT1)', () => {
         dedupeKey: 'approval.requested:apr-1',
       },
     });
+  });
+});
+
+describe('approval.requested.v1 settles each approver e-mail row (QA-FIX-O H1)', () => {
+  const payload = {
+    approvalId: 'apr-2',
+    deliverableId: 'del-1',
+    deliverableVersionId: 'ver-2',
+    projectId: 'proj-1',
+    reviewerUserIds: ['rami', 'gone'],
+    emailSendIds: { rami: 'send-rami', gone: 'send-gone' },
+  };
+  const answer = (sql: string): unknown => {
+    if (sql.includes('FROM client_memberships'))
+      return [{ user_id: 'rami', role: 'client_reviewer' }];
+    if (sql.includes('FROM users u')) {
+      return [
+        {
+          email: 'rami+x@example.com',
+          display_name: 'Rami',
+          locale: 'en',
+          email_enabled: null,
+          quiet_hours_start: null,
+          quiet_hours_end: null,
+          quiet_hours_timezone: null,
+        },
+      ];
+    }
+    if (sql.includes('FROM organizations')) return [{ slug: 'acme', name: 'Acme' }];
+    if (sql.includes('FROM projects')) return [{ name: 'Site' }];
+    return [];
+  };
+  const settles = (calls: { sql: string; params: readonly unknown[] }[]) =>
+    calls.filter((call) => call.sql.includes('UPDATE approval_email_sends'));
+
+  function recordingTx() {
+    const calls: { sql: string; params: readonly unknown[] }[] = [];
+    const tx = {
+      async query(sql: string, params: readonly unknown[] = []): Promise<unknown> {
+        calls.push({ sql, params });
+        if (/^\s*(INSERT|UPDATE)/u.test(sql)) return { affectedRows: 1 };
+        return answer(sql) ?? [];
+      },
+    } as WorkerTransaction;
+    return { tx, calls };
+  }
+
+  it('mails the decider and stamps the SMTP answer on their row; a lost approver is not_sent', async () => {
+    const { tx, calls } = recordingTx();
+    const sent: string[] = [];
+    const mailer = new CollaborationMailer(
+      {
+        async send(message) {
+          sent.push(message.to);
+          return 'sent';
+        },
+      },
+      'https://app.example',
+    );
+    const settled: unknown[] = [];
+    const handler = createCollaborationNotices(planApprovalRequestedNotices, mailer, {
+      async settle(ref, outcome) {
+        settled.push({ ref, outcome });
+      },
+    });
+    const effects: (() => Promise<void>)[] = [];
+    await handler(event('approval.requested.v1', payload), tx, {
+      afterCommit: (effect) => effects.push(effect),
+    });
+    expect(settles(calls).map((call) => call.params)).toEqual([
+      ['not_sent', 'no_access', expect.any(Date), ORG, 'send-gone'],
+    ]);
+    for (const effect of effects) await effect();
+    // The plus address reaches the transport unchanged (H2 residual).
+    expect(sent).toEqual(['rami+x@example.com']);
+    expect(settled).toEqual([
+      {
+        ref: { organizationId: ORG, sendRowId: 'send-rami' },
+        outcome: { state: 'sent', cause: null },
+      },
+    ]);
+  });
+
+  it('with no mail transport, settles the row not_sent instead of leaving it on its way', async () => {
+    const { tx, calls } = recordingTx();
+    const handler = createCollaborationNotices(planApprovalRequestedNotices, null);
+    await handler(event('approval.requested.v1', payload), tx, { afterCommit: () => undefined });
+    expect(settles(calls).map((call) => call.params.slice(0, 2))).toEqual([
+      ['not_sent', 'no_access'],
+      ['not_sent', 'no_transport'],
+    ]);
   });
 });
 

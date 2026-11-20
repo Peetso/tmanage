@@ -38,6 +38,11 @@ import {
 } from '../common/database/collaboration-store.js';
 import type { InternalReach } from '../common/database/collaboration-store.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
+import { settleApprovalEmailSend } from '../common/database/approval-email-send-store.js';
+import type {
+  ApprovalEmailOutcome,
+  ApprovalEmailSettler,
+} from '../common/database/approval-email-send-store.js';
 import type { OutboxHandler } from '../outbox/dispatcher.js';
 import type {
   CollaborationEmailFacts,
@@ -97,6 +102,16 @@ export interface PlannedNotice {
   /** The email, or null for an in-app-only notice (R4: a resolved review thread). */
   readonly mailKind: CollaborationMailKind | null;
   readonly mail: () => Promise<MailSubject | null>;
+  /**
+   * QA-FIX-O H1. The `approval_email_sends` row this notice's e-mail settles (sent, failed or not
+   * sent and why), or absent when the producer keeps no delivery state for it.
+   */
+  readonly emailSendId?: string;
+  /**
+   * QA-FIX-O H1. The producer named this person, but they may no longer be told (no access):
+   * nothing is written or sent; only the delivery row is settled `not_sent`.
+   */
+  readonly blocked?: 'no_access';
 }
 
 export type NoticePlanner = (
@@ -116,6 +131,17 @@ function stringField(payload: Record<string, unknown>, key: string, eventId: str
   const value = payload[key];
   if (typeof value !== 'string') throw new Error(`event ${eventId} has no readable ${key}`);
   return value;
+}
+
+/** A `{ userId: id }` object of strings; anything else in it is ignored. */
+function idMap(payload: Record<string, unknown>, key: string): ReadonlyMap<string, string> {
+  const value = payload[key];
+  const out = new Map<string, string>();
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [userId, id] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof id === 'string' && id !== '') out.set(userId, id);
+  }
+  return out;
 }
 
 function idList(payload: Record<string, unknown>, key: string): readonly string[] {
@@ -763,12 +789,33 @@ export const planApprovalRequestedNotices: NoticePlanner = async (event, tx, mai
   const versionId = stringField(raw, 'deliverableVersionId', event.id);
   const approvalId = typeof raw['approvalId'] === 'string' ? raw['approvalId'] : event.id;
   const picked = new Set(idList(raw, 'reviewerUserIds'));
+  const sendIds = idMap(raw, 'emailSendIds');
+  const withSend = (userId: string) =>
+    sendIds.has(userId) ? { emailSendId: sendIds.get(userId) as string } : {};
 
   const people = await listProjectClientPeople(tx, event.organizationId, projectId);
-  return people
+  const deciders = people
     .filter((person) => mayClientDecide(person.role))
-    .filter((person) => picked.size === 0 || picked.has(person.userId))
-    .map((person): PlannedNotice => ({
+    .filter((person) => picked.size === 0 || picked.has(person.userId));
+  // QA-FIX-O H1: a picked approver who may no longer decide is told nothing, and their e-mail row
+  // says so instead of waiting for ever.
+  const reachable = new Set(deciders.map((person) => person.userId));
+  const blocked = [...picked]
+    .filter((userId) => !reachable.has(userId))
+    .map((userId): PlannedNotice => ({
+      recipientUserId: userId,
+      optOutKind: null,
+      membershipId: null,
+      inApp: null,
+      mailKind: null,
+      mail: async () => null,
+      blocked: 'no_access',
+      ...withSend(userId),
+    }));
+  return [
+    ...blocked,
+    ...deciders.map((person): PlannedNotice => ({
+      ...withSend(person.userId),
       recipientUserId: person.userId,
       optOutKind: null,
       membershipId: null,
@@ -792,7 +839,8 @@ export const planApprovalRequestedNotices: NoticePlanner = async (event, tx, mai
           portal: true,
         };
       },
-    }));
+    })),
+  ];
 };
 
 /**
@@ -970,6 +1018,25 @@ export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
 
 // ─── Delivery ──────────────────────────────────────────────────────────────────
 
+/** QA-FIX-O H1. Settle a notice's delivery row inside the handler's transaction. */
+async function settleInTx(
+  tx: WorkerTransaction,
+  event: ClaimedOutboxEvent,
+  notice: PlannedNotice,
+  outcome: ApprovalEmailOutcome,
+): Promise<void> {
+  if (notice.emailSendId === undefined) return;
+  await settleApprovalEmailSend(
+    tx,
+    { organizationId: event.organizationId, sendRowId: notice.emailSendId },
+    outcome,
+  );
+}
+
+const MAIL_OFF: ApprovalEmailOutcome = { state: 'not_sent', cause: 'mail_off' };
+const NO_ACCESS: ApprovalEmailOutcome = { state: 'not_sent', cause: 'no_access' };
+const NO_TRANSPORT: ApprovalEmailOutcome = { state: 'not_sent', cause: 'no_transport' };
+
 async function stageMail(input: {
   readonly event: ClaimedOutboxEvent;
   readonly tx: WorkerTransaction;
@@ -977,12 +1044,17 @@ async function stageMail(input: {
   readonly mailer: CollaborationMailer;
   readonly notice: PlannedNotice;
   readonly deferForQuietHours: boolean;
+  readonly settler: ApprovalEmailSettler | null;
 }): Promise<void> {
   const { event, tx, effects, mailer, notice } = input;
   const kind = notice.mailKind;
   if (kind === null) return; // In-app only: no email, and nothing to defer past quiet hours.
   const recipient = await findUsageMailRecipient(tx, event.organizationId, notice.recipientUserId);
-  if (recipient === null || !recipient.emailEnabled) return; // Gone, or mail turned off.
+  if (recipient === null || !recipient.emailEnabled) {
+    // Gone, or mail turned off.
+    await settleInTx(tx, event, notice, recipient === null ? NO_ACCESS : MAIL_OFF);
+    return;
+  }
 
   if (input.deferForQuietHours) {
     const now = new Date();
@@ -996,15 +1068,31 @@ async function stageMail(input: {
   }
 
   const subject = await notice.mail();
-  if (subject === null) return;
+  if (subject === null) {
+    await settleInTx(tx, event, notice, NO_ACCESS);
+    return;
+  }
+  const sendRowId = notice.emailSendId;
+  const settler = input.settler;
   effects.afterCommit(async () => {
-    await mailer.deliver(kind, {
+    const delivery = await mailer.deliver(kind, {
       ...subject,
       organizationId: event.organizationId,
       recipientEmail: recipient.email,
       recipientName: recipient.displayName,
       locale: recipient.locale,
     });
+    if (sendRowId === undefined || settler === null) return;
+    const outcome: ApprovalEmailOutcome =
+      delivery === 'none' ? NO_TRANSPORT : { state: delivery, cause: null };
+    try {
+      await settler.settle({ organizationId: event.organizationId, sendRowId }, outcome);
+    } catch (error) {
+      // The mail already went (or did not); losing the stamp leaves the row `queued`, which the
+      // page shows as still on its way and a resend unblocks after the hold. Never re-thrown:
+      // an effect cannot be retried (dispatcher.ts).
+      console.error(`[worker] ${kind} delivery state not recorded`, error);
+    }
   });
 }
 
@@ -1030,17 +1118,33 @@ export async function routeNotice(
   return decideDelivery(type, cell);
 }
 
-/** The original-delivery handler for one event type: plan, then opt-out, in-app, email. */
+/**
+ * The original-delivery handler for one event type: plan, then opt-out, in-app, email.
+ *
+ * QA-FIX-O H1: a notice that names an `approval_email_sends` row always settles it — `not_sent`
+ * with a cause when no e-mail will go (no access, mail off, no transport), else `sent` or `failed`
+ * from the SMTP answer after commit (through `settler`) — so the deliverable page never shows a
+ * send as on its way when nothing is going to happen.
+ */
 export function createCollaborationNotices(
   planner: NoticePlanner,
   mailer: CollaborationMailer | null,
+  settler: ApprovalEmailSettler | null = null,
 ): OutboxHandler {
   const mails = mailer !== null && mailer.enabled ? mailer : null;
   return async (event, tx, effects) => {
     const notices = await planner(event, tx, mails);
     for (const notice of notices) {
+      if (notice.blocked !== undefined) {
+        await settleInTx(tx, event, notice, NO_ACCESS);
+        continue;
+      }
       const route = await routeNotice(tx, event, notice);
-      if (!route.inApp) continue; // The person turned this kind off: neither inbox nor email.
+      if (!route.inApp) {
+        // The person turned this kind off: neither inbox nor email.
+        await settleInTx(tx, event, notice, MAIL_OFF);
+        continue;
+      }
       if (notice.inApp !== null) {
         await insertNotification(tx, {
           organizationId: event.organizationId,
@@ -1048,7 +1152,11 @@ export function createCollaborationNotices(
           ...notice.inApp,
         });
       }
-      if (mails !== null && route.email) {
+      if (mails === null) {
+        await settleInTx(tx, event, notice, NO_TRANSPORT);
+      } else if (!route.email) {
+        await settleInTx(tx, event, notice, MAIL_OFF);
+      } else {
         await stageMail({
           event,
           tx,
@@ -1057,6 +1165,7 @@ export function createCollaborationNotices(
           notice,
           // A `yes-critical` type (domain quiet-hours.ts) interrupts through the window.
           deferForQuietHours: !eventTypeBypassesQuietHours(event.type),
+          settler,
         });
       }
     }
@@ -1073,6 +1182,7 @@ export function createCollaborationNotices(
 export function createCollaborationMailResume(
   mailer: CollaborationMailer,
   planners: Readonly<Record<string, NoticePlanner>> = COLLABORATION_PLANNERS,
+  settler: ApprovalEmailSettler | null = null,
 ): OutboxHandler {
   return async (event, tx, effects) => {
     if (!mailer.enabled) return;
@@ -1086,8 +1196,15 @@ export function createCollaborationMailResume(
     const notices = await planner(original, tx, mailer);
     for (const notice of notices) {
       if (notice.recipientUserId !== recipientUserId) continue;
-      if (!(await routeNotice(tx, original, notice)).email) continue;
-      await stageMail({ event, tx, effects, mailer, notice, deferForQuietHours: false });
+      if (notice.blocked !== undefined) {
+        await settleInTx(tx, event, notice, NO_ACCESS);
+        continue;
+      }
+      if (!(await routeNotice(tx, original, notice)).email) {
+        await settleInTx(tx, event, notice, MAIL_OFF);
+        continue;
+      }
+      await stageMail({ event, tx, effects, mailer, notice, deferForQuietHours: false, settler });
     }
   };
 }

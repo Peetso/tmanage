@@ -193,6 +193,11 @@ export { ClientRequestMailer, mailKindForStatus } from './notifications/client-r
 // relay in-process (the single-process Hostinger server) wires the same three mailers main.ts does.
 export { UsageThresholdMailer } from './notifications/usage-threshold-mailer.js';
 export { PrivacyMailer } from './notifications/privacy-mailer.js';
+// QA-FIX-O H1: the collaboration mailer (approval requests and decisions, mentions, meeting
+// invites, client actions) and the approval e-mail delivery stamp, for the in-process relay too.
+export { CollaborationMailer } from './notifications/collaboration-mailer.js';
+export { createApprovalEmailSettler } from './common/database/approval-email-send-store.js';
+export type { ApprovalEmailSettler } from './common/database/approval-email-send-store.js';
 export type {
   ClientRequestMailDelivery,
   ClientRequestMailKind,

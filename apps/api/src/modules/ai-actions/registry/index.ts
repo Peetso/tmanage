@@ -429,6 +429,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'manage',
   },
   {
+    id: 'approvals.deliverables.resend_email.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/approvals/:approvalId/resend-email',
+    capability: 'deliverable.publish',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
     id: 'audit.events.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/audit/events',

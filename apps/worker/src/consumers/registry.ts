@@ -54,6 +54,7 @@ import type { ClientRequestMailer } from '../notifications/client-request-mailer
 import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
 import type { UsageThresholdMailer } from '../notifications/usage-threshold-mailer.js';
 import type { PrivacyMailer } from '../notifications/privacy-mailer.js';
+import type { ApprovalEmailSettler } from '../common/database/approval-email-send-store.js';
 import { createPrivacyDeletionChangedMail, createPrivacyExportReadyMail } from './privacy-mail.js';
 import {
   CREDENTIAL_CHANGE_NOTICE_TYPE,
@@ -117,6 +118,12 @@ export interface WorkerConsumerDependencies {
   readonly collaborationMailer?: CollaborationMailer | undefined;
   /** H3. Absent or disabled, the two data-rights events have no consumer (published, no mail). */
   readonly privacyMailer?: PrivacyMailer | undefined;
+  /**
+   * QA-FIX-O H1. Stamps each approval-request e-mail's `approval_email_sends` row with the SMTP
+   * answer after commit. Absent, outcomes known before sending are still recorded; sent/failed
+   * stay `queued` (the page says "on its way" and a resend unblocks after the hold).
+   */
+  readonly approvalEmailSettler?: ApprovalEmailSettler | undefined;
 }
 
 export function createWorkerOutboxHandlers(
@@ -138,6 +145,8 @@ export function createWorkerOutboxHandlers(
   const collaborationMails =
     collaborationMailer !== undefined && collaborationMailer.enabled ? collaborationMailer : null;
 
+  const approvalSettler = dependencies.approvalEmailSettler ?? null;
+
   const rootMailer = dependencies.storageRootMailer;
   const rootMails = rootMailer !== undefined && rootMailer.enabled ? rootMailer : null;
 
@@ -148,10 +157,11 @@ export function createWorkerOutboxHandlers(
   if (collaborationMails !== null) {
     // R4 slice 12: a deferred review email re-plans through the review planners too.
     resumeHandlers.push(
-      createCollaborationMailResume(collaborationMails, {
-        ...COLLABORATION_PLANNERS,
-        ...REVIEW_PLANNERS,
-      }),
+      createCollaborationMailResume(
+        collaborationMails,
+        { ...COLLABORATION_PLANNERS, ...REVIEW_PLANNERS },
+        approvalSettler,
+      ),
     );
   }
   const resumeHandler = resumeHandlers.reduce<OutboxHandler | null>(
@@ -231,6 +241,7 @@ export function createWorkerOutboxHandlers(
     'approval.requested.v1': createCollaborationNotices(
       planApprovalRequestedNotices,
       collaborationMails,
+      approvalSettler,
     ),
     // Q3: the client (or a staff reviewer) decided — the sender and the project's deliverable
     // makers get an in-app row and an email that bypasses quiet hours (yes-critical).

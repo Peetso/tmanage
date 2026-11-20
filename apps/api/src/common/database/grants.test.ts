@@ -224,6 +224,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- 62-A3 / 62-A1c ---- +3: the growth rollup reads `ai_tasks` and `ai_usage_ledger`, and
     // the digest briefing reads `membership_permission_overrides`.
     // ---- DC-3 0384 ---- +1: the leader lease reads `runtime_leases` where it claims it.
+    // ---- QA-FIX-O 0387 ---- +1: the approval e-mail stamp reads `approval_email_sends` where it
+    // settles a row (its UPDATE filters by id and state).
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -264,6 +266,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         4 +
         9 +
         3 +
+        1 +
         1,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);

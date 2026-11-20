@@ -20,6 +20,7 @@ import { CONTACT_EMAILS } from '@tmanage/domain';
 // ---- 56-31 ---- the mail priority lanes: the queue store and its drainer.
 import { createMailQueueStore } from './common/database/mail-queue-store.js';
 import { createMailPeopleDirectory } from './common/database/mail-people-store.js';
+import { createApprovalEmailSettler } from './common/database/approval-email-send-store.js';
 import { createBounceRefusalRecorder } from './common/database/bounce-refusal-store.js';
 import { createBounceSuppressionLookup } from './common/database/bounce-suppression-store.js';
 import type { MailQueueStore } from './common/database/mail-queue-store.js';
@@ -658,6 +659,8 @@ async function main(): Promise<void> {
     ),
     // H3 — data export ready, deletion scheduled / cancelled / carried out.
     privacyMailer: new PrivacyMailer(keyed('privacy_notice'), env.WEB_PUBLIC_URL),
+    // QA-FIX-O H1 — the SMTP answer for each approval-request e-mail, for the deliverable page.
+    approvalEmailSettler: createApprovalEmailSettler(database),
   });
   // x31: the notice queue's own registry. Empty when no transport is wired, which drains and
   // stamps rather than growing a tail — see `createWorkerNoticeHandlers`.

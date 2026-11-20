@@ -15179,3 +15179,52 @@ export type RuntimeLeaseRow = typeof runtimeLeases.$inferSelect;
 Object.assign(TABLES, {
   runtime_leases: runtimeLeases,
 });
+
+// ---- QA-FIX-O H1 · approval e-mail delivery state ----
+
+/** `approval_email_sends.state`: what happened to one approver's approval-request e-mail. */
+export const APPROVAL_EMAIL_SEND_STATES = ['queued', 'sent', 'failed', 'not_sent'] as const;
+
+/**
+ * 0387 `approval_email_sends`. One row per approver per send: the API writes it `queued` beside
+ * the `approval.requested.v1` outbox event, the worker settles it once (`sent`, `failed`, or
+ * `not_sent` with a `cause`) with an UPDATE conditional on `state = 'queued'`. Ids, a state and a
+ * cause only, never the address. TENANT; app INSERT; worker SELECT, UPDATE.
+ */
+export const approvalEmailSends = mysqlTable(
+  'approval_email_sends',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    approvalId: char('approval_id', { length: 36 }).notNull(),
+    sendId: char('send_id', { length: 36 }).notNull(),
+    recipientUserId: char('recipient_user_id', { length: 36 }).notNull(),
+    requestedByUserId: char('requested_by_user_id', { length: 36 }).notNull(),
+    state: varchar('state', { length: 16, enum: APPROVAL_EMAIL_SEND_STATES })
+      .notNull()
+      .default('queued'),
+    cause: varchar('cause', { length: 32 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    settledAt: datetime('settled_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_approval_email_sends_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_approval_email_sends_send_recipient').on(
+      table.organizationId,
+      table.sendId,
+      table.recipientUserId,
+    ),
+    index('ix_approval_email_sends_approval').on(
+      table.organizationId,
+      table.approvalId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export type ApprovalEmailSendRow = typeof approvalEmailSends.$inferSelect;
+
+Object.assign(TABLES, {
+  approval_email_sends: approvalEmailSends,
+});

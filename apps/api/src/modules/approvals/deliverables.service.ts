@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { authorize, hasCapability, isClientRole } from '@tmanage/domain';
+import { authorize, hasCapability, isClientRole, uuidv7 } from '@tmanage/domain';
 import type { ApprovalState, Capability, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
@@ -8,6 +8,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import type {
+  ApprovalEmailSendRow,
   ApprovalRow,
   ClientProjectionRow,
   DeliverableRow,
@@ -26,6 +27,13 @@ import { ClientProjectionAlreadyExistsError } from './client-projections.reposit
 import type { ClientProjectionsRepository } from './client-projections.repository.js';
 import { DeliverableNotFoundError } from './deliverables.repository.js';
 import type { DeliverablesRepository } from './deliverables.repository.js';
+import { ApprovalEmailSendsRepository } from './approval-email-sends.repository.js';
+import {
+  approverEmailFacts,
+  newestSendPerRecipient,
+  resendInFlight,
+} from './approval-email-state.js';
+import type { ApprovalEmailCause, ApprovalEmailState } from './approval-email-state.js';
 
 /**
  * 0211 (audit gap 1, APR-01/02) — the studio half of client approval.
@@ -65,8 +73,40 @@ export interface DeliverableVersionView {
     readonly reviewerIds: readonly string[];
     readonly feedback: string | null;
     readonly decidedAt: string | null;
+    /** QA-FIX-O H1: who was asked, at which address, and what happened to their e-mail. */
+    readonly reviewers: readonly ApprovalReviewerView[];
+    /** QA-FIX-O H1: whether "Resend email" may be offered now (AR-9: the API decides). */
+    readonly canResendEmail: boolean;
   } | null;
 }
+
+/** QA-FIX-O H1. One approver of an approval, as the deliverable page shows them. */
+export interface ApprovalReviewerView {
+  readonly userId: string;
+  /** Null when the person no longer belongs to a client of the project. */
+  readonly displayName: string | null;
+  /** Shown only to people who may send for approval; null otherwise or when unknown. */
+  readonly email: string | null;
+  readonly emailState: ApprovalEmailState;
+  readonly emailCause: ApprovalEmailCause | null;
+  readonly emailRequestedAt: string | null;
+  readonly emailSettledAt: string | null;
+}
+
+/** QA-FIX-O H1. What the version list needs to describe each approval's approvers. */
+interface ReviewerFacts {
+  readonly people: ReadonlyMap<string, { readonly displayName: string; readonly email: string }>;
+  readonly sends: readonly ApprovalEmailSendRow[];
+  readonly mayManage: boolean;
+  readonly now: Date;
+}
+
+const NO_REVIEWER_FACTS: ReviewerFacts = {
+  people: new Map(),
+  sends: [],
+  mayManage: false,
+  now: new Date(0),
+};
 
 export interface DeliverableView {
   readonly id: string;
@@ -175,10 +215,28 @@ function toView(
   };
 }
 
+function reviewersOf(approval: ApprovalRow, facts: ReviewerFacts): ApprovalReviewerView[] {
+  const sends = newestSendPerRecipient(facts.sends.filter((s) => s.approvalId === approval.id));
+  return approval.reviewerIds.map((userId) => {
+    const person = facts.people.get(userId);
+    const email = approverEmailFacts(sends.get(userId));
+    return {
+      userId,
+      displayName: person?.displayName ?? null,
+      email: facts.mayManage ? (person?.email ?? null) : null,
+      emailState: email.state,
+      emailCause: email.cause,
+      emailRequestedAt: email.requestedAt,
+      emailSettledAt: email.settledAt,
+    };
+  });
+}
+
 function toVersionView(
   row: DeliverableVersionRow,
   all: readonly ApprovalRow[],
   shared: SharedAt,
+  facts: ReviewerFacts = NO_REVIEWER_FACTS,
 ): DeliverableVersionView {
   const approval = all.find((a) => a.deliverableVersionId === row.id);
   return {
@@ -197,6 +255,15 @@ function toVersionView(
           reviewerIds: approval.reviewerIds,
           feedback: approval.feedback,
           decidedAt: approval.decidedAt ? approval.decidedAt.toISOString() : null,
+          reviewers: reviewersOf(approval, facts),
+          canResendEmail:
+            facts.mayManage &&
+            PENDING.has(approval.state) &&
+            !resendInFlight(
+              facts.sends.filter((s) => s.approvalId === approval.id),
+              approval.reviewerIds,
+              facts.now,
+            ),
         }
       : null,
   };
@@ -215,6 +282,9 @@ export class DeliverablesService {
     private readonly audit?: AuditService,
     /** FIX6 item 1. The one rule that decides whether a file may reach a client. */
     private readonly sharing: ClientFileSharing = new ClientFileSharing(undefined),
+    /** QA-FIX-O H1. The per-approver delivery state of approval-request e-mails (0387). */
+    private readonly emailSends: ApprovalEmailSendsRepository = new ApprovalEmailSendsRepository(),
+    private readonly clock: () => Date = () => new Date(),
   ) {}
 
   async create(
@@ -280,9 +350,10 @@ export class DeliverablesService {
           await this.projections.listByProject(runner, context, row.projectId),
           row.id,
         );
+        const facts = await this.reviewerFacts(runner, context, principal, row.projectId, all);
         return {
           ...toView(row, versions, all, shared),
-          versions: versions.map((v) => toVersionView(v, all, shared)),
+          versions: versions.map((v) => toVersionView(v, all, shared, facts)),
         };
       }),
     );
@@ -461,16 +532,12 @@ export class DeliverablesService {
         });
 
         if (input.notify) {
-          await this.outbox?.append(tx, context, {
-            type: 'approval.requested.v1',
-            aggregateId: approval.id,
-            payload: {
-              approvalId: approval.id,
-              deliverableId: deliverable.id,
-              deliverableVersionId: latest.id,
-              projectId: deliverable.projectId,
-              reviewerUserIds: approverIds,
-            },
+          await this.requestEmail(tx, context, principal, {
+            approvalId: approval.id,
+            deliverableId: deliverable.id,
+            deliverableVersionId: latest.id,
+            projectId: deliverable.projectId,
+            reviewerUserIds: approverIds,
           });
         }
         await this.deliverables.touch(tx, context, deliverable.id);
@@ -484,6 +551,7 @@ export class DeliverablesService {
             approval_id: approval.id,
             reviewer_count: approverIds.length,
             due_date: input.dueDate,
+            notify: input.notify,
           },
         });
 
@@ -599,6 +667,166 @@ export class DeliverablesService {
   }
 
   /** The deliverable's newest version, which must be `versionId`; an older one is a 409. */
+  /**
+   * QA-FIX-O H1 — "Resend email" on a pending approval. Writes a new send (one `queued` row per
+   * approver) and a new `approval.requested.v1` event in one transaction; the worker's in-app row
+   * is keyed by the approval, so the approver's inbox gets no duplicate, only the e-mail goes again.
+   *
+   * DA-1: two resends racing would both see nothing in flight and mail twice (lost update on the
+   * approval's send state). `approvals.touch` is a conditional `UPDATE … WHERE version = ?`, so
+   * the second commits nothing and gets 409. A resend while the previous send is still queued
+   * (younger than `RESEND_HOLD_MS`) is refused with 409 too: that is the natural key HT-4 asks for.
+   */
+  async resendEmail(
+    context: TenantContext,
+    principal: Principal,
+    deliverableId: string,
+    approvalId: string,
+  ): Promise<DeliverableVersionView> {
+    return this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const deliverable = await this.deliverables.requireById(tx, context, deliverableId);
+        this.require(principal, 'deliverable.publish', context, deliverable.projectId);
+        this.require(principal, 'deliverable.review', context, deliverable.projectId);
+        const approval = await this.approvals.findById(tx, context, approvalId);
+        if (!approval || approval.deliverableId !== deliverable.id) {
+          throw notFound('approval_not_found');
+        }
+        if (!PENDING.has(approval.state)) {
+          throw new ApiError(
+            409,
+            'conflict',
+            'This approval is no longer waiting for the client',
+            undefined,
+            'approval_not_pending',
+          );
+        }
+        const sends = await this.emailSends.listForApprovals(tx, context, [approval.id]);
+        if (resendInFlight(sends, approval.reviewerIds, this.clock())) {
+          throw new ApiError(
+            409,
+            'conflict',
+            'The e-mail is still on its way. Try again in a few minutes',
+            undefined,
+            'approval_email_in_flight',
+          );
+        }
+        await this.approvals.touch(tx, context, approval.id, approval.version);
+        const sendId = await this.requestEmail(tx, context, principal, {
+          approvalId: approval.id,
+          deliverableId: deliverable.id,
+          deliverableVersionId: approval.deliverableVersionId,
+          projectId: deliverable.projectId,
+          reviewerUserIds: approval.reviewerIds,
+        });
+        await this.audit?.record(tx, context, {
+          action: 'approval.email_resent',
+          objectId: approval.id,
+          result: 'allowed',
+          metadata: {
+            deliverable_id: deliverable.id,
+            send_id: sendId,
+            reviewer_count: approval.reviewerIds.length,
+          },
+        });
+
+        const version = await this.versions.findById(tx, context, approval.deliverableVersionId);
+        if (!version) throw notFound('deliverable_not_found');
+        const all = await this.deliverables.approvalsFor(tx, context, deliverable.id);
+        const shared = sharedAtFor(
+          await this.projections.listByProject(tx, context, deliverable.projectId),
+          deliverable.id,
+        );
+        const facts = await this.reviewerFacts(tx, context, principal, deliverable.projectId, all);
+        return toVersionView(version, all, shared, facts);
+      }),
+    );
+  }
+
+  /**
+   * QA-FIX-O H1 — one approval-request e-mail send: a `queued` row per approver and the outbox
+   * event naming them, in the caller's transaction (AS-1). Returns the send id.
+   */
+  private async requestEmail(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    input: {
+      readonly approvalId: string;
+      readonly deliverableId: string;
+      readonly deliverableVersionId: string;
+      readonly projectId: string;
+      readonly reviewerUserIds: readonly string[];
+    },
+  ): Promise<string> {
+    const sendId = uuidv7();
+    const createdAt = this.clock();
+    const rows = input.reviewerUserIds.map((recipientUserId) => ({
+      id: uuidv7(),
+      approvalId: input.approvalId,
+      sendId,
+      recipientUserId,
+      requestedByUserId: principal.userId,
+      createdAt,
+    }));
+    await this.emailSends.insertQueued(tx, context, rows);
+    await this.outbox?.append(tx, context, {
+      type: 'approval.requested.v1',
+      aggregateId: input.approvalId,
+      payload: {
+        ...input,
+        reviewerUserIds: [...input.reviewerUserIds],
+        emailSendIds: Object.fromEntries(rows.map((row) => [row.recipientUserId, row.id])),
+      },
+    });
+    return sendId;
+  }
+
+  /** QA-FIX-O H1 — the approvers' names, addresses and e-mail rows for a deliverable's approvals. */
+  private async reviewerFacts(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    all: readonly ApprovalRow[],
+  ): Promise<ReviewerFacts> {
+    const people = new Map<string, { displayName: string; email: string }>();
+    if (all.length > 0) {
+      for (const person of await this.deliverables.clientPeopleFor(runner, context, projectId)) {
+        people.set(person.userId, { displayName: person.displayName, email: person.email });
+      }
+    }
+    const sends = await this.emailSends.listForApprovals(
+      runner,
+      context,
+      all.map((a) => a.id),
+    );
+    return {
+      people,
+      sends,
+      mayManage: this.may(principal, 'deliverable.publish', context, projectId),
+      now: this.clock(),
+    };
+  }
+
+  private may(
+    principal: Principal,
+    capability: Capability,
+    context: TenantContext,
+    projectId: string,
+  ): boolean {
+    return authorize({
+      principal,
+      capability,
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'client_visible',
+        lifecycle: 'active',
+      },
+    }).allowed;
+  }
+
   private async newestVersion(
     tx: TenantQueryRunner,
     context: TenantContext,

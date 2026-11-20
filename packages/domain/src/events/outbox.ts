@@ -725,6 +725,13 @@ export interface ApprovalRequestedV1 {
   readonly deliverableVersionId: string;
   readonly projectId: string;
   readonly reviewerUserIds: readonly string[];
+  /**
+   * QA-FIX-O H1. The `approval_email_sends` rows of this send, one per approver, keyed by user id.
+   * The worker stamps each with what happened to that approver's e-mail (sent, failed, not sent).
+   * Optional: events written before it existed carry none (DA-6), and a send without "Email the
+   * approver now" writes no event at all.
+   */
+  readonly emailSendIds?: Readonly<Record<string, string>>;
 }
 
 /**

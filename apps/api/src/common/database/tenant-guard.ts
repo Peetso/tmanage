@@ -1406,6 +1406,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   ai_usage_ledger: 'organization_id',
   ai_workspace_settings: 'organization_id',
   ai_credit_packs: 'organization_id',
+  // 0387 (QA-FIX-O H1). Tenant-owned: what happened to each approval-request e-mail of a company's
+  // approvals. No foreign key, so the company erasure may empty it in any order.
+  approval_email_sends: 'organization_id',
 });
 
 /**

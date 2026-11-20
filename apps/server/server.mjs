@@ -374,6 +374,8 @@ async function startInProcessWorker(
     StorageRootMailer,
     CredentialChangeMailer,
     PrivacyMailer,
+    CollaborationMailer,
+    createApprovalEmailSettler,
     writeHeartbeat,
     readHeartbeat,
     createEmailSuppressionLookup,
@@ -446,6 +448,16 @@ async function startInProcessWorker(
     storageRootMailer: new StorageRootMailer(notificationTransport),
     // H3 — data export ready, deletion scheduled / cancelled / carried out.
     privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
+    // QA-FIX-O H1: approval requests and decisions, mentions, meeting invites, project adds and
+    // client actions. Missing here, live wrote those notices to the inbox and mailed none of them
+    // (relay-mailers.test.mjs keeps this list equal to apps/worker/src/main.ts).
+    collaborationMailer: new CollaborationMailer(
+      notificationTransport === null
+        ? null
+        : withTemplateKey(notificationTransport, 'collaboration_notice'),
+      env.WEB_PUBLIC_URL,
+    ),
+    approvalEmailSettler: createApprovalEmailSettler(database),
   });
   // R7 slice 5: link previews ride `message.created.v1`, with the card frame when sockets run.
   // DC-3 / RT-2: no chat or work frames here — every copy's realtime tail sends those
