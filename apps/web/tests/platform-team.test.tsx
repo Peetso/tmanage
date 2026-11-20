@@ -37,6 +37,7 @@ function me(overrides: Partial<PlatformMeView> = {}): PlatformMeView {
     email: 'peter@peetrix.com',
     displayName: 'Peter',
     mfaEnabled: true,
+    stepUpNeedsAuthenticatorCode: true,
     stepUpExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
     stepUpMinutes: 15,
     source: 'env',

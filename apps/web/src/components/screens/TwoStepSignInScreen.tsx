@@ -185,10 +185,6 @@ export function TwoStepSignInScreen({
   });
 
   const view = factors.data;
-  const totp = view?.factors.find(
-    (factor) => factor.kind === 'totp' && factor.confirmedAt !== null,
-  );
-
   // Back to Preferences, where the Two-step sign-in row that opened this page lives.
   const securityHref = `/${organizationSlug}/preferences`;
 
@@ -209,7 +205,7 @@ export function TwoStepSignInScreen({
     body = (
       <StepUpCard
         api={api}
-        needsCode={totp !== undefined}
+        needsCode={view.reauthNeedsAuthenticatorCode}
         cancelHref={securityHref}
         onConfirmed={(token) => {
           reauthToken.current = token;

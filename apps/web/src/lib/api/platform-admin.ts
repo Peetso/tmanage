@@ -14,6 +14,11 @@ export interface PlatformMeView {
   readonly email: string;
   readonly displayName: string;
   readonly mfaEnabled: boolean;
+  /**
+   * STEPUPFIX. Whether the step-up wants the 6-digit authenticator code with the password. False
+   * for two-step by e-mail codes only (no code is mailed for a step-up). The server's rule.
+   */
+  readonly stepUpNeedsAuthenticatorCode: boolean;
   readonly stepUpExpiresAt: string | null;
   readonly stepUpMinutes: number;
   // ---- platform-admin v2 · PA-02 ----

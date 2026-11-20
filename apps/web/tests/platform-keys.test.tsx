@@ -17,6 +17,7 @@ const ME: PlatformMeView = {
   email: 'peter@peetrix.com',
   displayName: 'Peter',
   mfaEnabled: true,
+  stepUpNeedsAuthenticatorCode: true,
   stepUpExpiresAt: new Date(Date.now() + 9 * 60_000).toISOString(),
   stepUpMinutes: 15,
   source: 'env',

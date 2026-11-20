@@ -136,6 +136,11 @@ export interface FactorsView {
   readonly factors: readonly EnrolledFactor[];
   readonly recoveryCodesRemaining: number;
   readonly email: FactorMailContact;
+  /**
+   * STEPUPFIX. Whether `POST /v1/auth/reauth` wants the authenticator code with the password —
+   * the server's rule. False for two-step by e-mail codes only: no code is mailed for it.
+   */
+  readonly reauthNeedsAuthenticatorCode: boolean;
 }
 
 export async function listFactors(client: ApiClient): Promise<FactorsView> {

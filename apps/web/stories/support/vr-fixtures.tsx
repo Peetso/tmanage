@@ -510,6 +510,7 @@ const NO_FACTORS: FactorsView = {
   factors: [],
   recoveryCodesRemaining: 0,
   email: { address: 'o***@northstar.studio', verified: true },
+  reauthNeedsAuthenticatorCode: false,
 };
 
 /** The three reads the profile & preferences page seeds from: profile, language row, factors. */

@@ -11,6 +11,7 @@ import { appLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { listFactors } from '../../lib/api/auth';
 import {
   addPasskey,
   getSecurityScore,
@@ -82,6 +83,9 @@ export function SignInSecurityScreen({
 
   const score = useQuery({ queryKey: ['security-score'], queryFn: () => getSecurityScore(api) });
   const passkeys = useQuery({ queryKey: ['passkeys'], queryFn: () => listPasskeys(api) });
+  // STEPUPFIX: the step-up asks for a code only when the server will (an authenticator app);
+  // two-step by e-mail codes confirms with the password alone.
+  const factors = useQuery({ queryKey: ['auth', 'factors'], queryFn: () => listFactors(api) });
   const devices = useQuery({
     queryKey: ['security-devices'],
     queryFn: () => listSecurityDevices(api),
@@ -114,7 +118,6 @@ export function SignInSecurityScreen({
     },
   });
   const act = (action: Action) => run.mutate({ action, token: proof });
-  const twoStepOn = score.data?.checks.some((c) => c.id === 'two_step' && c.passed) ?? false;
   const passed = score.data?.checks.filter((c) => c.passed).length ?? 0;
   const showError =
     run.isError &&
@@ -323,7 +326,7 @@ export function SignInSecurityScreen({
         <Dialog title={tr(`${K}.reauthTitle`, 'Confirm it is you')} onClose={() => setStepUp(null)}>
           <StepUpForm
             api={api}
-            needsCode={twoStepOn}
+            needsCode={factors.data?.reauthNeedsAuthenticatorCode ?? false}
             onCancel={() => setStepUp(null)}
             onConfirmed={(token) => {
               const action = stepUp;

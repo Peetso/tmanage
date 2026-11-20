@@ -9,6 +9,7 @@ interface Call {
   method: string;
   url: string;
   reauth: string | null;
+  body: string | null;
 }
 
 function mount(route: (call: Call) => { status: number; body?: unknown }) {
@@ -22,6 +23,7 @@ function mount(route: (call: Call) => { status: number; body?: unknown }) {
         method: init?.method ?? 'GET',
         url: String(input),
         reauth: headers.get('x-reauth-token'),
+        body: typeof init?.body === 'string' ? init.body : null,
       };
       calls.push(call);
       const { status, body } = route(call);
@@ -81,7 +83,18 @@ const devices = [
   },
 ];
 
-function routes(call: Call) {
+/** STEPUPFIX: the server's "does reauth want an authenticator code" flag, per case. */
+function factorsView(reauthNeedsAuthenticatorCode: boolean) {
+  return {
+    factors: [],
+    recoveryCodesRemaining: 10,
+    email: { address: 'o***@northstar.studio', verified: true },
+    reauthNeedsAuthenticatorCode,
+  };
+}
+
+function routes(call: Call, needsCode = true) {
+  if (call.url.endsWith('/v1/auth/factors')) return { status: 200, body: factorsView(needsCode) };
   if (call.url.endsWith('/security-score')) return { status: 200, body: score };
   if (call.url.endsWith('/passkeys'))
     return {
@@ -146,6 +159,24 @@ describe('SignInSecurityScreen (56-22)', () => {
         ),
       ).toBe(true),
     );
+  });
+
+  it('STEPUPFIX: two-step by e-mail codes confirms with the password alone, no code field', async () => {
+    const calls = mount((call) => routes(call, false));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    fireEvent.change(await screen.findByLabelText('Password'), { target: { value: 'pw' } });
+    expect(screen.queryByLabelText('Code from your authenticator app')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === 'DELETE' && c.url.endsWith('/v1/sessions/s2') && c.reauth === 'proof-1',
+        ),
+      ).toBe(true),
+    );
+    const reauth = calls.find((c) => c.url.endsWith('/v1/auth/reauth'));
+    expect(JSON.parse(reauth?.body ?? '{}')).toEqual({ password: 'pw' });
   });
 
   it('round-trips base64url', () => {

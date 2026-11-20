@@ -168,11 +168,15 @@ export function stepUpWindow(minutes: number): { readonly count: number; readonl
 
 export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) {
   const t = useT();
+  // STEPUPFIX: the code field follows the server's rule, not `mfaEnabled` — a person whose
+  // two-step is by e-mail codes confirms with the password alone, and no code is ever mailed.
+  const needsCode = me.stepUpNeedsAuthenticatorCode;
   const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const confirm = useMutation({
-    mutationFn: () => stepUpPlatform(api, me.mfaEnabled ? { password, code } : { password }),
+    mutationFn: () =>
+      stepUpPlatform(api, needsCode ? { password, code: code.replace(/\D/gu, '') } : { password }),
     onSuccess: async () => {
       setPassword('');
       setCode('');
@@ -199,13 +203,14 @@ export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) 
       </div>
       <p className="tm-cc-note">
         {t('PlatformAdminScreens.stepUpNote1')}
-        {me.mfaEnabled ? ` ${t('PlatformAdminScreens.stepUpAndCode')}` : ''}{' '}
+        {needsCode ? ` ${t('PlatformAdminScreens.stepUpAndAuthenticatorCode')}` : ''}{' '}
         {t('PlatformAdminScreens.stepUpNote2')} {stepUpWindow(me.stepUpMinutes).count}{' '}
         {t(
           stepUpWindow(me.stepUpMinutes).hours
             ? 'PlatformAdminScreens.stepUpHoursWord'
             : 'PlatformAdminScreens.stepUpMinutesWord',
         )}
+        {!needsCode && me.mfaEnabled ? ` ${t('PlatformAdminScreens.stepUpEmailTwoStepNote')}` : ''}
       </p>
       <form className="tm-stack tm-stack--tight" onSubmit={submit}>
         <Field
@@ -216,9 +221,11 @@ export function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) 
           onChange={(event) => setPassword(event.target.value)}
           required
         />
-        {me.mfaEnabled ? (
+        {needsCode ? (
           <Field
-            label={t('PlatformAdminScreens.twoStepCodeLabel')}
+            label={t('PlatformAdminScreens.authenticatorCodeLabel')}
+            hint={t('PlatformAdminScreens.authenticatorCodeHint')}
+            dir="ltr"
             inputMode="numeric"
             autoComplete="one-time-code"
             value={code}

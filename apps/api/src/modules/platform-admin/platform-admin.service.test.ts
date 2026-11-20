@@ -68,7 +68,10 @@ function harness() {
     },
   } as unknown as PlatformAdminRepository;
   const resets = { request: vi.fn(async () => ({})) };
-  const core = new PlatformAdminService(repository, { confirmReauthentication: async () => ({}) });
+  const core = new PlatformAdminService(repository, {
+    confirmReauthentication: async () => ({}),
+    reauthenticationNeedsAuthenticatorCode: async () => true,
+  });
   const organizations = new PlatformOrganizationsService(repository);
   // ---- platform-admin v2 · PA-06 ---- People reads the person through its own repository.
   const peopleRepository = {
@@ -184,6 +187,26 @@ describe('PlatformAdminService', () => {
     });
   });
 
+  it('STEPUPFIX: me says whether the step-up wants an authenticator code, from the reauth rule', async () => {
+    const { repository } = harness();
+    const asked: unknown[] = [];
+    const meFor = (needsCode: boolean) =>
+      new PlatformAdminService(repository, {
+        confirmReauthentication: async () => ({}),
+        reauthenticationNeedsAuthenticatorCode: async (input) => (asked.push(input), needsCode),
+      }).me(actor, ctx);
+    // Two-step by e-mail codes only: mfaEnabled stays true, but no code field.
+    await expect(meFor(false)).resolves.toMatchObject({
+      mfaEnabled: true,
+      stepUpNeedsAuthenticatorCode: false,
+    });
+    await expect(meFor(true)).resolves.toMatchObject({ stepUpNeedsAuthenticatorCode: true });
+    expect(asked).toEqual([
+      { userId: 'u', correlationId: ctx.correlationId },
+      { userId: 'u', correlationId: ctx.correlationId },
+    ]);
+  });
+
   it('step-up writes its own audit row with the origin', async () => {
     const { core, audits } = harness();
     await core.stepUp(actor, { password: 'pw', code: '123456' }, ctx);
@@ -195,6 +218,7 @@ describe('PlatformAdminService', () => {
     const refused = new AuthenticationRejectedError('invalid_credentials', 'bad_password');
     const core = new PlatformAdminService(repository, {
       confirmReauthentication: () => Promise.reject(refused),
+      reauthenticationNeedsAuthenticatorCode: async () => true,
     });
     await expect(core.stepUp(actor, { password: 'x' }, ctx)).rejects.toBe(refused);
     expect(audits).toMatchObject([{ action: 'platform.step_up_failed', actorUserId: 'u' }]);

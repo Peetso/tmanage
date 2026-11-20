@@ -40,6 +40,7 @@ import { IP_INTELLIGENCE } from './geo/geo.module.js';
 import type { IpIntelligenceService } from './geo/ip-intelligence.service.js';
 import { parseClientSignals, scoreAutomation } from './geo/automation-signal.js';
 import { notifyIfNewDevice } from './passkeys/new-device-notice.js';
+import { reauthenticationNeedsAuthenticatorCode } from './reauthentication-code.js';
 
 /**
  * `D05`. The header a credential-changing request carries its re-authentication token in.
@@ -187,6 +188,11 @@ export interface FactorsView {
   readonly factors: readonly EnrolledFactorView[];
   readonly recoveryCodesRemaining: number;
   readonly email: FactorMailContactView;
+  /**
+   * STEPUPFIX. Whether `POST /v1/auth/reauth` wants the authenticator code with the password
+   * (`reauthentication-code.ts`, the rule the endpoint enforces). False for e-mail codes only.
+   */
+  readonly reauthNeedsAuthenticatorCode: boolean;
 }
 
 @Controller('v1/auth')
@@ -744,6 +750,7 @@ export class CredentialsController {
       })),
       recoveryCodesRemaining,
       email,
+      reauthNeedsAuthenticatorCode: reauthenticationNeedsAuthenticatorCode(factors),
     };
   }
 

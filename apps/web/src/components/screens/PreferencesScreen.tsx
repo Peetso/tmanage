@@ -556,7 +556,11 @@ export function PreferencesScreen({
                 </Link>
               </span>
             </div>
-            <PasswordRow api={api} t={t} twoStepOn={twoStepOn} />
+            <PasswordRow
+              api={api}
+              t={t}
+              needsCode={factors.data?.reauthNeedsAuthenticatorCode ?? false}
+            />
           </section>
           <hr className="tm-prefs-rule" />
 
@@ -600,11 +604,12 @@ export function PreferencesScreen({
 function PasswordRow({
   api,
   t,
-  twoStepOn,
+  needsCode,
 }: {
   api: ApiClient;
   t: ProfileTranslate;
-  twoStepOn: boolean;
+  /** STEPUPFIX: the server's rule — an authenticator app, not e-mail codes, needs the code. */
+  needsCode: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState('');
@@ -618,7 +623,7 @@ function PasswordRow({
       changeMyPassword(api, {
         currentPassword: current,
         newPassword,
-        ...(twoStepOn ? { code: code.replace(/\D/gu, '') } : {}),
+        ...(needsCode ? { code: code.replace(/\D/gu, '') } : {}),
       }),
     onSuccess: () => {
       setOpen(false);
@@ -669,7 +674,7 @@ function PasswordRow({
             value={current}
             onChange={(event) => setCurrent(event.target.value)}
           />
-          {twoStepOn ? (
+          {needsCode ? (
             <Field
               label={t('Profile.authenticatorCode')}
               inputMode="numeric"

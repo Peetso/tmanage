@@ -17,7 +17,10 @@ import { platformAuditFor } from './platform-audit.service.js';
 
 export type RequestContext = PlatformRequestContext;
 
-/** The slice of `AuthenticationService` the step-up needs: password (+ code) re-confirmation. */
+/**
+ * The slice of `AuthenticationService` the step-up needs: password (+ code) re-confirmation, and
+ * whether that re-confirmation will want an authenticator code (STEPUPFIX: one rule for both).
+ */
 export interface Reauthenticator {
   confirmReauthentication(input: {
     userId: string;
@@ -26,6 +29,10 @@ export interface Reauthenticator {
     code?: string | undefined;
     context: RequestContext;
   }): Promise<unknown>;
+  reauthenticationNeedsAuthenticatorCode(input: {
+    userId: string;
+    correlationId: string;
+  }): Promise<boolean>;
 }
 
 /** The slice of `PasswordResetService` the reset action needs. */
@@ -37,6 +44,12 @@ export interface PlatformMeView {
   readonly email: string;
   readonly displayName: string;
   readonly mfaEnabled: boolean;
+  /**
+   * STEPUPFIX. Whether the step-up asks for the 6-digit authenticator code next to the password.
+   * False when two-step is by e-mail codes only: the sign-in already passed that second step and
+   * no code is mailed for a step-up. Computed by the rule `confirmReauthentication` enforces.
+   */
+  readonly stepUpNeedsAuthenticatorCode: boolean;
   readonly stepUpExpiresAt: string | null;
   readonly stepUpMinutes: number;
   // ---- platform-admin v2 · PA-02 ----
@@ -150,10 +163,13 @@ export class PlatformAdminService {
   ) {}
 
   async me(actor: PlatformAdminActor, context: RequestContext): Promise<PlatformMeView> {
-    const sessions = await this.repository.admins.liveSupportSessions(
-      actor.account.userId,
-      context.correlationId,
-    );
+    const [sessions, stepUpNeedsAuthenticatorCode] = await Promise.all([
+      this.repository.admins.liveSupportSessions(actor.account.userId, context.correlationId),
+      this.reauth.reauthenticationNeedsAuthenticatorCode({
+        userId: actor.account.userId,
+        correlationId: context.correlationId,
+      }),
+    ]);
     const slugs = await this.repository.organizationSlugs(
       [...new Set(sessions.map((session) => session.organizationId))],
       context.correlationId,
@@ -162,6 +178,7 @@ export class PlatformAdminService {
       email: actor.account.email,
       displayName: actor.account.displayName,
       mfaEnabled: actor.account.mfaEnabled,
+      stepUpNeedsAuthenticatorCode,
       stepUpExpiresAt: actor.stepUp ? actor.stepUp.expiresAt.toISOString() : null,
       stepUpMinutes: PLATFORM_STEP_UP_MINUTES,
       source: actor.source ?? 'env',
@@ -177,8 +194,9 @@ export class PlatformAdminService {
   }
 
   /**
-   * Confirm the password — and the two-step code, when one is set up: `confirmReauthentication`
-   * refuses a password alone for an account that has a factor — then open a 15-minute window
+   * Confirm the password — and the authenticator code, when one is set up: `confirmReauthentication`
+   * refuses a password alone for an account with an authenticator factor (e-mail codes only: the
+   * password is enough, STEPUPFIX) — then open a 15-minute window
    * bound to this session. A wrong password is the caller's 401, rate-limited by the same
    * control sign-in uses.
    */

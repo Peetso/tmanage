@@ -29,6 +29,10 @@ import type { MfaCodeMailer } from '../../common/email/mfa-code-email.js';
 import { EMAIL_FACTOR_KIND, TOTP_FACTOR_KIND } from './credentials.repository.js';
 import { EmailCodesRepository } from './email-codes.repository.js';
 import {
+  reauthenticationCodeFactors,
+  reauthenticationNeedsAuthenticatorCode,
+} from './reauthentication-code.js';
+import {
   EMAIL_CODE_RESEND_GAP_MS,
   EMAIL_CODE_TTL_SECONDS,
   emailCodeBinding,
@@ -1118,9 +1122,11 @@ export class AuthenticationService {
         // MFAOPTIONS. Only an authenticator code is asked for here. A person whose only methods
         // are e-mail codes (and backup codes) re-authenticates with the password alone: the
         // session already passed their second step, and mailing a code for every change would
-        // let a session holder spend the send budget the sign-in relies on.
-        const factors = (await this.credentials.listActiveFactors(tx, userId)).filter(
-          (factor) => factor.kind === TOTP_FACTOR_KIND,
+        // let a session holder spend the send budget the sign-in relies on. STEPUPFIX: the rule
+        // lives in `reauthentication-code.ts`, which the screens' "show a code field?" flag
+        // reads too, so the form and this check cannot drift.
+        const factors = reauthenticationCodeFactors(
+          await this.credentials.listActiveFactors(tx, userId),
         );
         if (factors.length === 0) return null;
         // F32 (wave 9): the code step gets the same durable lockout as `completeMfaChallenge`,
@@ -1758,6 +1764,22 @@ export class AuthenticationService {
       confirmedAt: row.confirmedAt,
       isDefault: row.isDefault,
     }));
+  }
+
+  /**
+   * STEPUPFIX. Whether {@link confirmReauthentication} will ask this person for an authenticator
+   * code — what a step-up form reads to decide whether to show the code field. The same rule
+   * (`reauthentication-code.ts`) over the seedless factor list, so no seed is opened for it.
+   */
+  async reauthenticationNeedsAuthenticatorCode(input: {
+    userId: string;
+    correlationId: string;
+  }): Promise<boolean> {
+    const factors = await this.database.identityRead(
+      { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
+      (db) => this.credentials.listAllFactors(db, input.userId),
+    );
+    return reauthenticationNeedsAuthenticatorCode(factors);
   }
 
   /**
