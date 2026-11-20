@@ -19,6 +19,7 @@ import type {
   OpenedTask,
 } from './ai-budget.service.js';
 import { callerClassOf } from './ai-budget.service.js';
+import { guardAnswer } from './ai-answer-guard.js';
 import { currentValues, runChange, undoPossible } from './ai-change.js';
 import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
@@ -46,6 +47,7 @@ import {
 import { AI_TIER_SPECS, isAiTier, type AiSpendingPool, type AiTier } from './ai-tiers.js';
 import { DOMAIN_PROMPT_VERSION, domainSystemPrompt } from './system-prompts/domains.js';
 import { ROUTER_PROMPT_VERSION } from './system-prompts/router.js';
+import { isUntrustedOpId, markUntrusted } from './untrusted-sources.js';
 
 /**
  * 62-09 (plan 62 §4.1) — the orchestrator: one chat turn, server side.
@@ -68,7 +70,11 @@ import { ROUTER_PROMPT_VERSION } from './system-prompts/router.js';
  *    the frozen arguments and their hash), which the member confirms through `AiChangeService`;
  *    with the owner's "run at once" an everyday change with an undo runs now, its undo captured.
  *    A confirm-class op is also frozen in `pending_ai_actions` for its card.
- * 6. Settle, write the receipt (and the card or undo state) with the close, return.
+ * 6. **Untrusted content (62-12):** a read whose result may hold text other people wrote reaches
+ *    the model marked as data (`markUntrusted`), and taints the turn: from then on every change
+ *    needs a confirmed card, even with "run at once" on. The final answer passes the answer guard
+ *    (inert links, ungrounded figures withheld) against what the tools returned.
+ * 7. Settle, write the receipt (and the card or undo state) with the close, return.
  *
  * Every dependency is a port (IP-6), so the whole turn runs in unit tests against a scripted model.
  */
@@ -260,6 +266,8 @@ export interface CopilotChatView {
   readonly stop: ChatStop | null;
   readonly suggestedTier: AiTier | null;
   readonly truncated: boolean;
+  /** Figures the answer guard withheld (no tool returned them). */
+  readonly withheldFigures: number;
   readonly toolCalls: readonly ChatToolRecord[];
   readonly chargedCredits: number;
   /** On `preview`: the card the member confirms; nothing on it has run. */
@@ -277,6 +285,7 @@ const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
   stop: null,
   suggestedTier: null,
   truncated: false,
+  withheldFigures: 0,
   toolCalls: [],
   chargedCredits: 0,
   card: null,
@@ -351,6 +360,10 @@ interface TurnChanges {
   readonly proposals: { readonly item: CardItem; readonly frozen: CardPayloadItem }[];
   readonly ran: AiUndoEntry[];
   cannotUndo: boolean;
+  /** The turn read an untrusted source: every change needs a card from here on (taint rule). */
+  tainted: boolean;
+  /** What the tools returned and the member wrote: the evidence figures are grounded in. */
+  readonly evidence: string[];
 }
 
 interface LoopResult {
@@ -359,6 +372,8 @@ interface LoopResult {
   readonly stop: ChatStop | null;
   readonly toolCalls: ChatToolRecord[];
   readonly changes: TurnChanges;
+  readonly withheldFigures: number;
+  readonly inertLinks: number;
 }
 
 export class CopilotChatService {
@@ -443,7 +458,14 @@ export class CopilotChatService {
       context,
       turn,
       completed ? 'completed' : 'failed',
-      { route, stop: result.stop, toolCalls: result.toolCalls },
+      {
+        route,
+        stop: result.stop,
+        toolCalls: result.toolCalls,
+        tainted: result.changes.tainted,
+        withheldFigures: result.withheldFigures,
+        inertLinks: result.inertLinks,
+      },
       changeState,
     );
     const total = routingCharged + charged;
@@ -462,6 +484,7 @@ export class CopilotChatService {
       domain: route.domain,
       tier: route.tier,
       truncated: result.truncated,
+      withheldFigures: result.withheldFigures,
       toolCalls: result.toolCalls,
       chargedCredits: total,
       card: card === null ? null : card.view,
@@ -543,7 +566,29 @@ export class CopilotChatService {
     standing: ChatStanding,
   ): Promise<LoopResult> {
     const writeScope = standing.writeScope;
-    const changes: TurnChanges = { proposals: [], ran: [], cannotUndo: false };
+    const changes: TurnChanges = {
+      proposals: [],
+      ran: [],
+      cannotUndo: false,
+      tainted: false,
+      evidence: [message],
+    };
+    const end = (
+      stop: ChatStop | null,
+      answer: string | null = null,
+      truncated = false,
+    ): LoopResult => {
+      const guarded = answer === null ? null : guardAnswer(answer, changes.evidence);
+      return {
+        answer: guarded?.text ?? null,
+        truncated,
+        stop,
+        toolCalls,
+        changes,
+        withheldFigures: guarded?.withheldFigures ?? 0,
+        inertLinks: guarded?.inertLinks ?? 0,
+      };
+    };
     const tier = turn.task.tier;
     const toolBudget = TOOL_CALLS_PER_TURN[tier];
     const tools = route.domain === 'help' ? [] : CHAT_TOOLS;
@@ -570,34 +615,21 @@ export class CopilotChatService {
         cacheConversation: '5m',
       };
       const called = await this.callModel(context, turn, request);
-      if (!called.ok)
-        return { answer: null, truncated: false, stop: called.stop, toolCalls, changes };
+      if (!called.ok) return end(called.stop);
       const response = called.response;
       if (response.stopReason === 'refusal') {
-        return { answer: null, truncated: false, stop: 'model_refused', toolCalls, changes };
+        return end('model_refused');
       }
       // stop_reason decides: tools run only when the model stopped to call them.
       if (response.stopReason !== 'tool_use') {
-        return {
-          answer: textOf(response),
-          truncated: response.stopReason === 'max_tokens',
-          stop: null,
-          toolCalls,
-          changes,
-        };
+        return end(null, textOf(response), response.stopReason === 'max_tokens');
       }
       const uses = response.content.filter(
         (b): b is Extract<AiResponse['content'][number], { type: 'tool_use' }> =>
           b.type === 'tool_use',
       );
       if (tools.length === 0 || toolCalls.length + uses.length > toolBudget) {
-        return {
-          answer: textOf(response),
-          truncated: false,
-          stop: 'tool_limit',
-          toolCalls,
-          changes,
-        };
+        return end('tool_limit', textOf(response));
       }
       const results: AiUserBlock[] = [];
       for (const use of uses) {
@@ -637,17 +669,24 @@ export class CopilotChatService {
           currentKey = null;
         }
         toolCalls.push({ opId: plan.opId, outcome: ran.isError === true ? 'error' : 'ok' });
+        const resultText = toolResultText(ran);
+        changes.evidence.push(resultText);
+        // An approval's outcome or a read of other people's text: marked as data, and taints.
+        const untrusted =
+          plan.catalogTool === META_TOOL_NAMES.checkApproval ||
+          (plan.opId !== null && isUntrustedOpId(plan.opId));
+        if (untrusted) changes.tainted = true;
         results.push({
           type: 'tool_result',
           toolUseId: use.id,
-          content: toolResultText(ran),
+          content: untrusted ? markUntrusted(plan.opId ?? 'approval', resultText) : resultText,
           ...(ran.isError === true ? { isError: true } : {}),
         });
       }
       messages.push({ role: 'assistant', content: response.replay });
       messages.push({ role: 'user', content: results });
     }
-    return { answer: null, truncated: false, stop: 'tool_limit', toolCalls, changes };
+    return end('tool_limit');
   }
 
   /**
@@ -679,8 +718,9 @@ export class CopilotChatService {
     if (described.isError === true) return refused(`Unknown or not permitted action: ${opId}`);
     // The target as it is now: the card's "before", and whether the change could be undone.
     const current = await currentValues(surface, change);
+    // The taint rule: after an untrusted read, nothing runs at once.
     const gate = changeGateFor(change.op, {
-      runAtOnce: standing.runAtOnce,
+      runAtOnce: standing.runAtOnce && !changes.tainted,
       hasUndo: undoPossible(change, current),
     });
     if (gate === null) return refused(`${opId} does not change data.`);
@@ -690,6 +730,7 @@ export class CopilotChatService {
         if (ran.undo === null) changes.cannotUndo = true;
         else changes.ran.push(ran.undo);
       }
+      changes.evidence.push(JSON.stringify(change.args), toolResultText(ran.result));
       return {
         outcome: ran.ok ? 'ok' : 'error',
         text: toolResultText(ran.result),
@@ -707,6 +748,8 @@ export class CopilotChatService {
       approvalId = await this.deps.freezeApproval(context, change.op.id, change.args);
     }
     const item = buildCardItem(changes.proposals.length, change, gate, current, approvalId);
+    // The card shows these values to the member: the answer may name them.
+    changes.evidence.push(JSON.stringify(change.args));
     changes.proposals.push({
       item,
       frozen: { opId: change.op.id, args: change.args, argsSha256: change.argsSha256, approvalId },
