@@ -1273,6 +1273,17 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'ai_credit_pack_request',
     clause: '§12 62-07 — the owner asked the platform for an AI credit pack (counts only)',
   },
+  // ---- 62-11 · AI preview, confirm, undo ----
+  /** The member confirmed an AI preview card. Metadata: client id, op ids, outcomes — no args. */
+  'ai_change.confirmed': {
+    objectType: 'ai_task',
+    clause: '§12 62-11 — the member confirmed the changes the AI proposed (op ids and outcomes)',
+  },
+  /** The member undid an AI change within 15 minutes. Metadata: client id, op ids. */
+  'ai_change.undone': {
+    objectType: 'ai_task',
+    clause: '§12 62-11 — the member undid the changes the AI made (op ids only)',
+  },
   // ---- 62-27 (B05) · signals engine ----
   'work_signal_settings.updated': {
     objectType: 'organization',
@@ -2112,6 +2123,8 @@ const AUDIT_ACTION_LABELS = {
   'client_invoice.sign_failed': 'Could not sign an issued invoice',
   'import.undo': 'Undid an import',
   'ai_credit_pack.requested': 'Asked for more AI credits',
+  'ai_change.confirmed': 'Confirmed changes the AI proposed',
+  'ai_change.undone': 'Undid changes the AI made',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

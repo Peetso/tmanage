@@ -1349,6 +1349,13 @@ export const NEVER: readonly NeverEntry[] = [
   },
   // 62-09. The in-app AI's chat turn: never a tool of an AI principal.
   { method: 'POST', path: '/v1/organizations/:orgSlug/copilot/chat/', reason: 'ai_chat' },
+  // 62-11. The member confirms an AI preview card and undoes an AI change: never the AI itself.
+  { method: 'POST', path: '/v1/organizations/:orgSlug/copilot/chat/confirm', reason: 'ai_chat' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/copilot/chat/tasks/:taskId/undo',
+    reason: 'ai_chat',
+  },
   { method: 'GET', path: '/v1/platform/ai/test-list/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/ai/test-list/:organizationId', reason: 'platform_admin' },
   {

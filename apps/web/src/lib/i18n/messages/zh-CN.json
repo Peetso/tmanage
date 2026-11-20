@@ -20727,6 +20727,8 @@
   "FeatureFlags.businessBriefing": "业务简报",
   "AuditActionLabel.work_signal_settings.updated": "更改了提醒规则",
   "AuditActionLabel.ai_credit_pack.requested": "申请了更多 AI 额度",
+  "AuditActionLabel.ai_change.confirmed": "确认了 AI 提议的更改",
+  "AuditActionLabel.ai_change.undone": "撤销了 AI 所做的更改",
   "Overview.signal.projects_at_riskOne": "1 项任务已逾期或有风险",
   "Overview.signal.projects_at_riskMany": "{count} 项任务已逾期或有风险",
   "Overview.signal.projects_at_riskMeta": "已逾期，或 {threshold} 天内到期且时间不够",

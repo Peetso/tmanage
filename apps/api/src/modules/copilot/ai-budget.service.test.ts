@@ -330,14 +330,17 @@ class FakeStore implements AiBudgetStore {
     return true;
   }
   readonly receipts = new Map<string, string>();
+  readonly undos = new Map<string, string>();
 
   async writeReceipt(
     _r: TenantQueryRunner,
     _ctx: TenantContext,
     taskId: string,
     receiptJson: string,
+    undoJson: string | null = null,
   ): Promise<boolean> {
     this.receipts.set(taskId, receiptJson);
+    if (undoJson !== null) this.undos.set(taskId, undoJson);
     return true;
   }
 

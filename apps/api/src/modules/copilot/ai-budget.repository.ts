@@ -197,7 +197,7 @@ const SQL = {
     set status = ?, charged_credits = ?, finished_at = ?
     where organization_id = ? and id = ? and status = 'running'`,
   // 62-09: the receipt a turn leaves (tier, model, calls, tool ops and outcomes; never text).
-  writeReceipt: `update ai_tasks set receipt_json = ?
+  writeReceipt: `update ai_tasks set receipt_json = ?, undo_json = ?
     where organization_id = ? and id = ? and status = 'running'`,
   undoTask: `update ai_tasks
     set status = 'undone', refunded_credits = ?, refunded_at = ?
@@ -657,8 +657,14 @@ export class AiBudgetRepository {
     context: TenantContext,
     taskId: string,
     receiptJson: string,
+    undoJson: string | null = null,
   ): Promise<boolean> {
-    return this.update(runner, SQL.writeReceipt, [receiptJson, context.organizationId, taskId]);
+    return this.update(runner, SQL.writeReceipt, [
+      receiptJson,
+      undoJson,
+      context.organizationId,
+      taskId,
+    ]);
   }
 
   /** Mark a completed task undone, recording the credits given back (0 past the daily limit). */

@@ -338,6 +338,22 @@ const EXEMPT = new Map([
     'No web consumer yet: 62-09 `POST /v1/organizations/:orgSlug/copilot/chat`; the chat panel is slice 62-15.',
   ],
   [
+    'ChatCardView',
+    'No web consumer yet: 62-11 the preview card of `CopilotChatView`; the card UI is slice 62-15.',
+  ],
+  [
+    'ChatUndoView',
+    'No web consumer yet: 62-11 the Done + Undo of `CopilotChatView`; the card UI is slice 62-15.',
+  ],
+  [
+    'AiConfirmView',
+    'No web consumer yet: 62-11 `POST /v1/organizations/:orgSlug/copilot/chat/confirm`; the card UI is slice 62-15.',
+  ],
+  [
+    'AiUndoView',
+    'No web consumer yet: 62-11 `POST /v1/organizations/:orgSlug/copilot/chat/tasks/:taskId/undo`; the card UI is slice 62-15.',
+  ],
+  [
     'AiBudgetPoolView',
     'No web consumer yet: 62-08 the pools of `AiBudgetView`; the screen is slice 62-19.',
   ],

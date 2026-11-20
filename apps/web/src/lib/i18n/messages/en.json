@@ -20933,6 +20933,8 @@
   "FeatureFlags.businessBriefing": "Business briefing",
   "AuditActionLabel.work_signal_settings.updated": "Changed the alert rules",
   "AuditActionLabel.ai_credit_pack.requested": "Asked for more AI credits",
+  "AuditActionLabel.ai_change.confirmed": "Confirmed changes the AI proposed",
+  "AuditActionLabel.ai_change.undone": "Undid changes the AI made",
   "Overview.signal.projects_at_riskOne": "One task is late or at risk",
   "Overview.signal.projects_at_riskMany": "{count} tasks are late or at risk",
   "Overview.signal.projects_at_riskMeta": "Past due, or due within {threshold} days without time to finish",

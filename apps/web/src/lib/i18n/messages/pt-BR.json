@@ -20727,6 +20727,8 @@
   "FeatureFlags.businessBriefing": "Resumo do negócio",
   "AuditActionLabel.work_signal_settings.updated": "Alterou as regras de alerta",
   "AuditActionLabel.ai_credit_pack.requested": "Solicitou mais créditos de IA",
+  "AuditActionLabel.ai_change.confirmed": "Confirmou as alterações propostas pela IA",
+  "AuditActionLabel.ai_change.undone": "Desfez as alterações feitas pela IA",
   "Overview.signal.projects_at_riskOne": "Uma tarefa está atrasada ou em risco",
   "Overview.signal.projects_at_riskMany": "{count} tarefas estão atrasadas ou em risco",
   "Overview.signal.projects_at_riskMeta": "Vencidas, ou vencem em {threshold} dias sem tempo suficiente",

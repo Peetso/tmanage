@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { canonicalizeArgs } from '../mcp/internal-grant.js';
@@ -19,7 +19,20 @@ import type {
   OpenedTask,
 } from './ai-budget.service.js';
 import { callerClassOf } from './ai-budget.service.js';
-import { CHAT_TOOLS, planToolCall } from './ai-chat-tools.js';
+import { currentValues, runChange, undoPossible } from './ai-change.js';
+import type { AiChangeState } from './ai-change.repository.js';
+import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
+import {
+  AI_CARD_TTL_MS,
+  MAX_CARD_ITEMS,
+  buildCardItem,
+  changeGateFor,
+  signCard,
+  validateChange,
+  type CardItem,
+  type CardPayloadItem,
+} from './ai-preview.js';
+import { AI_UNDO_WINDOW_MS, type AiUndoEntry } from './ai-undo.js';
 import { isPricedModel } from './ai-price-table.js';
 import type { AiResponse } from './ai-response.js';
 import {
@@ -50,7 +63,12 @@ import { ROUTER_PROMPT_VERSION } from './system-prompts/router.js';
  *    `write`; never `manage`, never `billing`). `stop_reason` is checked before any tool runs; the
  *    tier caps the tool calls of a turn; the tier is fixed (no silent upgrade: the tier ceiling
  *    stops the turn and names the next tier, it never opens one).
- * 5. Settle, write the receipt with the close, return.
+ * 5. **Changes (62-11):** a change the model asks for is validated by the op's schema and gated by
+ *    `changeGateFor`: by default it is not run but put on one server-built preview card (signed:
+ *    the frozen arguments and their hash), which the member confirms through `AiChangeService`;
+ *    with the owner's "run at once" an everyday change with an undo runs now, its undo captured.
+ *    A confirm-class op is also frozen in `pending_ai_actions` for its card.
+ * 6. Settle, write the receipt (and the card or undo state) with the close, return.
  *
  * Every dependency is a port (IP-6), so the whole turn runs in unit tests against a scripted model.
  */
@@ -109,8 +127,17 @@ export interface ChatStanding {
   readonly onTestList: boolean;
   readonly copilotFlag: boolean;
   readonly writeScope: AiWriteScope;
+  /** `ai_workspace_settings.run_at_once` (owner setting, default off). */
+  readonly runAtOnce: boolean;
   readonly poolClass: AiSpendingPool;
 }
+
+/** Freezes a confirm-class op for its card (`pending_ai_actions`, 10 minutes); returns its id. */
+export type ChatApprovalFreezer = (
+  context: TenantContext,
+  opId: string,
+  args: Readonly<Record<string, unknown>>,
+) => Promise<string>;
 
 export interface ChatToolResult {
   readonly isError?: boolean;
@@ -181,6 +208,13 @@ export interface CopilotChatDeps {
   readonly surface: (input: ChatSurfaceInput) => ChatSurface;
   /** The prompt size of a request (`count_tokens`); defaults to a byte-length upper estimate. */
   readonly countTokens?: (request: AiRequest) => Promise<number>;
+  /**
+   * The key preview cards are signed with. Absent (no session secret configured): no card can be
+   * issued, so every change is refused and nothing changes.
+   */
+  readonly cardKey?: string;
+  readonly freezeApproval?: ChatApprovalFreezer;
+  readonly now?: () => Date;
 }
 
 export interface ChatTurnInput {
@@ -194,12 +228,28 @@ export type ChatStop =
 
 export interface ChatToolRecord {
   readonly opId: string | null;
-  readonly outcome: 'ok' | 'error' | 'refused';
+  readonly outcome: 'ok' | 'error' | 'refused' | 'proposed';
+}
+
+/** The preview card of a turn: what the member sees and the signed card a confirm sends back. */
+export interface ChatCardView {
+  readonly taskId: string;
+  readonly token: string;
+  readonly expiresAt: string;
+  readonly items: readonly CardItem[];
+}
+
+/** Changes that ran at once in a turn, and until when they can be undone. */
+export interface ChatUndoView {
+  readonly taskId: string;
+  readonly until: string | null;
+  /** A change ran that has no inverse: the turn cannot be undone. */
+  readonly cannotBeUndone: boolean;
 }
 
 /** `POST …/copilot/chat` — no web client yet (62-15). */
 export interface CopilotChatView {
-  readonly state: 'answer' | 'navigate' | 'estimate' | 'stopped';
+  readonly state: 'answer' | 'navigate' | 'estimate' | 'stopped' | 'preview';
   readonly answer: string | null;
   readonly navigation: ChatNavigation | null;
   readonly domain: AiDomain | null;
@@ -212,6 +262,10 @@ export interface CopilotChatView {
   readonly truncated: boolean;
   readonly toolCalls: readonly ChatToolRecord[];
   readonly chargedCredits: number;
+  /** On `preview`: the card the member confirms; nothing on it has run. */
+  readonly card: ChatCardView | null;
+  /** Changes that ran at once this turn. */
+  readonly undo: ChatUndoView | null;
 }
 
 const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
@@ -225,6 +279,8 @@ const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
   truncated: false,
   toolCalls: [],
   chargedCredits: 0,
+  card: null,
+  undo: null,
 };
 
 /** The request body, parsed at the boundary (IP-2). */
@@ -256,6 +312,24 @@ export function parseChatBody(body: Readonly<Record<string, unknown>> | null): C
 const notFound = (auditCode: string) =>
   new ApiError(404, 'not_found', MESSAGES.notFound, undefined, auditCode);
 
+/**
+ * The gates every AI route shares (chat, confirm, undo): an internal member on an ordinary
+ * session (403 otherwise), the workspace on the test list and the `copilot` flag on (404: the
+ * feature is absent). Returns the standing it read.
+ */
+export async function openStanding(
+  context: TenantContext,
+  standing: (context: TenantContext) => Promise<ChatStanding>,
+): Promise<ChatStanding> {
+  if (callerClassOf(context).kind !== 'member') {
+    throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'copilot.chat:caller');
+  }
+  const read = await standing(context);
+  if (!read.onTestList) throw notFound('copilot.chat:not_on_test_list');
+  if (!read.copilotFlag) throw notFound('copilot.chat:flag_off');
+  return read;
+}
+
 /** A byte-length upper estimate of a request's prompt tokens (a token is never under a byte). */
 async function bytesAsTokens(request: AiRequest): Promise<number> {
   const { model: _model, maxTokens: _max, ...prompt } = request;
@@ -272,11 +346,29 @@ interface TurnState {
   calls: number;
 }
 
+/** What the changes of one turn left: card items to confirm and the changes that ran. */
+interface TurnChanges {
+  readonly proposals: { readonly item: CardItem; readonly frozen: CardPayloadItem }[];
+  readonly ran: AiUndoEntry[];
+  cannotUndo: boolean;
+}
+
+interface LoopResult {
+  readonly answer: string | null;
+  readonly truncated: boolean;
+  readonly stop: ChatStop | null;
+  readonly toolCalls: ChatToolRecord[];
+  readonly changes: TurnChanges;
+}
+
 export class CopilotChatService {
   private readonly countTokens: (request: AiRequest) => Promise<number>;
 
+  private readonly now: () => Date;
+
   constructor(private readonly deps: CopilotChatDeps) {
     this.countTokens = deps.countTokens ?? bytesAsTokens;
+    this.now = deps.now ?? (() => new Date());
   }
 
   async chat(
@@ -286,12 +378,7 @@ export class CopilotChatService {
   ): Promise<CopilotChatView> {
     const { orgSlug } = scope;
     // 1. Gates before any spend.
-    if (callerClassOf(context).kind !== 'member') {
-      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'copilot.chat:caller');
-    }
-    const standing = await this.deps.standing(context);
-    if (!standing.onTestList) throw notFound('copilot.chat:not_on_test_list');
-    if (!standing.copilotFlag) throw notFound('copilot.chat:flag_off');
+    const standing = await openStanding(context, this.deps.standing);
     const client = this.deps.clientFor(standing.poolClass);
     if (client === null) throw notFound('copilot.chat:no_key');
 
@@ -348,40 +435,102 @@ export class CopilotChatService {
     }
 
     // 4. The loop.
-    const result = await this.loop(
-      context,
-      orgSlug,
-      turn,
-      route,
-      input.message,
-      standing.writeScope,
-    );
+    const result = await this.loop(context, orgSlug, turn, route, input.message, standing);
+    const completed = result.stop === null;
+    const card = completed ? this.card(context, turn, result.changes) : null;
+    const changeState = this.changeState(result.changes, card);
     const charged = await this.finish(
       context,
       turn,
-      result.stop === null ? 'completed' : 'failed',
-      {
-        route,
-        stop: result.stop,
-        toolCalls: result.toolCalls,
-      },
+      completed ? 'completed' : 'failed',
+      { route, stop: result.stop, toolCalls: result.toolCalls },
+      changeState,
     );
     const total = routingCharged + charged;
+    const undo = this.undoView(turn, result.changes, changeState);
     if (result.stop !== null) {
       return {
         ...this.stopped(route, result.toolCalls, result.stop, total),
         suggestedTier: result.stop === 'tier_ceiling' ? nextTierOf(route.tier) : null,
+        undo,
       };
     }
     return {
       ...EMPTY_VIEW,
-      state: 'answer',
+      state: card === null ? 'answer' : 'preview',
       answer: result.answer,
       domain: route.domain,
       tier: route.tier,
       truncated: result.truncated,
       toolCalls: result.toolCalls,
       chargedCredits: total,
+      card: card === null ? null : card.view,
+      undo,
+    };
+  }
+
+  /** The signed card of a turn's proposals, or `null` when nothing waits for a confirm. */
+  private card(
+    context: TenantContext,
+    turn: TurnState,
+    changes: TurnChanges,
+  ): { readonly cardId: string; readonly view: ChatCardView } | null {
+    if (changes.proposals.length === 0 || this.deps.cardKey === undefined) return null;
+    const cardId = randomUUID();
+    const expiresAt = this.now().getTime() + AI_CARD_TTL_MS;
+    const token = signCard(
+      {
+        v: 1,
+        cardId,
+        taskId: turn.task.taskId,
+        organizationId: context.organizationId,
+        membershipId: context.membershipId,
+        userId: context.userId,
+        expiresAt,
+        items: changes.proposals.map((p) => p.frozen),
+      },
+      this.deps.cardKey,
+    );
+    return {
+      cardId,
+      view: {
+        taskId: turn.task.taskId,
+        token,
+        expiresAt: new Date(expiresAt).toISOString(),
+        items: changes.proposals.map((p) => p.item),
+      },
+    };
+  }
+
+  /** What `ai_tasks.undo_json` keeps: the card waiting, or the changes that ran. */
+  private changeState(
+    changes: TurnChanges,
+    card: { readonly cardId: string } | null,
+  ): AiChangeState | undefined {
+    const ran = changes.ran.length > 0 || changes.cannotUndo;
+    if (card === null && !ran) return undefined;
+    return {
+      v: 1,
+      state: card !== null ? 'card' : 'done',
+      card: card === null ? null : card.cardId,
+      doneAt: ran ? this.now().toISOString() : null,
+      entries: changes.ran,
+      cannotUndo: changes.cannotUndo,
+    };
+  }
+
+  private undoView(
+    turn: TurnState,
+    changes: TurnChanges,
+    state: AiChangeState | undefined,
+  ): ChatUndoView | null {
+    if (state === undefined || state.doneAt === null) return null;
+    return {
+      taskId: turn.task.taskId,
+      until: changes.cannotUndo
+        ? null
+        : new Date(Date.parse(state.doneAt) + AI_UNDO_WINDOW_MS).toISOString(),
+      cannotBeUndone: changes.cannotUndo,
     };
   }
 
@@ -391,13 +540,10 @@ export class CopilotChatService {
     turn: TurnState,
     route: AiRoute,
     message: string,
-    writeScope: AiWriteScope,
-  ): Promise<{
-    answer: string | null;
-    truncated: boolean;
-    stop: ChatStop | null;
-    toolCalls: ChatToolRecord[];
-  }> {
+    standing: ChatStanding,
+  ): Promise<LoopResult> {
+    const writeScope = standing.writeScope;
+    const changes: TurnChanges = { proposals: [], ran: [], cannotUndo: false };
     const tier = turn.task.tier;
     const toolBudget = TOOL_CALLS_PER_TURN[tier];
     const tools = route.domain === 'help' ? [] : CHAT_TOOLS;
@@ -424,10 +570,11 @@ export class CopilotChatService {
         cacheConversation: '5m',
       };
       const called = await this.callModel(context, turn, request);
-      if (!called.ok) return { answer: null, truncated: false, stop: called.stop, toolCalls };
+      if (!called.ok)
+        return { answer: null, truncated: false, stop: called.stop, toolCalls, changes };
       const response = called.response;
       if (response.stopReason === 'refusal') {
-        return { answer: null, truncated: false, stop: 'model_refused', toolCalls };
+        return { answer: null, truncated: false, stop: 'model_refused', toolCalls, changes };
       }
       // stop_reason decides: tools run only when the model stopped to call them.
       if (response.stopReason !== 'tool_use') {
@@ -436,6 +583,7 @@ export class CopilotChatService {
           truncated: response.stopReason === 'max_tokens',
           stop: null,
           toolCalls,
+          changes,
         };
       }
       const uses = response.content.filter(
@@ -443,11 +591,34 @@ export class CopilotChatService {
           b.type === 'tool_use',
       );
       if (tools.length === 0 || toolCalls.length + uses.length > toolBudget) {
-        return { answer: textOf(response), truncated: false, stop: 'tool_limit', toolCalls };
+        return {
+          answer: textOf(response),
+          truncated: false,
+          stop: 'tool_limit',
+          toolCalls,
+          changes,
+        };
       }
       const results: AiUserBlock[] = [];
       for (const use of uses) {
         const plan = planToolCall(use.name, use.input);
+        if (plan.kind === 'change') {
+          currentKey = idempotencyKeyOf(use.id, plan.rawArgs);
+          let done;
+          try {
+            done = await this.change(context, surface, standing, changes, plan.opId, plan.rawArgs);
+          } finally {
+            currentKey = null;
+          }
+          toolCalls.push({ opId: plan.opId, outcome: done.outcome });
+          results.push({
+            type: 'tool_result',
+            toolUseId: use.id,
+            content: done.text,
+            ...(done.isError ? { isError: true } : {}),
+          });
+          continue;
+        }
         if (plan.kind === 'refuse') {
           toolCalls.push({ opId: plan.opId, outcome: 'refused' });
           results.push({
@@ -476,7 +647,77 @@ export class CopilotChatService {
       messages.push({ role: 'assistant', content: response.replay });
       messages.push({ role: 'user', content: results });
     }
-    return { answer: null, truncated: false, stop: 'tool_limit', toolCalls };
+    return { answer: null, truncated: false, stop: 'tool_limit', toolCalls, changes };
+  }
+
+  /**
+   * One change the model asked for (62-11). Validated by the op's own schema; then either run at
+   * once (owner setting, an everyday `write` with an undo) with its undo captured, or put on the
+   * turn's card. The model reads a calm result either way; it never sees the card token.
+   */
+  private async change(
+    context: TenantContext,
+    surface: ChatSurface,
+    standing: ChatStanding,
+    changes: TurnChanges,
+    opId: string,
+    rawArgs: Record<string, unknown>,
+  ): Promise<{ outcome: ChatToolRecord['outcome']; text: string; isError: boolean }> {
+    const refused = (text: string) => ({ outcome: 'refused' as const, text, isError: true });
+    if (standing.writeScope !== 'read_write') {
+      return refused(
+        `${opId} changes data. The workspace owner allows the assistant to read only.`,
+      );
+    }
+    if (this.deps.cardKey === undefined) {
+      return refused(`${opId} changes data and cannot be proposed here. Nothing was changed.`);
+    }
+    const change = validateChange(opId, rawArgs);
+    if (change === null) return refused(`Invalid arguments for ${opId}. Nothing was changed.`);
+    // The member may run it at all: the surface's own permitted list, as `run_action` decides.
+    const described = await surface.runTool(META_TOOL_NAMES.describe, { action_id: opId });
+    if (described.isError === true) return refused(`Unknown or not permitted action: ${opId}`);
+    // The target as it is now: the card's "before", and whether the change could be undone.
+    const current = await currentValues(surface, change);
+    const gate = changeGateFor(change.op, {
+      runAtOnce: standing.runAtOnce,
+      hasUndo: undoPossible(change, current),
+    });
+    if (gate === null) return refused(`${opId} does not change data.`);
+    if (!gate.card) {
+      const ran = await runChange(surface, change);
+      if (ran.ok) {
+        if (ran.undo === null) changes.cannotUndo = true;
+        else changes.ran.push(ran.undo);
+      }
+      return {
+        outcome: ran.ok ? 'ok' : 'error',
+        text: toolResultText(ran.result),
+        isError: !ran.ok,
+      };
+    }
+    if (changes.proposals.length >= MAX_CARD_ITEMS) {
+      return refused(`The card already holds ${MAX_CARD_ITEMS} changes; ${opId} was not proposed.`);
+    }
+    let approvalId: string | null = null;
+    if (change.op.risk === 'confirm') {
+      if (this.deps.freezeApproval === undefined) {
+        return refused(`${opId} needs approval in TManage and cannot be proposed here.`);
+      }
+      approvalId = await this.deps.freezeApproval(context, change.op.id, change.args);
+    }
+    const item = buildCardItem(changes.proposals.length, change, gate, current, approvalId);
+    changes.proposals.push({
+      item,
+      frozen: { opId: change.op.id, args: change.args, argsSha256: change.argsSha256, approvalId },
+    });
+    return {
+      outcome: 'proposed',
+      text:
+        `Proposed, not run: "${change.title}" is on a preview card the member confirms in ` +
+        'TManage. Tell the member what you proposed; do not ask for it again.',
+      isError: false,
+    };
   }
 
   /** Hold, send, settle one model call. The model is always the task's (the tier's). */
@@ -545,6 +786,7 @@ export class CopilotChatService {
     turn: TurnState,
     outcome: 'completed' | 'failed',
     details: Readonly<Record<string, unknown>>,
+    changeState?: AiChangeState,
   ): Promise<number> {
     const receipt = {
       version: 1,
@@ -555,7 +797,13 @@ export class CopilotChatService {
       modelCalls: turn.calls,
       ...details,
     };
-    const finished = await this.deps.budget.finishTask(context, turn.task.taskId, outcome, receipt);
+    const finished = await this.deps.budget.finishTask(
+      context,
+      turn.task.taskId,
+      outcome,
+      receipt,
+      changeState === undefined ? undefined : { ...changeState },
+    );
     return finished.ok ? finished.value.chargedCredits : 0;
   }
 

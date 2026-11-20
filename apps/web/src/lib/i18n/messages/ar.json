@@ -20933,6 +20933,8 @@
   "FeatureFlags.businessBriefing": "موجز العمل",
   "AuditActionLabel.work_signal_settings.updated": "غيّر قواعد التنبيه",
   "AuditActionLabel.ai_credit_pack.requested": "طلب رصيدًا إضافيًا للذكاء الاصطناعي",
+  "AuditActionLabel.ai_change.confirmed": "أكّد التغييرات التي اقترحها الذكاء الاصطناعي",
+  "AuditActionLabel.ai_change.undone": "تراجع عن التغييرات التي أجراها الذكاء الاصطناعي",
   "Overview.signal.projects_at_riskOne": "مهمة واحدة متأخرة أو معرّضة للتأخير",
   "Overview.signal.projects_at_riskMany": "{count} من المهام متأخرة أو معرّضة للتأخير",
   "Overview.signal.projects_at_riskMeta": "تجاوزت موعدها، أو اقترب موعدها والوقت لا يكفي",

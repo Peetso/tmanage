@@ -1,8 +1,13 @@
+import { createHmac } from 'node:crypto';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { FeatureFlagsRepository } from '../admin/feature-flags.repository.js';
 import { resolveFlags } from '../admin/feature-flags.service.js';
 import { liveMcpSurface } from '../mcp/catalog-runtime.js';
 import { internalGrants } from '../mcp/internal-grant.js';
+import type {
+  PendingActionRequester,
+  PendingAiActionsService,
+} from '../mcp/pending-actions.service.js';
 import {
   IN_PROCESS_BASE_URL,
   inProcessFetch,
@@ -10,8 +15,14 @@ import {
 } from '../mcp/mcp-endpoint.controller.js';
 import { createAiClient, type AiClient } from './ai-client.js';
 import { AiChatRepository } from './ai-chat.repository.js';
+import type { ChangeApprovals } from './ai-change.service.js';
 import type { AiSpendingPool } from './ai-tiers.js';
-import type { ChatStanding, ChatSurface, ChatSurfaceInput } from './copilot-chat.service.js';
+import type {
+  ChatApprovalFreezer,
+  ChatStanding,
+  ChatSurface,
+  ChatSurfaceInput,
+} from './copilot-chat.service.js';
 
 /**
  * 62-09 — the production ports of {@link CopilotChatService}: the gates read from the database,
@@ -113,5 +124,45 @@ export function inProcessSurface(
         return runtime.runTool(tool, args);
       },
     };
+  };
+}
+
+/**
+ * 62-11 — the key preview cards are signed with, derived from the session secret for this one
+ * purpose (a card never verifies as anything else, and the secret itself never signs a card).
+ * `undefined` without a secret: no card is issued and every change is refused.
+ */
+export function cardKeyFrom(sessionSecret: string | undefined): string | undefined {
+  if (sessionSecret === undefined || sessionSecret === '') return undefined;
+  return createHmac('sha256', sessionSecret).update('tmanage-ai-card-key:v1').digest('base64url');
+}
+
+/** The member and AI client a pending AI action is frozen for and read back as. */
+function requesterOf(context: TenantContext): PendingActionRequester {
+  return {
+    organizationId: context.organizationId,
+    membershipId: context.membershipId,
+    userId: context.userId,
+    ...TMANAGE_AI_CLIENT,
+  };
+}
+
+/** A confirm-class card item, frozen in `pending_ai_actions` (the MCP approvals' own service). */
+export function pendingFreezer(
+  service: Pick<PendingAiActionsService, 'request'>,
+): ChatApprovalFreezer {
+  return async (context, opId, args) =>
+    (await service.request(requesterOf(context), opId, args, context.correlationId)).id;
+}
+
+/** The confirm of a card approves its confirm-class rows, as the member, once. */
+export function pendingApprovals(
+  service: Pick<PendingAiActionsService, 'approve' | 'check'>,
+): ChangeApprovals {
+  return {
+    async approve(context, orgSlug, id) {
+      await service.approve(context, orgSlug, id);
+    },
+    outcome: (context, id) => service.check(requesterOf(context), id, context.correlationId),
   };
 }

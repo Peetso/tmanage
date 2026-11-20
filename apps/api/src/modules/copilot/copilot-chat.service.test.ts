@@ -270,7 +270,7 @@ describe('a read answer', () => {
 });
 
 describe('refused ops never run', () => {
-  it('a write op is refused until the preview of 62-11, the model is told, nothing runs', async () => {
+  it('a write op under the owner’s read-only setting is refused, the model is told, nothing runs', async () => {
     const env = setup([
       route('tasks', 'medium'),
       runAction('t1', 'work_items.create', { title: 'x' }),

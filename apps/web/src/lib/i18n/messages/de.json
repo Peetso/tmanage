@@ -20727,6 +20727,8 @@
   "FeatureFlags.businessBriefing": "Geschäftsbriefing",
   "AuditActionLabel.work_signal_settings.updated": "Hat die Warnregeln geändert",
   "AuditActionLabel.ai_credit_pack.requested": "Hat mehr KI-Guthaben angefordert",
+  "AuditActionLabel.ai_change.confirmed": "Von der KI vorgeschlagene Änderungen bestätigt",
+  "AuditActionLabel.ai_change.undone": "Von der KI vorgenommene Änderungen rückgängig gemacht",
   "Overview.signal.projects_at_riskOne": "Eine Aufgabe ist verspätet oder gefährdet",
   "Overview.signal.projects_at_riskMany": "{count} Aufgaben sind verspätet oder gefährdet",
   "Overview.signal.projects_at_riskMeta": "Überfällig oder in {threshold} Tagen fällig, ohne genug Zeit",

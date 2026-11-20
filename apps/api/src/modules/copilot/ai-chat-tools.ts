@@ -12,8 +12,9 @@ import type { JsonObject } from './ai-response.js';
  *
  * - **The AI never reaches itself:** an op on the AI's own routes (`/copilot`, `/ai/`) is refused,
  *   so a turn can never start another turn or move its own credits.
- * - **Writes wait for the preview of 62-11:** any op that is not `read` is refused with a calm
- *   "needs your confirmation" result, so this slice can never change data.
+ * - **A change is never run from here:** any op that is not `read` comes back as a `change` plan;
+ *   the orchestrator validates it and decides its gate (62-11: a preview card the member confirms,
+ *   or "run at once" for an everyday change with an undo).
  */
 
 export const META_TOOL_NAMES = {
@@ -75,6 +76,12 @@ export type ChatToolPlan =
       /** The registry op this call reaches, when it reaches one. */
       readonly opId: string | null;
     }
+  | {
+      readonly kind: 'change';
+      readonly opId: string;
+      /** The arguments as the model sent them; validated by the op's schema before anything. */
+      readonly rawArgs: Record<string, unknown>;
+    }
   | { readonly kind: 'refuse'; readonly opId: string | null; readonly message: string };
 
 const refuse = (opId: string | null, message: string): ChatToolPlan => ({
@@ -119,12 +126,6 @@ function planRun(input: JsonObject): ChatToolPlan {
   const op = findOpById(actionId);
   if (op === undefined) return refuse(null, `Unknown or not permitted action: ${actionId}`);
   if (isAiSelfOp(op)) return refuse(op.id, `Not permitted from the assistant: ${op.id}`);
-  if (op.risk !== 'read') {
-    return refuse(
-      op.id,
-      `${op.id} changes data. It needs your confirmation in TManage and was not run.`,
-    );
-  }
   let args: unknown;
   try {
     args = JSON.parse(String(input['args_json'] ?? '{}'));
@@ -133,6 +134,9 @@ function planRun(input: JsonObject): ChatToolPlan {
   }
   if (typeof args !== 'object' || args === null || Array.isArray(args)) {
     return refuse(op.id, `Invalid arguments for ${op.id}: args_json must be a JSON object.`);
+  }
+  if (op.risk !== 'read') {
+    return { kind: 'change', opId: op.id, rawArgs: args as Record<string, unknown> };
   }
   return {
     kind: 'run',
