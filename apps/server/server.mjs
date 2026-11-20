@@ -76,7 +76,8 @@ import {
   applyRealtimePublicUrl,
   createUpgradeHandler,
   realtimeInProcessEnabled,
-  withRealtimeFanOut,
+  leaderRelayHandlers,
+  startRealtimeTail,
 } from './realtime-inprocess.mjs';
 import {
   beat,
@@ -356,7 +357,7 @@ function proxyToWeb(req, res, transport) {
  */
 async function startInProcessWorker(
   env,
-  attachRealtime,
+  realtimeHub,
   shareMail = () => undefined,
   mayRun = () => true,
 ) {
@@ -446,22 +447,10 @@ async function startInProcessWorker(
     // H3 — data export ready, deletion scheduled / cancelled / carried out.
     privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
   });
-  // H2: live pushes. The worker's socket server runs attached to this process's public port
-  // (realtime-inprocess.mjs); the relay fans chat events out to it. Off, the clients refetch.
-  const realtime = realtimeInProcessEnabled(process.env)
-    ? await worker.createRealtimeServer({
-        database,
-        sessionSecret: env.SESSION_SECRET,
-        port: 'attached',
-      })
-    : undefined;
-  if (realtime) attachRealtime(realtime);
-  // R7 slice 5: link previews ride `message.created.v1`, with the frame when sockets run.
-  const handlers = worker.withLinkPreviews(
-    realtime ? withRealtimeFanOut(worker, relayHandlers, realtime.hub) : relayHandlers,
-    database,
-    realtime?.hub,
-  );
+  // R7 slice 5: link previews ride `message.created.v1`, with the card frame when sockets run.
+  // DC-3 / RT-2: no chat or work frames here — every copy's realtime tail sends those
+  // (startRealtime), so a socket on a copy that does not lead still gets them.
+  const handlers = leaderRelayHandlers(worker, relayHandlers, database, realtimeHub);
   const noticeHandlers = createWorkerNoticeHandlers({
     credentialChangeMailer: new CredentialChangeMailer(transport),
   });
@@ -513,8 +502,49 @@ async function startInProcessWorker(
   return async () => {
     clearInterval(timer);
     clearInterval(watchdogTimer);
-    await realtime?.close();
     await database.end();
+  };
+}
+
+/**
+ * H2 / DC-3 / RT-2 — live pushes, on EVERY copy (not leader-gated). The worker's socket server
+ * runs attached to this process's public port (realtime-inprocess.mjs), and this copy's realtime
+ * tail frames its own sockets from the published outbox rows; it claims nothing, so any number of
+ * copies run it at once. Its own pool of ONE connection (the host allows 25 per database user,
+ * ADR-0010): the socket's subscription checks and the tail's reads are short and take turns.
+ * Off (`REALTIME_INPROCESS=0`, or no relay configured), the clients refetch.
+ */
+async function startRealtime(env, attachRealtime) {
+  const worker = await import('@tmanage/worker');
+  const database = worker.createWorkerDatabase({
+    url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
+    connectionLimit: 1,
+    statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
+    onConnectionError: (error) => log(`realtime connection rejected: ${serializeForLog(error)}`),
+  });
+  const realtime = await worker.createRealtimeServer({
+    database,
+    sessionSecret: env.SESSION_SECRET,
+    port: 'attached',
+  });
+  attachRealtime(realtime);
+  const tail = startRealtimeTail({
+    worker,
+    database,
+    hub: realtime.hub,
+    intervalMs: env.OUTBOX_POLL_INTERVAL_MS,
+    log,
+    describeError: serializeForLog,
+  });
+  void tail.poll();
+  log(`realtime on this copy, tailing the outbox every ${env.OUTBOX_POLL_INTERVAL_MS}ms`);
+  return {
+    hub: realtime.hub,
+    async stop() {
+      tail.stop();
+      await realtime.close();
+      await database.end();
+    },
   };
 }
 
@@ -714,6 +744,8 @@ async function main() {
   let stopSweeps;
   /** DC-3: the leader lease, once background duties are configured. */
   let leadership;
+  /** RT-2: this copy's socket server and realtime tail (every copy, not leader-gated). */
+  let realtime;
   // A signal during the migrations waits for the file in progress (bounded) before exiting.
   const migrationGate = createMigrationGate({ log });
   const shutdown = (signal) => {
@@ -738,6 +770,7 @@ async function main() {
         // The sweeps first: their jobs mail through the relay's transport and pool.
         await stopSweeps?.();
         await stopWorker?.();
+        await realtime?.stop();
         // DC-3: hand the lease over only after the duties stopped, so the next copy leads at once
         // without overlapping this one.
         await leadership?.stop();
@@ -798,15 +831,19 @@ async function main() {
       const sweepsOn = sweepsEnabled(process.env);
       if (!sweepsOn) log('scheduled sweeps off (SWEEPS_INPROCESS)');
       if (!relayOn && !sweepsOn) return;
+      // RT-2: sockets and their frames on every copy, before (and whatever) the lease decides.
+      if (realtimeInProcessEnabled(process.env)) {
+        realtime = await startRealtime(env, (server) => {
+          realtimeServer = server;
+        });
+      }
       // DC-3 / RT-3: only the copy holding the leader lease runs the relay, sweeps and jobs;
       // every copy serves web traffic. Started once, the first time this copy leads.
       leadership = await startLeadership(env, async (holds) => {
         if (relayOn) {
           stopWorker = await startInProcessWorker(
             env,
-            (realtime) => {
-              realtimeServer = realtime;
-            },
+            realtime?.hub,
             (mail) => {
               jobMail = mail;
             },

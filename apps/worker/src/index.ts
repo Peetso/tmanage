@@ -210,6 +210,26 @@ export type { ClientRequestMailFacts } from './common/database/mail-store.js';
 export { RealtimeHub } from './realtime/hub.js';
 export type { RealtimeEventFrame } from './realtime/hub.js';
 export { createRealtimeServer } from './realtime/server.js';
+// DC-3 / RT-2 — every copy frames its own sockets from the published outbox rows.
+export {
+  REALTIME_TAIL_LOOKBACK_MS,
+  REALTIME_TAIL_MAX_PAGES,
+  REALTIME_TAIL_PAGE_SIZE,
+  createRealtimeFanOutHandlers,
+  createRealtimeTail,
+} from './realtime/realtime-tail.js';
+export type {
+  RealtimeTail,
+  RealtimeTailOptions,
+  RealtimeTailReport,
+} from './realtime/realtime-tail.js';
+export {
+  TAIL_START_SQL,
+  readPublishedPage,
+  readTailStart,
+  tailPageSql,
+} from './common/database/realtime-tail-store.js';
+export type { PublishedOutboxEvent, TailPosition } from './common/database/realtime-tail-store.js';
 export type { RealtimeServer, RealtimeServerOptions } from './realtime/server.js';
 export { createMessageFanOut } from './realtime/fan-out.js';
 export { createDirectMessageFanOut } from './realtime/fan-out.js';

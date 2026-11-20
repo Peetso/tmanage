@@ -88,6 +88,7 @@ There is no business domain. The runtime state machine is:
 | S-9 | A platform path is never answered "sign-in" on a 5xx, 429 or 408 from the API: the outcome is `unknown` and goes to the web (DC-1). | `platform-gate.mjs:70-75` | `platform-gate.test.mjs:122` |
 | S-10 | DC-3 / RT-3: with N copies of the app, only the copy holding the leader lease (`runtime_leases`, 0384) runs the relay, the sweeps and the jobs; every copy serves HTTP. Each relay batch and each sweep/job pass asks the lease first (`leaderGatedLock`, `mayRun`). A lease query error is logged as an error and never counts as leading (AS-4). | `leadership.mjs`, `server.mjs` `startLeadership`; `apps/worker/src/leadership/leader-lease.ts` | `leadership.test.mjs` (two copies, takeover, error); `apps/api/test/rt-003-leader-lease.db.test.ts` |
 | S-11 | ST-3: the public server sets `requestTimeout` 300 s, `headersTimeout` 20 s, `keepAliveTimeout` 65 s (above a proxy's 60 s upstream idle) and checks every 5 s; the web child keeps idle connections 65 s while the parent's agent drops them after 5 s. | `server-timeouts.mjs` | `server-timeouts.test.mjs` |
+| S-12 | DC-3 / RT-2: realtime runs on EVERY copy, not only the leader. Each copy has its own attached socket server and a realtime tail (`startRealtimeTail`, `@tmanage/worker` `createRealtimeTail`) that reads the published outbox rows without claiming them and frames this copy's sockets, each event id once. The leader's relay frames nothing (`leaderRelayHandlers`: side effects and the link-preview card only). One DB connection per copy for sockets + tail. | `realtime-inprocess.mjs` (`leaderRelayHandlers`, `startRealtimeTail`), `server.mjs` (`startRealtime`, `startBackground`) | `realtime-inprocess.test.mjs` (two copies, one client each, each framed once; relay composes no frame; server.mjs wiring); `apps/api/test/rt-002-realtime-tail.db.test.ts` |
 
 ## Public API and contracts
 
@@ -156,8 +157,8 @@ n/a — the part renders no screen. Its only user-visible output is the 503 `sta
 | Rule | Today | Target |
 | --- | --- | --- |
 | RT-1 | Env validated by `loadEnv` (zod, `@tmanage/config`); secrets only reach the log as notes (`server.mjs:678-683`) | met |
-| RT-2 | Socket per process (`web-<pid>.sock`, `954d80b3`); throttles, realtime hub and heartbeat still per process | DB-held throttles, realtime via DB/outbox (SRV-3, SRV-4) |
-| RT-3 | Leader lease row (S-10, lane K 2026-11-20; a row, not `GET_LOCK`, because a dropped connection drops a named lock silently) | realtime fan-out across copies |
+| RT-2 | Socket per process (`web-<pid>.sock`, `954d80b3`); realtime frames reach every copy's sockets through the outbox tail (S-12); throttles and heartbeat still per process | DB-held throttles (SRV-4) |
+| RT-3 | Leader lease row (S-10, lane K 2026-11-20; a row, not `GET_LOCK`, because a dropped connection drops a named lock silently) | — |
 | RT-4 | met (`becomeReady`, `954d80b3`) | keep |
 | RT-5 | Only `/healthz` (= ready) and the API's `/healthz/deep` | add `/livez` (200 once listening) |
 | RT-6 | close, then exit, with no drain budget | drain ≤ 10 s (proposed), `closeIdleConnections()`, release lease |
@@ -166,7 +167,7 @@ n/a — the part renders no screen. Its only user-visible output is the 503 `sta
 | RT-10 | "wait 3 min, then one request" ritual still in use (memory "Restart Hostinger quietly") | retire once RT-2, RT-3 and RT-4 are green |
 | RT-11 | binary deep health | health model with required/fallback classes |
 | ST-1 | proxy idle timeout 120 s; in-process inject needs none | met for the proxy |
-| ST-3 | set (S-11). keep-alive is **above** the proxy's idle time, not below (AWS ELB guidance); requestTimeout kept at 300 s for slow uploads | ADR to correct the ST-3 row's proposed values |
+| ST-3 | set (S-11) as ADR-0012 decides: keep-alive **above** the proxy's idle time; requestTimeout 300 s for slow uploads | — |
 | ST-5 | separate pools for relay, sweeps, jobs and lock; bounded startup hold | met |
 | ST-6 | socket, heartbeat and crash files are overwritten, not appended | met |
 | ST-7 | refuses non-production `NODE_ENV`; a migration error exits 1 | met here |
@@ -209,7 +210,7 @@ Added in `954d80b3` (`web-transport.test.mjs`): two-instance socket ownership (D
 | --- | --- | --- | --- | --- |
 | SRV-1 | DC-3 | **Fixed `954d80b3`:** socket `.run/web-<pid>.sock`; prepare clears only its own path and dead pids' sockets; cleanup only its own. Test: `web-transport.test.mjs` "two overlapping instances". | closed | — |
 | SRV-2 | DC-3/DC-1 | **Fixed `954d80b3`:** `becomeReady` marks ready after API + web, then starts relay and sweeps. Test: `web-transport.test.mjs` "RT-4". | closed | — |
-| SRV-3 | DC-3 | **Leader lease built (lane K, 2026-11-20, S-10).** Left: SRV-3b, realtime frames reach only the leader's sockets. | P1 (3b) | realtime via DB fan-out (ADR-0010 §6) |
+| SRV-3 | DC-3 | **Leader lease built (lane K, 2026-11-20, S-10); realtime on every copy (S-12).** Left: the link-preview card frame reaches only the leader's sockets (other copies' cards arrive by their own refetch). | P2 | a durable `link_preview.ready` event (contracts change) |
 | SRV-4 | DC-3 | The hourly throttles for purge and storage root are in memory (`scheduled-sweeps.mjs:647-675`). | P1 | throttle row in DB |
 | SRV-5 | DC-1 | A `GET_LOCK` NULL (error) is treated as "held" (`sweep-lock.ts:51`). | P1 | three outcomes `ran / held / error` |
 | SRV-6 | DC-3 | Server timeouts set (S-11, lane K). Shutdown still has no drain budget. | P1 | RT-6 |

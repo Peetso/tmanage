@@ -51,7 +51,7 @@ interface OutboxRow {
  * column back as the raw JSON text and the string branch is the ordinary path; a driver or
  * column that hands back an already-parsed object is passed through unchanged.
  */
-function parsePayload(value: unknown): unknown {
+export function parsePayload(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   try {
     return JSON.parse(value);

@@ -42,11 +42,14 @@ The operator workaround ("wait 3 min, send one request") treats a design defect 
 - Cost: lease code + tests; the realtime fan-out redesign (P1).
 - Risk: the dedicated lease connection takes one of the 25 per-user DB connections (`docs/ops/hostinger-profile.md`); it is counted in the pool budget (ST-5).
 
-## Fitness functions
+## Implementation (lane K, 2026-11-20)
 
-| Rule | Check                                                | Exists / to build |
-| ---- | ---------------------------------------------------- | ----------------- |
-| RT-2 | two-instance boot test in `apps/server`              | to build          |
-| RT-3 | leader-lease db test (one pass; takeover)            | to build          |
-| RT-4 | slow-worker boot test                                | to build          |
-| RT-6 | SIGTERM with a keep-alive client exits within budget | to build          |
+- **Decision 3, leader lease: the `runtime_leases` row, not `GET_LOCK`.** A named lock belongs to its connection, so a pooled connection that drops or is recycled loses leadership without the holder noticing; a row with `expires_at`, taken by one conditional `UPDATE … WHERE holder = me OR expires_at < now` and renewed every 10 s (TTL 30 s), survives a reconnect and can be read by deep health. The holder stops trusting its lease at `start + ttl − renewEvery` on the monotonic clock (AWS Builders' Library, "Leader election in distributed systems"; Kleppmann 2016). Code: `apps/worker/src/leadership/leader-lease.ts`, `apps/server/leadership.mjs`; migration `0384_runtime_leases.sql`; commit `2821aef1`.
+- **Decision 6, realtime on every instance: a per-instance tail over the published outbox rows**, not a new `realtime_events` table. Side effects (claiming rows, mail, notifications, sweeps) stay on the leader; every copy runs its own socket server and a tail that reads published rows without claiming them (polling publisher, read side), re-reads a lookback window for late commits, and remembers framed ids so a socket never gets an event twice (idempotent consumer). The leader's relay no longer frames. Sources and limits: `apps/worker/src/realtime/realtime-tail.ts`. Connections per copy: lease 1, realtime 1; the leader adds relay 2 and sweeps 1 (+ the sweep lock).
+
+| Rule | Check                                                                                                                                                                                         | Exists / to build                |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| RT-2 | two-instance boot test in `apps/server`; realtime: two copies, one client each, each framed once (`apps/server/realtime-inprocess.test.mjs`, `apps/api/test/rt-002-realtime-tail.db.test.ts`) | boot: to build; realtime: exists |
+| RT-3 | leader-lease db test (one winner; takeover; release) `apps/api/test/rt-003-leader-lease.db.test.ts`                                                                                           | exists                           |
+| RT-4 | slow-worker boot test                                                                                                                                                                         | to build                         |
+| RT-6 | SIGTERM with a keep-alive client exits within budget                                                                                                                                          | to build                         |

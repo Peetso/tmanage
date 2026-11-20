@@ -79,6 +79,7 @@ Context map: the worker is **downstream (conformist) of every producing context*
 | W-11 | No statement on the worker pool can run longer than `DATABASE_STATEMENT_TIMEOUT_MS` (15 s default, `env.ts:278`): `SET SESSION max_statement_time` runs on every new connection. | `worker-database.ts:72-90`, `:176` | `worker-database.test.ts` |
 | W-12 | SQL and driver handles exist only under `src/common/database/` (lint allowlist). | `worker-database.ts:6-10` | `eslint.config.js` allowlist; `upsert-affected-rows.guard.test.ts` |
 | W-13 | DC-3 / RT-3 leader lease: at most one copy wins `runtime_leases` (one conditional UPDATE `WHERE holder = me OR expires_at < now`); the holder trusts it only until `start + ttl − renew` on the monotonic clock (30 s / 10 s); a query error is its own outcome; every time is a bound JS Date. | `common/database/runtime-lease-store.ts`, `leadership/leader-lease.ts` | `leader-lease.test.ts`, `runtime-lease-store.test.ts`, `apps/api/test/rt-003-leader-lease.db.test.ts` |
+| W-14 | DC-3 / RT-2 realtime tail (`realtime/realtime-tail.ts`, `common/database/realtime-tail-store.ts`): reads published `outbox_events` rows of the framed types (messages, DMs, work) with SELECT only, never claims or locks; forward pass from a keyset head `(published_at, id)` plus a 15 s lookback pass for late commits; an id framed once is never framed again (idempotent consumer); starts at `MAX(published_at)` so history is never replayed. Polling publisher + idempotent consumer (microservices.io); late-commit hazard as in Confluent JDBC `timestamp.delay.interval.ms`. | `realtime/realtime-tail.ts`, `common/database/realtime-tail-store.ts`, `index.ts` | `realtime/realtime-tail.test.ts`; `apps/api/test/rt-002-realtime-tail.db.test.ts` |
 
 ## Public API and contracts
 
@@ -141,7 +142,7 @@ The runtime **owns no table**. `outbox_events` is owned by `api/platform` (`apps
 | Statement over 15 s | killed with 1969, treated as recoverable | ST-2 timeout | ok |
 | DB unreachable | loop error delay grows exponentially with jitter (`dispatcher.ts:471-488`) | backoff | ok |
 | SMTP or third party slow or down | consumer fails → retry/park | ST-1, ST-4 | timeouts live in `packages/mail` and each adapter; there is **no circuit breaker** (ST-4, ENGINEERING-STANDARD §7: "None found") |
-| Two relays (restart overlap) | SKIP LOCKED (W-6) | RT-2 | ok for delivery. **Realtime hub is per process** (`realtime/hub.ts:4-10`), so frames go only to that process's sockets (DC-3) |
+| Two relays (restart overlap) | SKIP LOCKED (W-6) | RT-2 | ok for delivery. The hub is per process; every copy frames its own sockets from the outbox tail (W-14) |
 | Two sweep runners | named lock per pass (W-9) | AS-4 | `GET_LOCK` NULL (error) is treated as held (`sweep-lock.ts:51`) and **skipped silently** (DC-1 class). Throttle state for some jobs is in memory in `apps/server` |
 | Relay wedged | heartbeat goes stale → `/healthz/deep` `worker: fail` (`apps/api/src/common/observability/deep-health.ts:139-143`) and an alert mail | RT-11 (partial) | heartbeat is a file, so either process can satisfy it (DC-3 P2) |
 
@@ -198,7 +199,7 @@ n/a — the worker renders no screen. The mail it sends follows the copy rules o
 | `apps/api/test/plat-004-relay.db.test.ts`, `rt-001-realtime.db.test.ts`, `usage-001-expiry-sweeper.db.test.ts`, `req-004-defer-sweep-message-files.db.test.ts` | W-6 and the real-DB protocol |
 | `apps/server/scheduled-sweeps.test.mjs:549` | DC-7 fitness (W-10 across hosts) |
 
-Missing (PR-1): a 1020 refund test; a `GET_LOCK` NULL → error test; a two-process realtime test.
+Missing (PR-1): a 1020 refund test; a `GET_LOCK` NULL → error test. (Two-copy realtime: W-14 tests.)
 
 ## Open defects, decisions and risks
 
@@ -207,7 +208,7 @@ Missing (PR-1): a 1020 refund test; a `GET_LOCK` NULL → error test; a two-proc
 | WRK-1 | DC-5 | `ER_CHECKREAD` 1020 is not recoverable in the batch classifier (`outbox-store.ts:515-522`). | P1 | shared write-conflict helper; test |
 | WRK-2 | DC-1 | `GET_LOCK` NULL (error) is treated as "held" and the pass is skipped silently (`sweep-lock.ts:51`). | P1 | outcome `error`, logged |
 | WRK-3 | DC-4 | No outbox producer `dedupe_key` (`0002:24-48`). | P1 | expand migration (AS-3) |
-| WRK-4 | DC-3 | The realtime hub is per process. (Leader lease: built, W-13.) | P1 | ADR-0010 §6 |
+| WRK-4 | DC-3 | Done: every copy tails the outbox for its own sockets (W-14); leader lease W-13. The standalone `main.ts` still frames from its relay (single process by design). | — | — |
 | WRK-5 | none | ST-2: the pool wait queue is unbounded (`worker-database.ts:165-171`). | P2 | `queueLimit` |
 | WRK-6 | none | No circuit breaker around SMTP or webhooks (ST-4). | P2 | breaker port in `packages/mail` and connectors |
 | WRK-7 | none | Per-event backoff has no jitter (`backoff.ts:8-14`). | P2 | add jitter (bounded, injected `random`) |

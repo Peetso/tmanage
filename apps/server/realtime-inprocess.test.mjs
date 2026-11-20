@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   REALTIME_PATH,
@@ -8,8 +9,10 @@ import {
   isRealtimeUpgrade,
   realtimeInProcessEnabled,
   realtimePublicUrlFor,
-  withRealtimeFanOut,
+  leaderRelayHandlers,
+  startRealtimeTail,
 } from './realtime-inprocess.mjs';
+import * as worker from '@tmanage/worker';
 
 test('the socket is on with the in-process relay, and only then', () => {
   assert.equal(realtimeInProcessEnabled({ WORKER_INPROCESS: '1' }), true);
@@ -98,25 +101,137 @@ test('upgrades reach the socket server only when it exists and the path matches'
   assert.equal(handed[0][0], '/realtime?ticket=t');
 });
 
-test('the fan-out is composed after the existing handlers, as the worker loop does', async () => {
-  const calls = [];
-  const worker = {
-    createMessageFanOut: () => async () => calls.push('fan-out'),
-    createDirectMessageFanOut: () => async () => calls.push('direct-fan-out'),
-    both: (first, second) => async (event) => {
-      await first(event);
-      await second(event);
-    },
+// DC-3 / RT-2 — a shared outbox both copies read. It answers the tail's two statements as
+// MariaDB does (committed rows only, keyset order `(published_at, id)`); anything else (the link
+// preview's reads) finds nothing.
+function sharedOutbox() {
+  const rows = [];
+  const query = async (sql, params = []) => {
+    if (sql === worker.TAIL_START_SQL) {
+      const times = rows.filter((row) => row.committed).map((row) => row.published_at.getTime());
+      return [{ published_at: times.length === 0 ? null : new Date(Math.max(...times)) }];
+    }
+    if (!/FROM outbox_events\s+WHERE \(published_at > \?/u.test(sql)) return [];
+    const [time, , id, ...rest] = params;
+    const limit = rest.pop();
+    return rows
+      .filter(
+        (row) =>
+          row.committed &&
+          rest.includes(row.type) &&
+          (row.published_at > time ||
+            (row.published_at.getTime() === time.getTime() && id !== null && row.id > id)),
+      )
+      .sort((a, b) => a.published_at - b.published_at || (a.id < b.id ? -1 : 1))
+      .slice(0, limit);
   };
-  const handlers = {
-    'message.created.v1': async () => calls.push('mentions'),
-    'client_request.submitted.v1': async () => calls.push('mail'),
+  const tx = { query };
+  return {
+    rows,
+    database: { read: (work) => work(tx), transaction: (work) => work(tx) },
+    tx,
   };
+}
 
-  const composed = withRealtimeFanOut(worker, handlers, {});
-  await composed['message.created.v1']({});
-  await composed['direct_message.created.v1']({});
-  await composed['client_request.submitted.v1']({});
+function message(id, publishedAt) {
+  return {
+    id,
+    organization_id: 'org-1',
+    type: 'message.created.v1',
+    schema_version: 1,
+    aggregate_type: 'message',
+    aggregate_id: `m-${id}`,
+    payload_json: JSON.stringify({ conversationId: 'conv-1', messageId: `m-${id}`, sequence: 7 }),
+    correlation_id: null,
+    occurred_at: publishedAt,
+    attempts: 1,
+    published_at: publishedAt,
+    committed: false,
+  };
+}
 
-  assert.deepEqual(calls, ['mentions', 'fan-out', 'direct-fan-out', 'mail']);
+const manualTimers = { setInterval: () => ({ unref() {} }), clearInterval: () => undefined };
+
+test('two copies, one client each: both clients get the event, each exactly once', async () => {
+  const outbox = sharedOutbox();
+  const quiet = () => undefined;
+  const copies = ['leader', 'follower'].map((name) => {
+    const hub = new worker.RealtimeHub();
+    const frames = [];
+    hub.subscribe('org-1', 'conv-1', (frame) => frames.push(frame));
+    const tail = startRealtimeTail({
+      worker,
+      database: outbox.database,
+      hub,
+      intervalMs: 1_000,
+      log: quiet,
+      describeError: String,
+      timers: manualTimers,
+    });
+    return { name, hub, frames, tail };
+  });
+  for (const copy of copies) await copy.tail.poll();
+
+  // The leader's relay delivers the event (side effects only), then the batch commits.
+  const leader = copies[0];
+  const relay = leaderRelayHandlers(worker, {}, outbox.database, leader.hub);
+  const row = message('e1', new Date('2026-11-20T12:00:01.000Z'));
+  outbox.rows.push(row);
+  const event = {
+    id: row.id,
+    organizationId: row.organization_id,
+    type: row.type,
+    schemaVersion: 1,
+    aggregateType: row.aggregate_type,
+    aggregateId: row.aggregate_id,
+    payload: JSON.parse(row.payload_json),
+    correlationId: null,
+    occurredAt: row.occurred_at,
+    attempts: 1,
+  };
+  const staged = [];
+  await relay['message.created.v1'](event, outbox.tx, { afterCommit: (e) => staged.push(e) });
+  row.committed = true;
+  for (const effect of staged) await effect();
+
+  // Several polls on each copy: the lookback re-reads the row, the id is framed once.
+  for (let poll = 0; poll < 3; poll += 1) for (const copy of copies) await copy.tail.poll();
+
+  for (const copy of copies) {
+    assert.equal(copy.frames.length, 1, `${copy.name} client got ${copy.frames.length} frames`);
+    assert.equal(copy.frames[0].eventType, 'message.created.v1');
+    assert.equal(copy.frames[0].objectId, 'm-e1');
+  }
+});
+
+test("the leader relay composes no chat or work frame: those come from every copy's tail", () => {
+  const handlers = leaderRelayHandlers(
+    worker,
+    {},
+    sharedOutbox().database,
+    new worker.RealtimeHub(),
+  );
+  for (const type of ['direct_message.created.v1', ...worker.WORK_FRAME_EVENT_TYPES]) {
+    assert.equal(handlers[type], undefined, `${type} has a relay handler`);
+  }
+});
+
+test('server.mjs starts sockets and the tail on every copy, outside the leader lease', () => {
+  const source = readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
+  const background = source.slice(source.indexOf('startBackground: async () => {'));
+  const realtimeAt = background.indexOf('realtime = await startRealtime(');
+  const leaderAt = background.indexOf('leadership = await startLeadership(');
+  assert.ok(realtimeAt > 0 && leaderAt > 0, 'both calls present');
+  assert.ok(realtimeAt < leaderAt, 'realtime starts before (outside) the leader callback');
+  // Gated by the realtime switch alone — never by the lease.
+  assert.match(
+    background,
+    /if \(realtimeInProcessEnabled\(process\.env\)\) \{\s+realtime = await startRealtime\(/u,
+  );
+  const relay = source.slice(
+    source.indexOf('async function startInProcessWorker('),
+    source.indexOf('async function startRealtime('),
+  );
+  assert.doesNotMatch(relay, /createRealtimeServer|createMessageFanOut|createRealtimeTail/u);
+  assert.match(relay, /leaderRelayHandlers\(worker, relayHandlers, database, realtimeHub\)/u);
 });

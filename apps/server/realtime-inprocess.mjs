@@ -3,8 +3,14 @@
 // The standalone worker opens its socket server on `REALTIME_PORT`. The Hostinger app has exactly
 // one public port, owned by server.mjs's HTTP server, so here the worker's socket server runs
 // "attached": it binds nothing, and server.mjs hands it the WebSocket upgrades that arrive on
-// `REALTIME_PATH`. The in-process relay then fans `message.created.v1` and
-// `direct_message.created.v1` out to the subscribed sockets, exactly as the standalone loop does.
+// `REALTIME_PATH`.
+//
+// DC-3 / RT-2: Hostinger often runs two copies of the app, and a socket lives on whichever copy
+// the proxy gave its upgrade to. So the frames do NOT come from the relay (which runs on the
+// leading copy only, RT-3): EVERY copy runs its own socket server and a realtime tail
+// (`@tmanage/worker` `createRealtimeTail`) that follows the published outbox rows without claiming
+// them and frames this copy's own sockets, each event once (idempotent consumer). The leader's
+// relay keeps only the side effects ({@link leaderRelayHandlers}).
 //
 // The browser learns the socket URL from the API (`REALTIME_PUBLIC_URL`, served beside the
 // ticket). When it is not set, it is derived from `WEB_PUBLIC_URL`: same origin, `wss://` for an
@@ -14,6 +20,8 @@
 //
 // On by default whenever the in-process relay runs (`WORKER_INPROCESS=1`): a socket with no relay
 // would never receive a frame. `REALTIME_INPROCESS=0` (or false/off/no) turns it off.
+
+import { clearInterval, setInterval } from 'node:timers';
 
 /** The path the browser opens the socket on. Not under `/v1`, so it never reaches the API router. */
 export const REALTIME_PATH = '/realtime';
@@ -86,27 +94,52 @@ export function createUpgradeHandler(getRealtime) {
 }
 
 /**
- * The outbox handlers with the realtime fan-out composed in — mention notices first, then the
- * frame, the same `both(...)` composition the standalone worker loop uses (CQ-12, BK3-left).
+ * The leader relay's handlers: the side-effect consumers plus link previews — and NO frames.
+ * Frames come from every copy's realtime tail ({@link startRealtimeTail}); composing the fan-out
+ * here as well would frame the leader's own sockets twice for every event (RT-2).
+ *
+ * The link-preview card is the one frame still published here, on the leader's hub only: it is
+ * an after-commit effect with no outbox row behind it. A client on another copy gets the card
+ * from its own refetch (the card polls with backoff until the preview is ready).
  */
-export function withRealtimeFanOut(worker, handlers, hub) {
-  const fanOut = worker.createMessageFanOut(hub);
-  const directFanOut = worker.createDirectMessageFanOut(hub);
-  const mentions = handlers['message.created.v1'];
-  const directNotices = handlers['direct_message.created.v1'];
-  const withMessages = {
-    ...handlers,
-    'message.created.v1': mentions === undefined ? fanOut : worker.both(mentions, fanOut),
-    'direct_message.created.v1':
-      directNotices === undefined ? directFanOut : worker.both(directNotices, directFanOut),
+export function leaderRelayHandlers(worker, handlers, database, hub) {
+  return worker.withLinkPreviews(handlers, database, hub);
+}
+
+/**
+ * DC-3 / RT-2 — this copy's realtime tail, polled every `intervalMs`. Never throws: a failed poll
+ * (the database away, say) is logged and the next one retries; the first successful poll
+ * fixes where the tail starts, so history is never replayed.
+ */
+export function startRealtimeTail({
+  worker,
+  database,
+  hub,
+  intervalMs,
+  log,
+  describeError,
+  timers = { setInterval, clearInterval },
+}) {
+  const tail = worker.createRealtimeTail({
+    database,
+    handlers: worker.createRealtimeFanOutHandlers(hub),
+    onHandlerError: (event, error) =>
+      log(`realtime frame ${event.type} ${event.id} failed: ${describeError(error)}`),
+  });
+  const poll = async () => {
+    try {
+      const report = await tail.tick();
+      if (report.truncated) log('realtime tail read its page limit; the next poll goes on');
+      return report;
+    } catch (error) {
+      log(`realtime tail poll failed: ${describeError(error)}`);
+      return undefined;
+    }
   };
-  // 53-01: work events (created, moved, edited, commented, assigned) frame the project's and the
-  // people's topics, after their own consumers. Absent on an older worker build: messages only.
-  if (
-    typeof worker.createWorkFanOut !== 'function' ||
-    typeof worker.withWorkFanOut !== 'function'
-  ) {
-    return withMessages;
-  }
-  return worker.withWorkFanOut(withMessages, worker.createWorkFanOut(hub), worker.both);
+  const timer = timers.setInterval(() => void poll(), intervalMs);
+  timer?.unref?.();
+  return {
+    poll,
+    stop: () => timers.clearInterval(timer),
+  };
 }
