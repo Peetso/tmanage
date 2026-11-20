@@ -74,6 +74,8 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   'arabic',
   // The "Invite a company" page (/referral, 57-08 REFERRAL).
   'referral',
+  // The "Book a walkthrough" page (/walkthrough, WEB-38 LANE-Q).
+  'walkthrough',
   'sessions',
   'admin',
   'api',

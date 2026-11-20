@@ -201,6 +201,12 @@ const ROUTES: Record<string, RouteRow> = {
     title: 'In-house teams',
   },
   '/status': { component: 'StatusScreen', from: 'screens/StatusScreen', title: 'Service status' },
+  // WEB-38 (LANE-Q): the booking page.
+  '/walkthrough': {
+    component: 'WalkthroughPage',
+    from: 'website/pages/walkthrough/WalkthroughPage',
+    title: 'Book a walkthrough',
+  },
   // 52-19: the public approval-record check (noindex; its Arabic twin is its own route).
   '/verify': {
     component: 'VerifyRecordPage',
