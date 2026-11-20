@@ -294,7 +294,11 @@ import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src
 import type { CommandView as ApiCommandView } from '../../apps/api/src/modules/search/commands.controller.js';
 import type { CopilotAnswerView as ApiCopilotAnswerView } from '../../apps/api/src/modules/copilot/copilot.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
-import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
+import type { SessionAccountView as ApiSessionAccountView } from '../../apps/api/src/modules/identity/sessions.repository.js';
+import type {
+  CurrentSessionView as ApiCurrentSessionView,
+  SessionSummaryView as ApiSessionSummaryView,
+} from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { SubscriptionView as ApiSubscriptionView } from '../../apps/api/src/modules/billing/subscription.service.js';
 import type { PlanChangePreviewView as ApiPlanChangePreviewView } from '../../apps/api/src/modules/billing/plan-preview.service.js';
@@ -908,6 +912,8 @@ import type { MicrosoftUnavailableView as WebMicrosoftUnavailableView } from '..
 import type { Command as WebCommand } from '../../apps/web/src/lib/api/commands';
 import type { CopilotAnswerView as WebCopilotAnswerView } from '../../apps/web/src/lib/api/copilot';
 import type {
+  CurrentSession as WebCurrentSession,
+  SessionAccount as WebSessionAccount,
   EstablishedSession as WebEstablishedSession,
   SessionSummary as WebSessionSummary,
 } from '../../apps/web/src/lib/api/session';
@@ -2972,6 +2978,10 @@ type _establishedSession = Assert<Exact<ApiEstablishedSessionView, WebEstablishe
 
 /** `GET /v1/sessions/current/devices` — one device row, ISO-string dates on the wire. */
 type _sessionSummary = Assert<Exact<ApiSessionSummaryView, WebSessionSummary>>;
+
+/** AUTHSTATE. `GET /v1/sessions/current` — the shared session check's answer. */
+type _currentSession = Assert<Exact<ApiCurrentSessionView, WebCurrentSession>>;
+type _sessionAccount = Assert<Exact<ApiSessionAccountView, WebSessionAccount>>;
 
 /**
  * CONTRACT-001 class-1-lift (x79). The four controller-level response bodies x77 had to exempt

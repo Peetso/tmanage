@@ -11,7 +11,7 @@ import {
 import { mintCsrfToken, verifyCsrfToken } from '../../common/http/csrf.js';
 import type { CookieAttributes } from './session-token.js';
 import { SessionsRepository, storableIp } from './sessions.repository.js';
-import type { SessionSummary } from './sessions.repository.js';
+import type { SessionAccountView, SessionSummary } from './sessions.repository.js';
 import type { IpRecorder } from './geo/ip-intelligence.service.js';
 import type { SessionIntelView } from './geo/session-intel.js';
 
@@ -229,6 +229,11 @@ export interface EstablishedSessionView {
  * what the controller sends: those three as the ISO strings JSON serialises a `Date` to, which
  * is exactly what `apps/web`'s `SessionSummary` reads.
  */
+/** AUTHSTATE: `GET /v1/sessions/current` — who this session belongs to. No id, no credential. */
+export interface CurrentSessionView {
+  readonly account: SessionAccountView;
+}
+
 export interface SessionSummaryView {
   readonly id: string;
   readonly userAgent: string | null;
@@ -504,6 +509,21 @@ export class SessionService {
     return this.database.identityRead(
       { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
       (tx) => this.sessions.listForUser(tx, input.userId),
+    );
+  }
+
+  /**
+   * AUTHSTATE: who this session belongs to — the one answer the web asks before it shows an
+   * entry page or a signed-in area (`GET /v1/sessions/current`). `null` when the account row is
+   * gone, which the controller answers as 401, like any session that no longer stands.
+   */
+  async accountOf(input: {
+    readonly userId: string;
+    readonly correlationId: string;
+  }): Promise<SessionAccountView | null> {
+    return this.database.identityRead(
+      { correlationId: input.correlationId, tables: ['users'] },
+      (tx) => this.sessions.findAccount(tx, input.userId),
     );
   }
 

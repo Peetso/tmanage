@@ -201,6 +201,7 @@ export const SESSION_ONLY_ROUTES: Readonly<Record<string, string>> = {
   'GET /v1/auth/security-devices': 'own devices',
   'POST /v1/auth/recovery-codes': 'own recovery codes',
   'DELETE /v1/sessions/current': 'own session',
+  'GET /v1/sessions/current': 'own session (who is signed in)',
   'GET /v1/sessions/current/devices': 'own devices',
   'GET /v1/me/sessions/:sessionId/trail.csv': 'own session trail (owner-checked, else 404)',
   'DELETE /v1/sessions/': 'own sessions',

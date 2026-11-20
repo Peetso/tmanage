@@ -20829,5 +20829,15 @@
   "RouteTitle.settingsAlerts": "Alertas",
   "DigestPreferenceScreen.businessBriefing": "Incluir o resumo do negócio",
   "DigestPreferenceScreen.businessBriefingHint": "O que precisa de você, da verificação de cada hora: as mesmas linhas do Início. Enviado só quando há algo a dizer.",
-  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Resumo do negócio"
+  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Resumo do negócio",
+  "SessionGate.checking": "Verificando seu login…",
+  "SessionGate.unreachableTitle": "Não foi possível acessar o TManage agora",
+  "SessionGate.unreachableBody": "Tentando de novo. Esta página abre assim que o TManage responder.",
+  "SessionGate.retryNow": "Tentar agora",
+  "SessionGate.signedInTitle": "Você está conectado",
+  "SessionGate.signedInAs": "Você está conectado como {account}.",
+  "SessionGate.continue": "Continuar",
+  "SessionGate.signOut": "Sair",
+  "SessionGate.signingOut": "Saindo…",
+  "SessionGate.signOutFailed": "A saída não foi concluída. Tente novamente."
 }

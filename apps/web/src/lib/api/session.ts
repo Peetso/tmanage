@@ -91,6 +91,35 @@ export async function refreshSession(client: ApiClient): Promise<EstablishedSess
   return data;
 }
 
+/** AUTHSTATE: how long the session check waits before it calls the API unreachable. */
+export const SESSION_CHECK_TIMEOUT_MS = 10_000;
+
+/** AUTHSTATE: the person this browser's session belongs to (`GET /v1/sessions/current`). */
+export interface SessionAccount {
+  readonly email: string;
+  readonly displayName: string;
+}
+
+/** The body of `GET /v1/sessions/current`. */
+export interface CurrentSession {
+  readonly account: SessionAccount;
+}
+
+/**
+ * Ask the API who is signed in, WITHOUT the client's own refresh-and-announce recovery: the
+ * shared session check (`lib/session-check.ts`) runs the refresh itself, so it can tell a
+ * refused session from an API that did not answer. A request that hangs (a restart) is
+ * abandoned after {@link SESSION_CHECK_TIMEOUT_MS} and counts as no answer.
+ */
+export async function getCurrentSession(client: ApiClient): Promise<SessionAccount> {
+  const { data } = await client.request<CurrentSession>({
+    path: '/v1/sessions/current',
+    authentication: 'none',
+    signal: AbortSignal.timeout(SESSION_CHECK_TIMEOUT_MS),
+  });
+  return data.account;
+}
+
 /**
  * Sign out of this session. Idempotent — a second call changes nothing.
  *

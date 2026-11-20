@@ -577,6 +577,8 @@ async function main() {
     inject: (options) => state.ready.fastify.inject(options),
     proxyToWeb: toWeb,
     log,
+    // AUTHSTATE: the browser-readable cookie that says a refreshable session may exist.
+    csrfCookieName: `${process.env['SESSION_COOKIE_NAME'] || 'tmanage_session'}_csrf`,
   });
   const publicHandler = createPublicHandler(
     state,

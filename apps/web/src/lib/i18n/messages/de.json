@@ -20829,5 +20829,15 @@
   "RouteTitle.settingsAlerts": "Warnungen",
   "DigestPreferenceScreen.businessBriefing": "Geschäftsbriefing hinzufügen",
   "DigestPreferenceScreen.businessBriefingHint": "Was dich braucht, aus der stündlichen Prüfung: dieselben Zeilen wie auf der Startseite. Nur gesendet, wenn es etwas zu sagen gibt.",
-  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Geschäftsbriefing"
+  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Geschäftsbriefing",
+  "SessionGate.checking": "Anmeldung wird geprüft…",
+  "SessionGate.unreachableTitle": "TManage ist gerade nicht erreichbar",
+  "SessionGate.unreachableBody": "Neuer Versuch läuft. Diese Seite öffnet sich, sobald TManage antwortet.",
+  "SessionGate.retryNow": "Jetzt versuchen",
+  "SessionGate.signedInTitle": "Du bist angemeldet",
+  "SessionGate.signedInAs": "Du bist angemeldet als {account}.",
+  "SessionGate.continue": "Weiter",
+  "SessionGate.signOut": "Abmelden",
+  "SessionGate.signingOut": "Abmeldung läuft…",
+  "SessionGate.signOutFailed": "Die Abmeldung wurde nicht abgeschlossen. Versuche es erneut."
 }

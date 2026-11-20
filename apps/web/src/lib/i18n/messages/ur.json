@@ -1330,5 +1330,15 @@
   "AlertSettings.recipient.owner": "مالک",
   "AlertSettings.recipient.project_lead_and_owner": "پروجیکٹ لیڈ اور مالک",
   "AlertSettings.recipient.finance_team": "مالیاتی ٹیم",
-  "AlertSettings.recipient.owner_and_finance_team": "مالک اور مالیاتی ٹیم"
+  "AlertSettings.recipient.owner_and_finance_team": "مالک اور مالیاتی ٹیم",
+  "SessionGate.checking": "آپ کا سائن ان چیک ہو رہا ہے…",
+  "SessionGate.unreachableTitle": "ابھی TManage تک رسائی نہیں ہو سکی",
+  "SessionGate.unreachableBody": "دوبارہ کوشش جاری ہے۔ TManage کے جواب دیتے ہی یہ صفحہ کھل جائے گا۔",
+  "SessionGate.retryNow": "ابھی کوشش کریں",
+  "SessionGate.signedInTitle": "آپ سائن ان ہیں",
+  "SessionGate.signedInAs": "آپ {account} کے طور پر سائن ان ہیں۔",
+  "SessionGate.continue": "جاری رکھیں",
+  "SessionGate.signOut": "سائن آؤٹ",
+  "SessionGate.signingOut": "سائن آؤٹ ہو رہا ہے…",
+  "SessionGate.signOutFailed": "سائن آؤٹ مکمل نہیں ہوا۔ دوبارہ کوشش کریں۔"
 }

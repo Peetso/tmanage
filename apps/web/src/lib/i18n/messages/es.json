@@ -20831,5 +20831,15 @@
   "RouteTitle.settingsAlerts": "Alertas",
   "DigestPreferenceScreen.businessBriefing": "Añadir el resumen del negocio",
   "DigestPreferenceScreen.businessBriefingHint": "Lo que te necesita, según la revisión de cada hora: las mismas líneas que en Inicio. Solo se envía si hay algo que contar.",
-  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Resumen del negocio"
+  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Resumen del negocio",
+  "SessionGate.checking": "Comprobando tu inicio de sesión…",
+  "SessionGate.unreachableTitle": "No se puede conectar con TManage ahora",
+  "SessionGate.unreachableBody": "Reintentando. Esta página se abrirá en cuanto TManage responda.",
+  "SessionGate.retryNow": "Intentar ahora",
+  "SessionGate.signedInTitle": "Has iniciado sesión",
+  "SessionGate.signedInAs": "Has iniciado sesión como {account}.",
+  "SessionGate.continue": "Continuar",
+  "SessionGate.signOut": "Cerrar sesión",
+  "SessionGate.signingOut": "Cerrando sesión…",
+  "SessionGate.signOutFailed": "No se completó el cierre de sesión. Inténtalo de nuevo."
 }

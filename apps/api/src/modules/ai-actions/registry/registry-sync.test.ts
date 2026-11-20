@@ -234,7 +234,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 62-27: GET and PUT insights/signal-settings (+2 ops, read and confirm).
 // 62-A1b: GET home/briefing (+1 op, read). 62-A3: GET and PUT platform/settings/unit-costs
 // (+2 NEVER, platform_admin).
-const EXPECTED_ROUTE_COUNT = 1558;
+// AUTHSTATE: GET sessions/current, the shared session check (+1 NEVER, session).
+const EXPECTED_ROUTE_COUNT = 1559;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

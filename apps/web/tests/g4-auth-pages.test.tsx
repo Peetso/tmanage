@@ -40,17 +40,9 @@ afterEach(() => {
 describe('G4 auth pages', () => {
   it('makes no GET /v1/organizations for a signed-out visitor (no session cookie)', async () => {
     const { client, urls } = recordingClient();
-    const onAlreadySignedIn = vi.fn();
-    render(
-      <SignInScreen
-        client={client}
-        developmentSignInEnabled={false}
-        onAlreadySignedIn={onAlreadySignedIn}
-      />,
-    );
+    render(<SignInScreen client={client} developmentSignInEnabled={false} />);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(urls.some((url) => url.endsWith('/v1/organizations'))).toBe(false);
-    expect(onAlreadySignedIn).not.toHaveBeenCalled();
   });
 
   it('puts no bare "◉" or "i" glyph in the sign-in page text', () => {

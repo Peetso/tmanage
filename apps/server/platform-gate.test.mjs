@@ -50,6 +50,7 @@ async function get(url, cookie) {
   return {
     status: response.status,
     location: response.headers.get('location'),
+    setCookie: response.headers.get('set-cookie'),
     body: await response.text(),
   };
 }
@@ -83,6 +84,23 @@ test('an expired session (API 401) is sent to sign-in', async () => {
   });
 });
 
+test('AUTHSTATE: a 401 with the readable CSRF cookie (expired access, refreshable) goes to the web, not to sign-in', async () => {
+  // Live 2026-11-19: after a 15-minute pause the access cookie is gone and the refresh cookie is
+  // never sent with a page request, so a VALID session answered 401 here and was sent to sign-in.
+  await serve(401, async (base) => {
+    const page = await get(`${base}/platform/activity/growth`, 'tmanage_session_csrf=v1.abc');
+    assert.deepEqual([page.status, page.location], [200, null]);
+    // A different cookie of the same prefix is not the CSRF cookie.
+    const other = await get(`${base}/platform/activity/growth`, 'tmanage_session_csrfx=1');
+    assert.deepEqual(
+      [other.status, other.location],
+      [307, '/sign-in?next=%2Fplatform%2Factivity%2Fgrowth'],
+    );
+  });
+  assert.equal(platformDecision(401, true), 'open');
+  assert.equal(platformDecision(404, true), 'not-found');
+});
+
 test('a signed-in non-member gets the ordinary 404 page, never the menu', async () => {
   await serve(404, async (base, asked) => {
     const page = await get(`${base}/platform`, 'tmanage_session=s; tmanage_csrf=c');
@@ -101,11 +119,16 @@ test('a signed-in non-member gets the ordinary 404 page, never the menu', async 
   });
 });
 
-test('a failed check fails closed (404)', async () => {
-  await serve(new Error('boom'), async (base) => {
-    assert.equal((await get(`${base}/platform`, 'tmanage_session=s')).status, 404);
-  });
-  await serve(500, async (base) => {
+test('AUTHSTATE: an upstream 5xx or no answer keeps the session (web retries), never sign-in or 404', async () => {
+  // Live 2026-11-20: during a deploy restart a valid session was treated as signed out.
+  for (const answer of [new Error('ECONNRESET'), 500, 502, 503, 504]) {
+    await serve(answer, async (base) => {
+      const page = await get(`${base}/platform/people`, 'tmanage_session=s');
+      assert.deepEqual([page.status, page.location, page.setCookie], [200, null, null]);
+    });
+  }
+  // A definite refusal other than 401 still fails closed.
+  await serve(400, async (base) => {
     assert.equal((await get(`${base}/platform`, 'tmanage_session=s')).status, 404);
   });
 });
@@ -140,6 +163,6 @@ test('paths, return addresses and decisions', () => {
     'open',
     'sign-in',
     'not-found',
-    'not-found',
+    'unknown',
   ]);
 });

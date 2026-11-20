@@ -77,6 +77,13 @@ const SAFE_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
 /** Why a session ended without the person asking it to. */
 export type SessionEndReason = 'refresh_refused';
 
+/**
+ * AUTHSTATE: what one refresh attempt established. `kept` — a new access cookie; `ended` — the API
+ * refused the refresh cookie (the session is over); `unreachable` — no answer, or a 5xx, which
+ * decides nothing about the session.
+ */
+export type SessionResumeOutcome = 'kept' | 'ended' | 'unreachable';
+
 export interface SessionRecoveryOptions {
   /**
    * Run `work` while holding a cross-tab mutual exclusion. Absent where there is none (tests,
@@ -204,7 +211,7 @@ function isAccessExpired(error: unknown): error is ApiRequestError {
 
 export class ApiClient {
   private csrfTokenInMemory: string | undefined;
-  private recovering: Promise<boolean> | undefined;
+  private recovering: Promise<SessionResumeOutcome> | undefined;
   private lastActivityAt: number;
   private lastRefreshAt = Number.NEGATIVE_INFINITY;
   private idle: IdleState = { limitMinutes: 0, deadline: null };
@@ -253,6 +260,16 @@ export class ApiClient {
   staySignedIn(): Promise<boolean> {
     this.lastActivityAt = this.now();
     return this.recoverSession();
+  }
+
+  /**
+   * AUTHSTATE: refresh the session now and say what that established — the shared session check
+   * (`lib/session-check.ts`) tells "signed out" from "TManage did not answer" with it. The same
+   * coalesced, cross-tab-locked attempt every expired request uses; a refusal is announced once.
+   */
+  resumeSession(): Promise<SessionResumeOutcome> {
+    this.lastActivityAt = this.now();
+    return this.resume();
   }
 
   /**
@@ -308,12 +325,17 @@ export class ApiClient {
    * across tabs. Resolves `true` when a replay is worth making, `false` when it is not.
    */
   private recoverSession(): Promise<boolean> {
+    return this.resume().then((outcome) => outcome === 'kept');
+  }
+
+  private resume(): Promise<SessionResumeOutcome> {
     if (this.recovering) return this.recovering;
 
     const recovery = this.options.recovery;
-    if (!recovery) return Promise.resolve(false);
+    // No recovery configured: nothing can renew the access cookie, so its refusal stands.
+    if (!recovery) return Promise.resolve('ended');
 
-    const attempt = async (): Promise<boolean> => {
+    const attempt = async (): Promise<SessionResumeOutcome> => {
       try {
         const { data } = await this.send<{ readonly csrfToken?: unknown }>({
           method: 'POST',
@@ -328,16 +350,17 @@ export class ApiClient {
             deadline: this.lastRefreshAt + this.idle.limitMinutes * 60_000,
           });
         }
-        return true;
+        return 'kept';
       } catch (error) {
         if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
           // The API has cleared the cookies (`SessionController.refresh`); the tab's memory
           // goes with them, and the application is told once.
           this.forgetCsrfToken();
           recovery.onSessionEnded('refresh_refused');
+          return 'ended';
         }
         // Anything else — the API unreachable, a 5xx — decides nothing about the session.
-        return false;
+        return 'unreachable';
       }
     };
 

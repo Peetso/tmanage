@@ -9,10 +9,19 @@ import { sessionHint, workspaceGate, type WorkspaceGate } from './workspace-gate
  */
 export async function requestWorkspaceGate(slug: string): Promise<WorkspaceGate> {
   const requestHeaders = await headers();
-  const requestCookies = await cookies();
   return workspaceGate({
     slug,
     pathname: requestHeaders.get(REQUEST_PATH_HEADER),
-    hasSession: sessionHint((name) => requestCookies.has(name), requestHeaders.get('host')),
+    hasSession: await requestSessionHint(),
   });
+}
+
+/**
+ * AUTHSTATE: `sessionHint` for the current request — the entry pages (`/sign-in`, `/sign-up`)
+ * render "Checking your sign-in…" instead of a form when it is set (`EntrySessionGate`).
+ */
+export async function requestSessionHint(): Promise<boolean> {
+  const requestHeaders = await headers();
+  const requestCookies = await cookies();
+  return sessionHint((name) => requestCookies.has(name), requestHeaders.get('host'));
 }

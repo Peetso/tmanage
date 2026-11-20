@@ -8845,6 +8845,14 @@
       "notDriven": "no object id in path or body"
     },
     {
+      "key": "GET /v1/sessions/current",
+      "class": "session-only",
+      "handler": "apps/api/src/modules/identity/session.controller.ts#current",
+      "params": [],
+      "bodyIdFields": [],
+      "notDriven": "no object id in path or body"
+    },
+    {
       "key": "GET /v1/sessions/current/devices",
       "class": "session-only",
       "handler": "apps/api/src/modules/identity/session.controller.ts#devices",

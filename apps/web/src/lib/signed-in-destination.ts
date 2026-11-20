@@ -1,4 +1,6 @@
 import type { ApiClient } from './api/client';
+import { browserMayHaveSession } from './api/browser-client';
+import { checkSession } from './session-check';
 import type { OrganizationSummary } from './api/organizations';
 import { DEFAULT_AFTER_SIGN_IN, safeReturnPath } from './sign-in-return';
 
@@ -34,22 +36,35 @@ export function destinationForSignedIn(
 }
 
 /**
- * Asks the API whether this browser already has a session, without the refresh-and-sign-out
- * recovery an ordinary read gets: a signed-out visitor's 401 here must not announce
- * "session ended" (that would navigate to `/sign-in` again and drop `?next=`). Any failure —
- * 401, a network error, a 5xx — answers "not signed in", so the page behaves exactly as before.
+ * Where a person the shared session check has confirmed belongs: their workspace, the picker, or
+ * an allowed `?next=`. A failed organization read still lands somewhere useful — the picker,
+ * which shows its own error — rather than leaving the person on the sign-in page.
+ */
+export async function workspaceDestination(
+  client: ApiClient,
+  next: string | null | undefined,
+): Promise<string> {
+  try {
+    const { data } = await client.request<{ organizations: readonly OrganizationSummary[] }>({
+      path: '/v1/organizations',
+    });
+    return destinationForSignedIn(data.organizations ?? [], next) ?? DEFAULT_AFTER_SIGN_IN;
+  } catch {
+    return safeReturnPath(next);
+  }
+}
+
+/**
+ * AUTHSTATE: the workspace of a visitor who is signed in, or `undefined` for anyone else — asked
+ * through the shared session check (`lib/session-check.ts`), so an expired access cookie is
+ * refreshed first instead of being taken for "signed out".
  */
 export async function signedInDestination(
   client: ApiClient,
   next: string | null | undefined,
+  mayHaveSession: () => boolean = browserMayHaveSession,
 ): Promise<string | undefined> {
-  try {
-    const { data } = await client.request<{ organizations: readonly OrganizationSummary[] }>({
-      path: '/v1/organizations',
-      authentication: 'none',
-    });
-    return destinationForSignedIn(data.organizations ?? [], next);
-  } catch {
-    return undefined;
-  }
+  const check = await checkSession(client, { mayHaveSession: mayHaveSession() });
+  if (check.state !== 'signed-in') return undefined;
+  return workspaceDestination(client, next);
 }

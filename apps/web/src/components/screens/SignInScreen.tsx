@@ -5,8 +5,7 @@ import Link from '../website/WebLink';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { MfaChallengeScreen } from './MfaChallengeScreen';
-import { browserApiClient, csrfCookieName } from '../../lib/api/browser-client';
-import { readCookie } from '../../lib/api/client';
+import { browserApiClient } from '../../lib/api/browser-client';
 import {
   signInWithPassword,
   type MfaRequiredResponse,
@@ -16,7 +15,6 @@ import { developmentSignIn } from '../../lib/api/session';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useHydrated } from '../../lib/use-hydrated';
-import { signedInDestination } from '../../lib/signed-in-destination';
 import { isPublicSignupOffered } from '../../lib/public-signup';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -67,35 +65,16 @@ export interface SignInScreenProps {
   /** Injected in tests. Defaults to the application's boundary. */
   boundary?: AuthBoundary;
   /**
-   * Called with a same-origin path when the person opening this page is already signed in
-   * (their workspace home, the picker, or an allowed `?next=`). When absent, no check is made.
-   */
-  onAlreadySignedIn?: (destination: string) => void;
-  /**
    * The website's language switch, drawn inside the card under the legal links (the page passes
    * it; a test mounting the screen leaves it out). See `IdentityShell`'s `language`.
    */
   language?: ReactNode;
-  /**
-   * Whether this browser may hold a session — the readable CSRF cookie the API sets and clears
-   * with the session cookies (`serializeReadableCookie`). When it is absent the visitor is signed
-   * out, so the already-signed-in check is not made: an anonymous `GET /v1/organizations` would
-   * answer 401, and the browser logs every 401 in the console (live recheck, wave 6). Injected in
-   * tests.
-   */
-  mayHaveSession?: () => boolean;
 }
 
 /** The password form's fields, in the order they are checked and focused (their `name`s). */
 const SIGN_IN_FIELDS = ['email', 'password'] as const;
 
 type SignInField = (typeof SIGN_IN_FIELDS)[number];
-
-function browserMayHaveSession(): boolean {
-  return (
-    typeof document !== 'undefined' && readCookie(document.cookie, csrfCookieName()) !== undefined
-  );
-}
 
 /**
  * **ID-01 Sign in.**
@@ -155,8 +134,6 @@ export function SignInScreen({
   developmentSignInEnabled = process.env.NODE_ENV !== 'production',
   signUpOffered = isPublicSignupOffered(),
   boundary = authBoundary,
-  onAlreadySignedIn,
-  mayHaveSession = browserMayHaveSession,
   language,
 }: SignInScreenProps) {
   const describe = useDescribeApiError();
@@ -213,12 +190,6 @@ export function SignInScreen({
   const tr = useTOr();
   const [ssoError, setSsoError] = useState<readonly [string, string] | undefined>(undefined);
 
-  /**
-   * Set as soon as this page starts a sign-in of its own. The already-signed-in check below
-   * then never navigates: its answer could otherwise arrive after the new session's cookies
-   * and race the sign-in's own navigation.
-   */
-  const attempted = useRef(false);
   /** R12 (R1): render time and key count, sent with the sign-in as advisory signals. */
   const renderedAt = useRef<number | undefined>(undefined);
   const keystrokes = useRef(0);
@@ -228,30 +199,6 @@ export function SignInScreen({
   const countKey = () => {
     keystrokes.current += 1;
   };
-
-  // Already signed in (live check f30af1d0): go into the app instead of showing the form. A
-  // signed-out visitor's check answers "no" and nothing changes. Skipped while a Google
-  // sign-in is finishing its second step — that person has no session yet.
-  useEffect(() => {
-    if (!onAlreadySignedIn || !mayHaveSession()) return;
-    const params = new URLSearchParams(window.location.search);
-    if (
-      params.get('google') === 'mfa' ||
-      params.get('microsoft') === 'mfa' ||
-      params.get('sso') === 'mfa'
-    ) {
-      return;
-    }
-    let cancelled = false;
-    void signedInDestination(api, params.get('next')).then((destination) => {
-      if (cancelled || attempted.current || destination === undefined) return;
-      onAlreadySignedIn(destination);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     const search = window.location.search;
@@ -309,7 +256,6 @@ export function SignInScreen({
     }
     setFieldErrors({});
 
-    attempted.current = true;
     setSigningIn(true);
     setFailure(undefined);
 
@@ -366,7 +312,6 @@ export function SignInScreen({
       return;
     }
 
-    attempted.current = true;
     setDevelopmentState('working');
     setDevelopmentFailure(undefined);
 
@@ -477,7 +422,6 @@ export function SignInScreen({
           <PasskeySignInButton
             api={api}
             onSignedIn={() => {
-              attempted.current = true;
               signedIn();
             }}
           />

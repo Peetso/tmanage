@@ -1,6 +1,7 @@
 import { ApiClient, newCorrelationId, readCookie } from './client';
 import { authBoundary } from '../auth-boundary';
 import { resolveApiBaseUrl, resolveCsrfCookieName } from '../public-config';
+import { sessionCookieVisible } from '../workspace-gate';
 
 /**
  * The `ApiClient` a browser gets.
@@ -35,6 +36,18 @@ export function csrfCookieName(): string {
     apiBaseUrl: process.env['NEXT_PUBLIC_API_BASE_URL'],
     sessionCookieName: process.env['NEXT_PUBLIC_SESSION_COOKIE_NAME'],
   });
+}
+
+/**
+ * AUTHSTATE: whether this browser may hold a session — the browser half of `sessionHint`. The
+ * readable CSRF cookie is set and cleared with the session cookies, so without it nothing can be
+ * refreshed. When the API is on another host its cookies are invisible here, and only asking can
+ * tell, so the answer is then "maybe".
+ */
+export function browserMayHaveSession(): boolean {
+  if (typeof document === 'undefined') return false;
+  if (readCookie(document.cookie, csrfCookieName()) !== undefined) return true;
+  return !sessionCookieVisible(apiBaseUrl(), window.location.host);
 }
 
 /** The name every tab of this origin takes the refresh lock under. */

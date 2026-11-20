@@ -410,6 +410,7 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'DELETE', path: '/v1/sessions/', reason: 'session' },
   { method: 'DELETE', path: '/v1/sessions/:sessionId', reason: 'session' },
   { method: 'DELETE', path: '/v1/sessions/current', reason: 'session' },
+  { method: 'GET', path: '/v1/sessions/current', reason: 'session' },
   { method: 'GET', path: '/v1/sessions/current/devices', reason: 'session' },
   // R12: the caller's own session trail CSV, and an admin's export of a member's.
   { method: 'GET', path: '/v1/me/sessions/:sessionId/trail.csv', reason: 'session' },

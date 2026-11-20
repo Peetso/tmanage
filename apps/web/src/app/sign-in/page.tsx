@@ -1,34 +1,11 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
-import { SignInScreen } from '../../components/screens/SignInScreen';
-import { LanguageSwitch } from '../../components/website/WebFooter';
-import { afterSignInPath } from '../../lib/sign-in-return';
-import './sign-in-lang.css';
+import { requestSessionHint } from '../../lib/workspace-gate-request';
+import { SignInPageClient } from './SignInPageClient';
 
 /**
- * **ID-01 Sign in.** The screen itself is in `components/screens` so a test can mount it.
- *
- * `?next=` is honoured only for an invitation path (`safeReturnPath`), so somebody sent here
- * from an invitation link lands back on it after signing in (ACC-01).
- *
- * A person who is already signed in is sent into the app (`signedInDestination`) — replaced,
- * not pushed, so Back does not return to a sign-in form they do not need.
- *
- * A5: the website's language switch is the card's last row, so a visitor can change the
- * language before signing in; on `/sign-in` ↔ `/ar/sign-in` it loads the other twin.
+ * **ID-01 Sign in.** Rendered per request (`layout.tsx`): the server's reading of the session
+ * cookie decides the first HTML — "Checking your sign-in…" when this browser may hold a session,
+ * the form when it cannot (AUTHSTATE, `EntrySessionGate`).
  */
-export default function SignInPage() {
-  const router = useRouter();
-  return (
-    <SignInScreen
-      language={<LanguageSwitch />}
-      onAlreadySignedIn={(destination) => router.replace(destination)}
-      onSignedIn={() => {
-        const search = typeof window === 'undefined' ? '' : window.location.search;
-        const next = new URLSearchParams(search).get('next');
-        router.push(afterSignInPath(next, search));
-      }}
-    />
-  );
+export default async function SignInPage() {
+  return <SignInPageClient sessionHint={await requestSessionHint()} />;
 }

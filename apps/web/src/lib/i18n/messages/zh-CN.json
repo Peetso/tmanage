@@ -20829,5 +20829,15 @@
   "RouteTitle.settingsAlerts": "提醒",
   "DigestPreferenceScreen.businessBriefing": "加入业务简报",
   "DigestPreferenceScreen.businessBriefingHint": "来自每小时检查的待你处理事项：与首页相同的内容。只有在有内容时才发送。",
-  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "业务简报"
+  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "业务简报",
+  "SessionGate.checking": "正在检查你的登录状态…",
+  "SessionGate.unreachableTitle": "暂时无法连接 TManage",
+  "SessionGate.unreachableBody": "正在重试。TManage 一有响应，此页面就会打开。",
+  "SessionGate.retryNow": "立即重试",
+  "SessionGate.signedInTitle": "你已登录",
+  "SessionGate.signedInAs": "你已以 {account} 登录。",
+  "SessionGate.continue": "继续",
+  "SessionGate.signOut": "退出登录",
+  "SessionGate.signingOut": "正在退出…",
+  "SessionGate.signOutFailed": "退出未完成，请重试。"
 }

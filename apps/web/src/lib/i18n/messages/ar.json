@@ -21035,5 +21035,15 @@
   "RouteTitle.settingsAlerts": "التنبيهات",
   "DigestPreferenceScreen.businessBriefing": "أضف موجز العمل",
   "DigestPreferenceScreen.businessBriefingHint": "ما يحتاجك من التحقق كل ساعة: نفس سطور الرئيسية. لا يُرسل إلا إذا كان هناك ما يُقال.",
-  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "موجز العمل"
+  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "موجز العمل",
+  "SessionGate.checking": "جارٍ التحقق من تسجيل دخولك…",
+  "SessionGate.unreachableTitle": "تعذّر الوصول إلى TManage الآن",
+  "SessionGate.unreachableBody": "نعيد المحاولة. ستُفتح هذه الصفحة فور استجابة TManage.",
+  "SessionGate.retryNow": "حاول الآن",
+  "SessionGate.signedInTitle": "أنت مسجّل الدخول",
+  "SessionGate.signedInAs": "أنت مسجّل الدخول باسم {account}.",
+  "SessionGate.continue": "متابعة",
+  "SessionGate.signOut": "تسجيل الخروج",
+  "SessionGate.signingOut": "جارٍ تسجيل الخروج…",
+  "SessionGate.signOutFailed": "لم يكتمل تسجيل الخروج. حاول مرة أخرى."
 }

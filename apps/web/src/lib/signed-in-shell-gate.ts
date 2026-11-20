@@ -11,7 +11,7 @@ import { signInPathFor } from './sign-in-return';
  * `hasSession` is the routing hint of `sessionHint`; a forged cookie only reaches the server-side
  * membership check, never the shell.
  */
-const SIGNED_IN_AREAS = ['/platform', '/organizations', '/sessions'] as const;
+const SIGNED_IN_AREAS = ['/platform', '/organizations', '/sessions', '/onboarding'] as const;
 
 /** True for `/platform`, `/platform/...` and the other signed-in areas (exact segment match). */
 export function isSignedInArea(pathname: string): boolean {

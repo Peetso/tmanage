@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { SignUpWithImport } from '../../components/screens/SignUpWithImport';
+import { EntrySessionGate } from '../../components/session/EntrySessionGate';
+import { requestSessionHint } from '../../lib/workspace-gate-request';
 import { PublicLocaleAlternates } from '../../components/website/PublicLocaleAlternates';
 import { authPageRobots } from '../../lib/i18n/public-locale-routes';
 
@@ -20,11 +22,14 @@ export const metadata: Metadata = {
   robots: authPageRobots('/sign-up'),
 };
 
-export default function SignUpPage() {
+export default async function SignUpPage() {
   return (
     <>
       <PublicLocaleAlternates />
-      <SignUpWithImport />
+      {/* AUTHSTATE: a signed-in visitor sees "You're signed in as …", not a second sign-up. */}
+      <EntrySessionGate sessionHint={await requestSessionHint()}>
+        <SignUpWithImport />
+      </EntrySessionGate>
     </>
   );
 }

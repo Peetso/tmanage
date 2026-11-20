@@ -20829,5 +20829,15 @@
   "RouteTitle.settingsAlerts": "Alertes",
   "DigestPreferenceScreen.businessBriefing": "Ajouter le briefing d’activité",
   "DigestPreferenceScreen.businessBriefingHint": "Ce qui a besoin de vous, d’après la vérification horaire : les mêmes lignes qu’à l’accueil. Envoyé seulement s’il y a quelque chose à dire.",
-  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Briefing d’activité"
+  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Briefing d’activité",
+  "SessionGate.checking": "Vérification de votre connexion…",
+  "SessionGate.unreachableTitle": "Impossible de joindre TManage pour le moment",
+  "SessionGate.unreachableBody": "Nouvelle tentative en cours. Cette page s'ouvrira dès que TManage répondra.",
+  "SessionGate.retryNow": "Réessayer maintenant",
+  "SessionGate.signedInTitle": "Vous êtes connecté",
+  "SessionGate.signedInAs": "Vous êtes connecté en tant que {account}.",
+  "SessionGate.continue": "Continuer",
+  "SessionGate.signOut": "Se déconnecter",
+  "SessionGate.signingOut": "Déconnexion…",
+  "SessionGate.signOutFailed": "La déconnexion n'a pas abouti. Réessayez."
 }

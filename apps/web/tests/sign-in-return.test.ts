@@ -27,6 +27,26 @@ describe('sign-in return path', () => {
       '//evil.example',
       `${INVITE}/../../admin`,
       `/invitations/${'A'.repeat(43)}?x=1`,
+      // AUTHSTATE (ENGINEERING-RULES §2.5): same-origin relative paths only, in every spelling.
+      '///evil.example',
+      'HTTPS://evil.example/platform',
+      'javascript:alert(1)',
+      'data:text/html,x',
+      '\\\\evil.example',
+      '/\\evil.example',
+      '\\/evil.example',
+      '%2F%2Fevil.example',
+      '/%2F%2Fevil.example',
+      '/%5Cevil.example',
+      '/platform/%2F%2Fevil.example',
+      '/platform//evil.example',
+      '/platform\\evil.example',
+      '/platform/..%2F..%2Fevil',
+      ' /platform',
+      '/platform\n',
+      '/platform#//evil.example',
+      '/platform?next=//evil.example',
+      '/connect/authorize?x=1#//evil.example',
     ]) {
       expect(safeReturnPath(next)).toBe('/organizations');
     }

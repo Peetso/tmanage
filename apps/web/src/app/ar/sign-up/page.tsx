@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { SignUpWithImport } from '../../../components/screens/SignUpWithImport';
+import { EntrySessionGate } from '../../../components/session/EntrySessionGate';
+import { requestSessionHint } from '../../../lib/workspace-gate-request';
 import { PublicLocaleAlternates } from '../../../components/website/PublicLocaleAlternates';
 import { arabicRouteMetadata } from '../../../lib/i18n/public-locale-routes';
 
@@ -9,11 +11,14 @@ import { arabicRouteMetadata } from '../../../lib/i18n/public-locale-routes';
  */
 export const metadata: Metadata = arabicRouteMetadata('/sign-up');
 
-export default function ArabicSignUpPage() {
+export default async function ArabicSignUpPage() {
   return (
     <>
       <PublicLocaleAlternates />
-      <SignUpWithImport />
+      {/* AUTHSTATE: a signed-in visitor sees "You're signed in as …", not a second sign-up. */}
+      <EntrySessionGate sessionHint={await requestSessionHint()}>
+        <SignUpWithImport />
+      </EntrySessionGate>
     </>
   );
 }

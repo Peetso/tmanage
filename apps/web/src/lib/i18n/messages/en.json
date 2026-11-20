@@ -21035,5 +21035,15 @@
   "RouteTitle.settingsAlerts": "Alerts",
   "DigestPreferenceScreen.businessBriefing": "Add the business briefing",
   "DigestPreferenceScreen.businessBriefingHint": "What needs you, from the hourly check: the same lines as on Home. Sent only when there is something to say.",
-  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Business briefing"
+  "HomeWidgetPrefsScreen.widgetBusinessBriefing": "Business briefing",
+  "SessionGate.checking": "Checking your sign-in…",
+  "SessionGate.unreachableTitle": "Can't reach TManage right now",
+  "SessionGate.unreachableBody": "Retrying. This page opens as soon as TManage answers.",
+  "SessionGate.retryNow": "Try now",
+  "SessionGate.signedInTitle": "You're signed in",
+  "SessionGate.signedInAs": "You're signed in as {account}.",
+  "SessionGate.continue": "Continue",
+  "SessionGate.signOut": "Sign out",
+  "SessionGate.signingOut": "Signing out…",
+  "SessionGate.signOutFailed": "Sign-out didn't finish. Try again."
 }

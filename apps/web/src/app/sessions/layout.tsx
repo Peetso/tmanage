@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { routeTitle } from '../../lib/route-titles';
+import { SignedInGate } from '../../components/session/SignedInGate';
 
 /**
  * FIX6 locale flash: rendered per request, so the first HTML is in the member's saved language
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic';
  */
 export const metadata: Metadata = { title: routeTitle('/sessions') };
 
+/** AUTHSTATE: the device list renders only for a confirmed session (`SignedInGate`). */
 export default function SessionsLayout({ children }: { children: ReactNode }) {
-  return children;
+  return <SignedInGate>{children}</SignedInGate>;
 }

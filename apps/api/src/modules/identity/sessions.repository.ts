@@ -99,6 +99,12 @@ export interface SessionSummary {
   readonly expiresAt: Date;
 }
 
+/** The signed-in person, as the session check shows them. No identifier, no credential. */
+export interface SessionAccountView {
+  readonly email: string;
+  readonly displayName: string;
+}
+
 /** MySQL returns 1/0 rather than a boolean; it has no boolean type. */
 const expiredByServerClock = sql<number>`case when ${sessions.expiresAt} <= now(3) then 1 else 0 end`;
 
@@ -426,6 +432,19 @@ export class SessionsRepository {
   async findStanding(runner: IdentityQueryRunner, userId: string): Promise<AccountStanding | null> {
     const rows = await tenantDrizzle(runner)
       .select({ disabledAt: users.disabledAt, twoStepRequiredAt: users.twoStepRequiredAt })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** AUTHSTATE: who the session belongs to, for "You're signed in as …". `null` for none. */
+  async findAccount(
+    runner: IdentityQueryRunner,
+    userId: string,
+  ): Promise<SessionAccountView | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ email: users.email, displayName: users.displayName })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);

@@ -36,7 +36,9 @@ export function useAuthBoundaryEffects(
       boundary.subscribe((notice) => {
         void queryClient.cancelQueries();
         queryClient.clear();
-        if (sendsToSignIn(notice)) {
+        // AUTHSTATE: on an entry page already, the page's own session check shows the form; a
+        // navigation to `/sign-in` from there would only drop its `?next=`.
+        if (sendsToSignIn(notice) && !isEntryPage(currentPathname())) {
           // An invitation page (ACC-01) or the AI-app consent page (S9) comes back after sign-in;
           // every other page does not.
           navigate(
@@ -48,6 +50,22 @@ export function useAuthBoundaryEffects(
       }),
     [boundary, navigate, queryClient],
   );
+}
+
+/** The sign-in and sign-up pages, English and Arabic (AUTHSTATE). */
+const ENTRY_PAGES: ReadonlySet<string> = new Set([
+  '/sign-in',
+  '/ar/sign-in',
+  '/sign-up',
+  '/ar/sign-up',
+]);
+
+export function isEntryPage(pathname: string): boolean {
+  return ENTRY_PAGES.has(pathname);
+}
+
+function currentPathname(): string {
+  return typeof window === 'undefined' ? '' : window.location.pathname;
 }
 
 /** The notices after which this tab has no session to show anything for. */

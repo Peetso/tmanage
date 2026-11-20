@@ -29,6 +29,7 @@ import { csvDownload } from './geo/trail-csv.js';
 import { RefreshRejectedError } from './session.service.js';
 import type {
   AuthenticatedSession,
+  CurrentSessionView,
   EstablishedSessionView,
   SessionService,
   SessionSummaryView,
@@ -157,6 +158,29 @@ export class SessionController {
     // session. Never throws (the sweeper and the banner read are the fallbacks).
     await notifyBrowserSessionEnded(session.userId, session.sessionId, state.correlationId);
     reply.header('set-cookie', this.sessions.clearedCookies());
+  }
+
+  /**
+   * AUTHSTATE (live 2026-11-19): the web's one question "who is signed in here?". The sign-in and
+   * sign-up pages, the Platform admin area and every workspace ask it before they render (the
+   * browser refreshes an expired access cookie first, as for any read), so a valid session is
+   * never shown an empty sign-in form. The answer names the person, never an identifier or token.
+   */
+  @Get('current')
+  @NoTenant()
+  async current(
+    @CurrentSession() session: AuthenticatedSession,
+    @Req() request: RequestLike,
+  ): Promise<CurrentSessionView> {
+    const state = requireRequestState(request);
+    const account = await this.sessions.accountOf({
+      userId: session.userId,
+      correlationId: state.correlationId,
+    });
+    if (account === null) {
+      throw new ApiError(401, 'unauthenticated', MESSAGES.unauthenticated);
+    }
+    return { account: { email: account.email, displayName: account.displayName } };
   }
 
   /** The device/session list (04 §3). Carries no credential material of any kind. */
