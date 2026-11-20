@@ -334,6 +334,10 @@ const EXEMPT = new Map([
     'No web consumer yet: 62-08 `GET/PUT /v1/platform/settings/ai-budget` and its actions; the screen is slice 62-19.',
   ],
   [
+    'CopilotChatView',
+    'No web consumer yet: 62-09 `POST /v1/organizations/:orgSlug/copilot/chat`; the chat panel is slice 62-15.',
+  ],
+  [
     'AiBudgetPoolView',
     'No web consumer yet: 62-08 the pools of `AiBudgetView`; the screen is slice 62-19.',
   ],

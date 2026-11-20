@@ -1347,6 +1347,8 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/ai/credits/pack-requests',
     reason: 'ai_credits',
   },
+  // 62-09. The in-app AI's chat turn: never a tool of an AI principal.
+  { method: 'POST', path: '/v1/organizations/:orgSlug/copilot/chat/', reason: 'ai_chat' },
   { method: 'GET', path: '/v1/platform/ai/test-list/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/ai/test-list/:organizationId', reason: 'platform_admin' },
   {

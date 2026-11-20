@@ -329,6 +329,18 @@ class FakeStore implements AiBudgetStore {
     row.costMicroUsd += cost;
     return true;
   }
+  readonly receipts = new Map<string, string>();
+
+  async writeReceipt(
+    _r: TenantQueryRunner,
+    _ctx: TenantContext,
+    taskId: string,
+    receiptJson: string,
+  ): Promise<boolean> {
+    this.receipts.set(taskId, receiptJson);
+    return true;
+  }
+
   async finishTask(
     _r: TenantQueryRunner,
     ctx: TenantContext,

@@ -556,8 +556,11 @@ export class AiBudgetService {
     context: TenantContext,
     taskId: string,
     outcome: AiTaskOutcome,
+    receipt?: Readonly<Record<string, unknown>>,
   ): Promise<AiBudgetResult<FinishedTask>> {
-    return this.run(context, (tx, now) => this.finishLocked(tx, context, taskId, outcome, now));
+    return this.run(context, (tx, now) =>
+      this.finishLocked(tx, context, taskId, outcome, now, receipt),
+    );
   }
 
   private async finishLocked(
@@ -566,10 +569,18 @@ export class AiBudgetService {
     taskId: string,
     outcome: AiTaskOutcome,
     now: Date,
+    receipt?: Readonly<Record<string, unknown>>,
   ): Promise<FinishedTask> {
     const task = await this.lockRunningTask(tx, context, taskId);
     const spend = await this.store.taskSpend(tx, context, task.id);
     if (spend.openCalls > 0) throw new Refused('calls_open');
+    if (receipt !== undefined) {
+      // 62-09: the receipt is written with the close, in the same transaction.
+      AiBudgetService.must(
+        await this.store.writeReceipt(tx, context, task.id, JSON.stringify(receipt)),
+        'task receipt',
+      );
+    }
 
     const payer = payerOf(task);
     const chargedCredits =

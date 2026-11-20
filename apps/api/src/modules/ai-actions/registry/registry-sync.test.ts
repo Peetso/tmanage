@@ -241,7 +241,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 62-07: GET ai/credits and POST ai/credits/pack-requests (+2 NEVER, ai_credits); the platform AI
 // test list, entry, pack grant and request decline (+4 NEVER, platform_admin).
 // 62-08: platform settings AI budget GET/PUT, pause, resume, reserve-release (+5 NEVER, platform_admin).
-const EXPECTED_ROUTE_COUNT = 1579;
+// 62-09: POST copilot/chat (+1 NEVER, ai_chat).
+const EXPECTED_ROUTE_COUNT = 1580;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

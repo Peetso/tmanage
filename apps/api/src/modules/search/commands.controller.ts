@@ -94,7 +94,10 @@ export class CommandsController {
 }
 
 /** The registry minus the commands whose destination this caller would be refused (CQ-06). */
-function offeredTo(principal: Principal, context: TenantContext): readonly CommandDefinition[] {
+export function offeredTo(
+  principal: Principal,
+  context: TenantContext,
+): readonly CommandDefinition[] {
   return COMMAND_REGISTRY.filter(
     (command) =>
       command.capability === undefined ||

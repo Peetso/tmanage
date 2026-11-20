@@ -128,6 +128,9 @@ export const NEVER_REASONS = [
   // never something an AI principal may read for a tool answer or ask to raise (plan 62 §7: the
   // `billing` scope is unreachable).
   'ai_credits',
+  // 62-09. The in-app AI's own chat turn: an AI principal must never start a turn (no AI calling
+  // itself, no loop that spends credits through the tool surface).
+  'ai_chat',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

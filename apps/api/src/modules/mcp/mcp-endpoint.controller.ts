@@ -83,7 +83,7 @@ export const MCP_MAX_REQUESTS_PER_WINDOW = 120;
 export const MCP_WINDOW_MS = 60_000;
 
 /** The in-process request base. Never dialled: requests are injected, not sent. */
-const IN_PROCESS_BASE_URL = 'http://tmanage.internal';
+export const IN_PROCESS_BASE_URL = 'http://tmanage.internal';
 
 interface InjectResponse {
   readonly statusCode: number;
