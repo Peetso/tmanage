@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { PASSWORD_POLICY, passwordTooShort } from '@tmanage/domain';
 import { Button, Checkbox, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -29,8 +30,8 @@ export interface RecoveryScreenProps {
   navigate?: (href: string) => void;
 }
 
-/** `PASSWORD_MIN_LENGTH` in `apps/api/src/modules/identity/password.ts`. */
-const MIN_PASSWORD = 8;
+/** The shared password floor (`PASSWORD_POLICY` in `@tmanage/domain`, AR-8). */
+const MIN_LENGTH = PASSWORD_POLICY.minLength;
 
 /**
  * **ID-05 Session and recovery** — the recovery half, now working (ACC-02).
@@ -97,9 +98,9 @@ export function RecoveryScreen({
     setFailure(undefined);
     setPasswordError(undefined);
     setConfirmError(undefined);
-    if (password.length < MIN_PASSWORD) {
+    if (passwordTooShort(password)) {
       setPasswordError(
-        `${tr('Recovery.tooShortPrefix')}${MIN_PASSWORD}${tr('Recovery.tooShortSuffix')}`,
+        `${tr('Recovery.tooShortPrefix')}${MIN_LENGTH}${tr('Recovery.tooShortSuffix')}`,
       );
       return;
     }
@@ -209,10 +210,10 @@ export function RecoveryScreen({
                 type="password"
                 name="password"
                 autoComplete="new-password"
-                minLength={MIN_PASSWORD}
+                minLength={MIN_LENGTH}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                hint={`${t('RecoveryScreen.passwordHintPrefix')}${MIN_PASSWORD}${tr('Recovery.passwordHintSuffix')}`}
+                hint={`${t('RecoveryScreen.passwordHintPrefix')}${MIN_LENGTH}${tr('Recovery.passwordHintSuffix')}`}
                 required
                 disabled={busy}
                 {...(passwordError ? { error: passwordError } : {})}

@@ -17,7 +17,8 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { readsApiLanguage, refusalLine } from '../../lib/api/auth-refusal';
-import { GETTING_IN_MIN_PASSWORD, gettingIn, type GettingInKey } from '../../lib/public-signup';
+import { PASSWORD_POLICY, passwordTooShort } from '@tmanage/domain';
+import { gettingIn, type GettingInKey } from '../../lib/public-signup';
 import { suggestWorkspaceName } from '../../lib/workspace-name-suggestion';
 import { useImportToolHref } from '../../lib/use-import-tool-href';
 import {
@@ -242,7 +243,7 @@ export function SignUpScreen({
     const missing: Partial<Record<SignUpField, string>> = {};
     if (displayName.trim() === '') missing.displayName = g('GettingIn.nameMissing');
     if (organizationName.trim() === '') missing.organizationName = t('signUp.missingWorkspace');
-    if (password.length < GETTING_IN_MIN_PASSWORD) missing.password = g('GettingIn.passwordShort');
+    if (passwordTooShort(password)) missing.password = g('GettingIn.passwordShort');
     if (Object.keys(missing).length > 0) {
       setFieldErrors(missing);
       setFailure(g('GettingIn.fieldsNeedAttention'));
@@ -420,13 +421,16 @@ export function SignUpScreen({
                 type={showPassword ? 'text' : 'password'}
                 name="password"
                 autoComplete="new-password"
-                minLength={GETTING_IN_MIN_PASSWORD}
+                minLength={PASSWORD_POLICY.minLength}
                 value={password}
                 onChange={(event) => {
                   setPassword(event.target.value);
                   clearFieldError('password');
                 }}
-                hint={t('SignUpFunnel.passwordHint')}
+                hint={t('SignUpFunnel.passwordHint').replace(
+                  '{min}',
+                  String(PASSWORD_POLICY.minLength),
+                )}
                 required
                 {...errorProp(fieldErrors.password)}
               />

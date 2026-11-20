@@ -110,13 +110,19 @@ describe('screening', () => {
     expect(await rejections('a'.repeat(PASSWORD_MAX_LENGTH + 1))).toContain('too_long');
   });
 
+  // AR-8 / DC-2: one policy, NIST SP 800-63B-4 §3.1.1.2 (15 when the password may be the only factor).
+  it('uses the shared 15-character floor, so a 14-character password is too short', async () => {
+    expect(await rejections('a calm long ro')).toContain('too_short');
+    expect(await rejections('a calm long row')).not.toContain('too_short');
+  });
+
   /**
-   * Length is counted in code points. Eight emoji is eight characters; the naive `.length`
-   * would call it sixteen and accept a four-glyph password.
+   * Length is counted in code points. Fifteen emoji is fifteen characters; the naive `.length`
+   * would call it thirty and accept an eight-glyph password.
    */
   it('counts astral characters once each', async () => {
-    expect(await rejections('🌱🌿🍀🌵')).toContain('too_short');
-    expect(await rejections('🌱🌿🍀🌵🌾🌻🌷🌹')).not.toContain('too_short');
+    expect(await rejections('🌱🌿🍀🌵🌾🌻🌷🌹')).toContain('too_short');
+    expect(await rejections('🌱🌿🍀🌵🌾🌻🌷🌹🌱🌿🍀🌵🌾🌻🌷')).not.toContain('too_short');
   });
 
   it.each(['password', 'Password1', 'QWERTY123', 'admin@123', 'summer2026', 'p@ssw0rd'])(
@@ -182,7 +188,9 @@ describe('the remote screen', () => {
 
   it('does not report the same rejection twice when both screens agree', async () => {
     const result = await screenPassword({ password: 'password', remoteScreen: breached });
-    expect(result.rejections).toEqual(['commonly_breached']);
+    expect(result.rejections.filter((r) => r === 'commonly_breached')).toEqual([
+      'commonly_breached',
+    ]);
   });
 
   it('passes the normalised password to the remote screen', async () => {

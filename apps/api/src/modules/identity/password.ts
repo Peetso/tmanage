@@ -1,5 +1,6 @@
 import { hash as argonHash, verify as argonVerify } from '@node-rs/argon2';
 import type { Algorithm, Version } from '@node-rs/argon2';
+import { PASSWORD_POLICY, passwordLength } from '@tmanage/domain';
 import { COMMON_PASSWORDS } from './common-passwords.js';
 
 /**
@@ -77,16 +78,17 @@ export const ARGON2_PARAMETERS = {
 } as const;
 
 /**
- * `04-SECURITY-PRIVACY` §3 does not name a length, so this follows NIST SP 800-63B: a minimum
- * of 8, a **maximum that exists only to stop a denial-of-service** through a megabyte
- * password, and no composition rules at all.
+ * AR-8 / DC-2: the length policy is decided once, in `@tmanage/domain` (`PASSWORD_POLICY`, cited
+ * to NIST SP 800-63B-4 §3.1.1.2: 15 for a password that may be the only factor, and a
+ * **maximum that exists only to stop a denial-of-service** through a megabyte password), and
+ * the web forms read the same value. No composition rules at all.
  *
  * No "must contain an uppercase, a digit and a symbol". Those rules are why `Password1!`
  * exists. 800-63B removed them deliberately, and screening against real breach data does the
  * job they were pretending to do.
  */
-export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 256;
+export const PASSWORD_MIN_LENGTH = PASSWORD_POLICY.minLength;
+export const PASSWORD_MAX_LENGTH = PASSWORD_POLICY.maxLength;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hashing
@@ -220,7 +222,7 @@ export async function screenPassword({
   // Length is measured in code points, not UTF-16 units, so an eight-emoji password is eight
   // characters rather than sixteen — and so a two-character password of astral glyphs is not
   // accepted as four.
-  const length = [...candidate].length;
+  const length = passwordLength(candidate);
   if (length < PASSWORD_MIN_LENGTH) rejections.push('too_short');
   if (length > PASSWORD_MAX_LENGTH) rejections.push('too_long');
 

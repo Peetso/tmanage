@@ -19,7 +19,8 @@ import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
-import { GETTING_IN_MIN_PASSWORD, gettingIn, type GettingInKey } from '../../lib/public-signup';
+import { PASSWORD_POLICY, passwordTooShort } from '@tmanage/domain';
+import { gettingIn, type GettingInKey } from '../../lib/public-signup';
 import {
   GoogleErrorMessage,
   GoogleSignInButton,
@@ -186,7 +187,7 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
   function check(): Partial<Record<RegistrationField, string>> {
     const problems: Partial<Record<RegistrationField, string>> = {};
     if (displayName.trim() === '') problems.displayName = g('GettingIn.nameMissing');
-    if (password.length < GETTING_IN_MIN_PASSWORD) problems.password = g('GettingIn.passwordShort');
+    if (passwordTooShort(password)) problems.password = g('GettingIn.passwordShort');
     else if (confirm !== password) problems.confirm = g('GettingIn.passwordMismatch');
     if (!agreed) problems.agree = g('GettingIn.mustAgree');
     return problems;
@@ -277,7 +278,7 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
         type="password"
         name="password"
         autoComplete="new-password"
-        minLength={GETTING_IN_MIN_PASSWORD}
+        minLength={PASSWORD_POLICY.minLength}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         hint={g('GettingIn.passwordHint')}

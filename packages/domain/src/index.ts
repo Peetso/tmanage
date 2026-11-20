@@ -522,6 +522,9 @@ export * from './security/incident-clocks.js';
 // Organization sign-in policy — 56-25 (R18-e)
 export * from './security/sign-in-policy.js';
 
+// Password length policy, NIST SP 800-63B-4 §3.1.1.2 — AR-8 / DC-2 (2026-11-20)
+export * from './security/password-policy.js';
+
 // Public link manager (Settings · Public links) — 56-07p
 export * from './security/public-link-manager.js';
 

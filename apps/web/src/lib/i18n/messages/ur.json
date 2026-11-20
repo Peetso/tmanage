@@ -6,7 +6,7 @@
   "SignUpFunnel.showPassword": "پاس ورڈ دکھائیں",
   "SignUpFunnel.hide": "چھپائیں",
   "SignUpFunnel.show": "دکھائیں",
-  "SignUpFunnel.passwordHint": "12 حروف یا اس سے زیادہ۔",
+  "SignUpFunnel.passwordHint": "{min} حروف یا اس سے زیادہ۔",
   "SignUpFunnel.workspaceHint": "آپ اسے بعد میں بدل سکتے ہیں۔",
   "SignUpFunnel.workspaceName": "ورک اسپیس کا نام",
   "SignUpFunnel.signedUpAs": "{email} سے رجسٹریشن",

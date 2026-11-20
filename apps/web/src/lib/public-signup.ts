@@ -1,3 +1,4 @@
+import { PASSWORD_POLICY } from '@tmanage/domain';
 import type { MessageKey } from './i18n/t';
 
 /**
@@ -62,19 +63,21 @@ export type GettingInKey = `GettingIn.${
   | 'checkEmailBody'
   | 'openWorkspace'}`;
 
-/** The minimum the getting-in frames state ("At least 12 characters"); the API's floor is lower. */
-export const GETTING_IN_MIN_PASSWORD = 12;
-
 /**
  * Look a `GettingIn.*` key up through the screen's `t` and fill its `{name}` placeholders. The
  * placeholders keep word order in the catalog, where Arabic needs it different from English.
+ * `{min}` is always the shared password floor (`PASSWORD_POLICY`, AR-8).
  */
 export function gettingIn(
   t: (key: MessageKey) => string,
   key: GettingInKey,
   values: Readonly<Record<string, string>> = {},
 ): string {
+  const filled: Readonly<Record<string, string>> = {
+    min: String(PASSWORD_POLICY.minLength),
+    ...values,
+  };
   return t(key as string as MessageKey).replace(/\{(\w+)\}/g, (match, name: string) =>
-    Object.prototype.hasOwnProperty.call(values, name) ? (values[name] ?? match) : match,
+    Object.prototype.hasOwnProperty.call(filled, name) ? (filled[name] ?? match) : match,
   );
 }

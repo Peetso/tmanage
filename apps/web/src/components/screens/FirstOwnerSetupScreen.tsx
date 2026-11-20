@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { PASSWORD_POLICY, passwordTooShort } from '@tmanage/domain';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { useT } from '../../lib/i18n/use-t';
@@ -26,8 +27,8 @@ import { guessTimeZone } from '../../lib/time-zones';
 import { TimeZoneSelect } from '../TimeZoneSelect';
 import '../../styles/screens/identity.css';
 
-/** The password floor the API enforces; checked here too so the common mistake costs no attempt. */
-const MIN_PASSWORD = 8;
+/** The shared password floor (`PASSWORD_POLICY`, AR-8), checked here too so the common mistake costs no attempt. */
+const MIN_HINT = String(PASSWORD_POLICY.minLength);
 const MAX_NAME = 200;
 const MAX_EMAIL = 254;
 
@@ -164,7 +165,8 @@ export function FirstOwnerSetupScreen({
     if (setupToken === '') missing.setupToken = t('FirstOwnerSetupScreen.missingSetupToken');
     if (trimmedName === '') missing.displayName = t('FirstOwnerSetupScreen.missingName');
     if (trimmedEmail === '') missing.email = t('FirstOwnerSetupScreen.missingEmail');
-    if (password.length < MIN_PASSWORD) missing.password = t('FirstOwnerSetupScreen.shortPassword');
+    if (passwordTooShort(password))
+      missing.password = t('FirstOwnerSetupScreen.shortPassword').replace('{min}', MIN_HINT);
     if (trimmedOrganization === '')
       missing.organizationName = t('FirstOwnerSetupScreen.missingOrganization');
     if (Object.keys(missing).length > 0) {
@@ -317,13 +319,13 @@ export function FirstOwnerSetupScreen({
               type="password"
               name="password"
               autoComplete="new-password"
-              minLength={MIN_PASSWORD}
+              minLength={PASSWORD_POLICY.minLength}
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
                 clearFieldError('password');
               }}
-              hint={t('FirstOwnerSetupScreen.passwordHint')}
+              hint={t('FirstOwnerSetupScreen.passwordHint').replace('{min}', MIN_HINT)}
               required
               {...errorProp(fieldErrors.password)}
             />
