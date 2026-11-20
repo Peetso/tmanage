@@ -70,3 +70,64 @@ never be paused (400).
 Rows are purged 7 days after `sent`/`failed`; an `auth` row's `payload_json` is stripped one hour
 after it is sent (the recipient hash stays). A row left `sending` for more than 10 minutes (a
 crash between claim and send) is re-queued once.
+
+## One shared mailbox password; person mail from the person's own mailbox (PERSONMAIL, ADR-0013)
+
+Owner decision 2026-11-20: all 36 `@tmanageapp.com` mailboxes share ONE password, `SMTP_PASSWORD`.
+
+- **Every mailbox signs in as itself.**
+  - noreply uses `SMTP_USERNAME` + `SMTP_PASSWORD`.
+  - hello, support and security sign in with their own username (`SMTP_HELLO_USER`,
+    `SMTP_SUPPORT_USER`, `SMTP_SECURITY_USERNAME`; default their own address) and their own
+    `SMTP_HELLO_PASS`, `SMTP_SUPPORT_PASS` or `SMTP_SECURITY_PASSWORD` when set. Otherwise they use
+    `SMTP_PASSWORD`.
+  - The boot line "no login for hello, support; that mail leaves through noreply" now means no
+    password exists at all.
+- **A tip** (template `tip`, sender category `person`) leaves ONLY from the signing person's own
+  mailbox over SMTP.
+  - From is `"{name} from TManage" <mariam@tmanageapp.com>`. The login is `mariam@tmanageapp.com`
+    with `SMTP_PASSWORD`.
+  - Every header stays (`List-Unsubscribe`, `List-Unsubscribe-Post`, `Auto-Submitted`).
+  - It is never sent from support@ in the person's name.
+- **When a person login fails** (535/EAUTH, a timeout, the mailbox's own ceiling), the send throws
+  and the queue retries the row with its backoff. After 3 attempts the row is `failed` with the
+  reason, and it is counted in the drainer's tick log line. A refused login also gives one WARN per
+  address. A new person needs only a mailbox in hPanel with the shared password, plus a row on the
+  card.
+- **Connections.** There is one lazy pooled SMTP connection per person mailbox (max 1), closed after
+  10 minutes idle, with 10 s timeouts. Each mailbox has its own ceiling, keyed on the sending
+  address.
+- **Is a login refused?**
+  - `/healthz/deep` shows `checks.mail`: `state` plus each of noreply, hello, support and security
+    as `ok`, `login_refused`, `unreachable` or `not_configured`. It shows states only, never a 503,
+    and it is re-checked every 15 minutes.
+  - Platform settings > E-mail people shows "Mail is not going out" with the refused addresses.
+  - Person mailboxes are not in this check. Look for "refused its login" WARN lines and `failed`
+    queue rows.
+- **Rotating the shared password** (one leak exposes every mailbox, so rotate on any doubt):
+  1. Pick one new password (8–50 characters with upper, lower, number and symbol).
+  2. Go to hPanel > Emails > Mailboxes (next to tmanageapp.com) > each mailbox's ⋮ > Change
+     Password, and set it on ALL mailboxes.
+  3. Change only `SMTP_PASSWORD` in the Node.js app's environment variables. Never do a full env
+     replace.
+  4. Restart quietly.
+  5. Check that `/healthz/deep` shows `mail.state: ok`.
+
+  Any mailbox you missed shows `login_refused`. Mail queued in between is retried by the queue.
+
+- **Send test** on the card says "Test sent … from mariam@…, this person's own mailbox". When
+  `SMTP_PASSWORD` is not set, it says the test was not sent.
+- **Bounces.** A bounce of a tip returns to the person's mailbox, which does not forward to the
+  bounce intake yet. This is the same open gap as hello@ and support@.
+
+## Unsubscribe on every mail (PERSONMAIL, ADR-0013)
+
+Every mail, every category, carries `List-Unsubscribe` (one HTTPS URL with the existing signed
+`v1.` token) and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, plus a footer with
+"Notification settings" and "Unsubscribe". Mail a person cannot switch off (codes, security,
+account, support, agency, internal) says "Unsubscribe from optional e-mails" and "Sign-in,
+security and account messages are still sent after you unsubscribe." The one-click POST
+suppresses the address for optional mail only (notifications, digests, tips); codes and security
+mail are never suppressed. A browser that opens the link (GET) is sent to
+`/unsubscribe/{token}`, which asks for one click and says the same. The "bulk" share of a
+ceiling now follows `optional` (set by the notification transport), not the header.

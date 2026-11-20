@@ -12,6 +12,7 @@ import {
   createIdentityMailers,
   deriveBounceKey,
   deriveUnsubscribeKey,
+  resolveMailboxLogin,
   withTemplateKey,
 } from '@tmanage/mail';
 import type { Mailer, ReceiptMailer, SmtpMailerOptions } from '@tmanage/mail';
@@ -205,8 +206,19 @@ function sendersFrom(env: Env, driver: Mailer): Mailer | ReceiptMailer {
   return createIdentityMailers({
     base: smtpOptionsFrom(env, env.SMTP_HOST),
     noreply: driver,
-    hello: { username: env.SMTP_HELLO_USER, password: env.SMTP_HELLO_PASS },
-    support: { username: env.SMTP_SUPPORT_USER, password: env.SMTP_SUPPORT_PASS },
+    // PERSONMAIL (ADR-0013): each mailbox signs in as its own address; its own *_PASS only
+    // overrides the shared SMTP_PASSWORD (owner decision 2026-11-20). A tip leaves from the
+    // signing person's own mailbox, signed in as that address with SMTP_PASSWORD.
+    hello: {
+      username: env.SMTP_HELLO_USER,
+      password: env.SMTP_HELLO_PASS,
+      address: CONTACT_EMAILS.hello,
+    },
+    support: {
+      username: env.SMTP_SUPPORT_USER,
+      password: env.SMTP_SUPPORT_PASS,
+      address: CONTACT_EMAILS.support,
+    },
   });
 }
 
@@ -216,9 +228,18 @@ function sendersFrom(env: Env, driver: Mailer): Mailer | ReceiptMailer {
  * one schema this batch (packages/config is not this slice's file). Absent = one mailbox.
  */
 function securityMailerFrom(env: Env): SmtpMailer | null {
-  const username = process.env['SMTP_SECURITY_USERNAME']?.trim();
-  const password = process.env['SMTP_SECURITY_PASSWORD'];
-  if (env.SMTP_HOST === undefined || env.SMTP_HOST === '' || !username || !password) return null;
+  // PERSONMAIL (ADR-0013): its own SMTP_SECURITY_PASSWORD when set, otherwise the shared
+  // SMTP_PASSWORD (owner decision 2026-11-20: every mailbox shares one password).
+  const login = resolveMailboxLogin(
+    {
+      username: process.env['SMTP_SECURITY_USERNAME'],
+      password: process.env['SMTP_SECURITY_PASSWORD'],
+      address: process.env['EMAIL_SECURITY_FROM_ADDRESS'],
+    },
+    env.SMTP_PASSWORD,
+  );
+  if (env.SMTP_HOST === undefined || env.SMTP_HOST === '' || login === null) return null;
+  const { username, password } = login;
   return new SmtpMailer({
     fromAddress: process.env['EMAIL_SECURITY_FROM_ADDRESS']?.trim() || username,
     fromName: env.EMAIL_FROM_NAME,
@@ -602,6 +623,11 @@ async function main(): Promise<void> {
             addresses: CONTACT_EMAILS,
             // 0371: tips are signed by the person assigned to the user for the topic.
             directory: createMailPeopleDirectory(database),
+            // PERSONMAIL (ADR-0013): every mail carries the one-click unsubscribe headers + footer.
+            unsubscribe: {
+              url: `${env.API_PUBLIC_URL.replace(/\/+$/u, '')}/v1/public/email/unsubscribe`,
+              key: deriveUnsubscribeKey(env.SESSION_SECRET),
+            },
           }),
           createBounceSuppressionLookup(database),
         );

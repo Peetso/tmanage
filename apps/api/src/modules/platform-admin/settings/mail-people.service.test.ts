@@ -7,6 +7,7 @@ import { PLATFORM_PERMISSION_METADATA } from '../require-platform-permission.dec
 import { PlatformMailPeopleController } from './mail-people.controller.js';
 import type { MailPeopleRepository, MailPersonRecord } from './mail-people.repository.js';
 import { MailPeopleService, parseMailPeopleCsv, parseMailPerson } from './mail-people.service.js';
+import type { MailPeopleServiceOptions } from './mail-people.service.js';
 
 /** EMAILBUILD — the "E-mail people" card: validation, audit, test send, guard. */
 
@@ -45,7 +46,13 @@ const body = {
   topic: 'onboarding',
 };
 
-function harness(taken: string[] = []) {
+function harness(
+  taken: string[] = [],
+  routes: {
+    personMailConfigured?: boolean;
+    loginCheck?: MailPeopleServiceOptions['loginCheck'];
+  } = {},
+) {
   const sent: MailMessage[] = [];
   const mailer: Mailer = {
     send: (message) => {
@@ -65,7 +72,8 @@ function harness(taken: string[] = []) {
   };
   const service = new MailPeopleService(repository as unknown as MailPeopleRepository, {
     mailer,
-    supportLoginConfigured: false,
+    personMailConfigured: routes.personMailConfigured ?? false,
+    loginCheck: routes.loginCheck,
   });
   return { service, repository, sent };
 }
@@ -117,13 +125,60 @@ describe('EMAILBUILD — mail people', () => {
   it('sends the test only to the acting admin, signed through the registry, and audits it', async () => {
     const { service, repository, sent } = harness();
     const view = await service.sendTest(actor, LAYLA.id, {}, ctx);
-    expect(view).toEqual({ sent: true, route: 'noreply' });
+    expect(view).toEqual({ sent: true, route: 'none', address: 'layla@tmanageapp.com' });
     expect(sent[0]).toMatchObject({
       to: 'admin@tmanageapp.com',
       templateKey: 'tip',
       personRef: { kind: 'test', personId: LAYLA.id },
     });
     expect(repository.audit).toHaveBeenCalledOnce();
+  });
+
+  it('PERSONMAIL: the test says which mailbox it left from, with the address', async () => {
+    const own = harness([], { personMailConfigured: true });
+    expect(await own.service.sendTest(actor, LAYLA.id, {}, ctx)).toEqual({
+      sent: true,
+      route: 'own_mailbox',
+      address: 'layla@tmanageapp.com',
+    });
+    const none = harness([], { personMailConfigured: false });
+    expect((await none.service.sendTest(actor, LAYLA.id, {}, ctx)).route).toBe('none');
+  });
+
+  it('MAILSTATUS: the list says which mailbox logins are refused, by state, never a value', async () => {
+    const { service } = harness([], {
+      loginCheck: {
+        status: async () => ({
+          state: 'login_refused' as const,
+          checkedAt: '2026-11-20T08:40:00.000Z',
+          mailboxes: [
+            {
+              mailbox: 'noreply' as const,
+              address: 'noreply@tmanageapp.com',
+              state: 'login_refused' as const,
+            },
+            { mailbox: 'hello' as const, address: 'hello@tmanageapp.com', state: 'ok' as const },
+            {
+              mailbox: 'support' as const,
+              address: 'support@tmanageapp.com',
+              state: 'ok' as const,
+            },
+            { mailbox: 'security' as const, address: null, state: 'not_configured' as const },
+          ],
+        }),
+      },
+    });
+    const view = await service.list(ctx);
+    expect(view.mailboxes?.[0]).toEqual({
+      mailbox: 'noreply',
+      address: 'noreply@tmanageapp.com',
+      state: 'login_refused',
+    });
+    expect(view.mailboxes).toHaveLength(4);
+    // A check that throws is "no reading", and without SMTP there is none.
+    const broken = harness([], { loginCheck: { status: () => Promise.reject(new Error('x')) } });
+    expect((await broken.service.list(ctx)).mailboxes).toBeNull();
+    expect((await harness().service.list(ctx)).mailboxes).toBeNull();
   });
 
   it('every route sits behind the platform-admin guard and a platform permission', () => {

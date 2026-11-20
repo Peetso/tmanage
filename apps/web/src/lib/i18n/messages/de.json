@@ -20846,5 +20846,20 @@
   "SessionGate.continue": "Weiter",
   "SessionGate.signOut": "Abmelden",
   "SessionGate.signingOut": "Abmeldung läuft…",
-  "SessionGate.signOutFailed": "Die Abmeldung wurde nicht abgeschlossen. Versuche es erneut."
+  "SessionGate.signOutFailed": "Die Abmeldung wurde nicht abgeschlossen. Versuche es erneut.",
+  "PlatformMailPeople.testSentOwn": "Test sent to your address from {address}, this person’s own mailbox.",
+  "Unsubscribe.pageTitle": "Unsubscribe from optional e-mails",
+  "Unsubscribe.pageBody": "You will stop getting tips, reminders and notification e-mails at this address.",
+  "Unsubscribe.stillSent": "Sign-in codes, security alerts and messages about your account are still sent, because you need them to keep your account safe.",
+  "Unsubscribe.confirm": "Unsubscribe",
+  "Unsubscribe.done": "You are unsubscribed",
+  "Unsubscribe.doneBody": "No more optional e-mails will be sent to this address.",
+  "Unsubscribe.settingsLink": "Notification settings",
+  "Unsubscribe.invalid": "This link is not valid",
+  "Unsubscribe.invalidBody": "Use the Unsubscribe link in the newest e-mail from TManage, or change your notification settings after you sign in.",
+  "Unsubscribe.notSent": "We could not unsubscribe you just now. Try again in a minute.",
+  "PlatformMailPeople.testNoLogin": "The test was not sent. Person mailboxes cannot sign in until the shared mailbox password (SMTP_PASSWORD) is set on the server.",
+  "PlatformMailPeople.loginRefusedTitle": "Mail is not going out",
+  "PlatformMailPeople.loginRefused": "The mail server refused the login for {addresses}. Nothing is sent from these mailboxes until the mailbox password (SMTP_PASSWORD) on the server is correct.",
+  "PlatformMailPeople.loginUnreachable": "The mail server could not be reached for {addresses}. Mail is tried again automatically."
 }

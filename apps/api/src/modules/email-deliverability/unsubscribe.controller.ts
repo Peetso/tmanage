@@ -34,7 +34,10 @@ interface RedirectReply {
  *
  * `GET` never unsubscribes: link scanners and previewers fetch every URL in a mail, and a GET that
  * acted would unsubscribe people who never clicked. A person who opens the link in a browser is
- * sent to the web app (303), where notification settings live.
+ * sent to the web app (303). PERSONMAIL (ADR-0013): with a valid token, to the unsubscribe page
+ * (`/unsubscribe/{token}`), which asks for one click and says plainly that sign-in, security and
+ * account messages are still sent; without one (the footer's "Notification settings" link), to
+ * the app, where notification settings live.
  */
 @Controller('v1/public/email')
 export class UnsubscribeController {
@@ -60,9 +63,16 @@ export class UnsubscribeController {
 
   @Get('unsubscribe')
   @Public()
-  opened(@Res({ passthrough: true }) reply: RedirectReply): void {
+  opened(@Query('t') token: unknown, @Res({ passthrough: true }) reply: RedirectReply): void {
+    const valid =
+      this.config.key !== null &&
+      typeof token === 'string' &&
+      verifyUnsubscribeToken(this.config.key, token) !== null;
+    // The token is verified before it is put in a path; it holds only [A-Za-z0-9._-].
+    const path = valid ? `/unsubscribe/${encodeURIComponent(token)}` : '/';
     reply.header('cache-control', 'no-store');
-    reply.header('location', new URL('/', this.config.webPublicUrl).toString());
+    reply.header('referrer-policy', 'no-referrer');
+    reply.header('location', new URL(path, this.config.webPublicUrl).toString());
     reply.status(303);
   }
 }

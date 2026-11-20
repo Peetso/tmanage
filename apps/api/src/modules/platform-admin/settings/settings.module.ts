@@ -3,8 +3,13 @@ import type { DynamicModule } from '@nestjs/common';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
 import { loadFieldCipherKeyring, keyringFromSeedKeyring } from '@tmanage/domain/field-cipher';
 import type { ApiConfig } from '../../../common/http/api-config.js';
-import { API_CONFIG, MAILER, TENANT_DATABASE } from '../../../common/http/tokens.js';
-import type { Mailer } from '@tmanage/mail';
+import {
+  API_CONFIG,
+  MAILER,
+  MAIL_LOGIN_CHECK,
+  TENANT_DATABASE,
+} from '../../../common/http/tokens.js';
+import type { MailLoginCheck, Mailer } from '@tmanage/mail';
 import {
   PLATFORM_PUBLIC_SIGNUP_DEFAULT,
   platformAdminCore,
@@ -83,13 +88,25 @@ export class PlatformSettingsModule {
         // ---- EMAILBUILD ---- the people who sign tips; the test send goes to the admin only.
         {
           provide: PLATFORM_MAIL_PEOPLE_SERVICE,
-          inject: [TENANT_DATABASE, { token: MAILER, optional: true }],
-          useFactory: (database: TenantDatabase, mailer: Mailer | null | undefined) =>
+          inject: [
+            TENANT_DATABASE,
+            { token: MAILER, optional: true },
+            { token: MAIL_LOGIN_CHECK, optional: true },
+          ],
+          useFactory: (
+            database: TenantDatabase,
+            mailer: Mailer | null | undefined,
+            loginCheck: MailLoginCheck | null | undefined,
+          ) =>
             new MailPeopleService(new MailPeopleRepository(database), {
               mailer: mailer ?? null,
-              supportLoginConfigured:
-                (process.env['SMTP_SUPPORT_USER'] ?? '').trim() !== '' &&
-                (process.env['SMTP_SUPPORT_PASS'] ?? '') !== '',
+              // MAILSTATUS: the card shows whether each role mailbox's login is accepted.
+              loginCheck: loginCheck ?? null,
+              // PERSONMAIL (ADR-0013): every mailbox signs in as its own address with the shared
+              // SMTP_PASSWORD (owner decision 2026-11-20); a tip leaves only from the person's own.
+              personMailConfigured:
+                process.env['EMAIL_DRIVER'] === 'smtp' &&
+                (process.env['SMTP_PASSWORD'] ?? '') !== '',
             }),
         },
         // ---- EMAILBUILD2 ---- the "Tips and reminders" switch and the "Feature news" card.

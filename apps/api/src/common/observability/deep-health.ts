@@ -6,7 +6,13 @@ import { Controller, Get, Inject, Module, Res } from '@nestjs/common';
 import type { DynamicModule, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { APP_GUARD, ModuleRef } from '@nestjs/core';
 import { Public } from '../http/decorators.js';
-import { MALWARE_SCANNER, TENANT_DATABASE } from '../http/tokens.js';
+import { MAIL_LOGIN_CHECK, MALWARE_SCANNER, TENANT_DATABASE } from '../http/tokens.js';
+import type {
+  CheckedMailbox,
+  MailLoginCheck,
+  MailboxLoginState,
+  MailboxLoginStatus,
+} from '@tmanage/mail';
 import type { MalwareScanner } from '../scan/malware-scanner.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
 import {
@@ -61,6 +67,10 @@ import type { OriginTlsCheck } from './origin-tls.js';
  * - **leader** — DC-3 / RT-3: `held` with the opaque `instance` tag of the copy holding the leader
  *   lease (it runs the relay, sweeps and jobs), `vacant`, or `not_configured` (`leader-health.ts`).
  *   Info only.
+ * - **mail** — MAILSTATUS (ADR-0013): whether each role mailbox's SMTP login (noreply, hello,
+ *   support, security) is accepted: `ok` / `login_refused` / `unreachable` / `not_configured`, the
+ *   worst one as `state`; `checking` until the first reading (`MailLoginCheck`, 15 min cache, never
+ *   awaited here). States only. Reported only, never a 503.
  *
  * `fail` on database, migrations, worker or schema makes the answer 503 — the status code is what a
  * monitor matches on. `not_configured` is reported but is not a failure: a shared host that
@@ -75,6 +85,25 @@ export type CheckState = 'ok' | 'fail' | 'not_configured';
 /** SCANNER-TLS. `unreachable`: configured, but the engine did not answer the probe. */
 export type ScannerCheckState = 'ok' | 'unreachable' | 'not_configured';
 
+/**
+ * MAILSTATUS (ADR-0013). Whether the role mailboxes' SMTP logins are accepted: the worst state and
+ * each mailbox's state, names only (no address, no error text). `checking` until the first reading.
+ */
+export interface MailCheck {
+  readonly state: MailboxLoginState | 'checking';
+  readonly mailboxes?: Readonly<Partial<Record<CheckedMailbox, MailboxLoginState>>> | undefined;
+}
+
+/** The check's reading as the public body shows it: states only. */
+export function mailCheckOf(status: MailboxLoginStatus | null, configured: boolean): MailCheck {
+  if (!configured) return { state: 'not_configured' };
+  if (status === null) return { state: 'checking' };
+  return {
+    state: status.state,
+    mailboxes: Object.fromEntries(status.mailboxes.map((m) => [m.mailbox, m.state])),
+  };
+}
+
 export interface DeepHealthReport {
   readonly status: 'ok' | 'fail';
   readonly checks: {
@@ -88,6 +117,7 @@ export interface DeepHealthReport {
     readonly growth: GrowthCheckState;
     readonly realtime: 'ok' | 'not_configured';
     readonly leader: LeaderCheck;
+    readonly mail: MailCheck;
   };
   readonly checkedAt: string;
 }
@@ -142,6 +172,7 @@ export async function evaluateDeepHealth(
   originTls: OriginTlsCheck = { state: 'not_configured' },
   growth: GrowthCheckState = 'not_configured',
   leader: LeaderCheck = { state: 'not_configured' },
+  mail: MailCheck = { state: 'not_configured' },
 ): Promise<DeepHealthReport> {
   let database: CheckState = 'ok';
   let migrations: CheckState = 'ok';
@@ -176,8 +207,8 @@ export async function evaluateDeepHealth(
 
   const realtime = config.realtimeSocketUrl ? 'ok' : 'not_configured';
 
-  // By design only these four decide the 503; origin_tls, backups, growth, scanner, realtime and
-  // leader report.
+  // By design only these four decide the 503; origin_tls, backups, growth, scanner, realtime,
+  // leader and mail report (a refused mailbox login is an alert, not an outage of the app).
   const failed = [database, migrations, worker, schema].includes('fail');
   return {
     status: failed ? 'fail' : 'ok',
@@ -192,6 +223,7 @@ export async function evaluateDeepHealth(
       growth,
       realtime,
       leader,
+      mail,
     },
     checkedAt: now.toISOString(),
   };
@@ -244,6 +276,7 @@ export class DeepHealthController {
   private readonly probes: DeepHealthProbes;
   /** 56-30. Owns the 1 h handshake cache and the once-per-UTC-day alert (`lastAlertDay`). */
   private readonly originTls: OriginTlsMonitor;
+  private readonly mailLoginCheck: () => MailLoginCheck | null;
 
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
@@ -283,6 +316,15 @@ export class DeepHealthController {
       }
       return scannerReading.result;
     };
+    // MAILSTATUS. The mailer module's login check (global, looked up for the notifier's reason);
+    // absent or `null` = mail does not go out over SMTP here.
+    this.mailLoginCheck = () => {
+      try {
+        return moduleRef.get<MailLoginCheck | null>(MAIL_LOGIN_CHECK, { strict: false }) ?? null;
+      } catch {
+        return null;
+      }
+    };
     this.probes = {
       readLedger: () => readMigrationLedger(database),
       shippedVersions: async () =>
@@ -308,6 +350,7 @@ export class DeepHealthController {
       const originTls = await this.originTls.check(new Date(now));
       const growth = await readGrowthHealth(this.database, new Date(now));
       const leader = await readLeaderHealth(this.database, new Date(now));
+      const mailCheck = this.mailLoginCheck();
       this.cached = {
         at: now,
         report: await evaluateDeepHealth(
@@ -319,6 +362,7 @@ export class DeepHealthController {
           originTls,
           growth,
           leader,
+          mailCheckOf(mailCheck?.latest() ?? null, mailCheck !== null),
         ),
       };
     }

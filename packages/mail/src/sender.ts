@@ -38,6 +38,7 @@ export const MAIL_IDENTITIES: readonly MailIdentity[] = Object.freeze([
   'noreply',
   'hello',
   'support',
+  'person',
 ]);
 
 export function isMailIdentity(value: unknown): value is MailIdentity {
@@ -94,6 +95,9 @@ const CATEGORY_BY_TEMPLATE: Readonly<Record<string, SenderCategory>> = Object.fr
   security_alert_digest: 'internal',
   monthly_gtm_report: 'internal',
 });
+
+/** PERSONMAIL. Every known template key (the fitness test walks them all, ADR-0013). */
+export const TEMPLATE_KEYS: readonly string[] = Object.freeze(Object.keys(CATEGORY_BY_TEMPLATE));
 
 /** Keys that always reach someone outside the team: never a TManage person. */
 const CLIENT_ONLY = new Set([

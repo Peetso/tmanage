@@ -35,13 +35,29 @@ export interface MailPersonView {
 
 export type MailPersonInput = Omit<MailPersonView, 'id'>;
 
+/** MAILSTATUS (ADR-0013). One role mailbox's login state (never a value). */
+export interface MailboxLoginView {
+  readonly mailbox: 'noreply' | 'hello' | 'support' | 'security';
+  readonly address: string | null;
+  readonly state: 'ok' | 'login_refused' | 'unreachable' | 'not_configured';
+}
+
 export interface MailPeopleView {
   readonly people: readonly MailPersonView[];
+  /** MAILSTATUS. Each role mailbox's login state; `null` when mail does not go out over SMTP. */
+  readonly mailboxes: readonly MailboxLoginView[] | null;
 }
+
+/**
+ * PERSONMAIL (ADR-0013). `own_mailbox`: the person's mail leaves from their own mailbox; `none`:
+ * the shared mailbox password is not set, so it is not sent at all.
+ */
+export type MailPersonRoute = 'own_mailbox' | 'none';
 
 export interface MailPersonTestView {
   readonly sent: boolean;
-  readonly route: 'support' | 'noreply';
+  readonly route: MailPersonRoute;
+  readonly address: string;
 }
 
 export const PLATFORM_MAIL_PEOPLE_QUERY_KEY = ['platform', 'mail-people'] as const;

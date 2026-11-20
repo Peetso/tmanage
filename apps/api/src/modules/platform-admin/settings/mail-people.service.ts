@@ -1,6 +1,6 @@
 import { CONTACT_EMAILS, uuidv7 } from '@tmanage/domain';
 import { addressDomain, validateSenderAddress, validateSenderName } from '@tmanage/mail';
-import type { MailDelivery, Mailer } from '@tmanage/mail';
+import type { MailDelivery, MailLoginCheck, Mailer } from '@tmanage/mail';
 import {
   MAIL_PERSON_LANGUAGES,
   MAIL_PERSON_REGIONS,
@@ -118,20 +118,39 @@ export function parseMailPeopleCsv(raw: unknown): MailPersonInput[] {
   });
 }
 
+/** MAILSTATUS (ADR-0013). One role mailbox's login state, as the card shows it (no value). */
+export interface MailboxLoginView {
+  readonly mailbox: 'noreply' | 'hello' | 'support' | 'security';
+  readonly address: string | null;
+  readonly state: 'ok' | 'login_refused' | 'unreachable' | 'not_configured';
+}
+
 export interface MailPeopleView {
   readonly people: readonly MailPersonRecord[];
+  /** MAILSTATUS. Each role mailbox's login state; `null` when mail does not go out over SMTP. */
+  readonly mailboxes: readonly MailboxLoginView[] | null;
 }
+
+/**
+ * PERSONMAIL (ADR-0013). Which mailbox a test (and every tip from this person) leaves through:
+ * `own_mailbox` (signed in as the person's own address with the shared SMTP_PASSWORD), or `none`
+ * (no shared password: person mail is not sent at all, never from another mailbox in their name).
+ */
+export type MailPersonRoute = 'own_mailbox' | 'none';
 
 export interface MailPersonTestView {
   readonly sent: boolean;
-  /** Which mailbox carried it: `support` (the support login) or `noreply` (its fallback). */
-  readonly route: 'support' | 'noreply';
+  readonly route: MailPersonRoute;
+  /** The person's mailbox address, so the card can say where it came from. */
+  readonly address: string;
 }
 
 export interface MailPeopleServiceOptions {
   readonly mailer: Mailer | null;
-  /** Whether SMTP_SUPPORT_USER/PASS are set; person mail otherwise leaves through noreply. */
-  readonly supportLoginConfigured: boolean;
+  /** PERSONMAIL. Whether person mail signs in as the person (SMTP driver with SMTP_PASSWORD). */
+  readonly personMailConfigured: boolean;
+  /** MAILSTATUS. The role mailboxes' login check; `null` = not SMTP. */
+  readonly loginCheck?: Pick<MailLoginCheck, 'status'> | null | undefined;
 }
 
 const duplicate = () =>
@@ -146,7 +165,19 @@ export class MailPeopleService {
   ) {}
 
   async list(context: RequestContext): Promise<MailPeopleView> {
-    return { people: await this.repository.list(context.correlationId) };
+    const check = this.options.loginCheck ?? null;
+    const [people, status] = await Promise.all([
+      this.repository.list(context.correlationId),
+      // A check that cannot run is "no reading", never a failed list.
+      check === null ? null : check.status().catch(() => null),
+    ]);
+    return {
+      people,
+      mailboxes:
+        status === null
+          ? null
+          : status.mailboxes.map(({ mailbox, address, state }) => ({ mailbox, address, state })),
+    };
   }
 
   async create(actor: PlatformAdminActor, body: Body, context: RequestContext) {
@@ -234,7 +265,9 @@ export class MailPeopleService {
     const person = await this.repository.byId(id, context.correlationId);
     if (person === null) throw new ApiError(404, 'not_found', 'That person is not in the list.');
     const language = body?.['language'] === 'ar' ? 'ar' : 'en';
-    const route = this.options.supportLoginConfigured ? 'support' : 'noreply';
+    // PERSONMAIL: the route the router takes for this person (ADR-0013). A login the mailbox
+    // refuses at send time makes the test fail (`sent: false`); it never leaves from elsewhere.
+    const route: MailPersonRoute = this.options.personMailConfigured ? 'own_mailbox' : 'none';
     let delivery: MailDelivery | 'failed' = 'none';
     if (this.options.mailer !== null) {
       try {
@@ -264,7 +297,7 @@ export class MailPeopleService {
         afterJson: JSON.stringify({ delivery, route }),
       }),
     );
-    return { sent: delivery === 'sent', route };
+    return { sent: delivery === 'sent', route, address: person.address };
   }
 }
 

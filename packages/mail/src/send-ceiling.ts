@@ -35,9 +35,13 @@ export class MailCeilingReachedError extends Error {
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
-/** Whether a message is bulk/notification mail: the transport stamped an unsubscribe header. */
+/**
+ * Whether a message is bulk/notification mail: `NotificationMailTransport` marked it optional.
+ * PERSONMAIL (ADR-0013): every mail now carries `List-Unsubscribe`, codes included, so the header
+ * can no longer say "bulk" — reading it would put codes under the bulk share.
+ */
 export function isBulkMessage(message: MailMessage): boolean {
-  return message.headers?.['List-Unsubscribe'] !== undefined;
+  return message.optional === true;
 }
 
 export class SendCeilingMailer implements ReceiptMailer {

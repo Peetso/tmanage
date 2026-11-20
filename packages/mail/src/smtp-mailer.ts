@@ -108,6 +108,19 @@ export class SmtpMailer implements ReceiptMailer {
     return (await this.submit(message)).delivery;
   }
 
+  /** PERSONMAIL. Close the pooled connection (an idle person mailbox; see `PersonMailboxes`). */
+  close(): void {
+    this.transport.close();
+  }
+
+  /**
+   * MAILSTATUS. Connect, start TLS and sign in, then quit: nothing is sent. Throws the driver's
+   * error (EAUTH / 535 for a refused login). The 10 s timeouts above bound it.
+   */
+  async verify(): Promise<void> {
+    await this.transport.verify();
+  }
+
   /** 56-31: `send`, plus the server's message id for DSN matching (56-26). */
   async submit(message: MailMessage): Promise<MailReceipt> {
     const messageId =

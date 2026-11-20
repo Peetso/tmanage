@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateDeepHealth, versionsFromFilenames } from './deep-health.js';
+import { evaluateDeepHealth, mailCheckOf, versionsFromFilenames } from './deep-health.js';
 import type { DeepHealthConfig, DeepHealthProbes } from './deep-health.js';
 
 const NOW = new Date('2026-10-25T12:00:00.000Z');
@@ -35,6 +35,7 @@ describe('evaluateDeepHealth', () => {
         growth: 'not_configured',
         realtime: 'not_configured',
         leader: { state: 'not_configured' },
+        mail: { state: 'not_configured' },
       },
       checkedAt: NOW.toISOString(),
     });
@@ -126,6 +127,46 @@ describe('evaluateDeepHealth — reported-only readings (56-30, 51-06)', () => {
     expect(report.status).toBe('ok');
     expect(report.checks.origin_tls.state).toBe('fail');
     expect(report.checks.realtime).toBe('ok');
+  });
+  it('MAILSTATUS: a refused mailbox login is reported by state only, never a 503', async () => {
+    const mail = mailCheckOf(
+      {
+        state: 'login_refused',
+        checkedAt: NOW.toISOString(),
+        mailboxes: [
+          { mailbox: 'noreply', address: 'noreply@tmanageapp.com', state: 'login_refused' },
+          { mailbox: 'hello', address: 'hello@tmanageapp.com', state: 'ok' },
+          { mailbox: 'support', address: 'support@tmanageapp.com', state: 'ok' },
+          { mailbox: 'security', address: null, state: 'not_configured' },
+        ],
+      },
+      true,
+    );
+    const report = await evaluateDeepHealth(
+      base,
+      probes(),
+      NOW,
+      'ok',
+      'ok',
+      { state: 'not_configured' },
+      'not_configured',
+      { state: 'not_configured' },
+      mail,
+    );
+    expect(report.status).toBe('ok');
+    expect(report.checks.mail).toEqual({
+      state: 'login_refused',
+      mailboxes: {
+        noreply: 'login_refused',
+        hello: 'ok',
+        support: 'ok',
+        security: 'not_configured',
+      },
+    });
+    // The public body names no address.
+    expect(JSON.stringify(report)).not.toContain('@');
+    expect(mailCheckOf(null, true)).toEqual({ state: 'checking' });
+    expect(mailCheckOf(null, false)).toEqual({ state: 'not_configured' });
   });
 });
 

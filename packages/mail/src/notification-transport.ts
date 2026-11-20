@@ -63,6 +63,7 @@ export class NotificationMailTransport implements Mailer {
     const links = { settings: settingsUrl.toString(), unsubscribe };
     return this.inner.send({
       ...message,
+      optional: true,
       text: fillLinkTokens(message.text, links, false),
       ...(message.html === undefined ? {} : { html: fillLinkTokens(message.html, links, true) }),
       ...(replyTo === undefined ? {} : { replyTo }),

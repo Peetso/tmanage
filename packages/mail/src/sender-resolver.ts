@@ -15,7 +15,14 @@ import {
   validateSenderName,
 } from './sender.js';
 import type { MailLanguage, SenderCategory } from './sender.js';
-import { SIGNATURE_TOKENS, stripLinkTokens } from './sign-off.js';
+import {
+  SIGNATURE_TOKENS,
+  fillLinkTokens,
+  hasLinkTokens,
+  stripLinkTokens,
+  unsubscribeFooter,
+} from './sign-off.js';
+import { listUnsubscribeHeaders } from './list-unsubscribe.js';
 
 /**
  * EMAILBUILD — the decorator that gives every message its sender.
@@ -64,6 +71,13 @@ export interface SenderResolverOptions {
     readonly noreply: string;
   };
   readonly directory?: SenderDirectory | undefined;
+  /**
+   * PERSONMAIL (ADR-0013). The one-click unsubscribe route (`POST /v1/public/email/unsubscribe`)
+   * and its key. With it, EVERY message leaves with `List-Unsubscribe` + `List-Unsubscribe-Post`
+   * and a footer holding "Notification settings" and "Unsubscribe"; mail the notification transport
+   * already stamped is left as it is. Absent (a suite) = the unfilled links line is dropped.
+   */
+  readonly unsubscribe?: { readonly url: string; readonly key: Buffer } | undefined;
   readonly now?: () => number;
   readonly log?: (line: string) => void;
 }
@@ -120,6 +134,21 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
+/**
+ * PERSONMAIL. `value` with the footer lines added, unless it already holds a links line (the
+ * sign-off of a notice or a tip). Text: a blank line, then the lines. HTML: one small paragraph
+ * per line, before `</body>` when there is one.
+ */
+function withFooter(value: string, html: boolean, lines: readonly string[]): string {
+  if (hasLinkTokens(value)) return value;
+  if (!html) return `${value.replace(/\s+$/u, '')}\n\n${lines.join('\n')}`;
+  const block = lines
+    .map((line) => `<p style="font-size:12px;line-height:18px;color:#6b6b6b;">${line}</p>`)
+    .join('\n');
+  const end = value.toLowerCase().lastIndexOf('</body>');
+  return end < 0 ? `${value}\n${block}` : `${value.slice(0, end)}${block}\n${value.slice(end)}`;
+}
+
 export class SenderResolvingMailer implements Mailer {
   private readonly cache = new Map<string, { at: number; person: MailPerson | null }>();
   private readonly domain: string;
@@ -144,18 +173,31 @@ export class SenderResolvingMailer implements Mailer {
     const words = WORDS[language];
     const by = identity.person === null ? words.team : words.by(identity.person);
     const note = identity.person === null ? words.teamNote : words.note(identity.person);
-    const fill = (value: string, html: boolean): string => {
+    const stamp = this.unsubscribeFor(message);
+    const linked = (value: string, html: boolean, body: boolean): string => {
+      if (stamp === null || !body) return stripLinkTokens(value, html);
+      return fillLinkTokens(
+        stamp.footer ? withFooter(value, html, stamp.lines) : value,
+        stamp.links,
+        html,
+      );
+    };
+    const fill = (value: string, html: boolean, body = true): string => {
       const safe = html ? escapeHtml : (text: string) => text;
-      // A links line the notification transport did not fill (mail on another path) is dropped.
-      return stripLinkTokens(value, html)
+      // The links line is filled (every mail has one, ADR-0013); without the unsubscribe route
+      // configured, an unfilled one is dropped so a raw token never reaches a reader.
+      return linked(value, html, body)
         .replaceAll(SIGNATURE_TOKENS.name, safe(identity.person?.name ?? words.team))
         .replaceAll(SIGNATURE_TOKENS.role, safe(identity.person?.role ?? ''))
         .replaceAll(SIGNATURE_TOKENS.by, safe(by))
         .replaceAll(SIGNATURE_TOKENS.note, safe(note));
     };
-    const from: MailSender = this.options.sendAs
-      ? { name: identity.name, address: identity.address }
-      : { name: identity.name };
+    // PERSONMAIL: a person mail always names the person's own mailbox; the identity router sends
+    // it from there, or drops the address when it falls back to the support login.
+    const from: MailSender =
+      this.options.sendAs || identity.mailbox === 'person'
+        ? { name: identity.name, address: identity.address }
+        : { name: identity.name };
     const { replyTo: _producerReplyTo, ...rest } = message;
     const autoSubmitted =
       typeof message.templateKey === 'string' && NO_AUTO_SUBMITTED.has(message.templateKey)
@@ -165,12 +207,44 @@ export class SenderResolvingMailer implements Mailer {
       ...rest,
       from,
       identity: identity.mailbox,
-      subject: fill(message.subject, false),
+      subject: fill(message.subject, false, false),
       text: fill(message.text, false),
       ...(message.html === undefined ? {} : { html: fill(message.html, true) }),
       ...(identity.replyTo === null ? {} : { replyTo: identity.replyTo }),
-      headers: { ...message.headers, ...autoSubmitted },
+      headers: { ...message.headers, ...(stamp?.headers ?? {}), ...autoSubmitted },
     });
+  }
+
+  /**
+   * PERSONMAIL (ADR-0013). The unsubscribe headers and links for one message, or `null` without
+   * the route configured. A message the notification transport already stamped keeps its headers
+   * and its filled links line (`footer: false`); every other one gets both here. Mail that is not
+   * optional gets the honest footer: the link stops optional mail, account mail still comes.
+   */
+  private unsubscribeFor(message: MailMessage): {
+    readonly headers: Readonly<Record<string, string>>;
+    readonly links: { readonly settings: string; readonly unsubscribe: string };
+    readonly footer: boolean;
+    readonly lines: readonly string[];
+  } | null {
+    const route = this.options.unsubscribe;
+    if (route === undefined) return null;
+    const stamped = message.headers?.['List-Unsubscribe'];
+    const headers =
+      stamped === undefined ? listUnsubscribeHeaders(route.url, route.key, message.to) : {};
+    for (const value of Object.values(headers)) {
+      if (/[\r\n]/u.test(value)) throw new Error('refused a header value holding a line break');
+    }
+    const header = stamped ?? headers['List-Unsubscribe'] ?? '';
+    const settings = new URL(route.url);
+    settings.search = '';
+    const language: MailLanguage = message.language === 'ar' ? 'ar' : 'en';
+    return {
+      headers,
+      links: { settings: settings.toString(), unsubscribe: /^<(.*)>$/u.exec(header)?.[1] ?? '' },
+      footer: stamped === undefined,
+      lines: unsubscribeFooter(language, message.optional !== true),
+    };
   }
 
   private usable(address: string): boolean {
@@ -209,13 +283,14 @@ export class SenderResolvingMailer implements Mailer {
             ? null
             : await this.personFor(message.organizationId, message.personRef, language);
         if (person === null) return this.mailbox('TManage', hello, 'hello');
-        // Person mail leaves through the support login; replies go to the person's own alias.
+        // PERSONMAIL (ADR-0013): person mail leaves from the person's own mailbox; the identity
+        // router falls back to the support login (From support@, Reply-To the person) without one.
         return {
           name: words.from(person.name),
           address: person.address,
           replyTo: person.address,
           person,
-          mailbox: 'support',
+          mailbox: 'person',
         };
       }
       case 'workspace':

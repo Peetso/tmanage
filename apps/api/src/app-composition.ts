@@ -1,6 +1,7 @@
 import type { DynamicModule } from '@nestjs/common';
 import type { Env } from '@tmanage/config';
-import { deriveBounceKey } from '@tmanage/mail';
+import { CONTACT_EMAILS } from '@tmanage/domain';
+import { deriveBounceKey, deriveUnsubscribeKey } from '@tmanage/mail';
 import { DatabaseModule } from './common/database/database.module.js';
 import { createGuardEventLog } from './common/database/guard-event-log.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -80,8 +81,29 @@ export function composeAppModule(env: Env): DynamicModule {
       // 56-26: the key company mail's Message-ID is signed with, so its bounce can be matched.
       bounceKey: deriveBounceKey(env.SESSION_SECRET),
       sendAs: env.EMAIL_SEND_AS,
-      helloLogin: { username: env.SMTP_HELLO_USER, password: env.SMTP_HELLO_PASS },
-      supportLogin: { username: env.SMTP_SUPPORT_USER, password: env.SMTP_SUPPORT_PASS },
+      // PERSONMAIL (ADR-0013): each mailbox signs in as its own address; its own *_PASS only
+      // overrides the shared SMTP_PASSWORD (owner decision 2026-11-20).
+      helloLogin: {
+        username: env.SMTP_HELLO_USER,
+        password: env.SMTP_HELLO_PASS,
+        address: CONTACT_EMAILS.hello,
+      },
+      supportLogin: {
+        username: env.SMTP_SUPPORT_USER,
+        password: env.SMTP_SUPPORT_PASS,
+        address: CONTACT_EMAILS.support,
+      },
+      // MAILSTATUS: security@ is sent by the worker; the API only checks that its login works.
+      securityLogin: {
+        username: process.env['SMTP_SECURITY_USERNAME'],
+        password: process.env['SMTP_SECURITY_PASSWORD'],
+        address: process.env['EMAIL_SECURITY_FROM_ADDRESS'],
+      },
+      // PERSONMAIL (ADR-0013): every mail carries the one-click unsubscribe headers and footer.
+      unsubscribe: {
+        url: `${env.API_PUBLIC_URL.replace(/\/+$/u, '')}/v1/public/email/unsubscribe`,
+        key: deriveUnsubscribeKey(env.SESSION_SECRET),
+      },
     }),
     // FILE-001b. `local` is the production single-host driver (Hostinger shared hosting):
     // it stores under `STORAGE_LOCAL_ROOT`, which the module checks at boot is absolute and

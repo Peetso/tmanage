@@ -53,22 +53,47 @@ export {
   isMailIdentity,
   validateSenderAddress,
   validateSenderName,
+  TEMPLATE_KEYS,
 } from './sender.js';
 export type { MailLanguage, SenderCategory } from './sender.js';
 export { SIGNATURE_TOKENS, SenderResolvingMailer } from './sender-resolver.js';
 export {
   LINK_TOKENS,
+  STILL_SENT_LINE,
   anchored,
   greeting,
   plainMailText,
   signOff,
   signOffText,
+  unsubscribeFooter,
   workspaceReplyLine,
   workspaceSignOff,
 } from './sign-off.js';
 export type { SignOffKind } from './sign-off.js';
-export { IdentityRoutingMailer, createIdentityMailers } from './identity-mailer.js';
+export {
+  IdentityRoutingMailer,
+  PERSON_IDLE_CLOSE_MS,
+  PersonMailboxes,
+  PersonMailboxUnavailableError,
+  createIdentityMailers,
+  isSmtpAuthFailure,
+} from './identity-mailer.js';
 export type { IdentityLogin, IdentityMailersOptions } from './identity-mailer.js';
+export {
+  CHECKED_MAILBOXES,
+  MAIL_LOGIN_CHECK_TTL_MS,
+  MailLoginCheck,
+  resolveMailboxLogin,
+} from './mailbox-login.js';
+export type {
+  CheckedMailbox,
+  MailLoginCheckOptions,
+  MailboxLogin,
+  MailboxLoginInput,
+  MailboxLoginReading,
+  MailboxLoginState,
+  MailboxLoginStatus,
+} from './mailbox-login.js';
 export { MAIL_PERSON_TOPICS, isMailPersonTopic, regionForTimezone } from './person-region.js';
 export type { MailPersonRegion } from './person-region.js';
 export type { MailPerson, SenderDirectory, SenderResolverOptions } from './sender-resolver.js';

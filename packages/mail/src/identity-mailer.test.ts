@@ -60,7 +60,7 @@ const resolverOver = (inner: Mailer) =>
   });
 
 describe('EMAILBUILD amendment 3 — one real mailbox per kind of mail', () => {
-  it('maps each category to its mailbox; person mail leaves by support, Reply-To the person', async () => {
+  it('maps each category to its mailbox; a tip leaves from the person own mailbox, Reply-To the person', async () => {
     const { router, sent } = harness();
     const mailer = resolverOver(router);
     const cases: [string, string][] = [
@@ -70,7 +70,7 @@ describe('EMAILBUILD amendment 3 — one real mailbox per kind of mail', () => {
       ['ops_alert', 'noreply@tmanageapp.com'],
       ['welcome', 'hello@tmanageapp.com'],
       ['support_reply', 'support@tmanageapp.com'],
-      ['tip', 'support@tmanageapp.com'],
+      ['tip', 'layla@tmanageapp.com'],
     ];
     for (const [templateKey, via] of cases) {
       await mailer.send({
@@ -90,7 +90,7 @@ describe('EMAILBUILD amendment 3 — one real mailbox per kind of mail', () => {
     await router.send({ ...message, identity: 'hello' });
     await router.send({ ...message, identity: 'support' });
     expect(sent.map((s) => s.via)).toEqual(['noreply@tmanageapp.com', 'noreply@tmanageapp.com']);
-    expect(lines).toHaveLength(1);
+    expect(lines.filter((line) => line.includes('no login for'))).toHaveLength(1);
     expect(lines.join('\n')).not.toContain(SECRET);
     expect(harness().lines.join('\n')).not.toContain(SECRET);
   });
@@ -104,7 +104,7 @@ describe('EMAILBUILD amendment 3 — one real mailbox per kind of mail', () => {
 
   it('counts the ceiling per mailbox, and notices never starve codes', async () => {
     const { router } = harness();
-    const notice = { ...message, headers: { 'List-Unsubscribe': '<https://x.example/u>' } };
+    const notice = { ...message, optional: true };
     for (let i = 0; i < 8; i += 1) await router.send(notice);
     await expect(router.send(notice)).rejects.toBeInstanceOf(MailCeilingReachedError);
     // The same mailbox still sends a code (bulk may use only 80 %).

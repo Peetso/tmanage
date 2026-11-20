@@ -768,8 +768,10 @@ export const envSchema = z
      */
     /**
      * EMAILBUILD (amendment 3). The welcome and support mailboxes' own SMTP logins on the same
-     * host (the user is the mailbox address). Absent = that mail leaves through the SMTP_USERNAME
-     * (noreply) login. The passwords are secrets: never logged, never returned by any API.
+     * host. PERSONMAIL (ADR-0013, owner decision 2026-11-20): every mailbox shares ONE password,
+     * SMTP_PASSWORD; the user defaults to the mailbox's own address (hello@, support@) and the
+     * password to SMTP_PASSWORD, so these four are optional overrides. Tips sign in as the person's
+     * own address with SMTP_PASSWORD. Secrets: never logged, never returned by any API.
      */
     SMTP_HELLO_USER: z.string().optional(),
     SMTP_HELLO_PASS: z.string().optional(),

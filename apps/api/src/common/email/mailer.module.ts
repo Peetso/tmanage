@@ -24,6 +24,7 @@ import {
   WELCOME_MAILER,
 } from '../http/tokens.js';
 import { InvitationMailer } from './invitation-mailer.js';
+import { MAIL_LOGIN_CHECK, mailLoginCheckFrom } from './mail-login-check.js';
 import { MfaCodeMailer } from './mfa-code-email.js';
 import { PasswordResetMailer } from './password-reset-email.js';
 import { WelcomeMailer } from './welcome-email.js';
@@ -68,6 +69,13 @@ export interface MailerModuleConfig {
   /** EMAILBUILD (amendment 3): the welcome and support mailboxes' own logins, when configured. */
   readonly helloLogin?: IdentityLogin | undefined;
   readonly supportLogin?: IdentityLogin | undefined;
+  /** MAILSTATUS: security@ (`SMTP_SECURITY_*`), checked with the others; the worker sends it. */
+  readonly securityLogin?: IdentityLogin | undefined;
+  /**
+   * PERSONMAIL (ADR-0013). The one-click unsubscribe route and key: every message the API sends
+   * carries `List-Unsubscribe` + `List-Unsubscribe-Post` and the footer links.
+   */
+  readonly unsubscribe?: { readonly url: string; readonly key: Buffer } | undefined;
 }
 
 /**
@@ -85,6 +93,7 @@ function resolved(
     sendAs: config.sendAs === true,
     addresses: CONTACT_EMAILS,
     directory,
+    unsubscribe: config.unsubscribe,
   });
 }
 
@@ -125,6 +134,8 @@ function producersFor(mailer: Mailer | null, webPublicUrl: string) {
 function moduleFor(mailer: Mailer | null, webPublicUrl: string): DynamicModule {
   const producers = producersFor(mailer, webPublicUrl);
   const mailerProvider: Provider = { provide: MAILER, useValue: mailer };
+  // MAILSTATUS: no SMTP here (console driver, a suite's transport, none), so nothing to check.
+  const loginCheck: Provider = { provide: MAIL_LOGIN_CHECK, useValue: null };
   const invitationMailer: Provider = { provide: INVITATION_MAILER, useValue: producers.invitation };
   const passwordResetMailer: Provider = {
     provide: PASSWORD_RESET_MAILER,
@@ -132,7 +143,14 @@ function moduleFor(mailer: Mailer | null, webPublicUrl: string): DynamicModule {
   };
   const welcomeMailer: Provider = { provide: WELCOME_MAILER, useValue: producers.welcome };
   const mfaCodeMailer: Provider = { provide: MFA_CODE_MAILER, useValue: producers.mfaCode };
-  const all = [mailerProvider, invitationMailer, passwordResetMailer, welcomeMailer, mfaCodeMailer];
+  const all = [
+    mailerProvider,
+    invitationMailer,
+    passwordResetMailer,
+    welcomeMailer,
+    mfaCodeMailer,
+    loginCheck,
+  ];
   return {
     module: MailerModule,
     global: true,
@@ -175,6 +193,8 @@ function guardedModule(
     from(PASSWORD_RESET_MAILER, (q) => q.passwordReset),
     from(WELCOME_MAILER, (q) => q.welcome),
     from(MFA_CODE_MAILER, (q) => q.mfaCode),
+    // MAILSTATUS (ADR-0013): whether each role mailbox's login is accepted, states only.
+    { provide: MAIL_LOGIN_CHECK, useValue: mailLoginCheckFrom(config) },
   ];
   return {
     module: MailerModule,
@@ -197,7 +217,9 @@ export class MailerModule {
         config,
       );
     }
-    // Without the queue the API submits itself: each mail leaves through its own mailbox login.
+    // Without the queue the API submits itself: each mail leaves through its own mailbox login,
+    // a tip (the people card's test) through the signing person's own mailbox, signed in as
+    // that address with the shared SMTP_PASSWORD (ADR-0013).
     const driver = driverFrom(config);
     const senders = createIdentityMailers({
       base: {

@@ -72,6 +72,8 @@ interface QueuedPayload {
   readonly from?: MailSender;
   /** EMAILBUILD (amendment 3). The mailbox key only, never a credential; checked on decode. */
   readonly identity?: MailIdentity;
+  /** PERSONMAIL. Optional (notification) mail: the drainer's ceiling gives it the bulk share. */
+  readonly optional?: true;
 }
 
 /** INVMAIL. An attachment as stored: its content base64-encoded. */
@@ -91,6 +93,7 @@ export function encodeQueuedMessage(message: MailMessage): string {
     ...(message.headers === undefined ? {} : { headers: { ...message.headers } }),
     ...(message.from === undefined ? {} : { from: { ...message.from } }),
     ...(message.identity === undefined ? {} : { identity: message.identity }),
+    ...(message.optional === true ? { optional: true as const } : {}),
     ...(message.attachments === undefined || message.attachments.length === 0
       ? {}
       : {
@@ -187,6 +190,7 @@ export function decodeQueuedMessage(json: string, templateKey: string): MailMess
     ...(attachments === undefined ? {} : { attachments }),
     ...(from === undefined ? {} : { from }),
     ...(identity === undefined ? {} : { identity }),
+    ...(value['optional'] === true ? { optional: true } : {}),
   };
 }
 

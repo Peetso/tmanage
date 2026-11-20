@@ -182,8 +182,19 @@ describe('EMAILBUILD — SenderResolvingMailer', () => {
 
   it('send-as off keeps the SMTP identity address and shows the name only', async () => {
     const { capture, mailer } = resolver({ sendAs: false });
+    await mailer.send({ ...base, templateKey: 'welcome' });
+    expect(capture.last.from).toEqual({ name: 'TManage' });
+    expect(capture.last.replyTo).toBe('hello@tmanageapp.com');
+  });
+
+  it('PERSONMAIL: a tip always names the person own mailbox, whatever send-as says', async () => {
+    const { capture, mailer } = resolver({ sendAs: false });
     await mailer.send({ ...base, templateKey: 'tip', ...TIP });
-    expect(capture.last.from).toEqual({ name: 'Mariam from TManage' });
+    expect(capture.last.from).toEqual({
+      name: 'Mariam from TManage',
+      address: 'mariam@tmanageapp.com',
+    });
+    expect(capture.last.identity).toBe('person');
     expect(capture.last.replyTo).toBe('mariam@tmanageapp.com');
   });
 

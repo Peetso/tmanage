@@ -17,6 +17,8 @@ import {
   setMailPersonActive,
 } from '../../../lib/api/platform-mail-people';
 import type {
+  MailPeopleView,
+  MailboxLoginView,
   MailPersonInput,
   MailPersonLanguages,
   MailPersonRegion,
@@ -122,6 +124,7 @@ export function MailPeopleCard({ api, canEdit }: { api: ApiClient; canEdit: bool
           {platformErrorText(actionError, t)}
         </InlineAlert>
       ) : null}
+      {list.data !== undefined ? <MailboxLoginAlerts view={list.data} t={t} /> : null}
       {list.isPending ? (
         <PlatformPageState state="loading" loadingLabel={t('PlatformMailPeople.loading')} />
       ) : list.isError ? (
@@ -230,11 +233,39 @@ export function MailPeopleCard({ api, canEdit }: { api: ApiClient; canEdit: bool
   );
 }
 
+/**
+ * MAILSTATUS (ADR-0013). A mailbox whose login the mail server refuses (or that it cannot reach)
+ * sends nothing; the card says which, by address, never a value.
+ */
+function MailboxLoginAlerts({ view, t }: { view: MailPeopleView; t: ReturnType<typeof useT> }) {
+  const named = (state: MailboxLoginView['state']) =>
+    (view.mailboxes ?? [])
+      .filter((m) => m.state === state)
+      .map((m) => m.address ?? m.mailbox)
+      .join(', ');
+  const refused = named('login_refused');
+  const unreachable = named('unreachable');
+  return (
+    <>
+      {refused !== '' ? (
+        <InlineAlert tone="danger" title={t('PlatformMailPeople.loginRefusedTitle')}>
+          {fill(t('PlatformMailPeople.loginRefused'), { addresses: refused })}
+        </InlineAlert>
+      ) : null}
+      {unreachable !== '' ? (
+        <InlineAlert tone="warning">
+          {fill(t('PlatformMailPeople.loginUnreachable'), { addresses: unreachable })}
+        </InlineAlert>
+      ) : null}
+    </>
+  );
+}
+
+/** PERSONMAIL (ADR-0013). Says in plain words which mailbox the test (and this person's tips) left from. */
 function testLine(result: MailPersonTestView, t: ReturnType<typeof useT>): string {
+  if (result.route === 'none') return t('PlatformMailPeople.testNoLogin');
   if (!result.sent) return t('PlatformMailPeople.testFailed');
-  return result.route === 'support'
-    ? t('PlatformMailPeople.testSentSupport')
-    : t('PlatformMailPeople.testSentNoreply');
+  return fill(t('PlatformMailPeople.testSentOwn'), { address: result.address });
 }
 
 const EMPTY: MailPersonInput = {

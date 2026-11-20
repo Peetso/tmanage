@@ -21052,5 +21052,20 @@
   "SessionGate.continue": "متابعة",
   "SessionGate.signOut": "تسجيل الخروج",
   "SessionGate.signingOut": "جارٍ تسجيل الخروج…",
-  "SessionGate.signOutFailed": "لم يكتمل تسجيل الخروج. حاول مرة أخرى."
+  "SessionGate.signOutFailed": "لم يكتمل تسجيل الخروج. حاول مرة أخرى.",
+  "PlatformMailPeople.testSentOwn": "أُرسلت رسالة التجربة إلى عنوانك من ‏{address}، صندوق بريد هذا الشخص نفسه.",
+  "Unsubscribe.pageTitle": "إلغاء الاشتراك من الرسائل الاختيارية",
+  "Unsubscribe.pageBody": "لن تصلك بعد الآن النصائح والتذكيرات ورسائل الإشعارات على هذا العنوان.",
+  "Unsubscribe.stillSent": "رموز تسجيل الدخول وتنبيهات الأمان والرسائل الخاصة بحسابك تصلك دائمًا، لأنك تحتاجها لحماية حسابك.",
+  "Unsubscribe.confirm": "إلغاء الاشتراك",
+  "Unsubscribe.done": "تم إلغاء اشتراكك",
+  "Unsubscribe.doneBody": "لن نرسل رسائل اختيارية إلى هذا العنوان بعد الآن.",
+  "Unsubscribe.settingsLink": "إعدادات الإشعارات",
+  "Unsubscribe.invalid": "هذا الرابط غير صالح",
+  "Unsubscribe.invalidBody": "استخدم رابط إلغاء الاشتراك في أحدث رسالة من TManage، أو غيّر إعدادات الإشعارات بعد تسجيل الدخول.",
+  "Unsubscribe.notSent": "تعذّر إلغاء اشتراكك الآن. حاول مرة أخرى بعد دقيقة.",
+  "PlatformMailPeople.testNoLogin": "لم تُرسل رسالة التجربة. لا يمكن لصناديق الأشخاص تسجيل الدخول حتى تُضبط كلمة مرور الصناديق المشتركة ‏(SMTP_PASSWORD) على الخادم.",
+  "PlatformMailPeople.loginRefusedTitle": "البريد لا يُرسل",
+  "PlatformMailPeople.loginRefused": "رفض خادم البريد تسجيل الدخول لـ ‏{addresses}. لن يُرسل شيء من هذه الصناديق حتى تُصحَّح كلمة مرور الصناديق ‏(SMTP_PASSWORD) على الخادم.",
+  "PlatformMailPeople.loginUnreachable": "تعذّر الوصول إلى خادم البريد لـ ‏{addresses}. تُعاد المحاولة تلقائيًا."
 }

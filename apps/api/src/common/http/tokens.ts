@@ -277,6 +277,8 @@ export const INBOX_SNOOZE_SERVICE = Symbol.for('tmanage.InboxSnoozeService');
 /** INBOX saved filters (IN-02, x261). The per-membership, tenant-scoped saved inbox filters service. */
 export const INBOX_SAVED_FILTERS_SERVICE = Symbol.for('tmanage.InboxSavedFiltersService');
 export const MAILER = Symbol.for('tmanage.Mailer');
+/** MAILSTATUS (ADR-0013). The role mailboxes' SMTP login check (`MailLoginCheck` or `null`). */
+export const MAIL_LOGIN_CHECK = Symbol.for('tmanage.MailLoginCheck');
 export const INVITATION_MAILER = Symbol.for('tmanage.InvitationMailer');
 /** ACC-02: the password-reset email's sender, beside the invitation's. */
 export const PASSWORD_RESET_MAILER = Symbol.for('tmanage.PasswordResetMailer');

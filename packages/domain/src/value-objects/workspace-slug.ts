@@ -66,6 +66,8 @@ export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
   'verify',
   // The link in the address-confirmation mail (/confirm-email/{token}, VERIFYMAIL).
   'confirm-email',
+  // The page behind every mail's "Unsubscribe" link (/unsubscribe/{token}, PERSONMAIL).
+  'unsubscribe',
   // The message catalogs, served per language and page part at /i18n/{catalog} (CATSPLIT).
   'i18n',
   // The Arabic-first product page and its use cases (/arabic, /arabic/{slug}, 57-07 MENA).

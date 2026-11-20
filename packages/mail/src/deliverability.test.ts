@@ -45,7 +45,7 @@ describe('51-11 deliverability', () => {
 
   it('the ceiling keeps headroom for transactional mail over bulk', async () => {
     const capped = new SendCeilingMailer(recorder(), { perHour: 10, perDay: 100, bulkShare: 0.5 });
-    const bulk = { ...message, headers: { 'List-Unsubscribe': '<https://x>' } };
+    const bulk = { ...message, optional: true };
     for (let i = 0; i < 5; i += 1) await capped.send(bulk);
     await expect(capped.send(bulk)).rejects.toBeInstanceOf(MailCeilingReachedError);
     for (let i = 0; i < 5; i += 1) await capped.send(message);

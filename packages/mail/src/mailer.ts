@@ -94,10 +94,20 @@ export interface MailMessage {
    * that mailbox, or through `noreply` when its login is not configured.
    */
   readonly identity?: MailIdentity;
+  /**
+   * PERSONMAIL. Optional mail (notifications, tips): a recipient may switch it off, and it may use
+   * only the bulk share of a mailbox's send ceiling. Set ONLY by `NotificationMailTransport`; every
+   * mail carries the unsubscribe headers now (ADR-0013), so the header is no longer the signal.
+   */
+  readonly optional?: boolean;
 }
 
-/** EMAILBUILD. The sending mailboxes, each with its own SMTP login. */
-export type MailIdentity = 'noreply' | 'hello' | 'support';
+/**
+ * EMAILBUILD. The sending mailboxes, each with its own SMTP login. PERSONMAIL (ADR-0013): `person`
+ * is the signing person's own mailbox (its login is in the people registry, encrypted); without
+ * one it leaves through `support`.
+ */
+export type MailIdentity = 'noreply' | 'hello' | 'support' | 'person';
 
 /** EMAILBUILD. The five subjects a TManage person writes about. */
 export type MailPersonTopic = 'onboarding' | 'features' | 'news' | 'security' | 'success';

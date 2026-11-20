@@ -38,6 +38,35 @@ const LINKS = {
   ar: `إعدادات الإشعارات: ${LINK_TOKENS.settings} | إلغاء الاشتراك: ${LINK_TOKENS.unsubscribe}`,
 } as const;
 
+/**
+ * PERSONMAIL (ADR-0013). The footer of mail a person cannot switch off (codes, security, account,
+ * support, agency and internal mail). It carries the same two links, but says honestly what the
+ * link does: it stops the optional mail, and sign-in, security and account messages still come.
+ */
+const REQUIRED_LINKS = {
+  en: `Notification settings: ${LINK_TOKENS.settings} | Unsubscribe from optional e-mails: ${LINK_TOKENS.unsubscribe}`,
+  ar: `إعدادات الإشعارات: ${LINK_TOKENS.settings} | إلغاء الاشتراك من الرسائل الاختيارية: ${LINK_TOKENS.unsubscribe}`,
+} as const;
+
+/** PERSONMAIL. The second footer line of mail that cannot be switched off. */
+export const STILL_SENT_LINE = {
+  en: 'Sign-in, security and account messages are still sent after you unsubscribe.',
+  ar: 'رسائل تسجيل الدخول والأمان والحساب تصلك حتى بعد إلغاء الاشتراك.',
+} as const;
+
+/**
+ * PERSONMAIL (ADR-0013). The unsubscribe footer the sender resolver adds to a mail whose body has
+ * no links line yet. `required`: the mail is sent whatever the reader chose (see above).
+ */
+export function unsubscribeFooter(language: MailLanguage, required: boolean): readonly string[] {
+  return required ? [REQUIRED_LINKS[language], STILL_SENT_LINE[language]] : [LINKS[language]];
+}
+
+/** Whether a body already holds a links line (or any link token) to fill. */
+export function hasLinkTokens(value: string): boolean {
+  return value.includes(LINK_TOKENS.settings) || value.includes(LINK_TOKENS.unsubscribe);
+}
+
 const LINES: Record<MailLanguage, Record<SignOffKind, readonly string[]>> = {
   en: {
     security: [
@@ -193,6 +222,11 @@ const LINK_WORDS: Record<
   ar: { settings: 'إعدادات الإشعارات', unsubscribe: 'إلغاء الاشتراك' },
 };
 
+const REQUIRED_LINK_WORDS: Record<MailLanguage, string> = {
+  en: 'Unsubscribe from optional e-mails',
+  ar: 'إلغاء الاشتراك من الرسائل الاختيارية',
+};
+
 /**
  * Fills the link tokens: the bare URL in text. In HTML the links line becomes two linked words
  * ("Notification settings · Unsubscribe"); a token outside that line is a link showing its URL.
@@ -212,6 +246,10 @@ export function fillLinkTokens(
       filled = filled.replaceAll(
         LINKS[language],
         `${anchor(links.settings, words.settings)} · ${anchor(links.unsubscribe, words.unsubscribe)}`,
+      );
+      filled = filled.replaceAll(
+        REQUIRED_LINKS[language],
+        `${anchor(links.settings, words.settings)} · ${anchor(links.unsubscribe, REQUIRED_LINK_WORDS[language])}`,
       );
     }
   }

@@ -276,6 +276,31 @@ describe('D1 · Platform settings — General', () => {
     );
   });
 
+  it('MAILSTATUS: the E-mail people card names a mailbox whose login is refused', async () => {
+    mount(
+      (client) => <PlatformGeneralSettingsScreen client={client} />,
+      (method, path, body) =>
+        path === '/v1/platform/mail-people'
+          ? json({
+              people: [MARIAM],
+              mailboxes: [
+                { mailbox: 'noreply', address: 'noreply@tmanageapp.com', state: 'login_refused' },
+                { mailbox: 'hello', address: 'hello@tmanageapp.com', state: 'ok' },
+                { mailbox: 'support', address: 'support@tmanageapp.com', state: 'ok' },
+                { mailbox: 'security', address: null, state: 'not_configured' },
+              ],
+            })
+          : route(method, path, body),
+    );
+    expect(await screen.findByText('Mail is not going out')).toBeTruthy();
+    expect(
+      screen.getByText(
+        /The mail server refused the login for noreply@tmanageapp\.com\. Nothing is sent/u,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/hello@tmanageapp\.com\. Nothing/u)).toBeNull();
+  });
+
   it('EMAILBUILD: the E-mail people card lists Region and Topic, switches off and sends a test', async () => {
     const calls = mount(
       (client) => <PlatformGeneralSettingsScreen client={client} />,
@@ -284,7 +309,7 @@ describe('D1 · Platform settings — General', () => {
           return json({ people: [{ ...MARIAM, active: false }] });
         }
         if (method === 'POST' && path === `/v1/platform/mail-people/${MARIAM.id}/test`) {
-          return json({ sent: true, route: 'support' });
+          return json({ sent: true, route: 'own_mailbox', address: 'mariam@tmanageapp.com' });
         }
         return route(method, path, body);
       },
@@ -293,7 +318,12 @@ describe('D1 · Platform settings — General', () => {
     expect(screen.getByText('Middle East')).toBeTruthy();
     expect(screen.getByText('First steps')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Send test' }));
-    expect(await screen.findByText(/left through the support mailbox/u)).toBeTruthy();
+    // PERSONMAIL: the card says in plain words which mailbox the test left from.
+    expect(
+      await screen.findByText(
+        'Test sent to your address from mariam@tmanageapp.com, this person’s own mailbox.',
+      ),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('switch', { name: 'Mariam signs e-mails' }));
     await waitFor(() =>
       expect(calls.find((call) => call.method === 'PUT')).toMatchObject({
