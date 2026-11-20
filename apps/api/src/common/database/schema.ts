@@ -15268,3 +15268,81 @@ export type WalkthroughRequestRow = typeof walkthroughRequests.$inferSelect;
 Object.assign(TABLES, {
   walkthrough_requests: walkthroughRequests,
 });
+
+// ---- LANE-Q · outreach campaign ----
+
+/** 0389 (LANE-Q). Campaign states, checked in code. Every campaign is created `paused`. */
+export const OUTREACH_CAMPAIGN_STATUSES = ['paused', 'running', 'stopped'] as const;
+export type OutreachCampaignStatus = (typeof OUTREACH_CAMPAIGN_STATUSES)[number];
+
+/** 0389 (LANE-Q). Recipient states, checked in code. */
+export const OUTREACH_RECIPIENT_STATUSES = [
+  'queued',
+  'sending',
+  'sent',
+  'failed',
+  'suppressed',
+  'bounced',
+] as const;
+export type OutreachRecipientStatus = (typeof OUTREACH_RECIPIENT_STATUSES)[number];
+
+/**
+ * 0389 (LANE-Q). One outreach campaign. GLOBAL (NON_TENANT_TABLES), platform admins only.
+ * `first_started_at` anchors the pace (5 a day per mailbox in week 1, 10 in week 2, then 20).
+ */
+export const outreachCampaigns = mysqlTable(
+  'outreach_campaigns',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    name: varchar('name', { length: 120 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('paused'),
+    firstStartedAt: datetime('first_started_at', { mode: 'date', fsp: 3 }),
+    createdBy: char('created_by', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_outreach_campaigns_status').on(table.status)],
+);
+
+export type OutreachCampaignRow = typeof outreachCampaigns.$inferSelect;
+
+/**
+ * 0389 (LANE-Q). One recipient of an outreach campaign. GLOBAL (NON_TENANT_TABLES). `email_enc`
+ * is a FieldCipher envelope (`outreach_email`, owner = id); `email_hash` (UNIQUE) is the
+ * unsubscribe list's key for the same address. `sender_person_id` is a `platform_mail_people` id.
+ */
+export const outreachRecipients = mysqlTable(
+  'outreach_recipients',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    campaignId: char('campaign_id', { length: 36 }).notNull(),
+    company: varchar('company', { length: 160 }).notNull(),
+    personName: varchar('person_name', { length: 120 }).notNull(),
+    firstName: varchar('first_name', { length: 60 }).notNull(),
+    emailEnc: varchar('email_enc', { length: 600 }).notNull(),
+    emailHash: char('email_hash', { length: 43 }).notNull(),
+    country: char('country', { length: 2 }).notNull(),
+    timeZone: varchar('time_zone', { length: 64 }).notNull(),
+    language: varchar('language', { length: 8 }).notNull().default('en'),
+    senderPersonId: char('sender_person_id', { length: 36 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('queued'),
+    sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }),
+    lastError: varchar('last_error', { length: 64 }),
+    trialRedeemedAt: datetime('trial_redeemed_at', { mode: 'date', fsp: 3 }),
+    trialUserId: char('trial_user_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_outreach_recipients_email').on(table.emailHash),
+    index('ix_outreach_recipients_queue').on(table.campaignId, table.status),
+    index('ix_outreach_recipients_sender').on(table.senderPersonId, table.sentAt),
+  ],
+);
+
+export type OutreachRecipientRow = typeof outreachRecipients.$inferSelect;
+
+Object.assign(TABLES, {
+  outreach_campaigns: outreachCampaigns,
+  outreach_recipients: outreachRecipients,
+});

@@ -18,6 +18,7 @@ import type { WorkspacesRepository } from '../tenancy/workspaces.repository.js';
 import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { PublicSignupService, slugBaseFrom } from './public-signup.service.js';
+import type { SignupTrialRedemption } from './public-signup.service.js';
 import {
   SignupEmailTakenError,
   type SignupAccountsRepository,
@@ -46,7 +47,12 @@ const BODY = {
  * echo of the arguments.
  */
 function harness(
-  options: { emailTaken?: boolean; slugTakenTimes?: number; plan?: PlanVersion | null } = {},
+  options: {
+    emailTaken?: boolean;
+    slugTakenTimes?: number;
+    plan?: PlanVersion | null;
+    trials?: SignupTrialRedemption;
+  } = {},
 ) {
   const tenantContexts: TenantContext[] = [];
   const founders: { organizationId: string; userId: string; role: string }[] = [];
@@ -135,6 +141,8 @@ function harness(
     { request: confirm },
     { signupChoice },
     { upsertPlan } as unknown as SubscriptionRepository,
+    null,
+    options.trials ?? null,
   );
   return {
     service,
@@ -282,5 +290,43 @@ describe('PublicSignupService', () => {
     expect(slugBaseFrom('استوديو النيل')).toBe('astudiu-alnil');
     expect(slugBaseFrom('🌿')).toBe('workspace');
     expect(slugBaseFrom('  Café & Co. ')).toBe('cafe-co');
+  });
+});
+
+describe('LANE-Q — sign-up through a personal trial link', () => {
+  function trials(valid: string | null) {
+    const seen: { recipientId: string; userId: string }[] = [];
+    const redemption: SignupTrialRedemption = {
+      validRecipient: vi.fn(async () => valid),
+      redeemWithin: vi.fn(async (_identity, recipientId: string, userId: string) => {
+        seen.push({ recipientId, userId });
+        return true;
+      }),
+    };
+    return { redemption, seen };
+  }
+
+  it('redeems a valid link inside the account transaction, for the new user', async () => {
+    const t = trials('rec-1');
+    const h = harness({ trials: t.redemption });
+    const result = await h.service.signUp({ ...BODY, trialToken: 'v1.token' }, CORR_1);
+    expect(t.redemption.validRecipient).toHaveBeenCalledWith('v1.token', CORR_1);
+    expect(t.seen).toEqual([{ recipientId: 'rec-1', userId: result.userId }]);
+    expect(h.database.invitationRegistrationTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('an invalid, expired or used link never blocks the sign-up and stamps nothing', async () => {
+    const t = trials(null);
+    const h = harness({ trials: t.redemption });
+    const result = await h.service.signUp({ ...BODY, trialToken: 'v1.bad' }, CORR_1);
+    expect(result.organizationName).toBe('Nile Studio');
+    expect(t.seen).toEqual([]);
+  });
+
+  it('no token, no lookup', async () => {
+    const t = trials('rec-1');
+    const h = harness({ trials: t.redemption });
+    await h.service.signUp(BODY, CORR_1);
+    expect(t.redemption.validRecipient).not.toHaveBeenCalled();
   });
 });

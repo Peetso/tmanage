@@ -595,6 +595,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/platform/settings/flags': { en: 'Feature flags', key: 'RouteTitle.platformFlags' },
   '/platform/settings/keys': { en: 'Keys', key: 'PlatformKeys.title' },
   '/platform/settings/maintenance': { en: 'Maintenance', key: 'RouteTitle.platformMaintenance' },
+  '/platform/settings/outreach': { en: 'Outreach', key: 'PlatformOutreach.title' },
   '/platform/team': { en: 'Platform team', key: 'RouteTitle.platformTeam' },
   '/platform/team/presets': { en: 'Permission presets', key: 'RouteTitle.platformTeamPresets' },
   // R46 L2 · 56-21

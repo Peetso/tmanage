@@ -227,6 +227,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- QA-FIX-O 0387 ---- +1: the approval e-mail stamp reads `approval_email_sends` where it
     // settles a row (its UPDATE filters by id and state).
     // ---- LANE-Q 0388 ---- +1: the key rotation re-encrypts `walkthrough_requests.email_enc`.
+    // ---- LANE-Q 0389 ---- +2: the campaign sender reads `outreach_campaigns` and claims and
+    // settles `outreach_recipients` (`email_suppressions` and `platform_mail_people` already read).
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -269,7 +271,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         3 +
         1 +
         1 +
-        1,
+        1 +
+        2,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

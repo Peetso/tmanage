@@ -13,10 +13,10 @@ import { useTOr } from '../../../lib/i18n/use-t-or';
  */
 
 export type SettingsPage =
-  'general' | 'flags' | 'announcements' | 'maintenance' | 'keys' | 'incidents';
+  'general' | 'flags' | 'announcements' | 'maintenance' | 'keys' | 'incidents' | 'outreach';
 
 const PAGES: readonly {
-  id: Exclude<SettingsPage, 'keys' | 'incidents'>;
+  id: Exclude<SettingsPage, 'keys' | 'incidents' | 'outreach'>;
   href: string;
   label: MessageKey;
 }[] = [
@@ -48,6 +48,12 @@ export function SettingsSubNav({ active }: { active: SettingsPage }) {
   const pages = [
     ...PAGES.map((page) => ({ ...page, text: t(page.label) })),
     { id: 'keys' as const, href: '/platform/settings/keys', text: tOr('PlatformKeys.nav', 'Keys') },
+    // LANE-Q: the outreach campaign (import, start / pause / stop) needs platform.settings.edit.
+    {
+      id: 'outreach' as const,
+      href: '/platform/settings/outreach',
+      text: tOr('PlatformOutreach.nav', 'Outreach'),
+    },
     // A17: the incident register sits with the platform settings.
     {
       id: 'incidents' as const,

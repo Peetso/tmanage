@@ -54,6 +54,9 @@ export const FIELD_CIPHER_PURPOSES = [
   // LANE-Q (0388): a "Book a walkthrough" visitor's address (`walkthrough_requests.email_enc`,
   // owner = row id).
   'walkthrough_email',
+  // LANE-Q (0389): an outreach recipient's work address (`outreach_recipients.email_enc`,
+  // owner = row id). Both are walked by the worker's key rotation.
+  'outreach_email',
 ] as const;
 export type FieldCipherPurpose = (typeof FIELD_CIPHER_PURPOSES)[number];
 

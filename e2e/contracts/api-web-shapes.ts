@@ -5059,3 +5059,24 @@ type _unitCosts = Assert<Exact<ApiUnitCostsView, WebUnitCostsView>>;
 import type { WalkthroughSubmitView as ApiWalkthroughSubmitView } from '../../apps/api/src/modules/outreach/walkthrough.controller.js';
 import type { WalkthroughSubmitView as WebWalkthroughSubmitView } from '../../apps/web/src/lib/api/walkthrough.js';
 type _walkthroughSubmit = Assert<Exact<ApiWalkthroughSubmitView, WebWalkthroughSubmitView>>;
+
+// LANE-Q: the personal trial link's pre-fill and Platform admin -> Settings -> Outreach.
+import type { TrialInviteView as ApiTrialInviteView } from '../../apps/api/src/modules/outreach/trial-invites.js';
+import type { TrialInviteView as WebTrialInviteView } from '../../apps/web/src/lib/api/trial-invites.js';
+import type {
+  OutreachCampaignView as ApiOutreachCampaignView,
+  OutreachImportView as ApiOutreachImportView,
+  OutreachRecipientView as ApiOutreachRecipientView,
+  OutreachView as ApiOutreachView,
+} from '../../apps/api/src/modules/outreach/outreach-campaign.service.js';
+import type {
+  OutreachCampaignView as WebOutreachCampaignView,
+  OutreachImportView as WebOutreachImportView,
+  OutreachRecipientView as WebOutreachRecipientView,
+  OutreachView as WebOutreachView,
+} from '../../apps/web/src/lib/api/platform-outreach.js';
+type _trialInvite = Assert<Exact<ApiTrialInviteView, WebTrialInviteView>>;
+type _outreachRecipient = Assert<Exact<ApiOutreachRecipientView, WebOutreachRecipientView>>;
+type _outreachCampaign = Assert<Exact<ApiOutreachCampaignView, WebOutreachCampaignView>>;
+type _outreach = Assert<Exact<ApiOutreachView, WebOutreachView>>;
+type _outreachImport = Assert<Exact<ApiOutreachImportView, WebOutreachImportView>>;

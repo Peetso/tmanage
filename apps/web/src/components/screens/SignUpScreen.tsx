@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSignupAvailability, signUp } from '../../lib/api/sign-up';
 import { afterSignUpPath, planFromQuery } from '../../lib/api/plan-versions';
 import { referralCodeFromQuery } from '../../lib/api/referrals';
+import { fetchTrialInvite, trialTokenFromQuery } from '../../lib/api/trial-invites';
 import { signupAttributionFromSearch } from '../../lib/signup-attribution';
 import type { SignupAttribution } from '@tmanage/domain';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -153,7 +154,14 @@ export function SignUpScreen({
     intent: 'sign-up',
     ...(organizationName.trim() === '' ? {} : { organizationName: organizationName.trim() }),
     ...(attribution === undefined ? {} : { attribution }),
+    ...(trialToken === null ? {} : { trialToken }),
   });
+  /**
+   * LANE-Q: a personal trial link's token (`?trial=`). A valid one pre-fills the work address and
+   * the workspace name (the company); anything else shows one calm line and changes nothing else.
+   */
+  const [trialToken, setTrialToken] = useState<string | null>(null);
+  const [trialNote, setTrialNote] = useState<'prefilled' | 'unusable' | null>(null);
   /** PLANWEB: the pricing page's `?plan=` (a catalog id only), sent with the sign-up. */
   const [pickedPlan, setPickedPlan] = useState<string | null>(null);
   /** REFERRAL (57-08): an invite link's `?ref=` code, sent with the sign-up (shape-checked). */
@@ -166,6 +174,25 @@ export function SignUpScreen({
     setPickedPlan(planFromQuery(new URLSearchParams(window.location.search).get('plan')));
     setReferralCode(referralCodeFromQuery(new URLSearchParams(window.location.search).get('ref')));
     setAttribution(signupAttributionFromSearch(window.location.search));
+    const token = trialTokenFromQuery(new URLSearchParams(window.location.search).get('trial'));
+    if (token === null) return;
+    let cancelled = false;
+    void fetchTrialInvite(api, token).then((invite) => {
+      if (cancelled) return;
+      if (invite === null) {
+        setTrialNote('unusable');
+        return;
+      }
+      setTrialToken(token);
+      setEmail(invite.email);
+      setOrganizationName(invite.company);
+      setOrganizationTouched(true);
+      setTrialNote('prefilled');
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // SIGNUP3: the one required load. A weak connection gets two quiet retries, then a calm
@@ -270,6 +297,7 @@ export function SignUpScreen({
         ...(pickedPlan === null ? {} : { plan: pickedPlan }),
         ...(referralCode === null ? {} : { referral: referralCode }),
         ...(attribution === undefined ? {} : { attribution }),
+        ...(trialToken === null ? {} : { trialToken }),
         ...(await formProof.fields()),
       });
       setPassword('');
@@ -555,6 +583,11 @@ export function SignUpScreen({
 
       {availability === 'available' ? (
         <>
+          {trialNote !== null ? (
+            <InlineAlert tone="neutral" live>
+              {trialNote === 'prefilled' ? t('signUp.trialPrefilled') : t('signUp.trialUnusable')}
+            </InlineAlert>
+          ) : null}
           {googleError ? (
             <InlineAlert tone="danger" live>
               <GoogleErrorMessage messageKey={googleError} />

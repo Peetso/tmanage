@@ -21,8 +21,9 @@ export type KeyPurpose =
   // 56-03p: the connector token vault (connector credentials, Figma tokens).
   | 'connector_token'
   | 'figma_token'
-  // LANE-Q: a "Book a walkthrough" visitor's address.
-  | 'walkthrough_email';
+  // LANE-Q: "Book a walkthrough" visitors and outreach recipients (their addresses).
+  | 'walkthrough_email'
+  | 'outreach_email';
 
 export type KeyRotationStatus = 'queued' | 'running' | 'done' | 'failed';
 

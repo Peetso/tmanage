@@ -2701,6 +2701,16 @@ GRANT SELECT, UPDATE ON `tmanage`.`approval_email_sends` TO 'tmanage_worker'@'%'
 -- key rotation re-encrypts `email_enc` in place (compare-and-swap on that column only).
 GRANT INSERT, UPDATE ON `tmanage`.`walkthrough_requests` TO 'tmanage_app'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`walkthrough_requests` TO 'tmanage_worker'@'%';
+-- 0389 (LANE-Q). `outreach_campaigns` and `outreach_recipients` (global platform tables): the
+-- platform import INSERTs both; start/pause/stop and "mark bounced" are UPDATEs, and so is the
+-- sign-up that redeems a personal trial link (compare-and-set on trial_redeemed_at). SELECT rides
+-- the database-wide read. The worker's campaign sender reads the campaign and claims, settles and
+-- suppresses recipients (UPDATE only); the 56-02 key rotation re-encrypts `email_enc` in place.
+-- No DELETE; nothing for `tmanage_erasure` (no tenant key).
+GRANT INSERT, UPDATE ON `tmanage`.`outreach_campaigns` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`outreach_recipients` TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`outreach_campaigns` TO 'tmanage_worker'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`outreach_recipients` TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Erasure user — the company and account erasures, and nothing else

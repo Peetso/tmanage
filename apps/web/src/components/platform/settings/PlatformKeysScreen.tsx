@@ -104,6 +104,7 @@ export const KEYS_COPY = {
   purpose_connector_token: 'Connectors (API keys, sign-ins)',
   purpose_figma_token: 'Figma',
   purpose_walkthrough_email: 'Walkthrough requests (visitor e-mail)',
+  purpose_outreach_email: 'Outreach recipients (work e-mail)',
   sessions: 'Sign-in sessions',
   footer:
     'Every rotation is recorded in Platform admin actions with your name, IP and device. Key values are never shown, logged or exported.',

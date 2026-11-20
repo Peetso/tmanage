@@ -134,6 +134,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.referral_partner_created',
   // ---- 62-A3 GROWTH (B14) ----
   'platform.unit_costs_updated',
+  // ---- LANE-Q outreach campaign ----
+  'platform.outreach_imported',
+  'platform.outreach_started',
+  'platform.outreach_paused',
+  'platform.outreach_stopped',
+  'platform.outreach_recipient_bounced',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

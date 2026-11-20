@@ -176,6 +176,7 @@ export class GoogleAuthService {
         correlationId: context.correlationId,
         alsoWithin: (identity, userId) => this.link(identity, userId, claims),
         ...(signupAttribution === undefined ? {} : { signupAttribution }),
+        ...(flow.trialToken === undefined ? {} : { trialToken: flow.trialToken }),
       });
       await this.record(context, created.userId, 'succeeded', null);
       return {

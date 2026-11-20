@@ -6,12 +6,14 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { MAILER, TENANT_DATABASE } from '../../common/http/tokens.js';
 import { PUBLIC_ABUSE_ASSESS } from '../public-abuse/public-abuse.guard.js';
 import type { AssessPublicWrite } from '../public-abuse/public-abuse.guard.js';
+import { PublicTrialInvitesController, TRIAL_INVITES } from './trial-invites.controller.js';
+import { createTrialInvites } from './trial-invites.js';
 import { PublicWalkthroughController, WALKTHROUGH_SERVICE } from './walkthrough.controller.js';
 import { WalkthroughRepository } from './walkthrough.repository.js';
 import { WalkthroughService } from './walkthrough.service.js';
 
 /**
- * LANE-Q wiring: the public "Book a walkthrough" door. Registered in `AppModule` beside the other
+ * LANE-Q wiring: the public "Book a walkthrough" door and the trial-link pre-fill. Registered in `AppModule` beside the other
  * public doors, after `RateLimitsModule` (whose global `PUBLIC_ABUSE_ASSESS` it takes when
  * present). The global `MAILER` is optional: without one the request is stored and not mailed.
  */
@@ -42,8 +44,16 @@ export class OutreachPublicModule {
   static register(): DynamicModule {
     return {
       module: OutreachPublicModule,
-      providers: [walkthroughProvider()],
-      controllers: [PublicWalkthroughController],
+      providers: [
+        walkthroughProvider(),
+        // LANE-Q part 2: the personal trial link's pre-fill.
+        {
+          provide: TRIAL_INVITES,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) => createTrialInvites(database),
+        },
+      ],
+      controllers: [PublicWalkthroughController, PublicTrialInvitesController],
     };
   }
 }

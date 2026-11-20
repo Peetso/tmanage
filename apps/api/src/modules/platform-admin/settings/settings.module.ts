@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
-import { loadFieldCipherKeyring, keyringFromSeedKeyring } from '@tmanage/domain/field-cipher';
+import {
+  createFieldCipher,
+  keyringFromSeedKeyring,
+  loadFieldCipherKeyring,
+} from '@tmanage/domain/field-cipher';
 import type { ApiConfig } from '../../../common/http/api-config.js';
 import {
   API_CONFIG,
@@ -48,6 +52,12 @@ import {
   PlatformUnitCostsController,
 } from './unit-costs.controller.js';
 import { UnitCostsService } from './unit-costs.service.js';
+import {
+  PLATFORM_OUTREACH_SERVICE,
+  PlatformOutreachController,
+} from '../../outreach/outreach-campaign.controller.js';
+import { OutreachCampaignService } from '../../outreach/outreach-campaign.service.js';
+import { OutreachRepository } from '../../outreach/outreach.repository.js';
 
 /**
  * Platform admin · Settings (listed in `platform-admin.areas.ts`): D1 General + integrations,
@@ -130,6 +140,16 @@ export class PlatformSettingsModule {
               sessionOverlap: (process.env['SESSION_SECRET_PREVIOUS'] ?? '').trim() !== '',
             }),
         },
+        // ---- LANE-Q ---- Outreach: import the decision-makers list; start, pause, stop.
+        {
+          provide: PLATFORM_OUTREACH_SERVICE,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new OutreachCampaignService(
+              new OutreachRepository(database),
+              createFieldCipher(loadFieldCipherKeyring(process.env)),
+            ),
+        },
         // ---- 62-A3 GROWTH (B14) ---- the monthly unit costs behind "cost per active company".
         {
           provide: PLATFORM_UNIT_COSTS_SERVICE,
@@ -140,6 +160,7 @@ export class PlatformSettingsModule {
       ],
       controllers: [
         PlatformSettingsController,
+        PlatformOutreachController,
         PlatformFlagsController,
         PlatformAnnouncementsController,
         PlatformKeysController,

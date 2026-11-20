@@ -1404,6 +1404,29 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'PUT', path: '/v1/platform/security-reports/:id', reason: 'platform_admin' },
   // LANE-Q. The public "Book a walkthrough" door: a visitor's own request, never the AI's.
   { method: 'POST', path: '/v1/public/walkthrough-requests/', reason: 'public_site' },
+  { method: 'GET', path: '/v1/public/trial-invites/:token', reason: 'signup' },
+  { method: 'GET', path: '/v1/platform/outreach/', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/outreach/import', reason: 'platform_admin' },
+  {
+    method: 'POST',
+    path: '/v1/platform/outreach/campaigns/:campaignId/start',
+    reason: 'platform_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/platform/outreach/campaigns/:campaignId/pause',
+    reason: 'platform_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/platform/outreach/campaigns/:campaignId/stop',
+    reason: 'platform_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/platform/outreach/recipients/:recipientId/bounced',
+    reason: 'platform_admin',
+  },
   // 56-11. Audit chain integrity, catalog and signed export head: security evidence, not for AI.
   {
     method: 'GET',

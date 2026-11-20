@@ -70,6 +70,18 @@ export interface PublicSignupBody {
   readonly referral?: unknown;
   /** ADTRACK, NOCOOKIE: the landing page's `utm_*` values, read by the controller only. */
   readonly attribution?: unknown;
+  /** LANE-Q: the personal trial link's token (`?trial=`), checked server-side; never required. */
+  readonly trialToken?: unknown;
+}
+
+/** LANE-Q. The part of `outreach/trial-invites.ts` sign-up uses. */
+export interface SignupTrialRedemption {
+  validRecipient(token: unknown, correlationId: string): Promise<string | null>;
+  redeemWithin(
+    identity: IdentityQueryRunner,
+    recipientId: string,
+    userId: string,
+  ): Promise<boolean>;
 }
 
 /** PLANWEB. The part of `PlanVersionsService` sign-up uses to check a picked plan. */
@@ -127,6 +139,11 @@ export interface NewOwnerAccount {
   readonly signupAttribution?: SignupAttribution;
   /** PLANWEB. The picked plan's version in force, already checked by {@link SignupPlanChooser}. */
   readonly plan?: PlanVersion | null;
+  /**
+   * LANE-Q. A personal trial link's token. A valid, unused one is redeemed inside the account
+   * transaction (once); any other value is ignored and the sign-up goes on as usual.
+   */
+  readonly trialToken?: unknown;
 }
 
 const EMAIL_MAX_LENGTH = 254;
@@ -196,6 +213,8 @@ export class PublicSignupService {
     private readonly subscriptions = new SubscriptionRepository(),
     /** REFERRAL (57-08): records the new workspace against an invite code. Absent: ignored. */
     private readonly referrals: ReferralRecorder | null = null,
+    /** LANE-Q: the outreach trial links. Absent: a `trialToken` is ignored. */
+    private readonly trials: SignupTrialRedemption | null = null,
   ) {}
 
   async signUp(
@@ -218,6 +237,7 @@ export class PublicSignupService {
       correlationId,
       ...(signupAttribution === undefined ? {} : { signupAttribution }),
       plan,
+      trialToken: body.trialToken,
     });
     await this.recordReferral(body.referral, input.email, result, correlationId);
     return result;
@@ -257,10 +277,15 @@ export class PublicSignupService {
     const base = slugBaseFrom(account.organizationName);
     // `slugProblem` also refuses reserved words (`sign-up`, `setup`, ...).
     let slug = slugProblem(base) === undefined ? base : withSuffix(base);
+    // LANE-Q: checked once, before the transaction (it reads and decrypts the recipient row).
+    const trialRecipient =
+      this.trials === null || account.trialToken === undefined
+        ? null
+        : await this.trials.validRecipient(account.trialToken, account.correlationId);
 
     for (let attempt = 1; ; attempt += 1) {
       try {
-        const result = await this.provisionOnce(account, slug);
+        const result = await this.provisionOnce(account, slug, trialRecipient);
         await this.sendWelcome(account, result);
         return result;
       } catch (error) {
@@ -273,7 +298,11 @@ export class PublicSignupService {
     }
   }
 
-  private async provisionOnce(account: NewOwnerAccount, slug: string): Promise<PublicSignupResult> {
+  private async provisionOnce(
+    account: NewOwnerAccount,
+    slug: string,
+    trialRecipient: string | null = null,
+  ): Promise<PublicSignupResult> {
     const userId = uuidv7();
     return this.database.invitationRegistrationTransaction(
       { correlationId: account.correlationId },
@@ -290,6 +319,10 @@ export class PublicSignupService {
           await this.credentials.setPassword(scope.identity, userId, account.passwordHash);
         }
         if (account.alsoWithin) await account.alsoWithin(scope.identity, userId);
+        // LANE-Q: compare-and-set; a link another sign-up redeemed first is simply not stamped.
+        if (trialRecipient !== null && this.trials !== null) {
+          await this.trials.redeemWithin(scope.identity, trialRecipient, userId);
+        }
 
         // The new organization's runner and context, kept for the subscription write below.
         const tenant: { current?: { runner: TenantQueryRunner; context: TenantContext } } = {};

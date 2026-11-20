@@ -1,4 +1,5 @@
 import { signupAttributionFromInput } from '@tmanage/domain';
+import { readTrialLink } from '@tmanage/mail';
 import {
   Body,
   Controller,
@@ -92,6 +93,8 @@ interface StartBody {
   readonly organizationName?: unknown;
   /** ADTRACK, NOCOOKIE: the sign-up form's `utm_*` values (sign-up intent only). */
   readonly attribution?: unknown;
+  /** LANE-Q: the personal trial link's token (sign-up intent only; shape-checked here). */
+  readonly trialToken?: unknown;
 }
 
 const INTENTS: readonly GoogleIntent[] = ['sign-in', 'sign-up', 'invitation'];
@@ -172,10 +175,17 @@ export class GoogleAuthController {
     const signupAttribution =
       intent === 'sign-up' ? signupAttributionFromInput(body?.attribution) : undefined;
 
+    // LANE-Q: only a well-formed token rides in the flow; the sign-up checks it for real.
+    const trialToken =
+      intent === 'sign-up' && readTrialLink(body?.trialToken) !== null
+        ? (body?.trialToken as string)
+        : undefined;
+
     const flow = newFlow(intent, {
       ...(invitationToken === undefined ? {} : { invitationToken }),
       ...(organizationName ? { organizationName } : {}),
       ...(signupAttribution === undefined ? {} : { signupAttribution }),
+      ...(trialToken === undefined ? {} : { trialToken }),
     });
     reply.header(
       'set-cookie',

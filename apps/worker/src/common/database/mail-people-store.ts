@@ -49,6 +49,8 @@ export const MAIL_PEOPLE_SQL = {
       (organization_id, user_id, topic, person_id, assigned_at) VALUES (?, ?, ?, ?, ?)`,
   reassign: `UPDATE mail_person_assignments SET person_id = ?, assigned_at = ?
      WHERE organization_id = ? AND user_id = ? AND topic = ? AND person_id = ?`,
+  // LANE-Q: an outreach mail names its sender by id (the importer assigned one per recipient).
+  byId: `SELECT ${PERSON_COLUMNS} FROM platform_mail_people p WHERE p.id = ? LIMIT 1`,
 } as const;
 
 function toPerson(row: PersonRow, language: MailLanguage): MailPerson {
@@ -79,6 +81,14 @@ export function createMailPeopleDirectory(
       ref: MailPersonRef,
       language: MailLanguage,
     ): Promise<MailPerson | null> {
+      // LANE-Q: an outreach mail has no company; its sender is the person the importer chose,
+      // and only while that person is switched on (otherwise the mail is not sent at all).
+      if (ref.kind === 'campaign') {
+        const row = await database.transaction((tx) =>
+          first<PersonRow>(tx, MAIL_PEOPLE_SQL.byId, [ref.personId]),
+        );
+        return row !== undefined && isActive(row) ? toPerson(row, language) : null;
+      }
       // The worker never sends a test mail; a test reference is the API's alone.
       if (organizationId === undefined || ref.kind !== 'assigned') return null;
       const { userId, topic } = ref;

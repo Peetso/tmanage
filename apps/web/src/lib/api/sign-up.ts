@@ -33,6 +33,8 @@ export interface PublicSignupInput {
   readonly referral?: string;
   /** ADTRACK, NOCOOKIE: the landing page's `utm_*` values, from the sign-up page's address. */
   readonly attribution?: SignupAttribution;
+  /** LANE-Q: the personal trial link's token from `?trial=` (the API checks it; never blocks). */
+  readonly trialToken?: string;
 }
 
 /** The new owner's session, already issued (cookies set by the response). */

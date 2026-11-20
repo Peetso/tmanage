@@ -58,6 +58,11 @@ export interface GoogleFlow {
    * in this sealed, ten-minute flow only across Google's redirect, never in a URL Google sees.
    */
   readonly signupAttribution?: SignupAttribution;
+  /**
+   * Sign-up flow only (LANE-Q): the personal trial link's token, carried across Google's redirect
+   * in this sealed cookie, never in a URL Google sees. Checked again when the account is made.
+   */
+  readonly trialToken?: string;
 }
 
 export interface GoogleClaims {
@@ -100,6 +105,7 @@ export function newFlow(
     invitationToken?: string;
     organizationName?: string;
     signupAttribution?: SignupAttribution;
+    trialToken?: string;
   } = {},
   nowSeconds: number = Math.floor(Date.now() / 1000),
 ): GoogleFlow {
@@ -115,6 +121,7 @@ export function newFlow(
     ...(extra.signupAttribution === undefined
       ? {}
       : { signupAttribution: extra.signupAttribution }),
+    ...(extra.trialToken === undefined ? {} : { trialToken: extra.trialToken }),
   };
 }
 

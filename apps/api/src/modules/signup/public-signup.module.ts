@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { createTrialInvites } from '../outreach/trial-invites.js';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   API_CONFIG,
@@ -82,6 +83,8 @@ export class PublicSignupModule {
           undefined,
           // REFERRAL (57-08): a sign-up through an invite link or partner code is recorded.
           new ReferralsService(database),
+          // LANE-Q: a sign-up through a personal outreach trial link is stamped on its recipient.
+          createTrialInvites(database),
         ),
     };
     const sessions: Provider = {

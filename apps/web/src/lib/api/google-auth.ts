@@ -42,6 +42,8 @@ export interface GoogleStartInput {
   readonly organizationName?: string;
   /** Sign-up only (ADTRACK, NOCOOKIE): the landing page's `utm_*` values. */
   readonly attribution?: SignupAttribution;
+  /** LANE-Q: sign-up only, the personal trial link's token (kept through the Google round trip). */
+  readonly trialToken?: string;
 }
 
 /** available / unavailable (404, not configured) / unknown (no definite answer; HT-3). */

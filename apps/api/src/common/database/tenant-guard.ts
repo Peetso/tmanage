@@ -1609,6 +1609,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // company (no organization_id); the address is a FieldCipher envelope. Reached only through
   // `identityTransaction(['walkthrough_requests'])`, written by the anonymous door.
   'walkthrough_requests',
+  // 0389. The outreach campaign and its recipients. GLOBAL platform tables: a recipient belongs
+  // to no company yet; the address is a FieldCipher envelope. Written by platform admins (import,
+  // start/pause/stop), the sign-up that redeems a trial link, and the worker's campaign sender.
+  'outreach_campaigns',
+  'outreach_recipients',
 ]);
 
 export function isTenantTable(name: string): boolean {

@@ -48,6 +48,8 @@ function fakeDatabase(people: Person[], timezone = 'Africa/Cairo') {
           .slice(0, 1);
       } else if (sql === MAIL_PEOPLE_SQL.insert) {
         if (!assignments.has(key(a, b, c))) assignments.set(key(a, b, c), String(d));
+      } else if (sql === MAIL_PEOPLE_SQL.byId) {
+        rows = people.filter((p) => p.id === a);
       } else if (sql === MAIL_PEOPLE_SQL.reassign) {
         const k = key(c, d, params[4]);
         if (assignments.get(k) === f) assignments.set(k, String(a));
@@ -103,5 +105,26 @@ describe('EMAILBUILD — mail people directory', () => {
     const directory = createMailPeopleDirectory(database);
     expect(await directory.personFor('org-1', REF, 'en')).toBeNull();
     expect(await directory.personFor('org-1', { kind: 'test', personId: 'x' }, 'en')).toBeNull();
+  });
+
+  it('LANE-Q: a campaign mail is signed by its chosen person, only while switched on', async () => {
+    const { database } = fakeDatabase([
+      person('Emma', 'west', 'onboarding'),
+      person('Liam', 'west', 'security', 0),
+    ]);
+    const directory = createMailPeopleDirectory(database);
+    expect(
+      await directory.personFor(undefined, { kind: 'campaign', personId: 'Emma' }, 'en'),
+    ).toEqual({
+      name: 'Emma',
+      role: 'product specialist',
+      address: 'emma@tmanageapp.com',
+    });
+    expect(
+      await directory.personFor(undefined, { kind: 'campaign', personId: 'Liam' }, 'en'),
+    ).toBeNull();
+    expect(
+      await directory.personFor(undefined, { kind: 'campaign', personId: 'nobody' }, 'en'),
+    ).toBeNull();
   });
 });

@@ -12,13 +12,18 @@
  * state in the database, so the check and the work sit under the same lock. A pass resolves the
  * log line worth printing, or `null` when nothing moved (LOGQUIET-a).
  */
-import { composeMonthlyGtmReport, composeSecurityAlertDigest } from '@tmanage/mail';
+import {
+  composeMonthlyGtmReport,
+  composeSecurityAlertDigest,
+  deriveTrialLinkKey,
+} from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { createFieldCipher, loadFieldCipherKeyring } from '@tmanage/domain/field-cipher';
 import type { SweepLock } from '../common/database/sweep-lock.js';
 import type { WorkerDatabase } from '../common/database/worker-database.js';
 import { createApprovalChainStore } from '../common/database/approval-chain-store.js';
 import { createAuditAnchorStore } from '../common/database/audit-anchor-store.js';
+import { createCampaignStore } from '../common/database/campaign-store.js';
 import { createEinvoiceChainStore } from '../common/database/einvoice-chain-store.js';
 import { createFinanceFactsStore } from '../common/database/finance-facts-store.js';
 import { createRotationStore } from '../common/database/field-cipher-rotation-store.js';
@@ -29,6 +34,9 @@ import { createSecurityReportPurgeStore } from '../common/database/security-repo
 import { createSecuritySignalStore } from '../common/database/security-signal-store.js';
 import { createTimerAutostopStore } from '../common/database/timer-autostop-store.js';
 import { DigestMailer } from '../notifications/digest-mailer.js';
+import { CAMPAIGN_TICK_MS, runCampaignPass } from '../outreach/campaign-sender.js';
+import { createCampaignTransport } from '../outreach/campaign-transport.js';
+import type { CampaignTransportEnv } from '../outreach/campaign-transport.js';
 import { createOffsiteBackupJob } from '../backup/offsite-backup.js';
 import type { OffsiteBackupEnv } from '../backup/backup-config.js';
 import {
@@ -80,7 +88,7 @@ export interface ScheduledJobMail {
 }
 
 /** The environment the jobs read (the parsed `loadEnv()` result satisfies it). */
-export interface ScheduledJobEnv extends OffsiteBackupEnv {
+export interface ScheduledJobEnv extends OffsiteBackupEnv, CampaignTransportEnv {
   readonly WEB_PUBLIC_URL: string;
   readonly ALERT_EMAILS?: string | undefined;
   readonly AUDIT_ANCHOR_KEY?: string | undefined;
@@ -100,6 +108,7 @@ export const SCHEDULED_JOB_NAMES = [
   'finance-facts',
   'einvoice-chain',
   'approval-chain',
+  'campaign-sender',
   'offsite-backup',
 ] as const;
 
@@ -136,6 +145,11 @@ export function createScheduledJobs(
   const ipLookups = createIpLookupSweepStore(database);
   const digests = createNotificationDigestStore(database);
   const digestMailer = new DigestMailer(mail.notice('digest'), env.WEB_PUBLIC_URL);
+  // LANE-Q: the outreach sender's own stack (person mailboxes, unsubscribe headers), from env.
+  const campaignSecret = (env.SESSION_SECRET ?? '').trim();
+  const campaignMailer = createCampaignTransport(database, env);
+  const campaigns = createCampaignStore(database);
+  let campaignIdleSaid = false;
 
   const jobs: ScheduledJob[] = [
     {
@@ -260,6 +274,29 @@ export function createScheduledJobs(
           now: () => now,
         });
         return `${String(r.organizations)} organization(s), ${String(r.ok)} ok, ${String(r.broken)} broken, ${String(r.failed)} failed`;
+      },
+    },
+    {
+      name: 'campaign-sender',
+      intervalMs: CAMPAIGN_TICK_MS,
+      run: async () => {
+        if (campaignMailer === null || campaignSecret === '' || !rotation.cipher.enabled) {
+          if (campaignIdleSaid) return null;
+          campaignIdleSaid = true;
+          return 'idle: needs SESSION_SECRET, FIELD_CIPHER_KEYS and a mail driver (SMTP_HOST + SMTP_PASSWORD)';
+        }
+        const r = await runCampaignPass({
+          store: campaigns,
+          cipher: rotation.cipher,
+          trialKey: deriveTrialLinkKey(campaignSecret),
+          mailer: campaignMailer,
+          webPublicUrl: env.WEB_PUBLIC_URL,
+          // Read per pass, so the address set in hPanel applies without a rebuild.
+          postalAddress: () => process.env['CAMPAIGN_POSTAL_ADDRESS'] ?? '',
+        });
+        return r.sent + r.failed + r.suppressed > 0
+          ? `${String(r.sent)} sent, ${String(r.failed)} failed, ${String(r.suppressed)} suppressed`
+          : null;
       },
     },
     createOffsiteBackupJob(env),
