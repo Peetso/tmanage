@@ -57,6 +57,18 @@ const OPERATOR_ACCESS_EN = Object.freeze({
   body: 'TManage staff with platform-administrator rights can view and change data in any organization’s workspace — including messages, files, documents and settings — when needed to provide support you ask for, to investigate abuse, security incidents or policy violations, to keep the service running, or to meet a legal obligation. Such access is restricted to named administrators, requires a fresh identity confirmation, is limited in time, and is recorded (who, when, which organization, what was changed). Organization owners can see these entries in their audit log. We do not use this access for advertising or to read your content without one of these reasons.',
 });
 
+/**
+ * The cookie notice (ePrivacy Directive art. 5(3); Article 29 WP Opinion 04/2012, WP194). Names
+ * and lifetimes are the ones the code sets: session trio `apps/api/src/modules/identity/session.service.ts`
+ * (TTLs from `packages/config/src/env.ts`: 900 s access, 14-day refresh), the `tm_*_flow` / `tm_*_mfa`
+ * sign-in and connect cookies (300–600 s), `tm_reset_grant` (900 s), the web preference cookies
+ * (`apps/web/src/lib/theme-cookie.ts`, `lib/i18n/locale-cookie.ts`, `lib/i18n/display-format-cookie.ts`,
+ * one year) and `tm_signup_source` (`apps/web/src/lib/signup-attribution-cookie.ts`, 30 days).
+ * Change this text when a cookie is added, renamed or re-timed.
+ */
+const COOKIES_BODY_EN =
+  'TManage sets only its own (first-party) cookies. We do not use advertising cookies, and we do not use third-party analytics or tracking cookies. Sign-in and security: tmanage_session keeps you signed in (15 minutes, renewed while you use the service); tmanage_session_refresh renews that sign-in and is sent only to the sign-in renewal address (until the session ends, at most 14 days); tmanage_session_csrf protects forms against cross-site request forgery (for the length of the session). Sign-in and connection steps: while you sign in with Google, Microsoft or your company’s single sign-on, confirm a second sign-in step, finish a password reset, or connect Google Drive, Google Calendar, Microsoft Calendar, OneDrive, Figma or GitHub, a short-lived cookie whose name starts with tm_ (for example tm_google_flow or tm_reset_grant) protects that step. It expires after 5 to 15 minutes. Your preferences: tmanage_locale, tmanage_theme and tmanage_display_format remember the language, the theme and the number and date format you chose, for one year. Sign-up source: tm_signup_source remembers which campaign link or website brought you to our public site, for 30 days. It holds only the campaign tags and the name of the referring site, never a full address, and no identifier. If you then create an organization, these values are saved with it so that we can count where new organizations come from. You can delete or block cookies in your browser settings; without the sign-in cookies you cannot sign in. Content that members embed from other services, such as YouTube videos, and the Google Drive file picker are provided by those services, which may set their own cookies under their own policies.';
+
 /** The two frozen legal documents, keyed by the allowlisted doc id. Last updated 28 October 2026. */
 export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> = Object.freeze({
   terms: Object.freeze({
@@ -131,11 +143,7 @@ export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentKey, LegalDocument>> 
         'What data we collect',
         'Account data: your name, email address, a hash of your password, multi-factor authentication settings, your role and the organizations you belong to. Workspace content: the projects, tasks, messages, comments, documents, decisions, time entries and other records members create. Files: attachments members upload or link, with their names, sizes and types. Billing details an organization enters for invoicing, such as a billing contact and tax details. Usage and log data: IP address, browser and device type, pages and features used, sign-in events, audit entries and security telemetry; user-supplied content is redacted from operator logs. Cookies, described below. Messages you send us through the contact form or by email.',
       ),
-      section(
-        'cookies',
-        'Cookies',
-        'TManage uses only cookies that the service needs to work: a session cookie that keeps you signed in, a refresh cookie scoped to the sign-in path, and a security cookie that protects forms against cross-site request forgery. We do not use advertising cookies or third-party tracking cookies. If you block these cookies you will not be able to sign in.',
-      ),
+      section('cookies', 'Cookies', COOKIES_BODY_EN),
       section(
         'how-we-use-it',
         'How we use data',
