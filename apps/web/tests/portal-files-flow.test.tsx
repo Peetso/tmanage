@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
+import { UploadProblemCard, problemKind } from '../src/components/screens/PortalFileUpload';
 import { PortalFilesScreen } from '../src/components/screens/PortalFilesScreen';
+import { UploadFailedError } from '../src/lib/api/uploads';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
 
@@ -220,5 +222,37 @@ describe('PortalFilesScreen upload (55-14a)', () => {
     expect(
       screen.getByRole('option', { name: 'Spring Campaign', hidden: true }),
     ).toBeInTheDocument();
+  });
+});
+
+// QA-FIX S4, S9 (2026-11-20): the card follows the server's final verdict, and a virus finding
+// is never worded as a type refusal (or the other way round).
+describe('PortalFilesScreen upload verdicts (QA-FIX S4, S9)', () => {
+  it('tells a virus finding from a type refusal', () => {
+    expect(problemKind(new UploadFailedError('rejected', 'a.txt', null, null, 'malware'))).toBe(
+      'virus',
+    );
+    expect(problemKind(new UploadFailedError('rejected', 'a.jpg', null, null, 'file_type'))).toBe(
+      'refused',
+    );
+    expect(problemKind(new UploadFailedError('rejected', 'a.jpg'))).toBe('refused');
+    expect(problemKind(new UploadFailedError('busy', 'a.jpg'))).toBe('failed');
+  });
+
+  it.each([
+    ['virus', 'eicar.txt was blocked by the virus check', /It was not sent to Northstar Studio/u],
+    ['refused', "logo.php.jpg can't be added", /This was not a virus finding/u],
+  ] as const)('words a %s card in its own terms', (kind, title, body) => {
+    const name = kind === 'virus' ? 'eicar.txt' : 'logo.php.jpg';
+    render(
+      <UploadProblemCard
+        problem={{ id: 1, kind, name }}
+        organizationSlug="northstar"
+        providerName="Northstar Studio"
+        onChooseAgain={() => undefined}
+      />,
+    );
+    expect(screen.getByText(title)).toBeInTheDocument();
+    expect(screen.getByText(body)).toBeInTheDocument();
   });
 });

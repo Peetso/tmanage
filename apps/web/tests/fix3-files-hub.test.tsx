@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FilesHubScreen } from '../src/components/screens/FilesHubScreen';
 import { ApiClient } from '../src/lib/api/client';
+import { UploadFailedError } from '../src/lib/api/uploads';
 import type * as Uploads from '../src/lib/api/uploads';
 
 const uploadProjectFile = vi.hoisted(() =>
@@ -127,14 +128,43 @@ describe('Files hub (FIX3 item 11)', () => {
 
     dropFiles(page, [brief]);
     expect(await screen.findByText('Choose a project first')).toBeTruthy();
+    // QA-FIX S7 (2026-11-20): the dropped file is held, not dropped on the floor, and says so.
+    expect(screen.getByText(/your 1 file\(s\) upload there/u)).toBeTruthy();
     expect(uploadProjectFile).not.toHaveBeenCalled();
 
+    // Picking the project sends the held file; nothing has to be dropped twice.
     fireEvent.click(screen.getByRole('button', { name: 'Borealis' }));
-    dropFiles(page, [brief]);
     await waitFor(() => expect(uploadProjectFile).toHaveBeenCalledTimes(1));
     expect(uploadProjectFile.mock.calls[0]?.[1]).toBe('acme');
     expect(uploadProjectFile.mock.calls[0]?.[2]).toMatchObject({ projectId: 'p2', file: brief });
     expect(screen.queryByText('Choose a project first')).toBeNull();
+  });
+
+  // QA-FIX S5, S8, S9 (2026-11-20): a refused file keeps a row that says why; nothing vanishes.
+  it('refuses an oversized file before sending, and names a type refusal as not a virus finding', async () => {
+    uploadProjectFile.mockClear();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FilesHubScreen organizationSlug="acme" organizationName="Acme" client={apiClient()} />
+      </QueryClientProvider>,
+    );
+    await screen.findByText('No files yet');
+    const page = document.querySelector('.tm-dx--drop');
+    if (!page) throw new Error('no drop area');
+    fireEvent.click(screen.getByRole('button', { name: 'Borealis' }));
+
+    const big = new File(['x'], 'film.mov', { type: 'video/quicktime' });
+    Object.defineProperty(big, 'size', { value: 200 * 1024 * 1024 });
+    dropFiles(page, [big]);
+    expect(await screen.findByText(/“film\.mov” is larger than 100 MB/u)).toBeTruthy();
+    expect(uploadProjectFile).not.toHaveBeenCalled();
+
+    uploadProjectFile.mockImplementationOnce(() =>
+      Promise.reject(new UploadFailedError('rejected', 'logo.php.jpg', null, null, 'file_type')),
+    );
+    dropFiles(page, [new File(['png'], 'logo.php.jpg', { type: 'image/jpeg' })]);
+    expect(await screen.findByText(/This was not a virus finding/u)).toBeTruthy();
+    expect(screen.queryByText('No files yet')).toBeNull();
   });
 
   it('lists all projects’ files newest first, each linking to its viewer', async () => {

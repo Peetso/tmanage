@@ -1,6 +1,8 @@
 'use client';
 
 import { Button, StateCapsule } from '@tmanage/ui';
+import type { PreviewBlockedReason } from '../../lib/api/file-preview';
+import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import { ViewerIcon } from './viewer-icons';
 
@@ -15,12 +17,27 @@ export interface ViewerStatePanelProps {
   readonly retrying?: boolean;
   /** Whether comments without a pin can still be left. */
   readonly canComment: boolean;
+  /** QA-FIX S9. Why a blocked file was refused; the body names the real cause. */
+  readonly blockedReason?: PreviewBlockedReason | null;
 }
+
+/**
+ * QA-FIX S9: every refusal used to say "The virus check found a problem", also for a file the type
+ * check refused before any scan. One sentence per cause; an unknown cause gets the neutral one.
+ */
+const BLOCKED_BODY: Record<PreviewBlockedReason | 'unknown', MessageKey> = {
+  malware: 'Viewer.state.blockedBody',
+  file_type: 'Viewer.state.blockedBodyFileType',
+  content: 'Viewer.state.blockedBodyContent',
+  damaged: 'Viewer.state.blockedBodyDamaged',
+  unknown: 'Viewer.state.blockedBodyUnknown',
+};
 
 /**
  * V-05 — what the canvas says when there is no normal preview: checking (virus check), preparing,
  * failed (with "Try again" for the team), blocked, and no preview for this file type. Download
- * original stays on every card; it is disabled, with its reason, while checking or blocked.
+ * original stays on every card except blocked (QA-FIX S6: nothing can be done with a blocked file);
+ * it is disabled, with its reason, while checking.
  */
 export function ViewerStatePanel({
   state,
@@ -28,6 +45,7 @@ export function ViewerStatePanel({
   onRetry,
   retrying = false,
   canComment,
+  blockedReason = null,
 }: ViewerStatePanelProps) {
   const t = useT();
   const copy = {
@@ -49,7 +67,7 @@ export function ViewerStatePanel({
     blocked: {
       capsule: <StateCapsule state="blocked">{t('Viewer.state.blockedCapsule')}</StateCapsule>,
       title: t('Viewer.state.blockedTitle'),
-      body: t('Viewer.state.blockedBody'),
+      body: t(BLOCKED_BODY[blockedReason ?? 'unknown']),
     },
     unsupported: {
       capsule: <StateCapsule state="neutral">{t('Viewer.state.unsupportedCapsule')}</StateCapsule>,
@@ -87,7 +105,7 @@ export function ViewerStatePanel({
               {t('Viewer.state.retry')}
             </Button>
           ) : null}
-          {downloadDisabled ? (
+          {state === 'blocked' ? null : downloadDisabled ? (
             <Button type="button" tone="outline" disabled>
               <ViewerIcon name="download" />
               {t('Viewer.download')}
@@ -104,6 +122,9 @@ export function ViewerStatePanel({
         </div>
         {state === 'checking' ? (
           <p className="tm-viewer-state__note">{t('Viewer.state.checkingDownload')}</p>
+        ) : null}
+        {state === 'blocked' ? (
+          <p className="tm-viewer-state__note">{t('Viewer.state.blockedNoActions')}</p>
         ) : null}
         {state === 'unsupported' && canComment ? (
           <p className="tm-viewer-state__note">{t('Viewer.state.generalComments')}</p>

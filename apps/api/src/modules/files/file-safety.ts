@@ -548,3 +548,34 @@ export function safetyChip(version: {
   if (source === 'tmanage' && version.scanVerdict === 'clean') return 'scanned_tmanage';
   return 'not_scanned';
 }
+
+// ── Why a stored file was blocked (QA-FIX S9) ───────────────────────────────
+
+/**
+ * QA-FIX S9 (2026-11-20). The reason a screen gives for a blocked file, by kind. Every refusal used
+ * to read "The virus check found a problem", so a `.php.jpg` whose bytes were a PNG (a type
+ * mismatch, refused before any scan) was blamed on the virus engine. The closed rejection codes
+ * (`content-signature.ts` `RejectionCode`, `archive-inspection.ts` `ArchiveRejectionCode`,
+ * `file-scanner.ts` `MALWARE_REJECTION_CODE`) map to four kinds a person can act on; the detection
+ * detail itself is never sent.
+ */
+export type BlockedReason = 'malware' | 'file_type' | 'content' | 'damaged';
+
+export function blockedReasonFor(rejectionCode: string | null | undefined): BlockedReason | null {
+  switch (rejectionCode) {
+    case undefined:
+    case null:
+      return null;
+    case 'malware_detected':
+      return 'malware';
+    case 'type_not_allowed':
+    case 'type_mismatch':
+      return 'file_type';
+    case 'hash_mismatch':
+      return 'damaged';
+    default:
+      // `macro_office`, `archive_contains_blocked`, `archive_nested`, `archive_encrypted`,
+      // `archive_unreadable`, and any code added later: something inside the file was refused.
+      return 'content';
+  }
+}

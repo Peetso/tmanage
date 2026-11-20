@@ -424,4 +424,34 @@ describe('FileViewer (R4 slice 6)', () => {
       ).toBe(true),
     );
   });
+
+  // QA-FIX S6, S9 (2026-11-20): a blocked file names its real cause and offers nothing to do with it.
+  it.each([
+    ['file_type', /not the file type its name says/u],
+    ['malware', /virus check found a problem/u],
+  ])('a file blocked for %s says why, with no Share and no Download', async (reason, body) => {
+    const { client } = fakeApi({
+      manifest: manifest({
+        status: 'pending',
+        derivatives: [],
+        originalUrl: null,
+        version: {
+          fileVersionId: 'fv2',
+          mimeType: 'image/png',
+          sizeBytes: 2048,
+          scanStatus: 'blocked',
+          blockedReason: reason,
+        },
+      }),
+    });
+    renderViewer(client);
+    expect(
+      await screen.findByRole('heading', { name: 'This file was blocked' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(body)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Share with client' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Download original/u })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Download/u })).toBeNull();
+    expect(screen.getByText("Blocked files can't be downloaded or shared.")).toBeInTheDocument();
+  });
 });

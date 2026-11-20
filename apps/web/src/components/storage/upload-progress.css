@@ -83,7 +83,8 @@
   font-family: inherit;
 }
 
-.tm-upload[data-state='failed'] .tm-upload__meta {
+.tm-upload[data-state='failed'] .tm-upload__meta,
+.tm-upload[data-state='blocked'] .tm-upload__meta {
   color: var(--danger-600);
 }
 

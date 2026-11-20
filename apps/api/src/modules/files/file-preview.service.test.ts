@@ -838,6 +838,34 @@ describe('the manifest', () => {
     expect(manifest.capabilities.canDownload).toBe(false);
   });
 
+  // QA-FIX S9 (2026-11-20): the blocked manifest says why, so the viewer never blames the virus
+  // scan for a type refusal; a file that is not blocked carries no reason.
+  it('names why a blocked file was refused, by kind', async () => {
+    const typeRefused = build({
+      asset: asset({ status: 'rejected', rejectionCode: 'type_mismatch' }),
+      version: version({ scanVerdict: null }),
+      previews: [preview()],
+    });
+    const refused = await typeRefused.service.manifest(context, staff, 'internal', input);
+    expect(refused.version?.scanStatus).toBe('blocked');
+    expect(refused.version?.blockedReason).toBe('file_type');
+
+    const infected = build({
+      asset: asset({ status: 'rejected', rejectionCode: 'malware_detected' }),
+      version: version({ scanVerdict: 'infected' }),
+      previews: [preview()],
+    });
+    const virus = await infected.service.manifest(context, staff, 'internal', input);
+    expect(virus.version?.blockedReason).toBe('malware');
+
+    const clean = await build({
+      asset: asset(),
+      version: version(),
+      previews: [preview()],
+    }).service.manifest(context, staff, 'internal', input);
+    expect(clean.version?.blockedReason ?? null).toBeNull();
+  });
+
   it('gives a client viewer no comment or decision buttons, and staff the upload button', async () => {
     const t = build({ published: { projectId: PROJECT } });
     const viewer = await t.service.manifest(context, client('client_viewer'), 'client', input);

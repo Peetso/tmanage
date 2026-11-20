@@ -11,7 +11,12 @@ export interface UploadRow {
   readonly id: string;
   readonly file: File;
   readonly sent: number;
-  readonly state: 'uploading' | 'failed' | 'done';
+  /**
+   * `blocked` (QA-FIX S5/M8): the file was refused — by type, name or size before it was sent, or
+   * by the safety check or virus scan after — and says why. Unlike `failed` it offers no Retry:
+   * the same bytes would be refused again.
+   */
+  readonly state: 'uploading' | 'failed' | 'blocked' | 'done';
   /** Why it stopped, in words; `null` means the connection dropped (the design's Retry line). */
   readonly reason: string | null;
   readonly attempt: number;
@@ -36,6 +41,19 @@ export type UploadAction =
       readonly id: string;
       readonly attempt: number;
       readonly reason: string | null;
+    }
+  | {
+      readonly type: 'blocked';
+      readonly id: string;
+      readonly attempt: number;
+      readonly reason: string;
+    }
+  | {
+      /** A file refused before any byte moved: its row starts, and ends, blocked. */
+      readonly type: 'refused';
+      readonly id: string;
+      readonly file: File;
+      readonly reason: string;
     }
   | {
       readonly type: 'done';
@@ -65,6 +83,19 @@ export function uploadRowsReducer(
           resultId: null,
         },
       ];
+    case 'refused':
+      return [
+        ...rows,
+        {
+          id: action.id,
+          file: action.file,
+          sent: 0,
+          state: 'blocked',
+          reason: action.reason,
+          attempt: 0,
+          resultId: null,
+        },
+      ];
     case 'remove':
       return rows.filter((row) => row.id !== action.id);
     case 'clear-settled':
@@ -82,6 +113,7 @@ export function uploadRowsReducer(
         }
         if (action.type === 'progress') return { ...row, sent: Math.max(row.sent, action.sent) };
         if (action.type === 'failed') return { ...row, state: 'failed', reason: action.reason };
+        if (action.type === 'blocked') return { ...row, state: 'blocked', reason: action.reason };
         return { ...row, state: 'done', sent: row.file.size, resultId: action.resultId };
       });
   }

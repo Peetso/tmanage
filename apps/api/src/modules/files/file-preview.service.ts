@@ -9,6 +9,8 @@ import type { AuditService } from '../audit/audit.service.js';
 import { DeliverableVersionsRepository } from '../approvals/deliverable-versions.repository.js';
 import { AttachmentVersionsRepository } from './attachment-versions.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
+import { blockedReasonFor } from './file-safety.js';
+import type { BlockedReason } from './file-safety.js';
 import { FileClientRelation } from './file-client-relation.js';
 import { assertDoor, destroy, mayServeOriginalInline } from './file-download.service.js';
 import { mayDeleteFile } from './file-delete.service.js';
@@ -105,6 +107,8 @@ export interface PreviewVersionInfoView {
   readonly mimeType: string | null;
   readonly sizeBytes: number;
   readonly scanStatus: PreviewScanStatus;
+  /** QA-FIX S9. Why a `blocked` file was refused, by kind; `null` unless `scanStatus` is `blocked`. */
+  readonly blockedReason?: BlockedReason | null;
 }
 
 /** One version of the attachment chain the caller may open. */
@@ -474,7 +478,7 @@ export class FilePreviewService {
 
     return {
       file: { id: asset.id, name: asset.name, projectId: asset.projectId },
-      version: version ? toVersionInfo(version, access) : null,
+      version: version ? toVersionInfo(version, access, asset.rejectionCode) : null,
       kind,
       status,
       derivatives,
@@ -767,17 +771,19 @@ function toDerivativeView(row: FilePreview, base: string): PreviewDerivativeView
   };
 }
 
-function toVersionInfo(version: FileVersionRow, access: FileAccess): PreviewVersionInfoView {
+function toVersionInfo(
+  version: FileVersionRow,
+  access: FileAccess,
+  rejectionCode: string | null,
+): PreviewVersionInfoView {
+  const blocked = access.state === 'blocked';
   return {
     fileVersionId: version.id,
     mimeType: version.detectedMimeType,
     sizeBytes: version.sizeBytes,
     scanStatus:
-      access.state === 'servable'
-        ? access.scanStatus
-        : access.state === 'blocked'
-          ? 'blocked'
-          : 'pending_scan',
+      access.state === 'servable' ? access.scanStatus : blocked ? 'blocked' : 'pending_scan',
+    blockedReason: blocked ? blockedReasonFor(rejectionCode) : null,
   };
 }
 

@@ -15,8 +15,7 @@ import { ClientFilterNote } from '../clients/ClientFilterNote';
 import { clientCompanyKey } from '../clients/ClientPeoplePanel';
 import { listProjectFiles } from '../../lib/api/file-folders';
 import type { ProjectFile } from '../../lib/api/file-folders';
-import { formatBytes, uploadProjectFile } from '../../lib/api/uploads';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { UploadFailedError, formatBytes, uploadProjectFile } from '../../lib/api/uploads';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -26,6 +25,7 @@ import { CheckedLabel } from './CheckedLabel';
 import { HelpTip } from '../help/HelpTip';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
+import { useUploadOutcome } from '../storage/upload-outcome';
 import { needsPreviewThumb, PreviewThumb } from '../viewer/PreviewThumb';
 
 export interface FilesHubScreenProps {
@@ -129,28 +129,59 @@ export function FilesHubScreen({
   const picker = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [needsProject, setNeedsProject] = useState(false);
-  const uploads = useUploadQueue((error) =>
-    error instanceof ApiRequestError || (error instanceof Error && !(error instanceof NetworkError))
-      ? error.message
-      : null,
-  );
-  const send = (picked: readonly File[]) => {
-    if (picked.length === 0) return;
-    if (target === '') {
-      setNeedsProject(true);
-      return;
-    }
+  // QA-FIX S7: files picked or dropped under "All projects" wait here until a project is chosen,
+  // instead of being dropped; choosing a project chip sends them there.
+  const [held, setHeld] = useState<readonly File[]>([]);
+  const outcome = useUploadOutcome();
+  const uploads = useUploadQueue(outcome.describe);
+  const sendTo = (destination: string, picked: readonly File[]) => {
     setNeedsProject(false);
+    setHeld([]);
     uploads.clearSettled();
     for (const file of picked) {
+      // QA-FIX M8/S8: a file the browser already knows will be refused gets its row and reason.
+      const problem = outcome.preCheck(file);
+      if (problem !== null) {
+        uploads.refuse(file, problem);
+        continue;
+      }
+      // QA-FIX S5/M8: the row ends on the server's verdict (ready, or blocked and why), not on
+      // "all bytes sent"; a check that takes longer than the wait ends as uploaded.
       void uploads
         .start(file, (sent, deps) =>
-          uploadProjectFile(api, organizationSlug, { projectId: target, file: sent }, deps),
+          uploadProjectFile(
+            api,
+            organizationSlug,
+            { projectId: destination, file: sent },
+            { ...deps, untilReady: true },
+          ).catch((error: unknown) => {
+            if (error instanceof UploadFailedError && error.reason === 'still_checking') {
+              return null;
+            }
+            throw error;
+          }),
         )
         .then((ok) => {
           if (ok) refreshFiles();
         });
     }
+  };
+  const send = (picked: readonly File[]) => {
+    if (picked.length === 0) return;
+    if (target === '') {
+      setHeld(picked);
+      setNeedsProject(true);
+      return;
+    }
+    sendTo(target, picked);
+  };
+  const chooseFiles = () => {
+    // QA-FIX S7: under "All projects" with several projects, ask for the project first.
+    if (target === '') {
+      setNeedsProject(true);
+      return;
+    }
+    picker.current?.click();
   };
   const onDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!event.dataTransfer.types.includes('Files')) return;
@@ -188,7 +219,7 @@ export function FilesHubScreen({
           <button
             type="button"
             className="tm-button tm-button--ink tm-button--compact"
-            onClick={() => picker.current?.click()}
+            onClick={chooseFiles}
           >
             {tOr('FilesHub.upload', 'Upload files')}
           </button>
@@ -236,10 +267,15 @@ export function FilesHubScreen({
             title={tOr('FilesHub.pickProjectTitle', 'Choose a project first')}
             live
           >
-            {tOr(
-              'FilesHub.pickProjectBody',
-              'Files belong to a project. Pick one of the projects above, then upload again.',
-            )}
+            {held.length > 0
+              ? tOr(
+                  'FilesHub.pickProjectHeld',
+                  'Pick one of the projects above and your {count} file(s) upload there.',
+                ).replace('{count}', String(held.length))
+              : tOr(
+                  'FilesHub.pickProjectFirst',
+                  'Files belong to a project. Pick one of the projects above, then choose your files.',
+                )}
           </InlineAlert>
         ) : null}
         {uploads.rows.length > 0 ? (
@@ -280,6 +316,7 @@ export function FilesHubScreen({
               onClick={() => {
                 setProjectId(project.id);
                 setNeedsProject(false);
+                if (held.length > 0) sendTo(project.id, held);
               }}
             >
               {project.name}
@@ -310,13 +347,14 @@ export function FilesHubScreen({
           project with no files keeps its own short line.
         */}
         {projectId === '' &&
+        uploads.rows.length === 0 &&
         ((projects.isSuccess && scope.length === 0) || (files.isSuccess && rows.length === 0)) ? (
           <TeachingEmptyState
             title={tOr('FilesHub.emptyTitle', 'No files yet')}
             explanation={t('EmptyStates.filesBody')}
             action={
               available.length > 0 ? (
-                <Button tone="lime" size="accessible" onClick={() => picker.current?.click()}>
+                <Button tone="lime" size="accessible" onClick={chooseFiles}>
                   {tOr('FilesHub.upload', 'Upload files')}
                 </Button>
               ) : undefined
@@ -326,7 +364,7 @@ export function FilesHubScreen({
           />
         ) : null}
 
-        {projectId !== '' && files.isSuccess && rows.length === 0 ? (
+        {projectId !== '' && files.isSuccess && rows.length === 0 && uploads.rows.length === 0 ? (
           <div className="tm-dx-empty">
             <p className="tm-dx-empty__title">{tOr('FilesHub.emptyTitle', 'No files yet')}</p>
             <p className="tm-dx-empty__body">

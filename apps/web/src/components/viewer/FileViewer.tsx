@@ -621,7 +621,8 @@ export function FileViewer({
     ) : null,
     actions: (
       <span className="tm-viewer-head__actions">
-        {portalLook || !manifest ? null : (
+        {/* QA-FIX S6: a blocked file cannot be shared (the server refuses it), so no button. */}
+        {portalLook || !manifest || manifest.version?.scanStatus === 'blocked' ? null : (
           <HelpTip tip={t('Viewer.shareTip')}>
             <button
               type="button"
@@ -980,6 +981,7 @@ export function FileViewer({
       <ViewerStatePanel
         state={canvasState ?? 'unsupported'}
         downloadHref={downloadHref}
+        blockedReason={manifest.version?.blockedReason ?? null}
         canComment={caps.canComment}
         {...(caps.canRetry && canvasState === 'failed' && !stageError
           ? { onRetry: () => retry.mutate(), retrying: retry.isPending }

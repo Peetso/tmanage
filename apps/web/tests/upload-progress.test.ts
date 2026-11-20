@@ -32,6 +32,25 @@ describe('upload progress', () => {
     expect(uploadRowsReducer(rows, { type: 'remove', id: 'a' })).toEqual([]);
   });
 
+  // QA-FIX S5/M8 (2026-11-20): a refused or blocked file keeps its row, says why and offers no Retry.
+  it('keeps a refused file as a blocked row from the start, and ends a scanned-out file blocked', () => {
+    const file = new File(['x'.repeat(10)], 'setup.exe');
+    let rows: readonly UploadRow[] = [];
+    rows = uploadRowsReducer(rows, { type: 'refused', id: 'r', file, reason: 'a program' });
+    expect(rows[0]).toMatchObject({ state: 'blocked', reason: 'a program', sent: 0 });
+    expect(uploadRowsReducer(rows, { type: 'retry', id: 'r' })[0]).toMatchObject({
+      state: 'blocked',
+    });
+
+    rows = uploadRowsReducer(rows, { type: 'start', id: 'b', file });
+    rows = uploadRowsReducer(rows, { type: 'progress', id: 'b', attempt: 0, sent: 10 });
+    rows = uploadRowsReducer(rows, { type: 'blocked', id: 'b', attempt: 0, reason: 'virus' });
+    expect(rows[1]).toMatchObject({ state: 'blocked', reason: 'virus' });
+    rows = uploadRowsReducer(rows, { type: 'done', id: 'b', attempt: 0, resultId: 'late' });
+    expect(rows[1]).toMatchObject({ state: 'blocked', resultId: null });
+    expect(uploadRowsReducer(rows, { type: 'clear-settled' })).toEqual([]);
+  });
+
   it('Cancel aborts the part, cancels the session and ends as cancelled', async () => {
     const paths: string[] = [];
     const reply = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });

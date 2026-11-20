@@ -211,7 +211,12 @@ interface UploadedAssetReply {
   readonly rejectionCode?: string | null;
   /** FIX5 M2: the entry inside a refused ZIP the refusal is about, when there is one. */
   readonly rejectedEntry?: string;
+  /** QA-FIX S4/S9: why a `rejected` file was refused, by kind; the client's answer too. */
+  readonly blockedReason?: UploadBlockedReason | null;
 }
+
+/** QA-FIX S4/S9. The API's `BlockedReason` (`apps/api/src/modules/files/file-safety.ts`). */
+export type UploadBlockedReason = 'malware' | 'file_type' | 'content' | 'damaged';
 
 /**
  * Every step has a deadline, so a request that never settles ends in the screen's error state
@@ -288,6 +293,8 @@ export class UploadFailedError extends Error {
     readonly rejectionCode: string | null = null,
     /** For `rejected`: the entry inside a refused ZIP (FIX5 M2), when the answer named one. */
     readonly rejectedEntry: string | null = null,
+    /** QA-FIX S4/S9. For `rejected`: why, by kind (members and clients alike). */
+    readonly blockedReason: UploadBlockedReason | null = null,
   ) {
     // The English sentence, for screens that show a thrown error's message as it is.
     super(
@@ -765,6 +772,7 @@ async function waitUntilReady(
         fileName,
         reply.rejectionCode ?? null,
         reply.rejectedEntry ?? null,
+        reply.blockedReason ?? null,
       );
     }
     if (Date.now() - started > UPLOAD_READY_TIMEOUT_MS || poll >= 80) {

@@ -3,6 +3,7 @@ import { PLAN_IDS } from '../billing/plan-catalog.js';
 import {
   CLIENT_MAX_FILE_BYTES,
   DEFAULT_PRESETS,
+  blockedReasonFor,
   classifyUpload,
   parsePresets,
   planMaxFileBytes,
@@ -155,5 +156,19 @@ describe('plan caps, stored presets and scan facts', () => {
       'scanned_tmanage',
     );
     expect(safetyChip({ scanSource: 'none', scanVerdict: 'unscanned' })).toBe('not_scanned');
+  });
+});
+
+// QA-FIX S9 (2026-11-20): a type or name refusal is never reported as a virus finding.
+describe('blockedReasonFor', () => {
+  it('keeps one reason per cause, from the stored rejection code', () => {
+    expect(blockedReasonFor('malware_detected')).toBe('malware');
+    expect(blockedReasonFor('type_mismatch')).toBe('file_type');
+    expect(blockedReasonFor('type_not_allowed')).toBe('file_type');
+    expect(blockedReasonFor('hash_mismatch')).toBe('damaged');
+    expect(blockedReasonFor('archive_encrypted')).toBe('content');
+    expect(blockedReasonFor('macro_office')).toBe('content');
+    expect(blockedReasonFor(null)).toBeNull();
+    expect(blockedReasonFor(undefined)).toBeNull();
   });
 });

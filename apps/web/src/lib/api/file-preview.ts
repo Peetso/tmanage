@@ -51,7 +51,12 @@ export interface PreviewVersionInfo {
   readonly mimeType: string | null;
   readonly sizeBytes: number;
   readonly scanStatus: PreviewScanStatus;
+  /** QA-FIX S9. Why a `blocked` file was refused, by kind; `null` otherwise. */
+  readonly blockedReason?: PreviewBlockedReason | null;
 }
+
+/** QA-FIX S9. The API's `BlockedReason` (`apps/api/src/modules/files/file-safety.ts`). */
+export type PreviewBlockedReason = 'malware' | 'file_type' | 'content' | 'damaged';
 
 export interface PreviewChainVersion {
   readonly versionNo: number;

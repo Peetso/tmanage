@@ -9,6 +9,7 @@ import { ApiRequestError } from '../../lib/api/errors';
 import {
   MAX_ATTACHMENT_BYTES,
   UploadCancelledError,
+  UploadFailedError,
   attachmentMimeType,
   uploadPortalProjectFile,
 } from '../../lib/api/uploads';
@@ -33,10 +34,15 @@ export interface PortalUploadProject {
   readonly name: string;
 }
 
-/** A refusal shown as a card above the list: too big, a blocked type, or a plain failure. */
+/**
+ * A refusal shown as a card above the list: too big, a blocked type, a plain failure, or — once
+ * the file arrived — blocked by the virus check (`virus`) or refused by the safety check
+ * (`refused`: not the type its name says, or something inside it). QA-FIX S4: the last two come
+ * from the server's final verdict, so "sent" and a failure are never both said about one file.
+ */
 export interface PortalUploadProblem {
   readonly id: number;
-  readonly kind: 'too_big' | 'blocked' | 'failed';
+  readonly kind: 'too_big' | 'blocked' | 'failed' | 'virus' | 'refused';
   readonly name: string;
 }
 
@@ -48,6 +54,9 @@ export interface PortalUploading {
 
 /** Why a finished upload failed, in the three shapes the page words differently. */
 export function problemKind(error: unknown): PortalUploadProblem['kind'] {
+  if (error instanceof UploadFailedError && error.reason === 'rejected') {
+    return error.blockedReason === 'malware' ? 'virus' : 'refused';
+  }
   const refusal = uploadRefusal(error);
   if (refusal !== null) return refusal.reason === 'too_large' ? 'too_big' : 'blocked';
   if (error instanceof ApiRequestError && error.fieldErrors().has('sizeBytes')) return 'too_big';
@@ -86,19 +95,28 @@ export function usePortalFileUpload(
     async (file: File, projectId: string) => {
       const abort = new AbortController();
       controller.current = abort;
+      // QA-FIX S4: a new attempt clears what an earlier one said about the same file.
+      setSentName(null);
+      setProblems((current) => current.filter((problem) => problem.name !== file.name));
       setUploading({ file, projectId, sent: 0 });
       try {
+        // QA-FIX S4: "sent" only once the safety check and the virus scan have passed (or are
+        // still running after the wait, when the studio gets it as soon as they pass).
         const fileId = await uploadPortalProjectFile(
           api,
           organizationSlug,
           { projectId, file },
           {
             signal: abort.signal,
+            untilReady: true,
             onProgress: (sent) =>
               setUploading((current) => (current?.file === file ? { ...current, sent } : current)),
           },
-        );
-        setFresh((current) => new Set(current).add(fileId));
+        ).catch((error: unknown) => {
+          if (error instanceof UploadFailedError && error.reason === 'still_checking') return null;
+          throw error;
+        });
+        if (fileId !== null) setFresh((current) => new Set(current).add(fileId));
         setSentName(file.name);
         await queryClient.invalidateQueries({
           queryKey: ['portal-files', organizationSlug, projectId],
@@ -277,6 +295,8 @@ export function UploadProblemCard({
     too_big: 'PortalFilesScreen.tooBigTitle',
     blocked: 'PortalFilesScreen.blockedTitle',
     failed: 'PortalFilesScreen.failedTitle',
+    virus: 'PortalFilesScreen.virusTitle',
+    refused: 'PortalFilesScreen.blockedTitle',
   }[problem.kind];
   const body =
     problem.kind === 'too_big'
@@ -286,11 +306,13 @@ export function UploadProblemCard({
             {ta('PortalFilesScreen.tooBigLink', { studio: providerName })}
           </Link>,
         )
-      : ta(
-          problem.kind === 'blocked'
-            ? 'PortalFilesScreen.blockedBody'
-            : 'PortalFilesScreen.failedBody',
-        );
+      : problem.kind === 'blocked'
+        ? `${ta('PortalFilesScreen.blockedBody')} ${ta('UploadOutcome.accepted')}`
+        : problem.kind === 'virus'
+          ? ta('PortalFilesScreen.virusBody', { studio: providerName })
+          : problem.kind === 'refused'
+            ? ta('PortalFilesScreen.refusedBody')
+            : ta('PortalFilesScreen.failedBody');
   return (
     <div className="tm-pfu-problem" role="alert">
       <span className="tm-pfu-problem__glyph" aria-hidden="true">
@@ -325,16 +347,20 @@ export function UploadingRow({
   const { file, sent } = uploading;
   const sizes = sizePair(sent, file.size);
   const percent = uploadPercent(sent, file.size);
+  // QA-FIX S4: all bytes are sent; the safety check and virus scan decide before "sent" is said.
+  const checking = file.size > 0 && sent >= file.size;
   return (
     <tr className="tm-pfu-row tm-pfu-row--uploading">
       <td className="tm-pfu-cell--file">
         <p className="tm-pt-file__name">{file.name}</p>
         <p className="tm-pt-mono">
-          {ta('PortalFilesScreen.uploadingMeta', {
-            sent: sizes.sent,
-            total: sizes.total,
-            unit: ta(`UploadProgress.unit${sizes.unit}`),
-          })}
+          {checking
+            ? ta('UploadProgress.checking')
+            : ta('PortalFilesScreen.uploadingMeta', {
+                sent: sizes.sent,
+                total: sizes.total,
+                unit: ta(`UploadProgress.unit${sizes.unit}`),
+              })}
         </p>
       </td>
       <td className="tm-pfu-cell--project">{projectName}</td>

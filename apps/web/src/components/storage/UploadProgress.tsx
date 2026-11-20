@@ -25,9 +25,13 @@ function newRowId(): string {
 
 /**
  * The rows and their controls. `describeFailure` words a failure; `null` means the connection
- * dropped, which the row says as "Upload stopped at N %. Check your connection…".
+ * dropped, which the row says as "Upload stopped at N %. Check your connection…". A failure it
+ * answers as `{ blocked }` (QA-FIX S5/M8: refused by type, name, size, the safety check or the
+ * virus scan) ends the row `blocked`, with its reason and no Retry.
  */
-export function useUploadQueue(describeFailure: (error: unknown) => string | null) {
+export function useUploadQueue(
+  describeFailure: (error: unknown, file: File) => string | null | { readonly blocked: string },
+) {
   const [rows, dispatch] = useReducer(uploadRowsReducer, [] as readonly UploadRow[]);
   const runs = useRef(new Map<string, { run: UploadRun; controller: AbortController }>());
   const describeRef = useRef(describeFailure);
@@ -46,7 +50,12 @@ export function useUploadQueue(describeFailure: (error: unknown) => string | nul
         return true;
       } catch (error) {
         if (!(error instanceof UploadCancelledError) && !controller.signal.aborted) {
-          dispatch({ type: 'failed', id, attempt, reason: describeRef.current(error) });
+          const described = describeRef.current(error, file);
+          if (described !== null && typeof described === 'object') {
+            dispatch({ type: 'blocked', id, attempt, reason: described.blocked });
+          } else {
+            dispatch({ type: 'failed', id, attempt, reason: described });
+          }
         }
         return false;
       }
@@ -87,7 +96,12 @@ export function useUploadQueue(describeFailure: (error: unknown) => string | nul
 
   const clearSettled = useCallback(() => dispatch({ type: 'clear-settled' }), []);
 
-  return { rows, start, cancel, retry, remove, clearSettled };
+  /** QA-FIX M8: a file refused before it was sent still gets its row, with the reason. */
+  const refuse = useCallback((file: File, reason: string) => {
+    dispatch({ type: 'refused', id: newRowId(), file, reason });
+  }, []);
+
+  return { rows, start, cancel, retry, remove, clearSettled, refuse };
 }
 
 function fileKind(name: string): string {
@@ -186,17 +200,24 @@ export function UploadProgressItem({
   const unit = ta(`UploadProgress.unit${sizes.unit}`);
   const done = sizePair(total, total);
 
+  // QA-FIX M8: every byte is sent but the file is not usable yet — the safety check and the virus
+  // scan run now (a few seconds), and the row says so instead of looking stuck at 100 %.
+  const checking = row.state === 'uploading' && total > 0 && row.sent >= total;
   const meta =
     row.state === 'uploading'
-      ? ta('UploadProgress.uploading', {
-          sent: sizes.sent,
-          total: sizes.total,
-          unit,
-          pct: percent,
-        })
+      ? checking
+        ? ta('UploadProgress.checking')
+        : ta('UploadProgress.uploading', {
+            sent: sizes.sent,
+            total: sizes.total,
+            unit,
+            pct: percent,
+          })
       : row.state === 'failed'
         ? (row.reason ?? ta('UploadProgress.stopped', { pct: percent }))
-        : ta('UploadProgress.done', { size: `${done.total} ${unit}` });
+        : row.state === 'blocked'
+          ? (row.reason ?? '')
+          : ta('UploadProgress.done', { size: `${done.total} ${unit}` });
 
   return (
     <li className="tm-upload" data-state={row.state}>
@@ -205,8 +226,13 @@ export function UploadProgressItem({
         <span className="tm-upload__title">
           <span className="tm-upload__name">{row.file.name}</span>
         </span>
-        {row.state === 'done' ? null : <UploadBar name={row.file.name} percent={percent} />}
-        <span className="tm-upload__meta" role={row.state === 'failed' ? 'alert' : undefined}>
+        {row.state === 'done' || row.state === 'blocked' ? null : (
+          <UploadBar name={row.file.name} percent={percent} />
+        )}
+        <span
+          className="tm-upload__meta"
+          role={row.state === 'failed' || row.state === 'blocked' ? 'alert' : undefined}
+        >
           {row.state === 'done' ? <CheckGlyph /> : null}
           <span>{meta}</span>
         </span>
@@ -222,7 +248,9 @@ export function UploadProgressItem({
             {ta('UploadProgress.retry')}
           </button>
         ) : null}
-        {row.state === 'failed' || (row.state === 'done' && removableWhenDone) ? (
+        {row.state === 'failed' ||
+        row.state === 'blocked' ||
+        (row.state === 'done' && removableWhenDone) ? (
           <button type="button" className="tm-upload__text" onClick={() => onRemove(row)}>
             {ta('UploadProgress.remove')}
           </button>

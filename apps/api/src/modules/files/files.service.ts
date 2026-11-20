@@ -57,10 +57,11 @@ import {
   CLIENT_DAILY_UPLOAD_LIMIT,
   classifyUpload,
   DEFAULT_PRESETS,
+  blockedReasonFor,
   resolveScanSource,
   safetyChip,
 } from './file-safety.js';
-import type { SafetyChip, ScanSource } from './file-safety.js';
+import type { BlockedReason, SafetyChip, ScanSource } from './file-safety.js';
 import { ARCHIVE_REJECTION_CODES, inspectStoredArchive } from './archive-inspection.js';
 import { DailyUploadCountRepository, startOfUtcDay } from './daily-upload-count.repository.js';
 import type { FileSafetySettingsSource } from '../tenancy/file-safety-settings.js';
@@ -149,6 +150,13 @@ export interface FileAssetView {
    * no scanner is configured. A browser waits for this, not for `ready`.
    */
   readonly usable: boolean;
+  /**
+   * QA-FIX S4/S9. Why a `rejected` file was refused, as a kind a person can act on (`malware`,
+   * `file_type`, `content`, `damaged`); `null` unless rejected. Unlike `rejectionCode` it is in
+   * the client's projection too: the uploader is told "blocked by the virus check", never the
+   * detection or the code.
+   */
+  readonly blockedReason: BlockedReason | null;
 }
 
 /** The client's projection of a file asset: everything but the security metadata. */
@@ -169,6 +177,7 @@ export function clientFileAssetView(view: FileAssetView): ClientFileAssetView {
     scanSource: view.scanSource,
     safetyChip: view.safetyChip,
     usable: view.usable,
+    blockedReason: view.blockedReason,
   };
 }
 
@@ -281,6 +290,7 @@ function toFileAssetView(
     scanSource: scanSourceOf(version),
     safetyChip: safetyChip(version),
     usable,
+    blockedReason: asset.status === 'rejected' ? blockedReasonFor(asset.rejectionCode) : null,
   };
 }
 

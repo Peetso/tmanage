@@ -308,6 +308,8 @@ const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   'review.thread_reopened.v1': 'NotificationsFeedScreen.typeReviewReopened',
   'review.approved.v1': 'NotificationsFeedScreen.typeReviewApproved',
   'review.changes_requested.v1': 'NotificationsFeedScreen.typeReviewChangesRequested',
+  // QA-FIX S5: a file the uploader sent was blocked by the safety check or the virus scan.
+  'file.blocked.v1': 'NotificationsFeedScreen.typeFileBlocked',
 };
 
 /** Fix 2026-11-09: labels whose keys arrive through an i18n fragment (English until the merge). */
