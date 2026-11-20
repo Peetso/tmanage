@@ -4,7 +4,12 @@ import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { CLIENT_ROLES } from '@tmanage/domain';
+import {
+  capabilitySetFor,
+  CLIENT_ROLES,
+  mayActOnMember,
+  memberAuthorityTier,
+} from '@tmanage/domain';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import {
   ChangeRoleDialog,
@@ -131,7 +136,6 @@ export function PeopleDirectoryScreen({
   // Assigning roles stays with owner and org admin: a custom role id is never in this set, so a
   // custom-role viewer is never offered the role change the API would refuse.
   const canAssign = myRole !== undefined && ROLE_ASSIGNERS.has(myRole);
-  const iAmOwner = myRole === 'owner';
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [layout, setLayout] = useViewPreference<PeopleLayout>(
@@ -163,6 +167,24 @@ export function PeopleDirectoryScreen({
     canAssign ||
     (myCustomRole?.capabilities.includes('org.manage') ?? false) ||
     (myCapabilities?.includes('org.manage') ?? false);
+
+  // QA-FIX-P S3: the row actions are offered only on people the viewer outranks — the domain's
+  // one rule (`mayActOnMember`), which the API enforces on every one of these routes. An admin
+  // is never offered a reset, role change or removal for the owner or another admin.
+  const myTier = memberAuthorityTier(
+    myRole ?? '',
+    new Set<string>([...capabilitySetFor(myRole ?? ''), ...(myCapabilities ?? [])]),
+  );
+  const outranks = (person: MemberRow): boolean =>
+    myRole !== undefined &&
+    mayActOnMember(
+      myTier,
+      memberAuthorityTier(
+        person.role,
+        customRoles.data?.find((entry) => entry.id === person.role)?.capabilities ??
+          capabilitySetFor(person.role),
+      ),
+    );
 
   const people = usePeopleDirectory(api, organizationSlug);
 
@@ -297,7 +319,7 @@ export function PeopleDirectoryScreen({
               aria-label={tr('PeopleDirectoryScreen.listLabel', 'People in this organization')}
             >
               {roster.map((person) => {
-                const mayChange = canAssign && (person.role !== 'owner' || iAmOwner);
+                const mayChange = canAssign && outranks(person);
                 const chipLabel = person.roleName ?? chip(person.role);
                 return (
                   <li key={person.userId}>
@@ -356,8 +378,8 @@ export function PeopleDirectoryScreen({
                   </tr>
                 ) : (
                   roster.map((person) => {
-                    // Only an owner changes an owner's seat (the API's CQ-06 rule, drawn here).
-                    const mayChange = canAssign && (person.role !== 'owner' || iAmOwner);
+                    // Only someone who outranks the person changes their seat (S3; CQ-06).
+                    const mayChange = canAssign && outranks(person);
                     return (
                       <MemberRowView
                         key={person.userId}
@@ -370,7 +392,7 @@ export function PeopleDirectoryScreen({
                         mayRemove={
                           mayChange && !(person.role === 'owner' && complete && activeOwners === 1)
                         }
-                        mayManage={canManage}
+                        mayManage={canManage && outranks(person)}
                         chipLabel={person.roleName ?? chip(person.role)}
                         projectsLabel={plural('projects', person.projectCount)}
                         onChangeRole={() =>
@@ -404,21 +426,31 @@ export function PeopleDirectoryScreen({
           </InlineAlert>
         ) : null}
 
-        {canManage && people.isSuccess ? (
-          <PendingInvitationsSection
-            api={api}
-            organizationSlug={organizationSlug}
-            invitations={pending}
-            roleLabel={invitationChip}
-            busyId={resend.isPending ? (resend.variables?.id ?? null) : null}
-            onChangeRole={(invitation) => setDialog({ kind: 'invite-role', invitation })}
-            onResend={(invitation) => {
-              if (!resend.isPending) resend.mutate(invitation);
-            }}
-            onRevoke={(invitation) => setDialog({ kind: 'invite-revoke', invitation })}
-            onCheckAddress={(invitation) => setDialog({ kind: 'invite', email: invitation.email })}
-          />
-        ) : null}
+        {/* QA-FIX-P L8: the Control Center's "Invitations" entry lands here (`/people#invitations`). */}
+        <div id="invitations" tabIndex={-1}>
+          {canManage && people.isSuccess && invitations.isSuccess && pending.length === 0 ? (
+            <p className="ppl-members__empty">
+              {tr('PeopleDirectoryScreen.noInvitations', 'No invitations are waiting.')}
+            </p>
+          ) : null}
+          {canManage && people.isSuccess ? (
+            <PendingInvitationsSection
+              api={api}
+              organizationSlug={organizationSlug}
+              invitations={pending}
+              roleLabel={invitationChip}
+              busyId={resend.isPending ? (resend.variables?.id ?? null) : null}
+              onChangeRole={(invitation) => setDialog({ kind: 'invite-role', invitation })}
+              onResend={(invitation) => {
+                if (!resend.isPending) resend.mutate(invitation);
+              }}
+              onRevoke={(invitation) => setDialog({ kind: 'invite-revoke', invitation })}
+              onCheckAddress={(invitation) =>
+                setDialog({ kind: 'invite', email: invitation.email })
+              }
+            />
+          ) : null}
+        </div>
 
         {people.isSuccess && !complete ? (
           <p className="ppl-members-footnote">

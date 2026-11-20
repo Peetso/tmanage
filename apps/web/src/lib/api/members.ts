@@ -14,7 +14,8 @@ export interface MemberSummary {
   readonly userId: string;
   readonly displayName: string;
   readonly role: string;
-  readonly status: string;
+  /** QA-FIX-P S2 (ADR-0014): sent only to a viewer who manages members (`org.manage`). */
+  readonly status?: string;
 }
 
 export interface ListMembersQuery {

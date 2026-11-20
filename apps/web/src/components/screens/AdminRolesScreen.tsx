@@ -49,6 +49,8 @@ export function AdminRolesScreen({
   const t = useT();
   const canUse = useShellCapability(organizationSlug, client);
   const firstStep = useRef<HTMLFormElement>(null);
+  // QA-FIX-P M4: a refused create is said where the person is looking, not below the fold.
+  const saveError = useRef<HTMLDivElement>(null);
   const tr = useTOr();
   const format = useDisplayFormatters();
   // C6: the plain name in the active locale; the English name until the key is merged.
@@ -72,6 +74,13 @@ export function AdminRolesScreen({
       setName('');
       setSelected(new Set());
       await queryClient.invalidateQueries({ queryKey: ['admin-roles', organizationSlug] });
+    },
+    onError: () => {
+      // After the alert renders: move focus (and the view) to it, so a 403 is never silent.
+      window.setTimeout(() => {
+        saveError.current?.focus();
+        saveError.current?.scrollIntoView?.({ block: 'nearest' });
+      }, 0);
     },
   });
 
@@ -251,9 +260,11 @@ export function AdminRolesScreen({
             </fieldset>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title={t('AdminRolesScreen.createError')} live>
-                {describeError(save.error)}
-              </InlineAlert>
+              <div ref={saveError} tabIndex={-1}>
+                <InlineAlert tone="danger" title={t('AdminRolesScreen.createError')} live>
+                  {describeError(save.error)}
+                </InlineAlert>
+              </div>
             ) : null}
             {created && !save.isPending && !save.isError ? (
               <InlineAlert tone="success" title={t('AdminRolesScreen.createdTitle')} live>

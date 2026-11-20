@@ -130,6 +130,16 @@ export function InviteMemberDialog({
 
   function errorText(error: unknown): string {
     if (error instanceof ApiRequestError) {
+      // QA-FIX-P M7: the address already belongs to a member (the owner's own included).
+      if (
+        error.status === 409 &&
+        error.details.some((detail) => detail.message === 'invitation_already_member')
+      ) {
+        return tr(
+          'InviteMemberDialog.alreadyMember',
+          'This person is already a member here. Change their role in the list instead.',
+        );
+      }
       if (error.status === 409) {
         return tr('InviteMemberDialog.duplicate', 'That address already has a pending invitation.');
       }

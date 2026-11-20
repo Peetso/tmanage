@@ -299,6 +299,8 @@ const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   'work_item.supervised_done.v1': 'NotificationsFeedScreen.typeSupervisedDone',
   'automation.notified.v1': 'NotificationsFeedScreen.typeAutomationNotified',
   'automation.test_run.v1': 'NotificationsFeedScreen.typeAutomationTestRun',
+  // QA-FIX-P S3: an admin or owner sent this person a password reset link.
+  'member.password_reset_sent.v1': 'NotificationsFeedScreen.typeMemberPasswordReset',
   'review.comment_added.v1': 'NotificationsFeedScreen.typeReviewComment',
   'review.replied.v1': 'NotificationsFeedScreen.typeReviewReplied',
   'review.mentioned.v1': 'NotificationsFeedScreen.typeReviewMentioned',

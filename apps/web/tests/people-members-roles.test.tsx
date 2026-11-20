@@ -233,6 +233,25 @@ describe('Members and roles (r-people)', () => {
     ).toBeTruthy();
   });
 
+  it('QA-FIX-P S3: never offers an admin a reset or removal for the owner or another admin', async () => {
+    const ADA = person('u-ada', 'Ada Admin', 'org_admin');
+    mount({ people: [MAYA, ADA, SARA], myRole: 'org_admin' });
+
+    await screen.findByRole('table', { name: 'People in this organization' });
+    for (const name of ['Maya Hassan', 'Ada Admin']) {
+      fireEvent.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+      const menu = screen.getByRole('menu');
+      expect(within(menu).queryByRole('menuitem', { name: 'Send password reset link' })).toBeNull();
+      expect(within(menu).queryByRole('menuitem', { name: 'Change role' })).toBeNull();
+      expect(within(menu).queryByRole('menuitem', { name: /Remove from/ })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Sara Ali' }));
+    expect(
+      within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Send password reset link' }),
+    ).toBeTruthy();
+  });
+
   it('invites with a role, projects and a note (r-invite)', async () => {
     const { sent } = mount({ people: [MAYA, SARA] });
 

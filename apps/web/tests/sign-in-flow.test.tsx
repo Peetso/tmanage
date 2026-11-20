@@ -123,7 +123,7 @@ describe('signing in with a password', () => {
     });
   });
 
-  it('renders the API refusal verbatim rather than inventing a more helpful one', async () => {
+  it('QA-FIX-P S10: a wrong password reads as one plain credentials line, never the session sentence', async () => {
     const user = userEvent.setup();
     const { client } = clientOver(() =>
       json(
@@ -141,7 +141,8 @@ describe('signing in with a password', () => {
     render(<SignInScreen client={client} developmentSignInEnabled={false} />);
     await signIn(user);
 
-    expect(await screen.findByText('The request carries no valid session')).toBeInTheDocument();
+    expect(await screen.findByText('That email and password do not match.')).toBeInTheDocument();
+    expect(screen.queryByText('The request carries no valid session')).toBeNull();
     // Nothing on the screen distinguishes an unknown address from a wrong password.
     expect(screen.queryByText(/no account/i)).toBeNull();
     expect(screen.queryByText(/not found/i)).toBeNull();

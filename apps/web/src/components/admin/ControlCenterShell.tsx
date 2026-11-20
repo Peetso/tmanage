@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useContext, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query';
-import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
+import { InlineAlert, LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import type { Capability } from '@tmanage/domain';
 import { Wordmark } from '../brand/Wordmark';
 import { NavIcon, type PhoneIconName } from '../icons/phone';
@@ -255,7 +255,8 @@ const GROUPS: readonly SectionGroup[] = [
       {
         id: 'invitations',
         labelKey: ccKey('ControlCenter.invitations'),
-        href: '/people',
+        // QA-FIX-P L8: the invitations are a section of People, not a page of their own.
+        href: '/people#invitations',
         capability: 'org.manage',
       },
       // 57-08 REFERRAL (Figma 724:39837; review B point 7): directly under Invitations, owner only.
@@ -475,6 +476,27 @@ export function mayOpenSection(
   }
   if (item.capability === undefined || role === null) return true;
   return roleMayUse(role, capabilities, item.capability);
+}
+
+/**
+ * QA-FIX-P M4 — the one capability gate every Control Center page shares. A page is drawn only
+ * for a person whose role may use its section; anyone else sees one plain "no access" state
+ * instead of a form that would be refused (NN/g error-message guidelines: prevent the error,
+ * do not let it happen and stay silent). `'unknown'` while the role is not read yet (or cannot
+ * be read here): the page is drawn and the API stays the authority (AR-9, SE-1).
+ */
+export type SectionAccess = 'allowed' | 'denied' | 'unknown';
+
+export function sectionAccess(
+  section: ControlCenterSection,
+  role: string | undefined,
+  known: boolean,
+  capabilities?: readonly string[],
+): SectionAccess {
+  if (!known || role === undefined) return 'unknown';
+  const entry = GROUPS.flatMap((group) => group.items).find((item) => item.id === section);
+  if (entry === undefined) return 'allowed';
+  return mayOpenSection(role, entry, capabilities) ? 'allowed' : 'denied';
 }
 
 /** The menu's groups minus the entries this role would be refused. `foot` is kept empty. */
@@ -741,7 +763,9 @@ export function ControlCenterShell({
   const t = useT();
   const queryClient = useContext(QueryClientContext);
   const workspace = useOrganizationName(organizationSlug, organizationName);
-  const { role, known } = useOrganizationRole(organizationSlug);
+  const { role, known, capabilities } = useOrganizationRole(organizationSlug);
+  const tOr = useTOr();
+  const denied = sectionAccess(section, role, known, capabilities) === 'denied';
   const viewerName = useViewerName(organizationSlug, client);
   const viewKey = viewKeyFor(known ? role : undefined);
   const eyebrow = [viewKey ? t(viewKey) : null, viewerName].filter(Boolean).join(' · ');
@@ -802,14 +826,30 @@ export function ControlCenterShell({
                 <div className="tm-canvas-header__title-row">
                   <h1 className="tm-canvas-header__title">{title}</h1>
                   {titleMeta ? <span className="tm-canvas-header__meta">{titleMeta}</span> : null}
-                  {actions ? <div className="tm-canvas-header__actions">{actions}</div> : null}
+                  {actions && !denied ? (
+                    <div className="tm-canvas-header__actions">{actions}</div>
+                  ) : null}
                 </div>
                 {description ? (
                   <p className="tm-canvas-header__description">{description}</p>
                 ) : null}
               </div>
             </header>
-            {children}
+            {denied ? (
+              <div className="tm-cc-card" data-testid="cc-no-access">
+                <InlineAlert
+                  tone="neutral"
+                  title={tOr('ControlCenterShell.noAccessTitle', 'You can’t open this page')}
+                >
+                  {tOr(
+                    'ControlCenterShell.noAccessBody',
+                    'Your role does not include this page. Ask an owner or an organization admin if you need it.',
+                  )}
+                </InlineAlert>
+              </div>
+            ) : (
+              children
+            )}
           </main>
         </div>
       </div>

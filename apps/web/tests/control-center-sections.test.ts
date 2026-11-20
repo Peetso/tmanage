@@ -28,7 +28,7 @@ describe('controlCenterSectionsFor', () => {
         ['members', '/people'],
         ['roles', '/admin/roles'],
         ['client-organizations', null],
-        ['invitations', '/people'],
+        ['invitations', '/people#invitations'],
         // 57-08 REFERRAL (review B point 7): owner only, directly under Invitations.
         ['invite-agencies', '/admin/invite-agencies'],
         // 62-27 (B12; FIGMA-D fix 29): owner only, shown while `business_briefing` is on.

@@ -24,7 +24,8 @@ export interface PersonSummary {
    * reader's language). Web and API ship as one app, so it is always sent.
    */
   readonly roleName: string | null;
-  readonly status: string;
+  /** QA-FIX-P S2 (ADR-0014): sent only to a viewer who manages members (`org.manage`). */
+  readonly status?: string;
   /** How many of this organization's projects the person is a member of. */
   readonly projectCount: number;
   /** The membership's compare-and-swap token for `PATCH members/:userId/role` (409 when stale). */
