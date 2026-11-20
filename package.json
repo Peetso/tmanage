@@ -78,7 +78,7 @@
       "fast-uri@<3.1.9": "^3.1.9",
       "fast-uri@>=4 <4.2.3": "^4.2.3",
       "fastify": "5.12.7",
-      "@fastify/middie@<9.3.7": "^9.3.7",
+      "@fastify/middie@<9.3.8": "^9.3.8",
       "express-rate-limit@<8.7.5": "^8.7.5",
       "hono@<4.13.16": "^4.13.16",
       "@hono/node-server@>=2 <2.1.11": "^2.1.11",
