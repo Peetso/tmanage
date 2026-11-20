@@ -120,6 +120,13 @@ interface SectionLink {
   readonly capability?: Capability;
   /** English for a label whose key reaches the catalogs through an i18n fragment (`useTOr`). */
   readonly fallback?: string;
+  /**
+   * QA-FIX-P M4: the capability the page's own read asks for (its API `GET` guard), which the
+   * shell's no-access gate checks. Set only where every screen of the section reads with it; none
+   * means the shell never gates the page and the API stays the authority. Never the capability
+   * of an action on the page: a person who may read but not change still gets the page.
+   */
+  readonly pageCapability?: Capability;
   /** Drawn for the workspace owner only (the page's API refuses every other role). */
   readonly ownerOnly?: boolean;
   /** Drawn only while this rollout flag resolves on (the page's API answers 404 while it is off). */
@@ -246,6 +253,7 @@ const GROUPS: readonly SectionGroup[] = [
         labelKey: 'ControlCenterShell.roles',
         href: '/admin/roles',
         capability: 'org.manage',
+        pageCapability: 'org.manage',
       },
       {
         id: 'client-organizations',
@@ -267,6 +275,7 @@ const GROUPS: readonly SectionGroup[] = [
         href: '/admin/invite-agencies',
         capability: 'org.manage',
         ownerOnly: true,
+        pageCapability: 'org.manage',
       },
       // 62-A1c (B12; FIGMA-D fix 29): the alert rules, owner only, while the briefing is on.
       {
@@ -277,6 +286,7 @@ const GROUPS: readonly SectionGroup[] = [
         capability: 'org.manage',
         ownerOnly: true,
         feature: 'business_briefing',
+        pageCapability: 'org.manage',
       },
     ],
   },
@@ -306,6 +316,7 @@ const GROUPS: readonly SectionGroup[] = [
         labelKey: 'ControlCenterShell.automations',
         href: '/automations',
         capability: 'org.manage',
+        pageCapability: 'org.manage',
       },
       {
         id: 'integrations',
@@ -336,12 +347,14 @@ const GROUPS: readonly SectionGroup[] = [
         labelKey: 'Incidents.title',
         href: '/admin/incidents',
         capability: 'org.manage',
+        pageCapability: 'org.manage',
       },
       {
         id: 'audit',
         labelKey: 'ControlCenterShell.auditLog',
         href: '/admin/audit',
         capability: 'audit.read',
+        pageCapability: 'audit.read',
       },
       // 56-07p (Figma 619:35204): after Audit log, as in the frame.
       {
@@ -355,6 +368,7 @@ const GROUPS: readonly SectionGroup[] = [
         labelKey: ccKey('ControlCenter.dataAndRetention'),
         href: '/admin/audit/export',
         capability: 'audit.export',
+        pageCapability: 'audit.export',
       },
       // Google Drive storage: the Drive attach error sends people to "Storage in Control".
       // `org.manage` is what the storage API asks to change the connection.
@@ -370,18 +384,23 @@ const GROUPS: readonly SectionGroup[] = [
         labelKey: ccKey('ControlCenter.privacy'),
         href: '/admin/privacy',
         capability: 'org.manage',
+        pageCapability: 'org.manage',
       },
       {
         id: 'organization',
         labelKey: 'ControlCenterShell.organization',
         href: '/settings/organization',
         capability: 'org.manage',
+        pageCapability: 'org.manage',
       },
       {
         id: 'billing',
         labelKey: 'ControlCenterShell.billing',
         href: '/billing',
-        capability: 'org.manage',
+        // QA-FIX-P M4: every billing page reads with `billing.view` (21 of the 22 billing GET
+        // routes), so a custom role holding it is offered the menu entry too.
+        capability: 'billing.view',
+        pageCapability: 'billing.view',
       },
       {
         id: 'finance',
@@ -480,7 +499,8 @@ export function mayOpenSection(
 
 /**
  * QA-FIX-P M4 — the one capability gate every Control Center page shares. A page is drawn only
- * for a person whose role may use its section; anyone else sees one plain "no access" state
+ * for a person whose role holds the capability the page's own read asks for (`pageCapability`,
+ * matched to the API's `GET` guard; never an action's capability); anyone else sees one plain "no access" state
  * instead of a form that would be refused (NN/g error-message guidelines: prevent the error,
  * do not let it happen and stay silent). `'unknown'` while the role is not read yet (or cannot
  * be read here): the page is drawn and the API stays the authority (AR-9, SE-1).
@@ -495,8 +515,8 @@ export function sectionAccess(
 ): SectionAccess {
   if (!known || role === undefined) return 'unknown';
   const entry = GROUPS.flatMap((group) => group.items).find((item) => item.id === section);
-  if (entry === undefined) return 'allowed';
-  return mayOpenSection(role, entry, capabilities) ? 'allowed' : 'denied';
+  if (entry?.pageCapability === undefined) return 'allowed';
+  return roleMayUse(role, capabilities, entry.pageCapability) ? 'allowed' : 'denied';
 }
 
 /** The menu's groups minus the entries this role would be refused. `foot` is kept empty. */

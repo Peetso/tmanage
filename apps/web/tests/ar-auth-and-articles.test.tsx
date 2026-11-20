@@ -142,7 +142,10 @@ describe('refusals in the reader’s language', () => {
   it('keeps the API’s words for English and uses the catalog for Arabic', () => {
     expect(readsApiLanguage('en-US')).toBe(true);
     expect(readsApiLanguage('ar-EG')).toBe(false);
-    expect(refusalLine(refusal(401), 'en-US')).toBeUndefined();
+    // QA-FIX-P S10: a 401 is the one credentials line in every language, English included.
+    expect(refusalLine(refusal(401), 'en-US')).toBe('AuthRefusal.invalidCredentials');
+    expect(refusalLine(refusal(429), 'en-US')).toBeUndefined();
+    expect(refusalLine(refusal(500), 'en-US')).toBeUndefined();
     expect(refusalLine(refusal(401), 'ar-EG')).toBe('AuthRefusal.invalidCredentials');
     expect(refusalLine(refusal(429), 'ar-EG')).toBe('signUp.rateLimited');
     expect(refusalLine(refusal(422), 'ar-EG')).toBe('signUp.fieldsNeedAttention');

@@ -88,7 +88,12 @@ import { translate } from '../src/lib/i18n/t';
 /** 55-10p: a truly empty list teaches with one action; a list with rows, or a filter, does not. */
 type Routes = Record<string, unknown>;
 
-function mount(screenFor: (client: ApiClient) => ReactElement, routes: Routes, role = 'owner') {
+function mount(
+  screenFor: (client: ApiClient) => ReactElement,
+  routes: Routes,
+  role = 'owner',
+  capabilities: readonly string[] = [],
+) {
   const answer = (path: string) =>
     Object.entries(routes)
       .filter(([suffix]) => path.endsWith(suffix))
@@ -110,8 +115,9 @@ function mount(screenFor: (client: ApiClient) => ReactElement, routes: Routes, r
   });
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // The shell reads the role through its own browser client; seed it as an owner.
-  // A custom role with no capabilities stands for a person without the permission.
-  query.setQueryData(['shell', 'organizations'], [{ slug: 'acme', role, capabilities: [] }]);
+  // A custom role with no capabilities stands for a person without the permission; `capabilities`
+  // gives it what it may read (QA-FIX-P M4: a Control Center page is gated on its read capability).
+  query.setQueryData(['shell', 'organizations'], [{ slug: 'acme', role, capabilities }]);
   render(<QueryClientProvider client={query}>{screenFor(client)}</QueryClientProvider>);
 }
 
@@ -444,7 +450,11 @@ describe('teaching empty states (55-10p)', () => {
         'Write an announcement',
       ],
     ];
-    it.each(cases)('%s', async (_name, view, title, action) => {
+    // QA-FIX-P M4: these pages read with `org.manage` (their API GET guard), the same capability
+    // as their action, so a person without it never reaches the empty state: the Control Center
+    // shell shows its no-access state instead.
+    const gatedOnRead = new Set(['Automations', 'Automation schedules', 'Custom roles']);
+    it.each(cases)('%s', async (name, view, title, action) => {
       mount(view, routes);
       const section = (await teaching(title)).closest('section') as HTMLElement;
       const button = await within(section).findByRole('button', { name: action });
@@ -452,6 +462,14 @@ describe('teaching empty states (55-10p)', () => {
       expect(document.activeElement?.closest('form')).not.toBeNull();
       cleanup();
       mount(view, routes, 'custom-viewer');
+      if (gatedOnRead.has(name)) {
+        expect(await screen.findByTestId('cc-no-access')).toHaveTextContent(
+          /you can.t open this page/i,
+        );
+        expect(screen.queryByRole('heading', { level: 2, name: title })).toBeNull();
+        expect(screen.queryByRole('button', { name: action })).toBeNull();
+        return;
+      }
       const bare = (await teaching(title)).closest('section') as HTMLElement;
       expect(within(bare).queryByRole('button')).toBeNull();
     });
@@ -874,7 +892,9 @@ describe('teaching empty states (55-10p)', () => {
       fireEvent.click(button);
       expect(document.activeElement?.closest('form')).not.toBeNull();
       cleanup();
-      mount(view, routes, 'custom-viewer');
+      // QA-FIX-P M4: billing pages read with `billing.view` and change with `billing.manage`; a
+      // person who may read but not change gets the page and the teaching state, with no action.
+      mount(view, routes, 'custom-viewer', ['billing.view']);
       const bare = (await teaching(title)).closest('section') as HTMLElement;
       expect(within(bare).queryByRole('button')).toBeNull();
     });
