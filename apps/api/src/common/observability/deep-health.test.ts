@@ -34,6 +34,7 @@ describe('evaluateDeepHealth', () => {
         origin_tls: { state: 'not_configured' },
         growth: 'not_configured',
         realtime: 'not_configured',
+        leader: { state: 'not_configured' },
       },
       checkedAt: NOW.toISOString(),
     });

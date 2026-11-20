@@ -37,7 +37,7 @@ test('the old -H 127.0.0.1 turned the rewrite into a fetch of https://localhost'
 
 test('server.mjs starts the web child with webChildHost, never a fixed host', () => {
   const source = readFileSync(new URL('./server.mjs', import.meta.url), 'utf8');
-  assert.match(source, /'-H', webChildHost\(transport\)\]/);
+  assert.match(source, /'-H',\s+webChildHost\(transport\),/);
   assert.doesNotMatch(source, /'-H', '127\.0\.0\.1'/);
 });
 

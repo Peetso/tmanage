@@ -106,7 +106,7 @@ No HTTP routes. In-process contract (the "published language" every repository u
 - **DB down / timeout (HT-1):** a driver error (ECONNREFUSED, pool exhaustion, `ER_STATEMENT_TIMEOUT` 1969) is not an `ApiError`, so the filter renders **500** (`http-exception.filter.ts:23-24`), never `503 + Retry-After`. Clients then cannot tell "our DB is restarting" from a defect (DC-1 feeder).
 - **Lock outcomes (AS-4 shape):** the migrator separates NULL (error) from 0 (held) (`migrator.ts:364-371`); `firstOwnerTransaction` folds both into `FirstOwnerLockUnavailableError` (`tenant-context.ts:815-817`), so a DB error reads as "another setup in progress".
 - **Mid-file kill (DA-8):** the migrator resumes a single `running` row and reads "already exists" errors (1050/1060/1061/1022/1826/1304/1359) on that one statement as applied (`migrator.ts:44-58`). The server waits for the file in progress before exiting on SIGTERM (`apps/server/migration-shutdown.mjs`).
-- **Two instances (RT-2, DC-3):** migrations serialize on `GET_LOCK`; the 30 s retention cache is per-instance and harmless. Nothing else here is process-unique.
+- **Two instances (RT-2, DC-3):** migrations serialize on `GET_LOCK`; the 30 s retention cache is per-instance and harmless. Nothing else here is process-unique. The leader lease table `runtime_leases` (0384) is registered GLOBAL in `NON_TENANT_TABLES` and read here only by `/healthz/deep` (`observability/leader-health.repository.ts`, `identityRead`); the worker writes it.
 - **Fail fast (ST-7):** a checksum mismatch or partial ledger throws in `migrate`, so `apps/server` boot fails rather than serving a drifted schema.
 
 ## UX rules for its screens

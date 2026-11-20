@@ -86,6 +86,8 @@ There is no business domain. The runtime state machine is:
 | S-7 | Each sweep and scheduled job runs under its own MariaDB named lock, so two processes never run the same pass at once. | `scheduled-sweeps.mjs:30-33`, `:580-585`; `apps/worker/src/common/database/sweep-lock.ts:45-62` | `scheduled-sweeps.test.mjs:164`, `:573` |
 | S-8 | A tick that fires while the previous one is still running is skipped, not stacked. | `scheduled-sweeps.mjs:596-604` | `scheduled-sweeps.test.mjs:236`, `:337` |
 | S-9 | A platform path is never answered "sign-in" on a 5xx, 429 or 408 from the API: the outcome is `unknown` and goes to the web (DC-1). | `platform-gate.mjs:70-75` | `platform-gate.test.mjs:122` |
+| S-10 | DC-3 / RT-3: with N copies of the app, only the copy holding the leader lease (`runtime_leases`, 0384) runs the relay, the sweeps and the jobs; every copy serves HTTP. Each relay batch and each sweep/job pass asks the lease first (`leaderGatedLock`, `mayRun`). A lease query error is logged as an error and never counts as leading (AS-4). | `leadership.mjs`, `server.mjs` `startLeadership`; `apps/worker/src/leadership/leader-lease.ts` | `leadership.test.mjs` (two copies, takeover, error); `apps/api/test/rt-003-leader-lease.db.test.ts` |
+| S-11 | ST-3: the public server sets `requestTimeout` 300 s, `headersTimeout` 20 s, `keepAliveTimeout` 65 s (above a proxy's 60 s upstream idle) and checks every 5 s; the web child keeps idle connections 65 s while the parent's agent drops them after 5 s. | `server-timeouts.mjs` | `server-timeouts.test.mjs` |
 
 ## Public API and contracts
 
@@ -133,11 +135,11 @@ The part owns **no tables** and writes no SQL itself (AR-4). It runs the migrato
 | --- | --- | --- | --- |
 | Request during boot | held ≤ 30 s, then 503 + Retry-After | ST-5 (bounded queue), HT-1 | fixed `954d80b3`: ready after API + web child; relay and sweeps start after (RT-4) |
 | Second process (restart overlap, on-demand spawn) | per-process socket `.run/web-<pid>.sock`: neither instance unlinks the other's (`954d80b3`) | RT-2 | socket part fixed; leader lease still open (SRV-3) |
-| Singleton duties on 2 instances | sweeps/jobs: named lock per pass (ok). Relay: SKIP LOCKED (ok). Realtime hub: per process, so pushes are lost across instances (`realtime-inprocess.mjs:92-112`). No leader lease. | RT-3 | **DC-3 P1 open** |
+| Singleton duties on 2 instances | Leader lease (S-10): only the holder runs relay, sweeps and jobs; a follower retries every 10 s and leads within 30–40 s after a crash, at its next retry after a clean shutdown. Named lock per pass and SKIP LOCKED stay as the second line. The realtime socket exists only on the leader: an upgrade to a follower is closed and the client reconnects (`chat-socket.ts`). | RT-3 | realtime fan-out across copies still open (SRV-3b) |
 | In-memory throttles | `purgeJob` and `storageRootJob` keep `last` in memory (`scheduled-sweeps.mjs:647-675`); each instance runs them hourly (the lock only prevents running _at the same time_) | AS-4 | **open P1** |
 | Lock query error | `GET_LOCK` NULL looks the same as "held" (`sweep-lock.ts:51`), so the pass is skipped silently; a thrown error is logged by the scheduler (`scheduled-sweeps.mjs:588-590`) | AS-4 ("held" ≠ "failed") | **open P1** |
-| SIGTERM | `server.close()` (`:656`), kill the child, wait for the migration gate (≤ 120 s, `migration-shutdown.mjs:20`), stop sweeps, worker and Nest, then `process.exit(0)` (`:670`) | RT-6 | no drain budget, no `closeIdleConnections()`, no lease release; keep-alive sockets can hold `close` |
-| Slow or idle client | proxy upstream destroyed after 120 s idle (`web-transport.mjs:284-311`) | ST-1 (partial) | **ST-3**: no `requestTimeout`, `headersTimeout` or `keepAliveTimeout` on `createHttpServer` (`server.mjs:619`). Grep found none. |
+| SIGTERM | `server.close()`, kill the child, wait for the migration gate (≤ 120 s, `migration-shutdown.mjs:20`), stop sweeps and worker, **release the leader lease**, stop Nest, then `process.exit(0)` | RT-6 | no drain budget; idle keep-alive sockets are closed by `server.close()` (Node ≥ 19), active ones are not bounded |
+| Slow or idle client | proxy upstream destroyed after 120 s idle (`web-transport.mjs` `bindProxyLifetimes`); headers 20 s, whole request 300 s, keep-alive 65 s (S-11) | ST-1, ST-3 | Hostinger's proxy timeouts are not published (unverified) |
 | Web child crash | supervised restart with backoff (`web-restart.mjs`, `server.mjs:261-280`) | Fail fast + supervisor | ok |
 | Uncaught exception | mail to `ALERT_EMAILS` at most once per 15 min, then exit 1 (`process-alerts.mjs`, `server.mjs:696-709`) | Fail fast | ok |
 | Migration failure | `MigrationError` → exit 1 (`server.mjs:732-737`) | ST-7 | the schema-drift refusal lives in api-common/database |
@@ -155,7 +157,7 @@ n/a — the part renders no screen. Its only user-visible output is the 503 `sta
 | --- | --- | --- |
 | RT-1 | Env validated by `loadEnv` (zod, `@tmanage/config`); secrets only reach the log as notes (`server.mjs:678-683`) | met |
 | RT-2 | Socket per process (`web-<pid>.sock`, `954d80b3`); throttles, realtime hub and heartbeat still per process | DB-held throttles, realtime via DB/outbox (SRV-3, SRV-4) |
-| RT-3 | Named lock per pass; no leader lease; realtime per process | `GET_LOCK('tmanage:leader')` on a dedicated connection for relay, sweeps and realtime source |
+| RT-3 | Leader lease row (S-10, lane K 2026-11-20; a row, not `GET_LOCK`, because a dropped connection drops a named lock silently) | realtime fan-out across copies |
 | RT-4 | met (`becomeReady`, `954d80b3`) | keep |
 | RT-5 | Only `/healthz` (= ready) and the API's `/healthz/deep` | add `/livez` (200 once listening) |
 | RT-6 | close, then exit, with no drain budget | drain ≤ 10 s (proposed), `closeIdleConnections()`, release lease |
@@ -164,7 +166,7 @@ n/a — the part renders no screen. Its only user-visible output is the 503 `sta
 | RT-10 | "wait 3 min, then one request" ritual still in use (memory "Restart Hostinger quietly") | retire once RT-2, RT-3 and RT-4 are green |
 | RT-11 | binary deep health | health model with required/fallback classes |
 | ST-1 | proxy idle timeout 120 s; in-process inject needs none | met for the proxy |
-| ST-3 | not set | set all three, below the proxy's limits |
+| ST-3 | set (S-11). keep-alive is **above** the proxy's idle time, not below (AWS ELB guidance); requestTimeout kept at 300 s for slow uploads | ADR to correct the ST-3 row's proposed values |
 | ST-5 | separate pools for relay, sweeps, jobs and lock; bounded startup hold | met |
 | ST-6 | socket, heartbeat and crash files are overwritten, not appended | met |
 | ST-7 | refuses non-production `NODE_ENV`; a migration error exits 1 | met here |
@@ -191,6 +193,8 @@ n/a — the part renders no screen. Its only user-visible output is the 503 `sta
 | `web-transport.test.mjs` | S-1, S-2, S-3, S-5, transport selection, socket 0600, hop-by-hop headers, upstream teardown |
 | `scheduled-sweeps.test.mjs` | S-6 (DC-7 fitness, `:549`), S-7, S-8, cadences, lock per job (`:573`), bundle copy (`:264`) |
 | `platform-gate.test.mjs` | S-9, AUTHSTATE refreshable 401 (`:87`), 5xx keeps the session (`:122`) |
+| `leadership.test.mjs` | S-10: two copies, one runs the pass; clean handover; takeover only after expiry; error ≠ follower; server.mjs wiring; bundle copy |
+| `server-timeouts.test.mjs` | S-11: values and orderings, 408 on slow headers, keep-alive reuse past headersTimeout, idle close, web hop agent and `--keepAliveTimeout` |
 | `migration-shutdown.test.mjs` | the bounded wait while a migration file runs |
 | `boot-guards.test.mjs` | S-4, security headers |
 | `web-restart.test.mjs`, `web-child-host.test.mjs` | child supervision |
@@ -205,10 +209,10 @@ Added in `954d80b3` (`web-transport.test.mjs`): two-instance socket ownership (D
 | --- | --- | --- | --- | --- |
 | SRV-1 | DC-3 | **Fixed `954d80b3`:** socket `.run/web-<pid>.sock`; prepare clears only its own path and dead pids' sockets; cleanup only its own. Test: `web-transport.test.mjs` "two overlapping instances". | closed | — |
 | SRV-2 | DC-3/DC-1 | **Fixed `954d80b3`:** `becomeReady` marks ready after API + web, then starts relay and sweeps. Test: `web-transport.test.mjs` "RT-4". | closed | — |
-| SRV-3 | DC-3 | No leader lease. The realtime hub is per process. | P1 | ADR-0010 (staged in `D:/TManage/work/pass-2026-11-20/adr-staged`) |
+| SRV-3 | DC-3 | **Leader lease built (lane K, 2026-11-20, S-10).** Left: SRV-3b, realtime frames reach only the leader's sockets. | P1 (3b) | realtime via DB fan-out (ADR-0010 §6) |
 | SRV-4 | DC-3 | The hourly throttles for purge and storage root are in memory (`scheduled-sweeps.mjs:647-675`). | P1 | throttle row in DB |
 | SRV-5 | DC-1 | A `GET_LOCK` NULL (error) is treated as "held" (`sweep-lock.ts:51`). | P1 | three outcomes `ran / held / error` |
-| SRV-6 | DC-3 | Shutdown has no drain budget and no server timeouts (`server.mjs:648-672`, `:619`). | P1 | RT-6 / ST-3 |
+| SRV-6 | DC-3 | Server timeouts set (S-11, lane K). Shutdown still has no drain budget. | P1 | RT-6 |
 | SRV-7 | DC-2 | `platformDecision` duplicates the web session classifier (`platform-gate.mjs:70-75` vs `apps/web/src/lib/session-check.ts`). | P1 | ADR-0009 shared `http-outcome` |
 | SRV-8 | none | Logs are text with no instance id (`server.mjs:126-128`). | P1 | RT-7 |
 | SRV-9 | risk | The "LiteSpeed restarts within ~3 s" claim (`server.mjs:19-21`) is unverified; Hostinger documents only on-demand start (ARCH-REVIEW DC-3). | P2 | host log evidence |
@@ -218,4 +222,5 @@ Added in `954d80b3` (`web-transport.test.mjs`): two-instance socket ownership (D
 - **Web child:** the private `next start` process the server spawns and proxies to.
 - **Startup hold:** the bounded wait (30 s, max 200) before a request gets 503 `starting`.
 - **Sweep lock:** a MariaDB named lock per pass, `<schema>:sweep:<name>`, cut to 64 characters.
+- **Leader lease:** the `runtime_leases` row `leader`; its holder is the copy that runs the singleton duties. Each copy logs `instance <tag> is pid <pid>` at boot; `/healthz/deep` shows `leader: {state, instance}`.
 - **In-process worker:** the outbox relay, the notice queue and realtime running inside this process (`WORKER_INPROCESS=1`).

@@ -25,6 +25,8 @@ import { readBackupHealth } from './backup-health.repository.js';
 import { readGrowthHealth } from './growth-health.repository.js';
 import type { GrowthCheckState } from './growth-health.js';
 import type { BackupCheckState } from './backup-health.js';
+import { readLeaderHealth } from './leader-health.repository.js';
+import type { LeaderCheck } from './leader-health.js';
 import { ALERT_NOTIFIER } from './alerts.js';
 import type { AlertNotifier } from './alerts.js';
 import { OriginTlsMonitor } from './origin-tls.js';
@@ -47,7 +49,7 @@ import type { OriginTlsCheck } from './origin-tls.js';
  * - **schema** — 56-27's schema-drift reading (`schema-drift.ts`): ledger checksums equal the
  *   shipped files and every declared table exists; `not_configured` when it cannot be read;
  * - **backups** — 51-09's reading of `platform_backup_runs` (`backup-health.ts`): `ok` / `stale` /
- *   `not_configured`. Reported only — a late backup is an alert, never a 503.
+ *   `failed` / `not_configured`. Reported only — a late or failed backup is an alert, never a 503.
  * - **origin_tls** — 56-30's reading of the origin's own certificate (`origin-tls.ts`): `ok` while
  *   it has more than 14 days left, `fail` at 14 or fewer or when unreadable, `not_configured`
  *   without `ORIGIN_TLS_PROBE_ADDRESS`. Reported only (plus a daily operator alert), never a 503:
@@ -56,6 +58,9 @@ import type { OriginTlsCheck } from './origin-tls.js';
  *   26 h, `stale` past it or never computed, `not_configured` when unreadable. Reported only.
  * - **realtime** — `ok` when the in-process socket is attached (`realtimeSocketUrl` set), else
  *   `not_configured`. Reported only.
+ * - **leader** — DC-3 / RT-3: `held` with the opaque `instance` tag of the copy holding the leader
+ *   lease (it runs the relay, sweeps and jobs), `vacant`, or `not_configured` (`leader-health.ts`).
+ *   Info only.
  *
  * `fail` on database, migrations, worker or schema makes the answer 503 — the status code is what a
  * monitor matches on. `not_configured` is reported but is not a failure: a shared host that
@@ -82,6 +87,7 @@ export interface DeepHealthReport {
     readonly origin_tls: OriginTlsCheck;
     readonly growth: GrowthCheckState;
     readonly realtime: 'ok' | 'not_configured';
+    readonly leader: LeaderCheck;
   };
   readonly checkedAt: string;
 }
@@ -135,6 +141,7 @@ export async function evaluateDeepHealth(
   backups: BackupCheckState = 'not_configured',
   originTls: OriginTlsCheck = { state: 'not_configured' },
   growth: GrowthCheckState = 'not_configured',
+  leader: LeaderCheck = { state: 'not_configured' },
 ): Promise<DeepHealthReport> {
   let database: CheckState = 'ok';
   let migrations: CheckState = 'ok';
@@ -169,8 +176,8 @@ export async function evaluateDeepHealth(
 
   const realtime = config.realtimeSocketUrl ? 'ok' : 'not_configured';
 
-  // By design only these four decide the 503; origin_tls, backups, growth, scanner and realtime
-  // report.
+  // By design only these four decide the 503; origin_tls, backups, growth, scanner, realtime and
+  // leader report.
   const failed = [database, migrations, worker, schema].includes('fail');
   return {
     status: failed ? 'fail' : 'ok',
@@ -184,6 +191,7 @@ export async function evaluateDeepHealth(
       origin_tls: originTls,
       growth,
       realtime,
+      leader,
     },
     checkedAt: now.toISOString(),
   };
@@ -299,6 +307,7 @@ export class DeepHealthController {
       const backups = await readBackupHealth(this.database, new Date(now));
       const originTls = await this.originTls.check(new Date(now));
       const growth = await readGrowthHealth(this.database, new Date(now));
+      const leader = await readLeaderHealth(this.database, new Date(now));
       this.cached = {
         at: now,
         report: await evaluateDeepHealth(
@@ -309,6 +318,7 @@ export class DeepHealthController {
           backups,
           originTls,
           growth,
+          leader,
         ),
       };
     }

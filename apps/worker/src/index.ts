@@ -10,6 +10,20 @@ export { createWorkerDatabase } from './common/database/worker-database.js';
 // LOGQUIET-a — one MariaDB named lock per scheduled sweep (`apps/server/scheduled-sweeps.mjs`).
 export { createSweepLock, createSweepLockDatabase } from './common/database/sweep-lock.js';
 export type { SweepLock, SweepLockOutcome } from './common/database/sweep-lock.js';
+// DC-3 / RT-3 — the leader lease: one copy of the app runs the relay, sweeps and jobs.
+export {
+  createLeaseStore,
+  createLeaseStoreDatabase,
+} from './common/database/runtime-lease-store.js';
+export type { ClaimResult, LeaseRow, LeaseStore } from './common/database/runtime-lease-store.js';
+export {
+  LEADER_LEASE_NAME,
+  LEADER_LEASE_RENEW_MS,
+  LEADER_LEASE_TTL_MS,
+  createLeaderLease,
+  newLeaseHolder,
+} from './leadership/leader-lease.js';
+export type { LeaderLease, LeaderLeaseOptions, LeaseTick } from './leadership/leader-lease.js';
 export type {
   WorkerDatabase,
   WorkerDatabaseOptions,

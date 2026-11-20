@@ -78,6 +78,7 @@ Context map: the worker is **downstream (conformist) of every producing context*
 | W-10 | Every recurring job is defined once in `createScheduledJobs`, and both hosts build from that list (DC-7). | `jobs/scheduled-jobs.ts:1-12`, `:139-260` | `scheduled-jobs.test.ts:34`; `apps/server/scheduled-sweeps.test.mjs:549` |
 | W-11 | No statement on the worker pool can run longer than `DATABASE_STATEMENT_TIMEOUT_MS` (15 s default, `env.ts:278`): `SET SESSION max_statement_time` runs on every new connection. | `worker-database.ts:72-90`, `:176` | `worker-database.test.ts` |
 | W-12 | SQL and driver handles exist only under `src/common/database/` (lint allowlist). | `worker-database.ts:6-10` | `eslint.config.js` allowlist; `upsert-affected-rows.guard.test.ts` |
+| W-13 | DC-3 / RT-3 leader lease: at most one copy wins `runtime_leases` (one conditional UPDATE `WHERE holder = me OR expires_at < now`); the holder trusts it only until `start + ttl − renew` on the monotonic clock (30 s / 10 s); a query error is its own outcome; every time is a bound JS Date. | `common/database/runtime-lease-store.ts`, `leadership/leader-lease.ts` | `leader-lease.test.ts`, `runtime-lease-store.test.ts`, `apps/api/test/rt-003-leader-lease.db.test.ts` |
 
 ## Public API and contracts
 
@@ -93,7 +94,7 @@ Context map: the worker is **downstream (conformist) of every producing context*
 
 The runtime **owns no table**. `outbox_events` is owned by `api/platform` (`apps/api/migrations/0002_platform_primitives.sql:20-50`). Columns the runtime depends on: `published_at`, `available_at`, `attempts`, `last_error` (≤ 1000), `correlation_id`, and the claim index `ix_outbox_events_unpublished (published_at, available_at)`. That is the one index not led by `organization_id`, because the relay is deliberately cross-tenant (`0002:44-47`). The credential-notice queue table belongs to identity (`0020_credential_change_notices.sql`). The ~55 `*-store.ts` files under `src/common/database/` read and write tables that **other contexts own**. Each store is an adapter of its owning module and must be listed in that module's `PART.md` (AR-7).
 
-**Missing:** there is no producer dedupe key on `outbox_events` (grep `dedupe_key` in the outbox migrations finds none), so AS-3 is unmet (DC-4). There is no `job_runs` or `leases` table (grep finds none), so AS-4 run records and RT-3 are unmet.
+**Missing:** there is no producer dedupe key on `outbox_events` (grep `dedupe_key` in the outbox migrations finds none), so AS-3 is unmet (DC-4). There is no `job_runs` table, so AS-4 run records are unmet. RT-3: `runtime_leases` (0384, lane K) holds the leader lease; the worker credential has SELECT, INSERT, UPDATE on it (`scripts/db/users.sql`).
 
 ## Permissions and tenant rules
 
@@ -166,7 +167,7 @@ n/a — the worker renders no screen. The mail it sends follows the copy rules o
 | ST-4 | none | breaker per integration (SMTP, webhooks, AI) |
 | ST-5 | separate pools per role | met |
 | ST-6 | heartbeat file overwritten; parked rows stay forever | purge or archive policy for published and parked outbox rows |
-| RT-2/RT-3 | SKIP LOCKED + named locks; no leader; hub per process | leader lease (ADR-0010 staged) |
+| RT-2/RT-3 | leader lease (W-13) gates the in-app relay, sweeps and jobs; SKIP LOCKED + named locks stay; hub per process. The standalone `main.ts` does not take the lease (live runs only the in-app host) | realtime fan-out; lease in `main.ts` if a standalone worker ever runs beside the app |
 | RT-6 | standalone: abort + await every loop (`main.ts:850-871`) | met here; the in-app host is covered in app/server |
 | RT-7, OB-2, OB-4 | text logs, no spans | JSON lines with correlation and instance id; one span per delivery and job run |
 | RT-8 | one-off modes from the same build | met |
@@ -205,7 +206,7 @@ Missing (PR-1): a 1020 refund test; a `GET_LOCK` NULL → error test; a two-proc
 | WRK-1 | DC-5 | `ER_CHECKREAD` 1020 is not recoverable in the batch classifier (`outbox-store.ts:515-522`). | P1 | shared write-conflict helper; test |
 | WRK-2 | DC-1 | `GET_LOCK` NULL (error) is treated as "held" and the pass is skipped silently (`sweep-lock.ts:51`). | P1 | outcome `error`, logged |
 | WRK-3 | DC-4 | No outbox producer `dedupe_key` (`0002:24-48`). | P1 | expand migration (AS-3) |
-| WRK-4 | DC-3 | The realtime hub is per process; there is no leader lease. | P1 | ADR-0010 |
+| WRK-4 | DC-3 | The realtime hub is per process. (Leader lease: built, W-13.) | P1 | ADR-0010 §6 |
 | WRK-5 | none | ST-2: the pool wait queue is unbounded (`worker-database.ts:165-171`). | P2 | `queueLimit` |
 | WRK-6 | none | No circuit breaker around SMTP or webhooks (ST-4). | P2 | breaker port in `packages/mail` and connectors |
 | WRK-7 | none | Per-event backoff has no jitter (`backoff.ts:8-14`). | P2 | add jitter (bounded, injected `random`) |

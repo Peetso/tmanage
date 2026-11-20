@@ -2681,6 +2681,11 @@ GRANT SELECT ON `tmanage`.`ai_usage_ledger` TO 'tmanage_worker'@'%';
 -- each reader's permission set the way the Home card does, which reads the per-member
 -- `membership_permission_overrides` beside `custom_roles` (granted above). Read only.
 GRANT SELECT ON `tmanage`.`membership_permission_overrides` TO 'tmanage_worker'@'%';
+-- 0384 (DC-3 / RT-3, lane K). The leader lease (`runtime-lease-store.ts`): the sweeps' copy creates
+-- the row once (INSERT IGNORE), claims and renews it by one conditional UPDATE, and expires its own
+-- row on shutdown (UPDATE). No DELETE: the row is reused for ever. The app only reads the holder
+-- tag for `/healthz/deep` (database-wide read). Global table, nothing for `tmanage_erasure`.
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`runtime_leases` TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Erasure user — the company and account erasures, and nothing else

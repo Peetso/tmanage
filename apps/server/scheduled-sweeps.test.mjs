@@ -367,9 +367,11 @@ test('server.mjs runs both API passes in-process, behind the same SWEEPS_INPROCE
   const server = readFileSync(join(HERE, 'server.mjs'), 'utf8');
   assert.match(server, /\.\.\.apiSweepJobs\(api, app\)/);
   assert.match(server, /jobs: apiReconcileJobs\(api, app\),\s+intervalMs: reconcileIntervalMs\(/);
+  // DC-3: the same switch, now inside the leader lease's duties (leadership.mjs).
+  assert.match(server, /const sweepsOn = sweepsEnabled\(process\.env\);/);
   assert.match(
     server,
-    /if \(sweepsEnabled\(process\.env\)\) stopSweeps = await startScheduledSweeps\(env, app, jobMail\)/,
+    /if \(sweepsOn\) stopSweeps = await startScheduledSweeps\(env, app, jobMail, holds\)/,
   );
   const exports = readFileSync(join(HERE, '../api/src/hostinger-exports.ts'), 'utf8');
   for (const name of [

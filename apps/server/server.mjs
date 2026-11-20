@@ -40,7 +40,7 @@ import 'reflect-metadata';
 
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
-import { request as httpRequest, createServer as createHttpServer } from 'node:http';
+import { request as httpRequest } from 'node:http';
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -86,6 +86,12 @@ import {
 } from './job-alerts.mjs';
 import { installProcessAlerts } from './process-alerts.mjs';
 import { createMigrationGate } from './migration-shutdown.mjs';
+import { createLeadership, leaderGatedLock } from './leadership.mjs';
+import {
+  createPublicServer,
+  WEB_UPSTREAM_AGENT,
+  webChildKeepAliveArgs,
+} from './server-timeouts.mjs';
 import {
   apiReconcileJobs,
   apiSweepJobs,
@@ -230,7 +236,17 @@ function spawnWebChild(transport, nominalPort) {
       : ['--import', pathToFileURL(resolve(ROOT, 'web-socket-preload.mjs')).href];
   return spawn(
     process.execPath,
-    [...preload, nextBin, 'start', '-p', String(nominalPort), '-H', webChildHost(transport)],
+    [
+      ...preload,
+      nextBin,
+      'start',
+      '-p',
+      String(nominalPort),
+      '-H',
+      webChildHost(transport),
+      // ST-3: the child keeps idle connections longer than this process's agent (server-timeouts).
+      ...webChildKeepAliveArgs(),
+    ],
     {
       cwd: WEB_DIR,
       env: {
@@ -296,6 +312,8 @@ function proxyToWeb(req, res, transport) {
   const upstream = httpRequest(
     {
       ...webTarget(transport),
+      // ST-3: a pooled agent whose idle sockets close before the child's (server-timeouts.mjs).
+      agent: WEB_UPSTREAM_AGENT,
       method: req.method,
       path: req.url,
       // NV06: hop-by-hop headers (Connection, Upgrade, ...) stay on this hop.
@@ -332,8 +350,16 @@ function proxyToWeb(req, res, transport) {
  * Runs the worker's own `relay:once` batch on a timer inside this process, so a plan that cannot
  * keep a third Node process alive still delivers mail and notifications. Limitation (documented):
  * when Hostinger sleeps the app, the timer sleeps too, so delivery resumes on the next request.
+ *
+ * DC-3 / RT-3: started only on the copy that holds the leader lease, and every batch asks
+ * `mayRun()` (the lease) first, so a copy that lost the lease starts no new batch.
  */
-async function startInProcessWorker(env, attachRealtime, shareMail = () => undefined) {
+async function startInProcessWorker(
+  env,
+  attachRealtime,
+  shareMail = () => undefined,
+  mayRun = () => true,
+) {
   const worker = await import('@tmanage/worker');
   const {
     createWorkerDatabase,
@@ -451,7 +477,7 @@ async function startInProcessWorker(env, attachRealtime, shareMail = () => undef
   const alerts = createGroupedAlertNotifier(parseAlertEmails(env.ALERT_EMAILS), transport);
   let running = false;
   const tick = async () => {
-    if (running) return;
+    if (running || !mayRun()) return;
     running = true;
     try {
       const outbox = await runOutboxBatch(database, handlers, options);
@@ -499,8 +525,11 @@ async function startInProcessWorker(env, attachRealtime, shareMail = () => undef
  * cannot double-run are in scheduled-sweeps.mjs. The worker sweeps get their own one-connection
  * pool on the worker's credential, so they run with or without the relay; the API passes run on
  * the in-process API application `app`, exactly as `sweep.ts` and `reconcile.ts` compose it.
+ *
+ * DC-3 / RT-3: every pass goes through the named-lock runner, and that runner is gated by the
+ * leader lease (`leaderGatedLock`), so only the leading copy runs a sweep or a job.
  */
-async function startScheduledSweeps(env, app, mail) {
+async function startScheduledSweeps(env, app, mail, holds = () => true) {
   const worker = await import('@tmanage/worker');
   const database = worker.createWorkerDatabase({
     url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
@@ -508,8 +537,12 @@ async function startScheduledSweeps(env, app, mail) {
     statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => log(`sweep connection rejected: ${serializeForLog(error)}`),
   });
-  // LOGQUIET-a: one named lock per sweep, on a connection of its own (scheduled-sweeps.mjs).
-  const lock = worker.createSweepLockDatabase({ url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL });
+  // LOGQUIET-a: one named lock per sweep, on a connection of its own (scheduled-sweeps.mjs);
+  // DC-3: refused while this copy does not hold the leader lease.
+  const lock = leaderGatedLock(
+    worker.createSweepLockDatabase({ url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL }),
+    holds,
+  );
   const api = { UPLOAD_SESSION_SWEEPER, USAGE_RECONCILER, describeSweep, describeReconciliation };
   const scheduler = createSweepScheduler({
     jobs: [...workerSweepJobs(worker, database), ...apiSweepJobs(api, app)],
@@ -559,6 +592,40 @@ async function startScheduledSweeps(env, app, mail) {
       stopJobs?.(),
     ]);
     await Promise.all([database.end(), jobsDatabase.end(), lock.end()]);
+  };
+}
+
+/**
+ * DC-3 / RT-3. The leader lease on a one-connection pool of its own (ST-5: a long sweep never
+ * holds the connection a renewal needs). `onLeader` starts the duties the first time this copy
+ * leads, with the gate every pass must ask; until then (and whenever it does not lead) this copy
+ * serves web traffic only.
+ */
+async function startLeadership(env, onLeader) {
+  const worker = await import('@tmanage/worker');
+  const database = worker.createWorkerDatabase({
+    url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
+    connectionLimit: 1,
+    statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
+    onConnectionError: (error) => log(`lease connection rejected: ${serializeForLog(error)}`),
+  });
+  const store = worker.createLeaseStoreDatabase(database);
+  const lease = worker.createLeaderLease({ store, holder: worker.newLeaseHolder() });
+  log(`instance ${lease.holder} is pid ${String(process.pid)}`);
+  const leadership = createLeadership({
+    lease,
+    intervalMs: worker.LEADER_LEASE_RENEW_MS,
+    log,
+    describeError: serializeForLog,
+    onLeader: () => onLeader(() => leadership.holds()),
+  });
+  await leadership.start();
+  return {
+    dutiesStarted: () => leadership.dutiesStarted(),
+    async stop() {
+      await leadership.stop();
+      await store.end();
+    },
   };
 }
 
@@ -617,7 +684,8 @@ async function main() {
   });
   // 56-17. RFC 9116 security.txt, served whatever the boot state (no dependency).
   const securityTxt = createSecurityTxtHandler(process.env);
-  const server = createHttpServer((req, res) => {
+  // ST-3: explicit request, headers and keep-alive limits for the hop behind Hostinger's proxy.
+  const server = createPublicServer((req, res) => {
     if (state.ready && isCspReportPath(req.url)) cspReport(req, res);
     else if (isSecurityTxtPath(req.url)) securityTxt(req, res);
     else publicHandler(req, res);
@@ -644,6 +712,8 @@ async function main() {
   /** GROWTH-FIX: the relay's mail, shared with the scheduled jobs; `undefined` without a relay. */
   let jobMail;
   let stopSweeps;
+  /** DC-3: the leader lease, once background duties are configured. */
+  let leadership;
   // A signal during the migrations waits for the file in progress (bounded) before exiting.
   const migrationGate = createMigrationGate({ log });
   const shutdown = (signal) => {
@@ -663,9 +733,14 @@ async function main() {
     void (async () => {
       try {
         await migrationGate.settle();
+        // Duties still starting are let finish starting, so they can be stopped below.
+        await leadership?.dutiesStarted();
         // The sweeps first: their jobs mail through the relay's transport and pool.
         await stopSweeps?.();
         await stopWorker?.();
+        // DC-3: hand the lease over only after the duties stopped, so the next copy leads at once
+        // without overlapping this one.
+        await leadership?.stop();
         await app?.close();
       } finally {
         process.exit(0);
@@ -719,19 +794,27 @@ async function main() {
       log(`ready on :${port} (web via ${describeWebTransport(transport)}, /v1 API in-process)`);
     },
     startBackground: async () => {
-      if (process.env['WORKER_INPROCESS'] === '1') {
-        stopWorker = await startInProcessWorker(
-          env,
-          (realtime) => {
-            realtimeServer = realtime;
-          },
-          (mail) => {
-            jobMail = mail;
-          },
-        );
-      }
-      if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env, app, jobMail);
-      else log('scheduled sweeps off (SWEEPS_INPROCESS)');
+      const relayOn = process.env['WORKER_INPROCESS'] === '1';
+      const sweepsOn = sweepsEnabled(process.env);
+      if (!sweepsOn) log('scheduled sweeps off (SWEEPS_INPROCESS)');
+      if (!relayOn && !sweepsOn) return;
+      // DC-3 / RT-3: only the copy holding the leader lease runs the relay, sweeps and jobs;
+      // every copy serves web traffic. Started once, the first time this copy leads.
+      leadership = await startLeadership(env, async (holds) => {
+        if (relayOn) {
+          stopWorker = await startInProcessWorker(
+            env,
+            (realtime) => {
+              realtimeServer = realtime;
+            },
+            (mail) => {
+              jobMail = mail;
+            },
+            holds,
+          );
+        }
+        if (sweepsOn) stopSweeps = await startScheduledSweeps(env, app, jobMail, holds);
+      });
     },
   });
 }

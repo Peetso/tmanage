@@ -645,8 +645,8 @@ export class SessionService {
           this.refreshCookieAttributes(remainingSeconds),
         ),
         // The one readable cookie — see `serializeReadableCookie` and ADR-0004. It is scoped
-        // and aged exactly like the access cookie so that a client never holds a CSRF token
-        // for a session whose access cookie has already gone.
+        // like the access cookie but aged like the refresh cookie (to the session's absolute
+        // deadline), so a refreshable session keeps its CSRF token after the access cookie expires.
         serializeReadableCookie(
           this.options.csrfCookieName,
           csrfToken,

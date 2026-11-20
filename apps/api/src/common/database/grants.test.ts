@@ -223,6 +223,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // `member_reporting_lines`, and the three flag tables that gate it per company.
     // ---- 62-A3 / 62-A1c ---- +3: the growth rollup reads `ai_tasks` and `ai_usage_ledger`, and
     // the digest briefing reads `membership_permission_overrides`.
+    // ---- DC-3 0384 ---- +1: the leader lease reads `runtime_leases` where it claims it.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -262,7 +263,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         27 +
         4 +
         9 +
-        3,
+        3 +
+        1,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

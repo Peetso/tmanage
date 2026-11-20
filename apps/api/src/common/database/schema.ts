@@ -15144,3 +15144,27 @@ Object.assign(TABLES, {
   ai_workspace_settings: aiWorkspaceSettings,
   ai_credit_packs: aiCreditPacks,
 });
+
+// ---- DC-3 / RT-3 · lane K · leader lease ----
+
+/**
+ * 0384 `runtime_leases`. One row per singleton duty set (today only `leader`: the copy of the
+ * single Hostinger app that runs the in-process relay, the sweeps and the scheduled jobs). GLOBAL
+ * (NON_TENANT_TABLES): a lease is about the process, never a tenant. Written only by the worker
+ * credential (`apps/worker/src/common/database/runtime-lease-store.ts`); `/healthz/deep` reads
+ * the holder tag.
+ */
+export const runtimeLeases = mysqlTable('runtime_leases', {
+  name: varchar('name', { length: 64 }).primaryKey(),
+  holder: varchar('holder', { length: 64 }).notNull().default(''),
+  generation: bigint('generation', { mode: 'number', unsigned: true }).notNull().default(0),
+  acquiredAt: datetime('acquired_at', { mode: 'date', fsp: 3 }),
+  renewedAt: datetime('renewed_at', { mode: 'date', fsp: 3 }),
+  expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+});
+
+export type RuntimeLeaseRow = typeof runtimeLeases.$inferSelect;
+
+Object.assign(TABLES, {
+  runtime_leases: runtimeLeases,
+});

@@ -1597,6 +1597,10 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // 0351. The versioned plan ladder (price, limits, features per version). GLOBAL: a plan belongs
   // to no organization. Platform admins write it and every read goes through `identityRead`.
   'plan_versions',
+  // ---- DC-3 / RT-3 (lane K) ----
+  // 0384. The leader lease of the single Hostinger app. GLOBAL: about the process, never a tenant.
+  // Written only on the worker credential; `/healthz/deep` reads it through `identityRead`.
+  'runtime_leases',
 ]);
 
 export function isTenantTable(name: string): boolean {

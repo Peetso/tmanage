@@ -245,6 +245,10 @@ describe('the grants and the schema agree', () => {
       ai_credit_packs:
         '62-05 0383 no write path yet: the API only reads it (database-wide read); the slice that ' +
         'grants or spends packs adds the write grant with the code',
+      // ---- DC-3 0384 ----
+      runtime_leases:
+        'DC-3 0384 worker-written only: the leader lease is claimed, renewed and released on the ' +
+        'worker credential; the API only reads the holder tag for /healthz/deep (database-wide read)',
     };
     for (const table of schemaTables) {
       const writable = privilegesOn('tmanage_app', table);

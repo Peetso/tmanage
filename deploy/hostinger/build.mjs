@@ -855,6 +855,10 @@ export const SERVER_FILES = Object.freeze([
   'page-limit.mjs',
   // server.mjs imports the Platform admin page gate (PLATFORMFIX) from here; missing it, boot fails.
   'platform-gate.mjs',
+  // server.mjs imports the leader lease loop (DC-3 / RT-3) from here; missing it, boot fails.
+  'leadership.mjs',
+  // server.mjs imports the public server's timeouts (ST-3) from here; missing it, boot fails.
+  'server-timeouts.mjs',
 ]);
 
 function assemble() {
