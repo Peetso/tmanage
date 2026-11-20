@@ -57,10 +57,29 @@ export function composeAppModule(env: Env): DynamicModule {
       // ADR-0001 layer 3. The event carries a redacted statement shape and never a bound
       // value; OBS-001 routes it through the field-level redactor (`serializeForLog`) so any
       // future field a guard event grows cannot become a secret in the log, and later to the
-      // metric and the alert. LOGQUIET-b: an audited escape once per fingerprint per start.
-      onGuardEvent: createGuardEventLog((event) => {
-        console.warn('[tenant-guard]', serializeForLog(event));
-      }),
+      // metric and the alert. LOGQUIET-b / QA-FIX-R: a violation is written every time; an
+      // audited escape once per statement per start, its repeats only at LOG_LEVEL=debug. The
+      // process has no leveled logger yet (OBS-001; lint allows console.warn/error only), so
+      // "debug" is the LOG_LEVEL gate on the sink, not a console method.
+      onGuardEvent: createGuardEventLog(
+        (event) => {
+          console.warn('[tenant-guard]', serializeForLog(event));
+        },
+        {
+          ...(env.LOG_LEVEL === 'debug' || env.LOG_LEVEL === 'trace'
+            ? {
+                debug: (event) => {
+                  console.warn('[tenant-guard] debug repeat', serializeForLog(event));
+                },
+              }
+            : {}),
+          capReached: (cap) => {
+            console.warn(
+              `[tenant-guard] ${String(cap)} distinct audited escapes seen; further ones only at LOG_LEVEL=debug`,
+            );
+          },
+        },
+      ),
     }),
     mailer: MailerModule.forConfig({
       driver: env.EMAIL_DRIVER,
