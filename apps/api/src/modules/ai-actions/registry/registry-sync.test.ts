@@ -240,7 +240,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // public/trial-invites/:token (+1 NEVER, signup) and six platform/outreach routes (+6 NEVER).
 // 62-07: GET ai/credits and POST ai/credits/pack-requests (+2 NEVER, ai_credits); the platform AI
 // test list, entry, pack grant and request decline (+4 NEVER, platform_admin).
-const EXPECTED_ROUTE_COUNT = 1574;
+// 62-08: platform settings AI budget GET/PUT, pause, resume, reserve-release (+5 NEVER, platform_admin).
+const EXPECTED_ROUTE_COUNT = 1579;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

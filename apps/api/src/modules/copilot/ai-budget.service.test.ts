@@ -27,6 +27,7 @@ import {
   type AiBudgetStore,
   type AiPackTopUp,
 } from './ai-budget.service.js';
+import { poolCapsMicroUsd } from './ai-tiers.js';
 import type { AiPool, AiSpendingPool, AiWorkspaceStanding } from './ai-tiers.js';
 
 /**
@@ -1028,5 +1029,28 @@ describe('62-07 credit packs after the allowance, 62-08 caps and the Sonnet swit
       true,
     );
     expect(env.store.state.pools.get(`customers|${PERIOD}`)?.cap).toBe(50_000);
+  });
+
+  it('refuses every call while the platform admin pause stands, and holds nothing', async () => {
+    let paused = true;
+    const settings: AiBudgetSettingsSource = {
+      current: async () => ({
+        poolCapsMicroUsd: poolCapsMicroUsd(100_000_000),
+        sonnetEnabled: true,
+        paused,
+      }),
+    };
+    const env = setup({ settings });
+    const task = value(
+      await env.service.openTask(env.ctx, { tier: 'low', activity: 'tasks', allowance: ALLOWANCE }),
+    );
+    expect(
+      reason(await env.service.reserveCall(env.ctx, { taskId: task.taskId, ...SMALL_CALL })),
+    ).toBe('platform_paused');
+    expect(env.store.state.pools.get(`customers|${PERIOD}`)?.reserved ?? 0).toBe(0);
+    paused = false;
+    expect(
+      (await env.service.reserveCall(env.ctx, { taskId: task.taskId, ...SMALL_CALL })).ok,
+    ).toBe(true);
   });
 });

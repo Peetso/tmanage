@@ -329,6 +329,14 @@ const EXEMPT = new Map([
     'AiPackGrantView',
     'No web consumer yet: 62-07 `POST /v1/platform/ai/test-list/:organizationId/packs`; the grant dialog is slice 62-19.',
   ],
+  [
+    'AiBudgetView',
+    'No web consumer yet: 62-08 `GET/PUT /v1/platform/settings/ai-budget` and its actions; the screen is slice 62-19.',
+  ],
+  [
+    'AiBudgetPoolView',
+    'No web consumer yet: 62-08 the pools of `AiBudgetView`; the screen is slice 62-19.',
+  ],
 ]);
 
 /**

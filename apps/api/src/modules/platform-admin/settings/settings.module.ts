@@ -52,6 +52,8 @@ import {
   PlatformUnitCostsController,
 } from './unit-costs.controller.js';
 import { UnitCostsService } from './unit-costs.service.js';
+import { PLATFORM_AI_BUDGET_SERVICE, PlatformAiBudgetController } from './ai-budget.controller.js';
+import { AiBudgetSettingsService } from './ai-budget.service.js';
 import {
   PLATFORM_OUTREACH_SERVICE,
   PlatformOutreachController,
@@ -157,6 +159,16 @@ export class PlatformSettingsModule {
           useFactory: (database: TenantDatabase) =>
             new UnitCostsService(new PlatformSettingsRepository(database)),
         },
+        // ---- 62-08 AI BUDGET ---- pool caps, Sonnet switch, pause/resume, reserve release.
+        {
+          provide: PLATFORM_AI_BUDGET_SERVICE,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new AiBudgetSettingsService({
+              database,
+              store: new PlatformSettingsRepository(database),
+            }),
+        },
       ],
       controllers: [
         PlatformSettingsController,
@@ -167,6 +179,7 @@ export class PlatformSettingsModule {
         PlatformMailPeopleController,
         PlatformPersonMailController,
         PlatformUnitCostsController,
+        PlatformAiBudgetController,
       ],
     };
   }

@@ -1359,6 +1359,16 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/platform/ai/test-list/:organizationId/pack-requests/:requestId/decline',
     reason: 'platform_admin',
   },
+  // 62-08. Platform settings → AI budget: caps, Sonnet switch, pause/resume, reserve release.
+  { method: 'GET', path: '/v1/platform/settings/ai-budget/', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/settings/ai-budget/', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/settings/ai-budget/pause', reason: 'platform_admin' },
+  { method: 'POST', path: '/v1/platform/settings/ai-budget/resume', reason: 'platform_admin' },
+  {
+    method: 'POST',
+    path: '/v1/platform/settings/ai-budget/reserve-release',
+    reason: 'platform_admin',
+  },
   // 55-14. Client portal magic-link sign-in: anonymous request, code, preview, consume, not-you.
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },

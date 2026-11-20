@@ -146,6 +146,11 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.ai_pool_class_changed',
   'platform.ai_pack_granted',
   'platform.ai_pack_request_declined',
+  // ---- 62-08 AI budget settings (caps, Sonnet switch, pause, reserve release) ----
+  'platform.ai_budget_updated',
+  'platform.ai_paused',
+  'platform.ai_resumed',
+  'platform.ai_reserve_released',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

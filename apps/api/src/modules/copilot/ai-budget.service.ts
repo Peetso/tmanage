@@ -201,6 +201,8 @@ export interface AiBudgetSettings {
   readonly poolCapsMicroUsd: Readonly<Record<AiPool, number>>;
   /** The Sonnet switch: off = no Sonnet call from the customer pool (the testing pool keeps it). */
   readonly sonnetEnabled: boolean;
+  /** 62-08: the platform admin's standing pause — no model call from any pool until resumed. */
+  readonly paused?: boolean;
 }
 
 export interface AiBudgetSettingsSource {
@@ -439,6 +441,7 @@ export class AiBudgetService {
         throw new Refused('tier_ceiling');
       }
 
+      if (settings.paused === true) throw new Refused('platform_paused');
       const period = periodStartOf(now);
       await this.store.ensurePoolPeriod(tx, {
         id: this.newId(),

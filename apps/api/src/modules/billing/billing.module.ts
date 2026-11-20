@@ -42,6 +42,7 @@ import {
 import { PlanVersionsRepository } from './plan-versions.repository.js';
 import { PlanVersionsService } from './plan-versions.service.js';
 import { platformAdminCore } from '../platform-admin/platform-admin-core.module.js';
+import { PlatformAiBudgetSettings } from '../platform-admin/settings/ai-budget.js';
 import { AiAllowanceService } from './ai-allowance.service.js';
 import { AI_PACKS_SERVICE, AiCreditsController } from './ai-packs.controller.js';
 import { AiPacksService } from './ai-packs.service.js';
@@ -152,7 +153,11 @@ export class BillingModule {
       useFactory: (database: TenantDatabase, audit: AuditService) =>
         new AiPacksService({
           database,
-          allowance: new AiAllowanceService({ database }),
+          allowance: new AiAllowanceService({
+            database,
+            // 62-08: the platform admin's pool caps, else the env split.
+            poolCapMicroUsd: new PlatformAiBudgetSettings().poolCapMicroUsd,
+          }),
           audit,
         }),
     };
