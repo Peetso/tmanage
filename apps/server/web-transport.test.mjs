@@ -5,12 +5,13 @@ import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:f
 import { createServer, request } from 'node:http';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
-import { clearTimeout } from 'node:timers';
+import { clearTimeout, setImmediate } from 'node:timers';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { createUpgradeHandler } from './realtime-inprocess.mjs';
 import {
+  becomeReady,
   bindProxyLifetimes,
   cleanupWebTransport,
   createPublicHandler,
@@ -108,7 +109,7 @@ test('the transport: socket under the app dir by default, named pipe on Windows,
   const root = '/home/u1/domains/tmanage.example.com/nodejs';
   assert.deepEqual(resolveWebTransport({ env: {}, platform: 'linux', root, publicPort: 3000 }), {
     kind: 'socket',
-    path: join(root, '.run', 'web.sock'),
+    path: join(root, '.run', `web-${process.pid}.sock`),
     dir: join(root, '.run'),
     temp: false,
   });
@@ -201,6 +202,50 @@ test('prepare makes the directory 0700 and removes a stale socket; cleanup remov
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('DC-3 / RT-2: two overlapping instances each own their socket; neither removes the other', () => {
+  const root = mkdtempSync(join(tmpdir(), 'tm-wt2-'));
+  const alive = new Set([101, 202]);
+  const isAlive = (pid) => alive.has(pid);
+  try {
+    const at = (pid) =>
+      resolveWebTransport({ env: {}, platform: 'linux', root, publicPort: 3000, pid });
+    const a = prepareWebTransport(at(101), { pid: 101, isAlive });
+    writeFileSync(a.path, 'A listening');
+    const b = prepareWebTransport(at(202), { pid: 202, isAlive });
+    assert.notEqual(a.path, b.path);
+    assert.equal(existsSync(a.path), true, 'B booting must not unlink A');
+    writeFileSync(b.path, 'B listening');
+    cleanupWebTransport(a);
+    assert.equal(existsSync(b.path), true, 'A exiting must not unlink B');
+    // A crashed earlier without cleanup: the next boot clears a dead pid's socket only.
+    writeFileSync(a.path, 'A left behind');
+    alive.delete(101);
+    prepareWebTransport(at(303), { pid: 303, isAlive });
+    assert.equal(existsSync(a.path), false);
+    assert.equal(existsSync(b.path), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('RT-4: ready as soon as the web answers; a slow worker start does not hold readiness', async () => {
+  const order = [];
+  let releaseWorker;
+  const booting = becomeReady({
+    startWeb: async () => order.push('web'),
+    markReady: () => order.push('ready'),
+    startBackground: () =>
+      new Promise((resolveWorker) => {
+        order.push('worker starting');
+        releaseWorker = resolveWorker;
+      }),
+  });
+  await new Promise((tick) => setImmediate(tick));
+  assert.deepEqual(order, ['web', 'ready', 'worker starting']);
+  releaseWorker();
+  await booting;
 });
 
 test('the web child gets the public configuration the bundle build inlined, unless the panel sets it', () => {

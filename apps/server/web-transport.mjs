@@ -20,11 +20,13 @@ import {
   createReadStream,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   rmSync,
   statSync,
   unlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import process from 'node:process';
 import { join, resolve } from 'node:path';
 
 import { downloadFor, isApiPath } from './boot-guards.mjs';
@@ -40,8 +42,16 @@ export const STARTING_BODY = '{"status":"starting"}';
  */
 export const MAX_SOCKET_PATH = 100;
 
-/** The socket's file name inside its private directory. */
-const SOCKET_NAME = 'web.sock';
+/**
+ * The socket's file name inside its private directory: one per process (RT-2, DC-3). Two
+ * instances of this app can overlap (a restart, or an on-demand spawn while one still runs); a
+ * shared `web.sock` let the new one unlink the old one's socket and the old one's exit unlink the
+ * new one's, so one of them answered 502. With the pid in the name each instance owns its file.
+ */
+export function socketNameFor(pid) {
+  return `web-${pid}.sock`;
+}
+const SOCKET_NAME_PATTERN = /^web-(\d+)\.sock$/;
 
 /**
  * Decide how the parent reaches the web child.
@@ -49,7 +59,7 @@ const SOCKET_NAME = 'web.sock';
  * - `TMANAGE_WEB_TRANSPORT=tcp` (local development only): loopback TCP on WEB_INTERNAL_PORT,
  *   default PORT + 1 — the pre-hotfix behaviour.
  * - Windows: a named pipe with an unguessable name (`\\.\pipe\tmanage-web-<random>`).
- * - Otherwise: `<app dir>/.run/web.sock`, or TMANAGE_WEB_SOCKET when set. When the app-dir path
+ * - Otherwise: `<app dir>/.run/web-<pid>.sock`, or TMANAGE_WEB_SOCKET when set. When the app-dir path
  *   would exceed the socket-path limit, a fresh 0700 directory under the OS temp dir is used
  *   instead (created at prepare time), so a deep install path never stops the boot.
  *
@@ -57,7 +67,7 @@ const SOCKET_NAME = 'web.sock';
  *           { kind: 'pipe', path: string } |
  *           { kind: 'socket', path: string | undefined, dir: string | undefined, temp: boolean }}
  */
-export function resolveWebTransport({ env, platform, root, publicPort }) {
+export function resolveWebTransport({ env, platform, root, publicPort, pid = process.pid }) {
   const mode = (env['TMANAGE_WEB_TRANSPORT'] ?? '').trim().toLowerCase();
   if (mode === 'tcp') {
     const port = Number(env['WEB_INTERNAL_PORT'] ?? publicPort + 1);
@@ -81,7 +91,7 @@ export function resolveWebTransport({ env, platform, root, publicPort }) {
     return { kind: 'socket', path, dir: undefined, temp: false };
   }
   const dir = join(root, '.run');
-  const path = join(dir, SOCKET_NAME);
+  const path = join(dir, socketNameFor(pid));
   if (Buffer.byteLength(path) <= MAX_SOCKET_PATH) {
     return { kind: 'socket', path, dir, temp: false };
   }
@@ -89,22 +99,64 @@ export function resolveWebTransport({ env, platform, root, publicPort }) {
 }
 
 /**
- * Make the socket's directory private and clear a socket a previous run left behind. Returns the
- * transport with its final path (the temp fallback only gets one here).
+ * Make the socket's directory private and clear sockets left behind: this process's own path,
+ * and in the shared `.run` directory every `web-<pid>.sock` whose process is gone. A live
+ * instance's socket is never touched (RT-2). Returns the transport with its final path (the temp
+ * fallback only gets one here).
  */
-export function prepareWebTransport(transport) {
+export function prepareWebTransport(
+  transport,
+  { pid = process.pid, isAlive = processIsAlive } = {},
+) {
   if (transport.kind !== 'socket') return transport;
   let { path, dir } = transport;
   if (transport.temp) {
     dir = mkdtempSync(join(tmpdir(), 'tmanage-web-'));
-    path = join(dir, SOCKET_NAME);
+    path = join(dir, socketNameFor(pid));
   } else if (dir) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
+    removeDeadSockets(dir, pid, isAlive);
   }
   // mkdir's mode is masked by the umask, and an existing directory keeps its old mode.
   if (dir) chmodSync(dir, 0o700);
   removeQuietly(path);
   return { ...transport, path, dir };
+}
+
+/**
+ * RT-4: an instance is ready when the API and the web child answer. Background duties (the
+ * in-process relay, the scheduled sweeps) start only after `markReady`, so a slow worker start no
+ * longer stretches the 503 "starting" window; their health is reported by `/healthz/deep`.
+ */
+export async function becomeReady({ startWeb, markReady, startBackground }) {
+  await startWeb();
+  markReady();
+  await startBackground();
+}
+
+/** True unless the OS says no such process (EPERM means it exists under another account). */
+export function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== 'ESRCH';
+  }
+}
+
+function removeDeadSockets(dir, ownPid, isAlive) {
+  let names = [];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    const match = SOCKET_NAME_PATTERN.exec(name);
+    if (!match) continue;
+    const pid = Number(match[1]);
+    if (pid !== ownPid && !isAlive(pid)) removeQuietly(join(dir, name));
+  }
 }
 
 /** Remove the socket file (and a temp directory this run created). Safe to call twice. */

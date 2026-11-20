@@ -105,6 +105,7 @@ import { WEB_HEALTHY_MS, webRestartDelayMs } from './web-restart.mjs';
 import { createPlatformGate, isPlatformPath } from './platform-gate.mjs';
 import {
   bindProxyLifetimes,
+  becomeReady,
   cleanupWebTransport,
   createPublicHandler,
   describeWebTransport,
@@ -709,24 +710,30 @@ async function main() {
   });
   // The port the child is told to use: real on TCP, nominal (never bound) on a socket.
   const nominalPort = transport.kind === 'tcp' ? transport.port : port + 1;
-  await startWeb(transport, nominalPort);
-
-  if (process.env['WORKER_INPROCESS'] === '1') {
-    stopWorker = await startInProcessWorker(
-      env,
-      (realtime) => {
-        realtimeServer = realtime;
-      },
-      (mail) => {
-        jobMail = mail;
-      },
-    );
-  }
-  if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env, app, jobMail);
-  else log('scheduled sweeps off (SWEEPS_INPROCESS)');
-
-  state.ready = { fastify: api.fastify };
-  log(`ready on :${port} (web via ${describeWebTransport(transport)}, /v1 API in-process)`);
+  // RT-4 (SRV-2): ready once the API and the web child answer; the relay and the sweeps start
+  // after, so a slow worker never lengthens the 503 window.
+  await becomeReady({
+    startWeb: () => startWeb(transport, nominalPort),
+    markReady: () => {
+      state.ready = { fastify: api.fastify };
+      log(`ready on :${port} (web via ${describeWebTransport(transport)}, /v1 API in-process)`);
+    },
+    startBackground: async () => {
+      if (process.env['WORKER_INPROCESS'] === '1') {
+        stopWorker = await startInProcessWorker(
+          env,
+          (realtime) => {
+            realtimeServer = realtime;
+          },
+          (mail) => {
+            jobMail = mail;
+          },
+        );
+      }
+      if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env, app, jobMail);
+      else log('scheduled sweeps off (SWEEPS_INPROCESS)');
+    },
+  });
 }
 
 main().catch((error) => {
