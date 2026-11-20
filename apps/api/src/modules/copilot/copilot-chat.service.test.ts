@@ -166,6 +166,7 @@ function setup(
       copilotFlag: true,
       writeScope: 'read',
       poolClass: 'customers',
+      runAtOnce: false,
       ...options.standing,
     }),
     allowance: async () => ({ workspaceCredits: 1000, memberCredits: 1000 }),
