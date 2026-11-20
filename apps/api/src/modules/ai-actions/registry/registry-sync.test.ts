@@ -236,7 +236,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // (+2 NEVER, platform_admin).
 // AUTHSTATE: GET sessions/current, the shared session check (+1 NEVER, session).
 // QA-FIX-O H1: POST deliverables/:id/approvals/:approvalId/resend-email (+1 op, confirm).
-const EXPECTED_ROUTE_COUNT = 1560;
+// LANE-Q: POST public/walkthrough-requests (+1 NEVER, public_site).
+const EXPECTED_ROUTE_COUNT = 1561;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

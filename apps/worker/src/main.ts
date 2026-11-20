@@ -220,6 +220,8 @@ function sendersFrom(env: Env, driver: Mailer): Mailer | ReceiptMailer {
       password: env.SMTP_SUPPORT_PASS,
       address: CONTACT_EMAILS.support,
     },
+    // LANE-Q: a queued walkthrough request (identity 'sales') leaves through sales@ itself.
+    sales: { address: CONTACT_EMAILS.sales },
   });
 }
 

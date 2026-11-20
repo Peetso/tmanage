@@ -25,6 +25,7 @@ export const WEBSITE_TITLE_KEYS: Readonly<Record<string, string>> = {
   Changelog: 'WebsiteTitle.changelog',
   'Client portal': 'WebsiteTitle.clientPortal',
   'Book a demo': 'WebsiteTitle.contact',
+  'Book a walkthrough': 'WebsiteTitle.walkthrough',
   'Customers & stories': 'WebsiteTitle.customers',
   Developers: 'WebsiteTitle.developers',
   Download: 'WebsiteTitle.download',

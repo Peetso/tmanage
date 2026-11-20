@@ -69,6 +69,8 @@ export interface SenderResolverOptions {
     readonly hello: string;
     readonly support: string;
     readonly noreply: string;
+    /** LANE-Q: sales@; absent = the walkthrough request leaves as noreply's "TManage Sales". */
+    readonly sales?: string;
   };
   readonly directory?: SenderDirectory | undefined;
   /**
@@ -102,6 +104,7 @@ const WORDS = {
   en: {
     security: 'TManage Security',
     support: 'TManage Support',
+    sales: 'TManage Sales',
     team: 'The TManage team',
     from: (name: string) => `${name} from TManage`,
     via: (workspace: string) => `${workspace} via TManage`,
@@ -114,6 +117,7 @@ const WORDS = {
   ar: {
     security: 'أمان TManage',
     support: 'دعم TManage',
+    sales: 'مبيعات TManage',
     team: 'فريق TManage',
     from: (name: string) => `${name} من TManage`,
     via: (workspace: string) => `${workspace} عبر TManage`,
@@ -277,6 +281,8 @@ export class SenderResolvingMailer implements Mailer {
         return this.mailbox('TManage', hello, 'hello');
       case 'support':
         return this.mailbox(words.support, support, 'support');
+      case 'sales':
+        return this.sales(message, words.sales);
       case 'person': {
         const person =
           message.personRef === undefined
@@ -301,6 +307,18 @@ export class SenderResolvingMailer implements Mailer {
       case 'security':
         return this.noreply(words.security);
     }
+  }
+
+  /**
+   * LANE-Q. sales@ writes to the sales team about a visitor's request. The producer's Reply-To
+   * (the visitor's own address, server-checked) survives only as one plain address, so the team
+   * answers the visitor with Reply; anything else replies to sales@ itself.
+   */
+  private sales(message: MailMessage, name: string): Identity {
+    const address = this.options.addresses.sales;
+    const base = address === undefined ? this.noreply(name) : this.mailbox(name, address, 'sales');
+    const reply = message.replyTo?.trim();
+    return reply !== undefined && REPLY_ADDRESS.test(reply) ? { ...base, replyTo: reply } : base;
   }
 
   private workspace(message: MailMessage, language: MailLanguage): Identity {
@@ -330,7 +348,8 @@ export class SenderResolvingMailer implements Mailer {
   ): Promise<MailPerson | null> {
     const directory = this.options.directory;
     if (directory === undefined) return null;
-    const who = ref.kind === 'test' ? `test:${ref.personId}` : `${ref.userId}:${ref.topic}`;
+    const who =
+      ref.kind === 'assigned' ? `${ref.userId}:${ref.topic}` : `${ref.kind}:${ref.personId}`;
     const key = `${organizationId ?? '-'}:${who}:${language}`;
     const at = this.now();
     const cached = this.cache.get(key);

@@ -348,6 +348,7 @@ export const FOOTER_COLUMNS: readonly WebFooterColumn[] = [
       { label: 'SiteNav.customers', href: '/customers' },
       { label: 'SiteNav.careers', href: '/about#careers' },
       { label: 'SiteNav.contactSales', href: '/contact' },
+      { label: 'SiteNav.bookWalkthrough', href: '/walkthrough' },
       { label: 'SiteNav.pressKit', href: '/about#press' },
       // 57-08 (REFERRAL): how a workspace owner invites another company.
       { label: 'SiteNav.referral', href: '/referral' },

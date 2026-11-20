@@ -67,6 +67,12 @@ export const ROTATION_TARGETS = {
     column: 'reporter_email_enc',
     owner: 'id',
   },
+  /** LANE-Q 0388: the writer is `walkthrough.service.ts` (purpose `walkthrough_email`, owner = row id). */
+  walkthrough_email: {
+    table: 'walkthrough_requests',
+    column: 'email_enc',
+    owner: 'id',
+  },
   /** 52-12 (R22-a): the writer is `einvoicing-certificate.controller.ts` (purpose `org_secret`, owner = row id). */
   /** R23-c: `key_version` is stamped with the new key id, so the platform keys page stays true. */
   org_secret: {

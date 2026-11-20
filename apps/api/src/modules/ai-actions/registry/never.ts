@@ -1402,6 +1402,8 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/security-reports/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/security-reports/:id', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/security-reports/:id', reason: 'platform_admin' },
+  // LANE-Q. The public "Book a walkthrough" door: a visitor's own request, never the AI's.
+  { method: 'POST', path: '/v1/public/walkthrough-requests/', reason: 'public_site' },
   // 56-11. Audit chain integrity, catalog and signed export head: security evidence, not for AI.
   {
     method: 'GET',

@@ -5054,3 +5054,8 @@ type _signalSettings = Assert<Exact<ApiSignalSettingsView, WebSignalSettingsView
 import type { UnitCostsView as ApiUnitCostsView } from '../../apps/api/src/modules/platform-admin/settings/unit-costs.service.js';
 import type { UnitCostsView as WebUnitCostsView } from '../../apps/web/src/lib/api/platform-unit-costs.js';
 type _unitCosts = Assert<Exact<ApiUnitCostsView, WebUnitCostsView>>;
+
+// ---- LANE-Q BOOK A WALKTHROUGH · public site /walkthrough ----
+import type { WalkthroughSubmitView as ApiWalkthroughSubmitView } from '../../apps/api/src/modules/outreach/walkthrough.controller.js';
+import type { WalkthroughSubmitView as WebWalkthroughSubmitView } from '../../apps/web/src/lib/api/walkthrough.js';
+type _walkthroughSubmit = Assert<Exact<ApiWalkthroughSubmitView, WebWalkthroughSubmitView>>;

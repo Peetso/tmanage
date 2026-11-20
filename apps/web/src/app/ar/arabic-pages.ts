@@ -26,6 +26,7 @@ import SolutionsAgenciesRoute from '../(website)/solutions/agencies/page';
 import SolutionsConsultanciesRoute from '../(website)/solutions/consultancies/page';
 import SolutionsInHouseRoute from '../(website)/solutions/in-house/page';
 import StatusRoute from '../(website)/status/page';
+import WalkthroughRoute from '../(website)/walkthrough/page';
 import type { PublicLocalizedPath } from '../../lib/i18n/public-locale-routes';
 
 /**
@@ -62,4 +63,5 @@ export const ARABIC_PAGES: Readonly<Record<PublicLocalizedPath, ComponentType>> 
   '/solutions/consultancies': SolutionsConsultanciesRoute,
   '/solutions/in-house': SolutionsInHouseRoute,
   '/status': StatusRoute,
+  '/walkthrough': WalkthroughRoute,
 };

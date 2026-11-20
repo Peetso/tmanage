@@ -161,6 +161,8 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'POST /v1/public/forms/:slug/uploads/:uploadSessionId/complete': 'named',
   'POST /v1/public/forms/:slug/uploads/:uploadSessionId/cancel': 'named',
   'POST /v1/public/security-reports/': 'named',
+  // LANE-Q: "Book a walkthrough" (durable per-address budget, honeypot, 52-21 assess).
+  'POST /v1/public/walkthrough-requests/': 'named',
   // R16-e (54-10): GitHub repository webhook delivery — HMAC per hook, per-hook throttle.
   'POST /v1/public/integrations/github/:hookId': 'named',
   // 53-14 calendar sync: provider push notifications (verified against the hashed channel secret

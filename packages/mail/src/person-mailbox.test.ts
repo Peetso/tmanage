@@ -209,7 +209,9 @@ describe('PERSONMAIL — one shared mailbox password, every mailbox signs in as 
 
   it('no other template ever signs in as a person mailbox', async () => {
     const h = harness();
-    for (const templateKey of TEMPLATE_KEYS.filter((key) => key !== 'tip')) {
+    // LANE-Q: `campaign_intro` is the other person template (a teammate's own outreach mail).
+    const personal = new Set(['tip', 'campaign_intro']);
+    for (const templateKey of TEMPLATE_KEYS.filter((key) => !personal.has(key))) {
       const { optional: _optional, ...required } = tip;
       await h.resolver.send({ ...required, templateKey });
     }

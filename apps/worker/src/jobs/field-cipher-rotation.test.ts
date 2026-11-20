@@ -76,6 +76,22 @@ describe('key rotation job (56-02)', () => {
     expect(aads[0]).toEqual({ purpose: 'reporter_email', ownerId: '498' });
   });
 
+  it('walks walkthrough_requests.email_enc with the writer AAD (LANE-Q 0388)', async () => {
+    expect(isRotationPurpose('walkthrough_email')).toBe(true);
+    const { s } = store('0497', '2', 'walkthrough_email');
+    const tables: string[] = [];
+    const read = s.readBatch;
+    s.readBatch = async (t, after, limit) => (
+      tables.push(`${t.table}.${t.column}`),
+      read(t, after, limit)
+    );
+    const aads: unknown[] = [];
+    const rotate = (v: string, aad: unknown) => (aads.push(aad), cipher.rotate(v));
+    await runKeyRotation({ store: s, cipher: { ...cipher, rotate } });
+    expect(tables[0]).toBe('walkthrough_requests.email_enc');
+    expect(aads[0]).toEqual({ purpose: 'walkthrough_email', ownerId: '498' });
+  });
+
   it('passes the new key id and the versioned target for org_secret only (R23-c)', async () => {
     const writes: [string | undefined, string][] = [];
     for (const [purpose, after] of [

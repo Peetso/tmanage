@@ -205,6 +205,7 @@ import { ContactModule } from './modules/public-site/contact.module.js';
 import { PublicFormsModule } from './modules/public-forms/public-forms.module.js';
 import { QuotesModule } from './modules/quotes/quotes.module.js';
 import { SecurityReportsModule } from './modules/security-reports/security-reports.module.js';
+import { OutreachPublicModule } from './modules/outreach/outreach.module.js';
 import { SecuritySignalsModule } from './modules/security-signals/security-signals.module.js';
 import { FinanceModule } from './modules/finance/finance.module.js';
 import { TimeModule } from './modules/time/time.module.js';
@@ -1017,6 +1018,9 @@ export class AppModule {
         // 56-17. The anonymous vulnerability report door `POST /v1/public/security-reports`
         // (after `RateLimitsModule`: 52-21's global assess). security.txt is apps/server's.
         SecurityReportsModule.register(),
+        // LANE-Q. "Book a walkthrough" `POST /v1/public/walkthrough-requests` (after
+        // `RateLimitsModule`: 52-21's global assess), mailed to sales@ from sales@.
+        OutreachPublicModule.register(),
         // 56-23. `GET …/admin/security/events` — the organization's own security signals.
         SecuritySignalsModule.register(),
         // 52-23. Settings → Finance: profile, tax rates, manual FX, readiness under `/finance`;

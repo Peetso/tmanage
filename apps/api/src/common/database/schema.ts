@@ -15228,3 +15228,43 @@ export type ApprovalEmailSendRow = typeof approvalEmailSends.$inferSelect;
 Object.assign(TABLES, {
   approval_email_sends: approvalEmailSends,
 });
+
+// ---- LANE-Q · Book a walkthrough ----
+
+/**
+ * 0388 (LANE-Q). One "Book a walkthrough" request from the public site. GLOBAL
+ * (NON_TENANT_TABLES): a visitor belongs to no company. `email_enc` is a FieldCipher envelope
+ * (`walkthrough_email`, owner = id) or NULL on a keyless host. `slots` are three wall-clock
+ * `YYYY-MM-DDTHH:MM` values in `time_zone`; `topics` the chosen keys; both comma-separated and
+ * checked in `outreach/walkthrough-content.ts`.
+ */
+export const walkthroughRequests = mysqlTable(
+  'walkthrough_requests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    reference: varchar('reference', { length: 16 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    emailEnc: varchar('email_enc', { length: 600 }),
+    company: varchar('company', { length: 160 }).notNull(),
+    teamSize: varchar('team_size', { length: 16 }).notNull(),
+    timeZone: varchar('time_zone', { length: 64 }).notNull(),
+    slots: varchar('slots', { length: 80 }).notNull(),
+    topics: varchar('topics', { length: 40 }).notNull(),
+    language: varchar('language', { length: 8 }).notNull().default('en'),
+    source: varchar('source', { length: 32 }),
+    riskDecision: varchar('risk_decision', { length: 16 }).notNull().default('allow'),
+    consentAt: datetime('consent_at', { mode: 'date', fsp: 3 }).notNull(),
+    notifiedAt: datetime('notified_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_walkthrough_requests_reference').on(table.reference),
+    index('ix_walkthrough_requests_created').on(table.createdAt),
+  ],
+);
+
+export type WalkthroughRequestRow = typeof walkthroughRequests.$inferSelect;
+
+Object.assign(TABLES, {
+  walkthrough_requests: walkthroughRequests,
+});

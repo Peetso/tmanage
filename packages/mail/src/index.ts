@@ -191,3 +191,12 @@ export type {
   GtmRollupCsvRow,
   MonthlyGtmReportInput,
 } from './templates/monthly_gtm_report.js';
+// LANE-Q: the outreach campaign's personal trial link (signed, expiring; single use is the row's).
+export {
+  TRIAL_LINK_TTL_MS,
+  deriveTrialLinkKey,
+  readTrialLink,
+  signTrialLink,
+  verifyTrialLink,
+} from './trial-link.js';
+export type { TrialLinkClaim, TrialLinkSubject, TrialLinkVerdict } from './trial-link.js';

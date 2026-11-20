@@ -14,14 +14,15 @@
  * | `person`    | "{personName} from TManage" (registry)      | the person's address   |
  * | `workspace` | "{actor} at {workspace} via TManage" noreply@ | the producer's route |
  * | `internal`  | "TManage" noreply@                          | nobody                 |
+ * | `sales`     | "TManage Sales" sales@                      | the producer's address |
  *
- * Only the new tips (`tip`) reach `person`. Mail to a client never does (see `CLIENT_ONLY`).
+ * Only the tips (`tip`) and the outreach campaign (`campaign_intro`, LANE-Q) reach `person`. Mail to a client never does (see `CLIENT_ONLY`).
  */
 
 import type { MailIdentity } from './mailer.js';
 
 export type SenderCategory =
-  'security' | 'notice' | 'welcome' | 'support' | 'person' | 'workspace' | 'internal';
+  'security' | 'notice' | 'welcome' | 'support' | 'person' | 'workspace' | 'internal' | 'sales';
 
 export const SENDER_CATEGORIES: readonly SenderCategory[] = Object.freeze([
   'security',
@@ -31,6 +32,7 @@ export const SENDER_CATEGORIES: readonly SenderCategory[] = Object.freeze([
   'person',
   'workspace',
   'internal',
+  'sales',
 ]);
 
 /** The sending mailboxes (amendment 3): a closed list, checked again when a queued row is read. */
@@ -38,6 +40,7 @@ export const MAIL_IDENTITIES: readonly MailIdentity[] = Object.freeze([
   'noreply',
   'hello',
   'support',
+  'sales',
   'person',
 ]);
 
@@ -83,6 +86,8 @@ const CATEGORY_BY_TEMPLATE: Readonly<Record<string, SenderCategory>> = Object.fr
   storage_root: 'support',
   // Tips and reminders: the only template signed by a registry person.
   tip: 'person',
+  // LANE-Q: the platform outreach campaign's first e-mail, from the assigned person's own mailbox.
+  campaign_intro: 'person',
   // An agency writing to its own client or invitee.
   invitation: 'workspace',
   client_request: 'workspace',
@@ -94,6 +99,8 @@ const CATEGORY_BY_TEMPLATE: Readonly<Record<string, SenderCategory>> = Object.fr
   ops_alert: 'internal',
   security_alert_digest: 'internal',
   monthly_gtm_report: 'internal',
+  // LANE-Q: a "Book a walkthrough" request, mailed to the sales team from sales@.
+  walkthrough_request: 'sales',
 });
 
 /** PERSONMAIL. Every known template key (the fitness test walks them all, ADR-0013). */

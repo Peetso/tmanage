@@ -1,0 +1,48 @@
+/*
+ * LANE-Q — WEB-38 Book a walkthrough (Figma 760:17010). The card, fields and caption are the
+ * contact page's (`../contact/contact.css`); this file adds only the two field groups (preferred
+ * times, topics), the time-zone line and the honeypot. Website-layer variables only; no new
+ * colour, font, radius or shadow.
+ */
+
+.tm-web-walkthrough__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.tm-web-walkthrough__group > legend {
+  margin-block-end: var(--s2);
+  padding: 0;
+}
+
+.tm-web-walkthrough__zone {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-800);
+}
+
+.tm-web-walkthrough__zone-change {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The honeypot: off-screen for people, hidden from assistive technology by aria-hidden. */
+.tm-web-walkthrough__trap {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

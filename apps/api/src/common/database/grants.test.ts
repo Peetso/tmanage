@@ -226,6 +226,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- DC-3 0384 ---- +1: the leader lease reads `runtime_leases` where it claims it.
     // ---- QA-FIX-O 0387 ---- +1: the approval e-mail stamp reads `approval_email_sends` where it
     // settles a row (its UPDATE filters by id and state).
+    // ---- LANE-Q 0388 ---- +1: the key rotation re-encrypts `walkthrough_requests.email_enc`.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -266,6 +267,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         4 +
         9 +
         3 +
+        1 +
         1 +
         1,
     );

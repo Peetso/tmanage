@@ -2695,6 +2695,12 @@ GRANT SELECT, INSERT, UPDATE ON `tmanage`.`runtime_leases` TO 'tmanage_worker'@'
 -- so SELECT beside it). No DELETE for either; the company erasure deletes on `tmanage_erasure`.
 GRANT INSERT ON `tmanage`.`approval_email_sends` TO 'tmanage_app'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`approval_email_sends` TO 'tmanage_worker'@'%';
+-- 0388 (LANE-Q). `walkthrough_requests` (global): inserted by the anonymous "Book a walkthrough"
+-- door; `notified_at` is an UPDATE once sales@ accepted the notification. SELECT rides the
+-- database-wide read. No DELETE; nothing for `tmanage_erasure` (no tenant key). The worker's 56-02
+-- key rotation re-encrypts `email_enc` in place (compare-and-swap on that column only).
+GRANT INSERT, UPDATE ON `tmanage`.`walkthrough_requests` TO 'tmanage_app'@'%';
+GRANT SELECT, UPDATE ON `tmanage`.`walkthrough_requests` TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Erasure user — the company and account erasures, and nothing else

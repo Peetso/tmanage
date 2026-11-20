@@ -20,7 +20,9 @@ export type KeyPurpose =
   | 'org_secret'
   // 56-03p: the connector token vault (connector credentials, Figma tokens).
   | 'connector_token'
-  | 'figma_token';
+  | 'figma_token'
+  // LANE-Q: a "Book a walkthrough" visitor's address.
+  | 'walkthrough_email';
 
 export type KeyRotationStatus = 'queued' | 'running' | 'done' | 'failed';
 

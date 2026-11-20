@@ -51,6 +51,9 @@ export const FIELD_CIPHER_PURPOSES = [
   // (`figma_connections.token_ciphertext`); owner = the writer's binding string.
   'connector_token',
   'figma_token',
+  // LANE-Q (0388): a "Book a walkthrough" visitor's address (`walkthrough_requests.email_enc`,
+  // owner = row id).
+  'walkthrough_email',
 ] as const;
 export type FieldCipherPurpose = (typeof FIELD_CIPHER_PURPOSES)[number];
 

@@ -43,6 +43,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/changelog': { en: 'Changelog', key: 'WebsiteTitle.changelog' },
   '/client-portal': { en: 'Client portal', key: 'WebsiteTitle.clientPortal' },
   '/contact': { en: 'Book a demo', key: 'WebsiteTitle.contact' },
+  '/walkthrough': { en: 'Book a walkthrough', key: 'WebsiteTitle.walkthrough' },
   '/customers': { en: 'Customers & stories', key: 'WebsiteTitle.customers' },
   '/developers': { en: 'Developers', key: 'WebsiteTitle.developers' },
   '/download': { en: 'Download', key: 'WebsiteTitle.download' },

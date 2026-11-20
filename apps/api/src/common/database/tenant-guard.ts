@@ -1604,6 +1604,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // 0384. The leader lease of the single Hostinger app. GLOBAL: about the process, never a tenant.
   // Written only on the worker credential; `/healthz/deep` reads it through `identityRead`.
   'runtime_leases',
+  // ---- LANE-Q ----
+  // 0388. "Book a walkthrough" requests from the public site. GLOBAL: a visitor belongs to no
+  // company (no organization_id); the address is a FieldCipher envelope. Reached only through
+  // `identityTransaction(['walkthrough_requests'])`, written by the anonymous door.
+  'walkthrough_requests',
 ]);
 
 export function isTenantTable(name: string): boolean {

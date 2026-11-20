@@ -105,9 +105,10 @@ export interface MailMessage {
 /**
  * EMAILBUILD. The sending mailboxes, each with its own SMTP login. PERSONMAIL (ADR-0013): `person`
  * is the signing person's own mailbox (its login is in the people registry, encrypted); without
- * one it leaves through `support`.
+ * one it leaves through `support`. LANE-Q: `sales` is the sales@ mailbox (a walkthrough request
+ * reaches the sales team from it), signed in like hello and support.
  */
-export type MailIdentity = 'noreply' | 'hello' | 'support' | 'person';
+export type MailIdentity = 'noreply' | 'hello' | 'support' | 'sales' | 'person';
 
 /** EMAILBUILD. The five subjects a TManage person writes about. */
 export type MailPersonTopic = 'onboarding' | 'features' | 'news' | 'security' | 'success';
@@ -115,7 +116,12 @@ export type MailPersonTopic = 'onboarding' | 'features' | 'news' | 'security' | 
 /** EMAILBUILD. How a tip names its signer. */
 export type MailPersonRef =
   | { readonly kind: 'assigned'; readonly userId: string; readonly topic: MailPersonTopic }
-  | { readonly kind: 'test'; readonly personId: string };
+  | { readonly kind: 'test'; readonly personId: string }
+  /**
+   * LANE-Q. The registry person a platform-admin outreach campaign assigned to one recipient. The
+   * campaign sender is server code; the directory reads the row by id and only while it is active.
+   */
+  | { readonly kind: 'campaign'; readonly personId: string };
 
 /** EMAILBUILD. A resolved sender. */
 export interface MailSender {

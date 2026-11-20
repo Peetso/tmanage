@@ -69,6 +69,8 @@ export interface MailerModuleConfig {
   /** EMAILBUILD (amendment 3): the welcome and support mailboxes' own logins, when configured. */
   readonly helloLogin?: IdentityLogin | undefined;
   readonly supportLogin?: IdentityLogin | undefined;
+  /** LANE-Q: sales@ (walkthrough requests); its own address with the shared password. */
+  readonly salesLogin?: IdentityLogin | undefined;
   /** MAILSTATUS: security@ (`SMTP_SECURITY_*`), checked with the others; the worker sends it. */
   readonly securityLogin?: IdentityLogin | undefined;
   /**
@@ -235,6 +237,7 @@ export class MailerModule {
       noreply: driver,
       hello: config.helloLogin,
       support: config.supportLogin,
+      sales: config.salesLogin,
     });
     return guardedModule(() => senders, config);
   }

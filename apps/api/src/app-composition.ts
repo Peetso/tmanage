@@ -93,6 +93,8 @@ export function composeAppModule(env: Env): DynamicModule {
         password: env.SMTP_SUPPORT_PASS,
         address: CONTACT_EMAILS.support,
       },
+      // LANE-Q: sales@ mails the sales team a walkthrough request, signed in as itself.
+      salesLogin: { address: CONTACT_EMAILS.sales },
       // MAILSTATUS: security@ is sent by the worker; the API only checks that its login works.
       securityLogin: {
         username: process.env['SMTP_SECURITY_USERNAME'],

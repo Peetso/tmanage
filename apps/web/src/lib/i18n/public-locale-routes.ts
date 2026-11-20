@@ -57,6 +57,7 @@ export const PUBLIC_LOCALIZED_PATHS = [
   '/solutions/consultancies',
   '/solutions/in-house',
   '/status',
+  '/walkthrough',
 ] as const;
 
 export type PublicLocalizedPath = (typeof PUBLIC_LOCALIZED_PATHS)[number];

@@ -168,6 +168,8 @@ describe('EMAILBUILD — SenderResolvingMailer', () => {
       ['tip', '"Mariam from TManage" mariam@tmanageapp.com', 'mariam@tmanageapp.com'],
       ['client_request', '"TManage" noreply@tmanageapp.com', undefined],
       ['ops_alert', '"TManage" noreply@tmanageapp.com', undefined],
+      // LANE-Q: no sales@ configured here, so the walkthrough notice leaves as noreply, named.
+      ['walkthrough_request', '"TManage Sales" noreply@tmanageapp.com', undefined],
     ];
     expect(cases).toHaveLength(SENDER_CATEGORIES.length);
     for (const [templateKey, from, replyTo] of cases) {
@@ -175,7 +177,9 @@ describe('EMAILBUILD — SenderResolvingMailer', () => {
       const sent = capture.last;
       expect(`"${sent.from?.name ?? ''}" ${sent.from?.address ?? ''}`, templateKey).toBe(from);
       expect(sent.replyTo, templateKey).toBe(
-        templateKey === 'client_request' ? 'producer@x.example' : replyTo,
+        templateKey === 'client_request' || templateKey === 'walkthrough_request'
+          ? 'producer@x.example'
+          : replyTo,
       );
     }
   });

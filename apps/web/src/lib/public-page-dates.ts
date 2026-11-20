@@ -36,6 +36,7 @@ const PAGE_DATES: Readonly<Record<string, string>> = {
   '/solutions/agencies': '2026-11-09',
   '/solutions/consultancies': '2026-11-09',
   '/solutions/in-house': '2026-11-09',
+  '/walkthrough': '2026-11-20',
 };
 
 /** Every English path with a known last-changed date. */

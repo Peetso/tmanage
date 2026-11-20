@@ -23,6 +23,8 @@ export const ROTATABLE_PURPOSES: readonly FieldCipherPurpose[] = [
   // 56-03p: the token vault's connector credentials and Figma tokens.
   'connector_token',
   'figma_token',
+  // LANE-Q: the walkthrough visitor's address.
+  'walkthrough_email',
 ];
 
 /** Quarterly schedule (56-02 runbook): next rotation due three months after the last one. */

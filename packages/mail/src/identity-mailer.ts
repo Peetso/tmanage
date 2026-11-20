@@ -186,7 +186,9 @@ export class IdentityRoutingMailer implements ReceiptMailer {
       return Promise.reject(new PersonMailboxUnavailableError('no shared mailbox password'));
     }
     const key =
-      message.identity === 'hello' || message.identity === 'support' ? message.identity : 'noreply';
+      message.identity === 'hello' || message.identity === 'support' || message.identity === 'sales'
+        ? message.identity
+        : 'noreply';
     return this.mailers[key].submit(message);
   }
 }
@@ -202,6 +204,8 @@ export interface IdentityMailersOptions {
   readonly base: SmtpMailerOptions;
   readonly hello?: IdentityLogin | undefined;
   readonly support?: IdentityLogin | undefined;
+  /** LANE-Q: sales@ (walkthrough requests), signed in like hello and support. */
+  readonly sales?: IdentityLogin | undefined;
   /**
    * PERSONMAIL. Person mail signs in as the person's own address with the shared password
    * (`base.password`). Default on; off (or no shared password) = person mail fails, never resent.
@@ -227,7 +231,10 @@ export function createIdentityMailers(options: IdentityMailersOptions): Identity
   );
   const shared = options.base.password;
   const missing: MailIdentity[] = [];
-  const build = (key: 'hello' | 'support', login: IdentityLogin | undefined): ReceiptMailer => {
+  const build = (
+    key: 'hello' | 'support' | 'sales',
+    login: IdentityLogin | undefined,
+  ): ReceiptMailer => {
     // Its own address signs in; its own password only overrides the shared one (owner decision).
     const resolved = resolveMailboxLogin(login, shared);
     if (resolved === null) {
@@ -244,6 +251,8 @@ export function createIdentityMailers(options: IdentityMailersOptions): Identity
     noreply,
     hello: build('hello', options.hello),
     support: build('support', options.support),
+    // LANE-Q: a host that names no sales login keeps the earlier routes (noreply), unannounced.
+    sales: options.sales === undefined ? noreply : build('sales', options.sales),
   };
   if (missing.length > 0) {
     log(`[mailer] no login for ${missing.join(', ')}; that mail leaves through noreply`);
