@@ -53,12 +53,17 @@ export function usePortalPreview(organizationSlug: string): boolean {
 /**
  * Runs a client-only portal read, answering `empty` for a staff preview instead of letting the
  * API's 403 reach the screen. A 403 for anybody else is rethrown untouched.
+ *
+ * `refusals` names the statuses the read answers a non-client with: 403 by default; the journey
+ * read answers 404 (`portal_journey_not_visible`, it hides the project from anybody who is not
+ * one of its clients), so it passes `[403, 404]` (QA-FIX-O L10).
  */
 export async function clientOnlyRead<T>(
   queryClient: QueryClient,
   organizationSlug: string,
   empty: T,
   load: () => Promise<T>,
+  refusals: readonly number[] = [403],
 ): Promise<T> {
   const known = previewFrom(
     queryClient.getQueryData<readonly OrganizationSummary[]>(SHELL_ORGANIZATIONS_KEY),
@@ -68,7 +73,11 @@ export async function clientOnlyRead<T>(
   try {
     return await load();
   } catch (error) {
-    if (!(error instanceof ApiRequestError) || error.status !== 403 || known === false) {
+    if (
+      !(error instanceof ApiRequestError) ||
+      !refusals.includes(error.status) ||
+      known === false
+    ) {
       throw error;
     }
     let list: readonly OrganizationSummary[] | undefined;

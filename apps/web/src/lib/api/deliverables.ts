@@ -40,7 +40,30 @@ export interface DeliverableVersionView {
     readonly reviewerIds: readonly string[];
     readonly feedback: string | null;
     readonly decidedAt: string | null;
+    /** QA-FIX-O H1: who was asked, at which address, and what happened to their e-mail. */
+    readonly reviewers: readonly ApprovalReviewerView[];
+    /** QA-FIX-O H1: the API's decision whether "Resend email" may be offered now. */
+    readonly canResendEmail: boolean;
   } | null;
+}
+
+/** QA-FIX-O H1. What happened to one approver's approval-request e-mail. */
+export type ApprovalEmailState = 'not_requested' | 'queued' | 'sent' | 'failed' | 'not_sent';
+
+/** Why an e-mail was not sent; null when unknown or not applicable. */
+export type ApprovalEmailCause = 'mail_off' | 'no_access' | 'no_transport';
+
+/** QA-FIX-O H1. One approver of an approval, as the deliverable page shows them. */
+export interface ApprovalReviewerView {
+  readonly userId: string;
+  /** Null when the person no longer belongs to a client of the project. */
+  readonly displayName: string | null;
+  /** Shown only to people who may send for approval; null otherwise or when unknown. */
+  readonly email: string | null;
+  readonly emailState: ApprovalEmailState;
+  readonly emailCause: ApprovalEmailCause | null;
+  readonly emailRequestedAt: string | null;
+  readonly emailSettledAt: string | null;
 }
 
 export interface DeliverableView {
@@ -178,6 +201,20 @@ export async function listApprovers(
     path: `${base(organizationSlug)}/${encodeURIComponent(deliverableId)}/approvers`,
   });
   return data.approvers;
+}
+
+/** QA-FIX-O H1. "Resend email": mail the approvers of a pending approval again. */
+export async function resendApprovalEmail(
+  client: ApiClient,
+  organizationSlug: string,
+  deliverableId: string,
+  approvalId: string,
+): Promise<DeliverableVersionView> {
+  const { data } = await client.request<DeliverableVersionView>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(deliverableId)}/approvals/${encodeURIComponent(approvalId)}/resend-email`,
+  });
+  return data;
 }
 
 export async function sendForApproval(

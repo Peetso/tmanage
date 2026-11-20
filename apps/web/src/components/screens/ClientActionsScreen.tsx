@@ -2,13 +2,11 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { listClientRequests, listPortalProjects, listPortalWorkItems } from '../../lib/api/portal';
 import type { PortalWorkItem } from '../../lib/api/portal';
-import { isWaitingOnClient } from '../../lib/client-request-presentation';
+import { byDueDate, usePortalActions } from '../../lib/portal-actions';
 import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { isPast, longDay, Segmented, shortDay, Tag } from './PortalParts';
@@ -64,44 +62,27 @@ export function ClientActionsScreen({
   const t = useT();
   const [view, setView] = useState<View>('needs');
 
-  const projects = useQuery({
-    queryKey: ['portal-projects', organizationSlug],
-    queryFn: () => listPortalProjects(api, organizationSlug),
-  });
+  // QA-FIX-O M3: the same list the overview counts (lib/portal-actions.ts), so the two screens
+  // can never disagree about what needs the client. A version awaiting the client's decision is
+  // one of those things; this screen used to leave it out and say "Nothing needs you".
+  const shared = usePortalActions(api, organizationSlug);
+  const { waiting: actions, questions: awaitingAnswer, reviews, count: needCount } = shared.actions;
 
-  const workItems = useQuery({
-    queryKey: ['portal-work-items', organizationSlug],
-    queryFn: () => listPortalWorkItems(api, organizationSlug),
-  });
-
-  const requests = useQuery({
-    queryKey: ['portal-requests', organizationSlug],
-    queryFn: () => listClientRequests(api, organizationSlug),
-  });
-
-  /**
-   * `clarifying` is the only status where a request is the client's to move — and the state that
-   * carries the `client_action_required` audience on the row.
-   */
-  const awaitingAnswer = (requests.data ?? []).filter(isWaitingOnClient);
-
-  const all = (workItems.data ?? []).slice().sort(byDueDate);
-  const actions = all.filter((item) => item.progress === 'waiting_on_you');
+  const all = shared.workItems.slice().sort(byDueDate);
   const studio = all.filter((item) => item.progress === 'in_progress');
   const done = all.filter((item) => item.progress === 'done');
 
-  const project = projects.data?.[0];
+  const project = shared.projects?.[0];
   // REQ-06: the list spans every shared project, so naming only the first in the heading is
   // wrong. With more than one project it says "All projects"; with exactly one it keeps its name.
-  const projectCount = (projects.data ?? []).length;
+  const projectCount = (shared.projects ?? []).length;
   const actionsEyebrow =
     projectCount > 1
       ? t('ClientActionsScreen.whatNeedsYouAll')
       : project
         ? `${t('ClientActionsScreen.whatNeedsYouProjectPrefix')}${project.name}`
         : t('ClientActionsScreen.whatNeedsYou');
-  const needCount = actions.length + awaitingAnswer.length;
-  const settled = !workItems.isPending && !workItems.isError && !requests.isPending;
+  const settled = shared.settled && shared.error === null;
 
   return (
     <ClientPortalShell
@@ -128,13 +109,13 @@ export function ClientActionsScreen({
       }
     >
       <div className="tm-pt tm-pt--compact">
-        {workItems.isError ? (
+        {shared.error !== null ? (
           <InlineAlert tone="danger" title={t('ClientActionsScreen.loadError')} live>
-            {describe(workItems.error)}
+            {describe(shared.error)}
           </InlineAlert>
         ) : null}
 
-        {workItems.isPending ? (
+        {shared.isPending ? (
           <LoadingRegion label={t('ClientActionsScreen.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
@@ -163,13 +144,51 @@ export function ClientActionsScreen({
               </div>
             ) : null}
 
+            {reviews.length > 0 ? (
+              <ul className="tm-pt-list" aria-label={t('ClientActionsScreen.versionsToApprove')}>
+                {reviews.map((deliverable, index) => (
+                  <li
+                    key={deliverable.id}
+                    className={index === 0 ? 'tm-pt-action tm-pt-action--lead' : 'tm-pt-action'}
+                  >
+                    <span className="tm-pt-action__orb" aria-hidden="true">
+                      ▸
+                    </span>
+                    <div className="tm-pt-action__body">
+                      <div className="tm-pt-action__meta">
+                        <Tag tone="lime">{t('ClientActionsScreen.yourDecision')}</Tag>
+                        {deliverable.forecastDate ? (
+                          <span className="tm-pt-mono">
+                            {t('ClientActionsScreen.neededBy')} {shortDay(deliverable.forecastDate)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <h2 className="tm-pt-action__title">{deliverable.title}</h2>
+                      <p className="tm-pt-action__text">
+                        {deliverable.summary ?? t('ClientActionsScreen.reviewWhy')}
+                      </p>
+                    </div>
+                    <div className="tm-pt-action__end">
+                      <Link
+                        className="tm-pt-btn tm-pt-btn--ink"
+                        href={`/${organizationSlug}/portal/deliverables/${encodeURIComponent(deliverable.id)}`}
+                      >
+                        {t('ClientActionsScreen.reviewAndApprove')}
+                        <span className="tm-visually-hidden">: {deliverable.title}</span>
+                      </Link>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
             {awaitingAnswer.length > 0 ? (
               <ul className="tm-pt-list" aria-label={t('ClientActionsScreen.questionsToAnswer')}>
                 {awaitingAnswer.map((request, index) => (
                   <li
                     key={request.id}
                     className={
-                      index === 0 && actions.length === 0
+                      index === 0 && actions.length === 0 && reviews.length === 0
                         ? 'tm-pt-action tm-pt-action--lead'
                         : 'tm-pt-action'
                     }
@@ -215,7 +234,11 @@ export function ClientActionsScreen({
                 {actions.map((action, index) => (
                   <li
                     key={action.id}
-                    className={index === 0 ? 'tm-pt-action tm-pt-action--lead' : 'tm-pt-action'}
+                    className={
+                      index === 0 && reviews.length === 0
+                        ? 'tm-pt-action tm-pt-action--lead'
+                        : 'tm-pt-action'
+                    }
                   >
                     <span className="tm-pt-action__orb" aria-hidden="true">
                       {index + 1}
@@ -358,14 +381,6 @@ function headline(count: number): string {
   if (count === 0) return 'Nothing needs you';
   const words = COUNT_WORDS[count] ?? `${count} things`;
   return `${words} need${count === 1 ? 's' : ''} you`;
-}
-
-/** Undated last: a missing date is not urgency, and sorting it first would invent some. */
-function byDueDate(left: PortalWorkItem, right: PortalWorkItem): number {
-  if (left.dueAt === right.dueAt) return 0;
-  if (left.dueAt === null) return 1;
-  if (right.dueAt === null) return -1;
-  return left.dueAt < right.dueAt ? -1 : 1;
 }
 
 function isOverdue(item: PortalWorkItem, now: Date): boolean {

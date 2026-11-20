@@ -223,7 +223,15 @@ describe('DeliverableDetailScreen', () => {
         };
       }
       const approval = sent
-        ? { id: 'a1', state: 'requested', reviewerIds: ['c1'], feedback: null, decidedAt: null }
+        ? {
+            id: 'a1',
+            state: 'requested',
+            reviewerIds: ['c1'],
+            feedback: null,
+            decidedAt: null,
+            reviewers: [],
+            canResendEmail: false,
+          }
         : null;
       return {
         ...deliverable({ state: sent ? 'in_review' : 'draft' }),
@@ -265,5 +273,125 @@ describe('DeliverableDetailScreen', () => {
     expect(screen.getByRole('link', { name: 'Deliverables.portalLink' }).getAttribute('href')).toBe(
       '/north/portal/deliverables/v2',
     );
+  });
+});
+
+describe('QA-FIX-O: approval e-mail state, Resend email, and no send while uploading', () => {
+  const pending = {
+    id: 'a1',
+    state: 'requested',
+    reviewerIds: ['c1'],
+    feedback: null,
+    decidedAt: null,
+    reviewers: [
+      {
+        userId: 'c1',
+        displayName: 'Youssef Kamal',
+        email: 'youssef+atlas@example.com',
+        emailState: 'failed',
+        emailCause: null,
+        emailRequestedAt: '2026-11-20T08:11:00.000Z',
+        emailSettledAt: '2026-11-20T08:11:05.000Z',
+      },
+    ],
+    canResendEmail: true,
+  };
+
+  it('H1: names the approver, their address and the failed e-mail, and resends it', async () => {
+    const { client, calls } = fakeApi((call) =>
+      call.method === 'POST'
+        ? { ...deliverable({ state: 'in_review' }), versions: [version(pending)] }
+        : { ...deliverable({ state: 'in_review' }), versions: [version(pending)] },
+    );
+    render(
+      withQuery(
+        <DeliverableDetailScreen
+          organizationSlug="north"
+          organizationName="North"
+          projectId="p1"
+          deliverableId="d1"
+          client={client}
+        />,
+      ),
+    );
+    expect(await screen.findByText('youssef+atlas@example.com')).toBeTruthy();
+    expect(screen.getByText('Deliverables.emailFailed')).toBeTruthy();
+    expect(screen.getByText('Deliverables.emailFailedHint')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Deliverables.resendEmail' }));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === 'POST' && c.url.endsWith('/deliverables/d1/approvals/a1/resend-email'),
+        ),
+      ).toBe(true),
+    );
+    expect(await screen.findByText('Deliverables.resendDone')).toBeTruthy();
+  });
+
+  it('H1: no Resend button when the API does not offer it', async () => {
+    const { client } = fakeApi(() => ({
+      ...deliverable({ state: 'in_review' }),
+      versions: [version({ ...pending, canResendEmail: false })],
+    }));
+    render(
+      withQuery(
+        <DeliverableDetailScreen
+          organizationSlug="north"
+          organizationName="North"
+          projectId="p1"
+          deliverableId="d1"
+          client={client}
+        />,
+      ),
+    );
+    await screen.findByText('youssef+atlas@example.com');
+    expect(screen.queryByRole('button', { name: 'Deliverables.resendEmail' })).toBeNull();
+  });
+
+  it('M2b: while a new version uploads, Send for approval is disabled and says why', async () => {
+    const calls: string[] = [];
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        calls.push(`${method} ${String(input)}`);
+        // The upload never settles while the test looks at the screen.
+        if (method === 'POST') return new Promise<Response>(() => undefined);
+        return Promise.resolve(
+          new Response(JSON.stringify({ ...deliverable(), versions: [version()] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    render(
+      withQuery(
+        <DeliverableDetailScreen
+          organizationSlug="north"
+          organizationName="North"
+          projectId="p1"
+          deliverableId="d1"
+          client={client}
+        />,
+      ),
+    );
+    const send = await screen.findByRole('button', { name: 'Deliverables.sendForApproval' });
+    expect((send as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByText('Deliverables.waitForUpload')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Deliverables.noteLabel'), {
+      target: { value: 'New hero copy' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Deliverables.uploadNewVersion' }));
+    expect(await screen.findByText('Deliverables.waitForUpload')).toBeTruthy();
+    const waiting = screen.getByRole('button', { name: 'Deliverables.sendForApproval' });
+    expect((waiting as HTMLButtonElement).disabled).toBe(true);
+    expect(waiting.getAttribute('aria-describedby')).toBeTruthy();
+    fireEvent.click(waiting);
+    expect(calls.filter((c) => c.startsWith('POST') && c.includes('/send'))).toEqual([]);
   });
 });

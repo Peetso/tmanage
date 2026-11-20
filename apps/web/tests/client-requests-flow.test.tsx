@@ -483,6 +483,8 @@ describe('the two screens that now reach requests', () => {
     return clientOver((url) => {
       if (url.includes('/portal/work-items')) return json({ workItems });
       if (url.includes('/portal/requests')) return json({ requests });
+      // QA-FIX-O M3: My Actions also reads each project's versions awaiting the client.
+      if (url.includes('/deliverables')) return json({ deliverables: [] });
       return json({ projects: [PROJECT] });
     });
   }

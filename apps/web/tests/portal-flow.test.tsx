@@ -79,6 +79,8 @@ function portal(items: readonly unknown[], projects: readonly unknown[] = [PROJE
   return clientOver((url) => {
     if (url.includes('/portal/work-items')) return json({ workItems: items });
     if (url.includes('/portal/requests')) return json({ requests: [] });
+    // QA-FIX-O M3: My Actions also reads each project's versions awaiting the client.
+    if (url.includes('/deliverables')) return json({ deliverables: [] });
     if (url.includes('/journey')) {
       return json({
         journey: { projectId: 'proj-1', steps: [], yourTurn: null, completed: false },

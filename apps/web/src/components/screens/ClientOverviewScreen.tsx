@@ -38,7 +38,8 @@ import {
   portalRoleLabel,
   shortDay,
 } from './PortalParts';
-import { awaitsYou, isFinalReview, reviewLabelKey } from '../../lib/portal-review';
+import { isFinalReview, reviewLabelKey } from '../../lib/portal-review';
+import { usePortalActions } from '../../lib/portal-actions';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -144,15 +145,11 @@ export function ClientOverviewScreen({
     enabled: firstProjectId != null,
   });
 
-  const items = workItems.data ?? [];
-  const waiting = items.filter((item) => item.progress === 'waiting_on_you').sort(byDueDate);
-  const questions = (requests.data ?? []).filter(isWaitingOnClient);
-  // TESTUX P1 4: a version sent for this client's decision is an action too. It was counted
-  // nowhere, so "0 actions waiting · all caught up" sat above "Your turn: Review and approve".
-  const reviews = (deliverables.data ?? [])
-    .filter((deliverable) => awaitsYou(deliverable.review))
-    .sort((left, right) => (left.publishedAt < right.publishedAt ? -1 : 1));
-  const actionCount = waiting.length + questions.length + reviews.length;
+  // QA-FIX-O M3: what needs the client is decided once, for this screen and My Actions alike —
+  // waiting work, questions and versions awaiting a decision across every shared project.
+  const {
+    actions: { waiting, questions, reviews, count: actionCount },
+  } = usePortalActions(api, organizationSlug);
 
   return (
     <ClientPortalShell
@@ -747,14 +744,6 @@ function TeamCard({
       ) : null}
     </section>
   );
-}
-
-/** Undated last: a missing date is not urgency, and sorting it first would invent some. */
-function byDueDate(left: PortalWorkItem, right: PortalWorkItem): number {
-  if (left.dueAt === right.dueAt) return 0;
-  if (left.dueAt === null) return 1;
-  if (right.dueAt === null) return -1;
-  return left.dueAt < right.dueAt ? -1 : 1;
 }
 
 function formatMoment(value: Date): string {

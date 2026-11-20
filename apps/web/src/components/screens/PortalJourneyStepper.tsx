@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { clientOnlyRead } from '../../lib/portal-preview';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { getPortalJourney } from '../../lib/api/portal';
 import type {
@@ -83,9 +84,19 @@ export function PortalJourneyStepper({
   providerName,
 }: PortalJourneyStepperProps) {
   const t = useT();
+  const queryClient = useQueryClient();
+  // QA-FIX-O L10: a staff preview has no client journey (the API answers 404 to anybody who is
+  // not one of the project's clients), so it shows the client's empty state, not an error.
   const journey = useQuery({
     queryKey: ['portal-journey', organizationSlug, projectId],
-    queryFn: () => getPortalJourney(api, organizationSlug, projectId),
+    queryFn: () =>
+      clientOnlyRead(
+        queryClient,
+        organizationSlug,
+        { projectId, steps: [], yourTurn: null, completed: false },
+        () => getPortalJourney(api, organizationSlug, projectId),
+        [403, 404],
+      ),
   });
   const portal = `/${organizationSlug}/portal`;
 

@@ -41,6 +41,7 @@ import {
   type DeliverablesKey,
 } from './DeliverablesScreen';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
+import { ApprovalReviewerList } from './approvals/ApprovalReviewerList';
 import { ExternalApproversPanel } from './approvals/ExternalApproversPanel';
 import { ApprovalRecordPanel } from './approvals/ApprovalRecordPanel';
 import { SignatureRequestsPanel } from './esign/SignatureRequestsPanel';
@@ -262,8 +263,11 @@ export function DeliverableDetailScreen({
                   </InlineAlert>
                 ) : null}
                 <VersionList
+                  api={api}
                   detail={detail.data}
                   organizationSlug={organizationSlug}
+                  uploading={busy}
+                  onResent={refresh}
                   onSend={setSendingVersion}
                   onShare={(version) => share.mutate(version)}
                   sharing={share.isPending}
@@ -278,7 +282,7 @@ export function DeliverableDetailScreen({
                 projectId={projectId}
                 deliverableId={deliverableId}
                 approvalId={certified?.approval.id ?? null}
-                {...(latestVersion(detail.data)
+                {...(latestVersion(detail.data) && !busy
                   ? { onSendForApproval: () => setSendingVersion(latestVersion(detail.data)) }
                   : {})}
               />
@@ -456,15 +460,25 @@ export function DeliverableDetailScreen({
 }
 
 function VersionList({
+  api,
   detail,
   organizationSlug,
+  uploading,
+  onResent,
   onSend,
   onShare,
   sharing,
   recordHref,
 }: {
+  api: ApiClient;
   detail: DeliverableDetailView;
   organizationSlug: string;
+  /**
+   * QA-FIX-O M2b: a new version is still uploading (or being copied from a drive). Sending now
+   * would ask about the version before it, so "Send for approval" waits and says why.
+   */
+  uploading: boolean;
+  onResent: () => void;
   onSend: (version: DeliverableVersionView) => void;
   onShare: (version: DeliverableVersionView) => void;
   sharing: boolean;
@@ -516,6 +530,15 @@ function VersionList({
                 </Link>
               </div>
             ) : null}
+            {approval && pending ? (
+              <ApprovalReviewerList
+                api={api}
+                organizationSlug={organizationSlug}
+                deliverableId={detail.id}
+                approval={approval}
+                onResent={onResent}
+              />
+            ) : null}
             {approval?.feedback ? (
               <blockquote className="tm-prose">
                 <span className="tm-field__label">{t('Deliverables.clientFeedback')}</span>{' '}
@@ -530,6 +553,8 @@ function VersionList({
                     size="compact"
                     loading={sharing}
                     loadingLabel={t('Deliverables.sharing')}
+                    disabled={uploading}
+                    aria-describedby={uploading ? `tm-send-wait-${version.id}` : undefined}
                     onClick={() => onShare(version)}
                   >
                     {t('Deliverables.shareWithClient')}
@@ -557,6 +582,8 @@ function VersionList({
                   <Button
                     tone={canShare ? 'outline' : 'ink'}
                     size="compact"
+                    disabled={uploading}
+                    aria-describedby={uploading ? `tm-send-wait-${version.id}` : undefined}
                     onClick={() => onSend(version)}
                   >
                     {t('Deliverables.sendForApproval')}
@@ -564,6 +591,11 @@ function VersionList({
                 </HelpTip>
               ) : null}
             </div>
+            {(canSend || canShare) && uploading ? (
+              <p className="tm-field__hint" id={`tm-send-wait-${version.id}`} role="status">
+                {t('Deliverables.waitForUpload')}
+              </p>
+            ) : null}
           </li>
         );
       })}
