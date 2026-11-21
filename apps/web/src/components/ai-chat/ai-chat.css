@@ -1,0 +1,647 @@
+/*
+ * TManage AI panel (plan 62, slice 62-15) — Figma section 764:43270 (G2, G4, G5, G6 v2, G7 v2).
+ * Tokens only (UX-11), logical properties only (UX-14), so Arabic mirrors; motion stops under
+ * prefers-reduced-motion (UX-16); every touch target is 44 px on a phone (UX-5, Fable fix 5).
+ */
+
+.tm-aic {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  background: var(--paper-0);
+  color: var(--ink-950);
+  text-align: start;
+}
+
+.tm-aic[data-variant='docked'] {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 55;
+  inline-size: 400px;
+  max-inline-size: 100vw;
+  border-inline-start: var(--b-quiet) solid var(--line-300);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--ink-950) 12%, transparent);
+}
+
+.tm-aic[data-variant='page'] {
+  block-size: calc(100dvh - var(--s16));
+  max-inline-size: var(--reading);
+  margin-inline: auto;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.tm-aic p,
+.tm-aic h2,
+.tm-aic h3,
+.tm-aic ul,
+.tm-aic dl,
+.tm-aic dd {
+  margin: 0;
+}
+
+.tm-aic ul {
+  padding: 0;
+  list-style: none;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+
+.tm-aic__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aic__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aic__title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-aic__title:focus {
+  outline: none;
+}
+
+.tm-aic__title:focus-visible {
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-micro);
+}
+
+.tm-aic__spacer {
+  flex: 1;
+}
+
+.tm-aic__icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+.tm-aic__icon:hover {
+  background: var(--paper-150);
+}
+
+.tm-aic__icon:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+[dir='rtl'] .tm-aic__back .tm-aic-icon {
+  transform: scaleX(-1);
+}
+
+.tm-aic__meter {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aic-meter {
+  flex: 1;
+  block-size: 4px;
+  border-radius: 4px;
+  background: var(--line-300);
+  overflow: hidden;
+}
+
+.tm-aic-meter > span {
+  display: block;
+  block-size: 100%;
+  max-inline-size: 100%;
+  border-radius: 4px;
+  background: var(--ink-950);
+}
+
+.tm-aic-meter[data-tone='low'] > span {
+  background: var(--warning-600);
+}
+
+.tm-aic-meter[data-tone='full'] > span {
+  background: var(--danger-600);
+}
+
+.tm-aic__meter-text,
+.tm-aic-note,
+.tm-aic-receipt,
+.tm-aic__trust {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-aic-receipt,
+.tm-aic__trust {
+  color: var(--ink-500);
+}
+
+/* ── Conversation ───────────────────────────────────────────────────── */
+
+.tm-aic__body {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  padding: var(--s5);
+  /* Nothing sits under the composer (Fable fix 7): the body scrolls above it. */
+  scroll-padding-block-end: var(--s5);
+}
+
+.tm-aic__log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.tm-aic-you {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tm-aic-you__bubble {
+  max-inline-size: 268px;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tm-aic-reply,
+.tm-aic-stop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-aic-answer {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tm-aic-answer__link,
+.tm-aic-read a,
+.tm-aic-go,
+.tm-aic-link {
+  color: var(--ink-950);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tm-aic-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  cursor: pointer;
+}
+
+.tm-aic-read {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+}
+
+.tm-aic-read__title {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-aic-read li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-aic-reading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+  color: var(--ink-650);
+}
+
+.tm-aic-reading__dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.tm-aic-reading__dots span {
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-500);
+  animation: tm-aic-pulse 1.2s var(--ease) infinite;
+}
+
+.tm-aic-reading__dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.tm-aic-reading__dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes tm-aic-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* The "Reading…" motion stops under reduced motion (Fable fix 34). */
+@media (prefers-reduced-motion: reduce) {
+  .tm-aic-reading__dots span {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ── Cards (estimate, preview, money) ───────────────────────────────── */
+
+.tm-aic-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-aic-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aic-card__mark {
+  display: inline-flex;
+}
+
+.tm-aic-card__title {
+  flex: 1;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-aic-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-aic-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-aic-rows dt {
+  color: var(--ink-650);
+}
+
+.tm-aic-divider {
+  inline-size: 100%;
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aic-card__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-aic-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+}
+
+.tm-aic-item__title {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-aic-change dt {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-aic-change dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-aic-change__before {
+  color: var(--ink-650);
+}
+
+[dir='rtl'] .tm-aic-change__arrow,
+[dir='rtl'] .tm-aic-example__arrow {
+  transform: scaleX(-1);
+}
+
+.tm-aic-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-aic-stepup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+}
+
+.tm-aic-stepup__title {
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+}
+
+.tm-aic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aic-actions__spacer {
+  flex: 1;
+}
+
+.tm-aic-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+}
+
+.tm-aic-result__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aic-result__title {
+  flex: 1;
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+}
+
+.tm-aic-result__dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--r-capsule);
+  background: var(--success-600);
+}
+
+.tm-aic-result__dot[data-tone='warning'] {
+  background: var(--warning-600);
+}
+
+.tm-aic-result__items li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--t-ui-sm);
+}
+
+/* ── Empty state and history ────────────────────────────────────────── */
+
+.tm-aic-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding-block-start: var(--s10);
+}
+
+.tm-aic-empty__title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-aic-empty__body {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-aic-empty__try {
+  font-size: var(--t-caption);
+  color: var(--ink-650);
+}
+
+.tm-aic-empty__examples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-aic-example {
+  display: flex;
+  inline-size: 100%;
+  min-block-size: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-aic-example:hover {
+  border-color: var(--ink-500);
+}
+
+.tm-aic-example:focus-visible,
+.tm-aic-history__open:focus-visible,
+.tm-aic-link:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.tm-aic-help {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+}
+
+.tm-aic-help__text {
+  flex: 1;
+}
+
+.tm-aic-help__title {
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+}
+
+.tm-aic-history {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-aic-history li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aic-history__open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s1);
+  min-block-size: 44px;
+  padding: var(--s3) 0;
+  border: 0;
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-aic-history__title {
+  font-size: var(--t-ui-md);
+}
+
+/* ── Composer ───────────────────────────────────────────────────────── */
+
+.tm-aic__composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s5) var(--s5);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aic__box {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s2);
+  padding: var(--s2);
+  padding-inline-start: var(--s4);
+  border: var(--b-quiet) solid var(--ink-500);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-aic__box:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aic__input {
+  flex: 1;
+  min-block-size: 36px;
+  max-block-size: 160px;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  resize: none;
+  field-sizing: content;
+}
+
+.tm-aic__input:focus {
+  outline: none;
+}
+
+.tm-aic__input::placeholder {
+  color: var(--ink-500);
+}
+
+/* Phone: the panel is the whole width and every target is 44 px (Fable fix 5). */
+@media (max-width: 767px) {
+  .tm-aic[data-variant='docked'] {
+    inline-size: 100vw;
+  }
+
+  .tm-aic__icon {
+    inline-size: var(--orb-comfortable);
+    block-size: var(--orb-comfortable);
+  }
+
+  .tm-aic-touch.tm-button {
+    min-block-size: 44px;
+  }
+}
+
+.tm-aic-page-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  max-inline-size: var(--reading);
+  margin-inline: auto;
+  padding: var(--s5);
+}

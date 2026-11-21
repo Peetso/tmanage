@@ -5088,3 +5088,81 @@ import type { MailboxLoginView as ApiMailboxLoginView } from '../../apps/api/src
 import type { MailboxLoginView as WebMailboxLoginView } from '../../apps/web/src/lib/api/platform-mail-people.js';
 type _approvalReviewer = Assert<Exact<ApiApprovalReviewerView, WebApprovalReviewerView>>;
 type _mailboxLogin = Assert<Exact<ApiMailboxLoginView, WebMailboxLoginView>>;
+
+// Plan 62-15 (lane W): the TManage AI chat panel and its credits meter.
+import type {
+  ChatCardView as ApiChatCardView,
+  ChatUndoView as ApiChatUndoView,
+  CopilotChatView as ApiCopilotChatView,
+} from '../../apps/api/src/modules/copilot/copilot-chat.service.js';
+import type {
+  AiConfirmView as ApiAiConfirmView,
+  AiUndoView as ApiAiUndoView,
+} from '../../apps/api/src/modules/copilot/ai-change.service.js';
+import type {
+  AiConversationDetailView as ApiAiConversationDetailView,
+  AiConversationListView as ApiAiConversationListView,
+  AiConversationMessageView as ApiAiConversationMessageView,
+  AiConversationView as ApiAiConversationView,
+} from '../../apps/api/src/modules/copilot/ai-conversations.service.js';
+import type {
+  AiCreditPackView as ApiAiCreditPackView,
+  AiCreditsView as ApiAiCreditsView,
+  AiPackRequestView as ApiAiPackRequestView,
+} from '../../apps/api/src/modules/billing/ai-packs.service.js';
+import type {
+  AiConfirmView as WebAiConfirmView,
+  AiConversationDetailView as WebAiConversationDetailView,
+  AiConversationListView as WebAiConversationListView,
+  AiConversationMessageView as WebAiConversationMessageView,
+  AiConversationView as WebAiConversationView,
+  AiUndoView as WebAiUndoView,
+  ChatCardView as WebChatCardView,
+  ChatUndoView as WebChatUndoView,
+  CopilotChatView as WebCopilotChatView,
+} from '../../apps/web/src/lib/api/ai-chat.js';
+import type {
+  AiCreditPackView as WebAiCreditPackView,
+  AiCreditsView as WebAiCreditsView,
+  AiPackRequestView as WebAiPackRequestView,
+} from '../../apps/web/src/lib/api/ai-credits.js';
+type _copilotChat = Assert<Exact<ApiCopilotChatView, WebCopilotChatView>>;
+type _chatCard = Assert<Exact<ApiChatCardView, WebChatCardView>>;
+type _chatUndo = Assert<Exact<ApiChatUndoView, WebChatUndoView>>;
+type _aiConfirm = Assert<Exact<ApiAiConfirmView, WebAiConfirmView>>;
+type _aiUndo = Assert<Exact<ApiAiUndoView, WebAiUndoView>>;
+type _aiConversation = Assert<Exact<ApiAiConversationView, WebAiConversationView>>;
+type _aiConversationList = Assert<Exact<ApiAiConversationListView, WebAiConversationListView>>;
+type _aiConversationMessage = Assert<
+  Exact<ApiAiConversationMessageView, WebAiConversationMessageView>
+>;
+type _aiConversationDetail = Assert<
+  Exact<ApiAiConversationDetailView, WebAiConversationDetailView>
+>;
+type _aiCredits = Assert<Exact<ApiAiCreditsView, WebAiCreditsView>>;
+type _aiCreditPack = Assert<Exact<ApiAiCreditPackView, WebAiCreditPackView>>;
+type _aiPackRequest = Assert<Exact<ApiAiPackRequestView, WebAiPackRequestView>>;
+import type {
+  ChatFileOffer as ApiChatFileOffer,
+  ChatNavigation as ApiChatNavigation,
+  ChatToolRecord as ApiChatToolRecord,
+} from '../../apps/api/src/modules/copilot/copilot-chat.service.js';
+import type {
+  CardChange as ApiCardChange,
+  CardItem as ApiCardItem,
+} from '../../apps/api/src/modules/copilot/ai-preview.js';
+import type { CardWarning as ApiCardWarning } from '../../apps/api/src/modules/copilot/packs/billing.js';
+import type {
+  CardChange as WebCardChange,
+  CardItem as WebCardItem,
+  CardWarning as WebCardWarning,
+  ChatFileOffer as WebChatFileOffer,
+  ChatNavigation as WebChatNavigation,
+  ChatToolRecord as WebChatToolRecord,
+} from '../../apps/web/src/lib/api/ai-chat.js';
+type _chatToolRecord = Assert<Exact<ApiChatToolRecord, WebChatToolRecord>>;
+type _chatFileOffer = Assert<Exact<ApiChatFileOffer, WebChatFileOffer>>;
+type _chatNavigation = Assert<Exact<ApiChatNavigation, WebChatNavigation>>;
+type _cardItem = Assert<Exact<ApiCardItem, WebCardItem>>;
+type _cardChange = Assert<Exact<ApiCardChange, WebCardChange>>;
+type _cardWarning = Assert<Exact<ApiCardWarning, WebCardWarning>>;

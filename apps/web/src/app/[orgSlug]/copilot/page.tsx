@@ -2,11 +2,12 @@
 
 import { use } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CopilotAnswerView } from '../../../components/screens/CopilotAnswerView';
+import { AiChatPage } from '../../../components/ai-chat/AiChatPage';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 
 /**
- * **AI copilot answer view (Module 16).**
+ * **TManage AI (plan 62-15), or the AI copilot answer view (Module 16) where the workspace has no
+ * TManage AI.**
  *
  * The question can arrive in the URL (`?q=`) — how the Search screen's "Ask copilot" affordance
  * opens the panel straight onto an answer, seeded with the current search. The organization name is
@@ -19,7 +20,7 @@ export default function CopilotPage({ params }: { params: Promise<{ orgSlug: str
   const q = search.get('q');
 
   return (
-    <CopilotAnswerView
+    <AiChatPage
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       {...(q === null ? {} : { initialQuestion: q })}

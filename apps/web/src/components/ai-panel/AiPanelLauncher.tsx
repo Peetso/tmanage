@@ -24,6 +24,8 @@ import { AiChooser, AiEmptyState, AiWindowPopover } from './AiPopovers';
 import { AiSidePanel } from './AiSidePanel';
 import { hidePanel, showPanel, usePanelState } from './panel-store';
 import { useAiPanelT } from './use-ai-panel-t';
+import { AiChatPanel, AI_CONVERSATIONS_KEY } from '../ai-chat/AiChatPanel';
+import { listAiConversations } from '../../lib/api/ai-chat';
 import './ai-panel.css';
 
 /** Which popover is open, and where: under the top-bar button, or under the panel's Switch. */
@@ -91,6 +93,15 @@ export function AiPanelLauncher({ organizationSlug }: { readonly organizationSlu
     queryFn: () => getConnectedApps(api, organizationSlug),
     enabled: wanted,
   });
+  // Plan 62-15: a workspace with TManage AI (on the test list, flag on) answers this read; any
+  // other answers 404 and the button keeps its own-AI behaviour below.
+  const tmanageAi = useQuery({
+    queryKey: AI_CONVERSATIONS_KEY(organizationSlug),
+    queryFn: () => listAiConversations(api, organizationSlug),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const [aiOpen, setAiOpen] = useState(false);
   const choices = useMemo(() => assistantChoices(view.data?.apps ?? []), [view.data]);
   const storageKey = rememberKey(organizationSlug, view.data?.viewerName ?? '');
   const address = connectorAddress(deploymentAddress());
@@ -122,6 +133,10 @@ export function AiPanelLauncher({ organizationSlug }: { readonly organizationSlu
   }, [pending, view.data, choices, storageKey, open]);
 
   function press() {
+    if (tmanageAi.isSuccess) {
+      setAiOpen((open) => !open);
+      return;
+    }
     if (popover.kind !== 'none') {
       close();
       return;
@@ -201,7 +216,8 @@ export function AiPanelLauncher({ organizationSlug }: { readonly organizationSlu
         size="default"
         aria-haspopup="dialog"
         aria-expanded={
-          popover.kind !== 'none' && !(popover.kind === 'chooser' && popover.from === 'panel')
+          aiOpen ||
+          (popover.kind !== 'none' && !(popover.kind === 'chooser' && popover.from === 'panel'))
         }
         loading={pending}
         onClick={press}
@@ -225,6 +241,20 @@ export function AiPanelLauncher({ organizationSlug }: { readonly organizationSlu
           }}
         />
       ) : null}
+
+      {aiOpen
+        ? createPortal(
+            <AiChatPanel
+              organizationSlug={organizationSlug}
+              client={api}
+              onClose={() => {
+                setAiOpen(false);
+                anchor.current?.querySelector('button')?.focus();
+              }}
+            />,
+            document.body,
+          )
+        : null}
 
       {bridge && panelSite
         ? createPortal(

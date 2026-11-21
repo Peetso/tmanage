@@ -334,18 +334,6 @@ const EXEMPT = new Map([
     'No web consumer yet: no route serves it — `clientHolidayProjection` in working-calendar.service.ts is not wired to any controller.',
   ],
   [
-    'AiCreditsView',
-    'No web consumer yet: 62-07 `GET …/ai/credits` is API-only; the owner usage screen is slice 62-18 (Figma first), which adds the web client and the pairing.',
-  ],
-  [
-    'AiCreditPackView',
-    'No web consumer yet: one pack inside 62-07 `AiCreditsView`; paired with it in 62-18.',
-  ],
-  [
-    'AiPackRequestView',
-    'No web consumer yet: 62-07 `POST …/ai/credits/pack-requests` and the open request in `AiCreditsView`; the "Get more credits" button is slice 62-18.',
-  ],
-  [
     'AiTestListView',
     'No web consumer yet: 62-07 `GET /v1/platform/ai/test-list` is API-only; the Platform admin AI spend screen is slice 62-19 (Figma first).',
   ],
@@ -364,42 +352,6 @@ const EXEMPT = new Map([
   [
     'AiBudgetView',
     'No web consumer yet: 62-08 `GET/PUT /v1/platform/settings/ai-budget` and its actions; the screen is slice 62-19.',
-  ],
-  [
-    'CopilotChatView',
-    'No web consumer yet: 62-09 `POST /v1/organizations/:orgSlug/copilot/chat`; the chat panel is slice 62-15.',
-  ],
-  [
-    'ChatCardView',
-    'No web consumer yet: 62-11 the preview card of `CopilotChatView`; the card UI is slice 62-15.',
-  ],
-  [
-    'ChatUndoView',
-    'No web consumer yet: 62-11 the Done + Undo of `CopilotChatView`; the card UI is slice 62-15.',
-  ],
-  [
-    'AiConfirmView',
-    'No web consumer yet: 62-11 `POST /v1/organizations/:orgSlug/copilot/chat/confirm`; the card UI is slice 62-15.',
-  ],
-  [
-    'AiUndoView',
-    'No web consumer yet: 62-11 `POST /v1/organizations/:orgSlug/copilot/chat/tasks/:taskId/undo`; the card UI is slice 62-15.',
-  ],
-  [
-    'AiConversationView',
-    'No web consumer yet: 62-13 a conversation of `AiConversationListView`; the chat panel is slice 62-15.',
-  ],
-  [
-    'AiConversationListView',
-    'No web consumer yet: 62-13 `GET /v1/organizations/:orgSlug/copilot/conversations`; the chat panel is slice 62-15.',
-  ],
-  [
-    'AiConversationMessageView',
-    'No web consumer yet: 62-13 a message of `AiConversationDetailView`; the chat panel is slice 62-15.',
-  ],
-  [
-    'AiConversationDetailView',
-    'No web consumer yet: 62-13 `GET /v1/organizations/:orgSlug/copilot/conversations/:conversationId`; the chat panel is slice 62-15.',
   ],
   [
     'AiConversationRetentionView',
@@ -470,6 +422,14 @@ const WEB_EXEMPT = new Map([
   ],
   // class-4 — union alias of AuthenticatedResponse | MfaRequiredResponse; the arms pair
   // individually (class-1-lift), so the union itself is never a single projection to Assert.
+  [
+    'ChatTurnRequest',
+    'Plan 62-15: the request body of `POST …/copilot/chat`, not a response; the API parses it once in `parseChatBody` (IP-2).',
+  ],
+  [
+    'ChatConfirmedRoute',
+    'Plan 62-15: the accepted estimate sent back inside `ChatTurnRequest` (a request field, not a response); it echoes the `tier`/`domain` of the paired `CopilotChatView`.',
+  ],
   [
     'SignInResponse',
     'union alias of AuthenticatedResponse | MfaRequiredResponse — not a single response projection; the two arms pair individually.',
