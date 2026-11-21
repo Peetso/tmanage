@@ -1,3 +1,4 @@
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_TEXT_LIMITS,
@@ -51,6 +52,17 @@ function zip(files: Readonly<Record<string, string>>): Uint8Array {
 
 const utf8 = (text: string) => new Uint8Array(Buffer.from(text, 'utf8'));
 
+/** A real PDF with one line of text a page (an empty string = a page with no text layer). */
+async function pdfOf(pages: readonly string[]): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  for (const text of pages) {
+    const page = doc.addPage([300, 200]);
+    if (text !== '') page.drawText(text, { x: 20, y: 100, size: 14, font });
+  }
+  return doc.save();
+}
+
 const ARABIC = String.fromCodePoint(0x645, 0x648, 0x62c, 0x632); // a short MSA word
 
 function word(pages: readonly string[]): Uint8Array {
@@ -61,34 +73,34 @@ function word(pages: readonly string[]): Uint8Array {
 }
 
 describe('text extraction (62-23)', () => {
-  it('reads plain text, Markdown and HTML (scripts and tags removed)', () => {
-    expect(extractText(utf8(`Brief\r\n\r\n\r\n${ARABIC}  \n`), 'text/plain')).toEqual({
+  it('reads plain text, Markdown and HTML (scripts and tags removed)', async () => {
+    expect(await extractText(utf8(`Brief\r\n\r\n\r\n${ARABIC}  \n`), 'text/plain')).toEqual({
       status: 'ready',
       text: `Brief\n\n${ARABIC}`,
       pages: null,
       truncated: false,
       extractor: 'plain',
     });
-    const html = extractText(
+    const html = await extractText(
       utf8('<p>Hello &amp; welcome</p><script>steal()</script><div>Next</div>'),
       'text/html',
     );
     expect(html).toMatchObject({ status: 'ready', text: 'Hello & welcome\n Next' });
-    expect(extractText(utf8(`a${String.fromCodePoint(0)}b`), 'text/plain')).toMatchObject({
+    expect(await extractText(utf8(`a${String.fromCodePoint(0)}b`), 'text/plain')).toMatchObject({
       status: 'failed',
       code: 'not_text',
     });
   });
 
-  it('reads Word paragraphs and page breaks, and cuts at the page cap', () => {
-    const doc = extractText(word(['One &amp; only', 'Two', 'Three']), DOCX_MIME);
+  it('reads Word paragraphs and page breaks, and cuts at the page cap', async () => {
+    const doc = await extractText(word(['One &amp; only', 'Two', 'Three']), DOCX_MIME);
     expect(doc).toMatchObject({ status: 'ready', pages: 3, truncated: false, extractor: 'docx' });
     expect(doc.status === 'ready' && doc.text.split('\n').filter(Boolean)).toEqual([
       'One & only',
       'Two',
       'Three',
     ]);
-    const capped = extractText(word(['A', 'B', 'C']), DOCX_MIME, {
+    const capped = await extractText(word(['A', 'B', 'C']), DOCX_MIME, {
       ...DEFAULT_TEXT_LIMITS,
       maxPages: 2,
     });
@@ -96,12 +108,12 @@ describe('text extraction (62-23)', () => {
     expect(capped.status === 'ready' && capped.text).not.toContain('C');
   });
 
-  it('reads slides in order and sheets with shared, inline and number cells', () => {
+  it('reads slides in order and sheets with shared, inline and number cells', async () => {
     const deck = zip({
       'ppt/slides/slide10.xml': '<p:sld><a:p><a:r><a:t>Ten</a:t></a:r></a:p></p:sld>',
       'ppt/slides/slide2.xml': '<p:sld><a:p><a:r><a:t>Two</a:t></a:r></a:p></p:sld>',
     });
-    expect(extractText(deck, PPTX_MIME)).toMatchObject({
+    expect(await extractText(deck, PPTX_MIME)).toMatchObject({
       status: 'ready',
       text: 'Slide 1\nTwo\n\nSlide 2\nTen',
       pages: 2,
@@ -117,7 +129,7 @@ describe('text extraction (62-23)', () => {
         '<row r="2"><c r="A2" t="s"><v>1</v></c><c r="B2"><v>1250.5</v></c><c r="C2"/></row>' +
         '</sheetData></worksheet>',
     });
-    expect(extractText(book, XLSX_MIME)).toMatchObject({
+    expect(await extractText(book, XLSX_MIME)).toMatchObject({
       status: 'ready',
       text: 'Sheet: Budget\nItem\tCost\nFee\t1250.5',
       pages: 1,
@@ -125,14 +137,14 @@ describe('text extraction (62-23)', () => {
     });
   });
 
-  it('applies the size, character and time caps as plain outcomes', () => {
+  it('applies the size, character and time caps as plain outcomes', async () => {
     const big = new Uint8Array(DEFAULT_TEXT_LIMITS.maxInputBytes + 1);
-    expect(extractText(big, 'text/plain')).toEqual({
+    expect(await extractText(big, 'text/plain')).toEqual({
       status: 'unsupported',
       code: 'unsupported_too_large',
       extractor: null,
     });
-    const long = extractText(utf8(ARABIC.repeat(10)), 'text/plain', {
+    const long = await extractText(utf8(ARABIC.repeat(10)), 'text/plain', {
       ...DEFAULT_TEXT_LIMITS,
       maxChars: 6,
     });
@@ -140,7 +152,7 @@ describe('text extraction (62-23)', () => {
     expect(long).toMatchObject({ status: 'ready', truncated: true });
     expect(long.status === 'ready' && [...long.text].length).toBe(6);
     let now = 0;
-    const slow = extractText(
+    const slow = await extractText(
       word(['a', 'b', 'c']),
       DOCX_MIME,
       { ...DEFAULT_TEXT_LIMITS, timeoutMs: 10 },
@@ -150,19 +162,43 @@ describe('text extraction (62-23)', () => {
     expect(slow).toMatchObject({ status: 'failed', code: 'timeout', extractor: 'docx' });
   });
 
-  it('says plainly what it cannot read: PDF (no parser yet), other types, broken archives', () => {
+  it('says plainly what it cannot read: other types and broken archives', async () => {
     expect(textMimeTypes()).toContain(PDF_MIME);
-    expect(extractText(utf8('%PDF-1.7'), PDF_MIME)).toMatchObject({
-      status: 'unsupported',
-      code: 'pdf_extractor_missing',
-    });
-    expect(extractText(utf8('x'), 'image/png')).toMatchObject({
+    expect(await extractText(utf8('x'), 'image/png')).toMatchObject({
       status: 'unsupported',
       code: 'unsupported_type',
     });
-    expect(extractText(utf8('not a zip'), DOCX_MIME)).toMatchObject({
+    expect(await extractText(utf8('not a zip'), DOCX_MIME)).toMatchObject({
       status: 'failed',
       code: 'zip_unreadable',
+    });
+  });
+
+  it('reads the text layer of a PDF page by page, with the page and time caps', async () => {
+    const pdf = await pdfOf(['First page text', 'Second page', 'Third page']);
+    const all = await extractText(pdf, PDF_MIME);
+    expect(all).toMatchObject({ status: 'ready', pages: 3, truncated: false, extractor: 'pdf' });
+    expect(all.status === 'ready' && all.text.split(/\n+/)).toEqual([
+      'First page text',
+      'Second page',
+      'Third page',
+    ]);
+    const capped = await extractText(pdf, PDF_MIME, { ...DEFAULT_TEXT_LIMITS, maxPages: 2 });
+    expect(capped).toMatchObject({ status: 'ready', pages: 3, truncated: true });
+    expect(capped.status === 'ready' && capped.text).not.toContain('Third');
+    expect(
+      await extractText(pdf, PDF_MIME, { ...DEFAULT_TEXT_LIMITS, timeoutMs: -1 }),
+    ).toMatchObject({ status: 'failed', code: 'timeout', extractor: 'pdf' });
+  });
+
+  it('a PDF with no text layer (a scan) and a broken PDF are said plainly', async () => {
+    expect(await extractText(await pdfOf(['']), PDF_MIME)).toMatchObject({
+      status: 'unsupported',
+      code: 'pdf_no_text_layer',
+    });
+    expect(await extractText(utf8('%PDF-1.7 broken'), PDF_MIME)).toMatchObject({
+      status: 'failed',
+      code: 'pdf_unreadable',
     });
   });
 });

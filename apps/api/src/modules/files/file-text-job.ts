@@ -313,7 +313,12 @@ export class FileTextJob implements OnApplicationBootstrap, OnModuleDestroy {
       else tally[result] += 1;
       return;
     }
-    await this.conclude(context, row, extractText(bytes, mimeType, this.options.limits), tally);
+    await this.conclude(
+      context,
+      row,
+      await extractText(bytes, mimeType, this.options.limits),
+      tally,
+    );
   }
 
   private async read(context: TenantContext, version: StoredVersion): Promise<Uint8Array> {

@@ -12,10 +12,8 @@ import type { ZipDirectory } from './preview-generators/zip-reader.js';
  * - **docx** — `word/document.xml`: paragraphs, tabs, line and page breaks;
  * - **pptx** — each slide's text (`ppt/slides/slideN.xml`), one block per slide;
  * - **xlsx** — each sheet's cells (shared, inline and literal values), one row per line.
- *
- * PDF is `unsupported` with `pdf_extractor_missing` for now: plan §4.5 names `unpdf`, which is not
- * a dependency of the API yet (adding it is a package change, outside this slice). A scanned PDF
- * is the separate "read with AI" path anyway.
+ * - **pdf** — the text layer of each page through `unpdf` (MIT, loaded on first use); a PDF with no text layer (a scan) is `unsupported` `pdf_no_text_layer`, said plainly,
+ *   for the separate "read with AI" path.
  *
  * **Caps** (plan §4.5: 20 MB, 200 pages, 60 s; ST-1), each one a plain outcome, never a crash:
  * - input over `maxInputBytes` is `unsupported_too_large` and is not parsed;
@@ -51,7 +49,12 @@ export type TextOutcome =
 export interface TextExtractor {
   readonly name: string;
   readonly mimeTypes: readonly string[];
-  extract(bytes: Uint8Array, mimeType: string, limits: TextLimits, deadline: Deadline): TextOutcome;
+  extract(
+    bytes: Uint8Array,
+    mimeType: string,
+    limits: TextLimits,
+    deadline: Deadline,
+  ): TextOutcome | Promise<TextOutcome>;
 }
 
 /** Thrown by {@link Deadline.check} once the time is up; the outcome is `failed` `timeout`. */
@@ -74,6 +77,11 @@ export class Deadline {
 
   check(): void {
     if (this.clock() > this.at) throw new TextTimeoutError();
+  }
+
+  /** Milliseconds left, at least 0: the bound for one awaited step (a PDF page). */
+  remainingMs(): number {
+    return Math.max(0, this.at - this.clock());
   }
 }
 
@@ -368,16 +376,102 @@ export const docxExtractor = zipped('docx', DOCX_MIME, docx);
 export const pptxExtractor = zipped('pptx', PPTX_MIME, pptx);
 export const xlsxExtractor = zipped('xlsx', XLSX_MIME, xlsx);
 
+// ---- PDF (unpdf, PDF.js) ----------------------------------------------------------------------
+
+interface PdfPage {
+  getTextContent(): Promise<{ items: readonly unknown[] }>;
+  cleanup(): unknown;
+}
+
+interface PdfDocument {
+  readonly numPages: number;
+  getPage(pageNo: number): Promise<PdfPage>;
+  /** PDF.js frees the document's worker-side memory; absent on some builds. */
+  destroy?(): Promise<void>;
+  cleanup?(): Promise<void>;
+}
+
+/** One awaited step, bounded by what is left of the deadline (ST-1: a stuck page cannot hang). */
+async function bounded<T>(work: Promise<T>, deadline: Deadline): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new TextTimeoutError()), deadline.remainingMs());
+    timer.unref();
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function pageText(items: readonly unknown[]): string {
+  let out = '';
+  for (const item of items) {
+    if (typeof item !== 'object' || item === null) continue;
+    const { str, hasEOL } = item as { str?: unknown; hasEOL?: unknown };
+    if (typeof str === 'string') out += str;
+    if (hasEOL === true) out += '\n';
+  }
+  return out;
+}
+
+function pdfFailure(error: unknown): TextOutcome {
+  if (error instanceof TextTimeoutError) throw error;
+  const name = (error as { name?: unknown } | null)?.name;
+  if (name === 'PasswordException') return { status: 'unsupported', code: 'pdf_encrypted' };
+  return { status: 'failed', code: 'pdf_unreadable' };
+}
+
+export const pdfExtractor: TextExtractor = {
+  name: 'pdf',
+  mimeTypes: [PDF_MIME],
+  async extract(bytes, _mimeType, limits, deadline) {
+    deadline.check();
+    const { getDocumentProxy } = await import('unpdf');
+    let document: PdfDocument;
+    try {
+      // PDF.js takes ownership of the buffer it is given: hand it a copy.
+      document = (await bounded(
+        getDocumentProxy(new Uint8Array(bytes)),
+        deadline,
+      )) as unknown as PdfDocument;
+    } catch (error) {
+      return pdfFailure(error);
+    }
+    try {
+      const buffer = new TextBuffer(limits.maxChars);
+      const pages = document.numPages;
+      const kept = Math.min(pages, limits.maxPages);
+      for (let pageNo = 1; pageNo <= kept && !buffer.full; pageNo += 1) {
+        deadline.check();
+        const page = await bounded(document.getPage(pageNo), deadline);
+        const content = await bounded(page.getTextContent(), deadline);
+        page.cleanup();
+        buffer.push(`${pageText(content.items)}\n\n`);
+      }
+      const text = buffer.toString();
+      if (text === '') return { status: 'unsupported', code: 'pdf_no_text_layer' };
+      return { status: 'ready', text, pages, truncated: buffer.truncated || pages > kept };
+    } catch (error) {
+      return pdfFailure(error);
+    } finally {
+      await (document.destroy ?? document.cleanup)?.call(document).catch(() => undefined);
+    }
+  },
+};
+
 export const TEXT_EXTRACTORS: readonly TextExtractor[] = [
   plainTextExtractor,
   docxExtractor,
   pptxExtractor,
   xlsxExtractor,
+  pdfExtractor,
 ];
 
-/** The types the text job plans rows for: those it reads, plus PDF (said plainly as missing). */
+/** The types the text job plans rows for. */
 export function textMimeTypes(extractors: readonly TextExtractor[] = TEXT_EXTRACTORS): string[] {
-  return [...new Set([...extractors.flatMap((e) => e.mimeTypes), PDF_MIME])];
+  return [...new Set(extractors.flatMap((e) => e.mimeTypes))];
 }
 
 export function extractorFor(
@@ -393,23 +487,22 @@ export type ExtractedText = TextOutcome & { readonly extractor: string | null };
  * One file's text, every cap applied. Never throws for anything the file's bytes cause: a
  * timeout is `failed` `timeout`, an unexpected parse fault `failed` `extract_error`.
  */
-export function extractText(
+export async function extractText(
   bytes: Uint8Array,
   mimeType: string,
   limits: TextLimits = DEFAULT_TEXT_LIMITS,
   extractors: readonly TextExtractor[] = TEXT_EXTRACTORS,
   clock: () => number = () => Date.now(),
-): ExtractedText {
+): Promise<ExtractedText> {
   if (bytes.byteLength > limits.maxInputBytes) {
     return { status: 'unsupported', code: 'unsupported_too_large', extractor: null };
   }
   const extractor = extractorFor(mimeType, extractors);
   if (extractor === null) {
-    const code = mimeType === PDF_MIME ? 'pdf_extractor_missing' : 'unsupported_type';
-    return { status: 'unsupported', code, extractor: null };
+    return { status: 'unsupported', code: 'unsupported_type', extractor: null };
   }
   try {
-    const outcome = extractor.extract(
+    const outcome = await extractor.extract(
       bytes,
       mimeType,
       limits,
