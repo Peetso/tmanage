@@ -2697,6 +2697,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`ai_file_texts` TO 'tmanage_app'@'%';
 -- their embedding and re-copies the file's project and audience (UPDATE), and deletes them when the
 -- file is deleted or purged, in that transaction (DELETE). SELECT rides the database-wide read.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_app'@'%';
+-- 0395 (62-26 BUSINESS MEMORY). A member or the AI proposes a fact (INSERT); a person with ai.manage
+-- approves, edits, confirms or retires it (UPDATE). Nothing is deleted on the app path: retired
+-- facts stay as the record; the company and account erasures delete through tmanage_erasure.
+-- SELECT rides the database-wide read.
+GRANT INSERT, UPDATE ON `tmanage`.`business_facts` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_app'@'%';
 -- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
 -- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
@@ -2813,6 +2818,7 @@ GRANT SELECT, DELETE ON `tmanage`.`billing_seats` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`billing_tax_details` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`billing_usage_alerts` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`budget_alert_events` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`business_facts` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`calendar_connections` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`calendar_due_mirrors` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`calendar_feed_tokens` TO 'tmanage_erasure'@'%';

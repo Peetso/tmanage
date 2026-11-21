@@ -4,6 +4,7 @@ import type { AiStrictSchema, AiToolDefinition } from './ai-client.js';
 import type { JsonObject } from './ai-response.js';
 import { dropNulls } from './packs/pack-schema.js';
 import { packOpFor } from './packs/index.js';
+import { RECALL_MEMORY_OP, RECALL_MEMORY_TOOL, recallArgs } from './packs/business-memory.js';
 import {
   SEARCH_FILE_PASSAGES_OP,
   SEARCH_FILE_PASSAGES_TOOL,
@@ -136,6 +137,17 @@ export function planToolCall(name: string, input: JsonObject): ChatToolPlan {
         catalogTool: META_TOOL_NAMES.run,
         args: { action_id: SEARCH_KNOWLEDGE_OP, args },
         opId: SEARCH_KNOWLEDGE_OP,
+      };
+    }
+    case RECALL_MEMORY_TOOL: {
+      // 62-26: approved facts the member may read; the route filters before it orders.
+      const args = recallArgs(input);
+      if (args === null) return refuse(RECALL_MEMORY_OP, 'Name the client, project or person.');
+      return {
+        kind: 'run',
+        catalogTool: META_TOOL_NAMES.run,
+        args: { action_id: RECALL_MEMORY_OP, args },
+        opId: RECALL_MEMORY_OP,
       };
     }
     case SEARCH_FILE_PASSAGES_TOOL: {

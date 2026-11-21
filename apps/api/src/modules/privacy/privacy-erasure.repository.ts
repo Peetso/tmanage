@@ -5,6 +5,7 @@ import {
   aiConversationMessages,
   aiConversations,
   authenticationEvents,
+  businessFacts,
   clientInvoiceEvents,
   clientMemberships,
   credentialChangeNotices,
@@ -592,8 +593,9 @@ export class AccountErasure {
   }
 
   /**
-   * Null the person's IP and user agent on this company's invoice event log, and delete their AI
-   * conversations in this company (62-13: private to the member, never shared work). Every
+   * Null the person's IP and user agent on this company's invoice event log, delete their AI
+   * conversations in this company (62-13: private to the member, never shared work) and the
+   * Business Memory facts about them (62-26: `entity_type = 'person'`, the person's user id). Every
    * statement names the organization and the subject (or the subject's membership here).
    */
   private async redactInCompany(context: TenantContext, subjectUserId: string): Promise<number> {
@@ -643,6 +645,18 @@ export class AccountErasure {
             ),
         );
       }
+      // 62-26: what the workspace remembered about this person goes with them.
+      changed += affected(
+        await db
+          .delete(businessFacts)
+          .where(
+            and(
+              eq(businessFacts.organizationId, context.organizationId),
+              eq(businessFacts.entityType, 'person'),
+              eq(businessFacts.entityId, subjectUserId),
+            ),
+          ),
+      );
       return changed;
     });
   }

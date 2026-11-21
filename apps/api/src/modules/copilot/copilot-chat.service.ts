@@ -25,6 +25,11 @@ import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
 import { packTools } from './packs/index.js';
 import {
+  RECALL_MEMORY_TOOL,
+  RECALL_MEMORY_TOOL_DEFINITION,
+  recalledFactSources,
+} from './packs/business-memory.js';
+import {
   FILE_PASSAGES_TOOL,
   KNOWLEDGE_TOOL,
   SEARCH_FILE_PASSAGES_TOOL,
@@ -728,7 +733,13 @@ export class CopilotChatService {
     const tools =
       route.domain === 'help'
         ? []
-        : [...packTools(route.domain), KNOWLEDGE_TOOL, FILE_PASSAGES_TOOL, ...CHAT_TOOLS];
+        : [
+            ...packTools(route.domain),
+            KNOWLEDGE_TOOL,
+            FILE_PASSAGES_TOOL,
+            RECALL_MEMORY_TOOL_DEFINITION,
+            ...CHAT_TOOLS,
+          ];
     const messages: AiMessage[] = [
       ...history.map((m): AiMessage =>
         m.role === 'member'
@@ -841,7 +852,9 @@ export class CopilotChatService {
               ? knowledgeSources(ran.data)
               : use.name === SEARCH_FILE_PASSAGES_TOOL
                 ? filePassageSources(ran.data)
-                : null;
+                : use.name === RECALL_MEMORY_TOOL
+                  ? recalledFactSources(ran.data)
+                  : null;
         const resultText = sources ?? toolResultText(ran);
         changes.evidence.push(resultText);
         // An approval's outcome or a read of other people's text: marked as data, and taints.

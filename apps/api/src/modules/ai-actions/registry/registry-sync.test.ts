@@ -247,7 +247,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 62-11: chat confirm and task undo (+2 NEVER, ai_chat).
 // 62-13: copilot conversations list/get/delete and conversation-retention PUT (+4 NEVER, ai_chat).
 // 62-24: GET knowledge/file-passages (+1 op, read).
-const EXPECTED_ROUTE_COUNT = 1587;
+// 62-26: business-memory facts list, recall and propose (+3 ops, read, read, confirm); edit,
+// approve, confirm and retire (+4 NEVER, business_memory_decision).
+const EXPECTED_ROUTE_COUNT = 1594;
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).

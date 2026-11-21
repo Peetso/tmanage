@@ -1309,6 +1309,31 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'ai_task',
     clause: '§12 62-14 — the in-app AI finished a turn (numbers and classifications only)',
   },
+  // ---- 62-26 · Business Memory ----
+  /**
+   * A fact was proposed (by the AI through the member's confirmed card, or by a member). Metadata:
+   * entity type, category, audience, how it was proposed — never the fact text.
+   */
+  'business_fact.proposed': {
+    objectType: 'business_fact',
+    clause: '§12 62-26 — a Business Memory fact was proposed (classifications only, no text)',
+  },
+  'business_fact.approved': {
+    objectType: 'business_fact',
+    clause: '§12 62-26 — a person approved a Business Memory fact, so the AI may recall it',
+  },
+  'business_fact.updated': {
+    objectType: 'business_fact',
+    clause: '§12 62-26 — a person edited a Business Memory fact (field names only, no text)',
+  },
+  'business_fact.confirmed': {
+    objectType: 'business_fact',
+    clause: '§12 62-26 — a person confirmed a Business Memory fact is still true',
+  },
+  'business_fact.retired': {
+    objectType: 'business_fact',
+    clause: '§12 62-26 — a person retired a Business Memory fact; the AI no longer recalls it',
+  },
   // ---- 62-27 (B05) · signals engine ----
   'work_signal_settings.updated': {
     objectType: 'organization',
@@ -2154,6 +2179,11 @@ const AUDIT_ACTION_LABELS = {
   'ai_change.ran_at_once': 'The AI made a change at once',
   'ai_conversation.retention_updated': 'Changed how long AI conversations are kept',
   'ai.turn_completed': 'The AI assistant answered a request',
+  'business_fact.proposed': 'Proposed a Business Memory fact',
+  'business_fact.approved': 'Approved a Business Memory fact',
+  'business_fact.updated': 'Edited a Business Memory fact',
+  'business_fact.confirmed': 'Confirmed a Business Memory fact',
+  'business_fact.retired': 'Retired a Business Memory fact',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

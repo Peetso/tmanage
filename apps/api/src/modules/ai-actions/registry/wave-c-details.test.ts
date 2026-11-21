@@ -44,6 +44,8 @@ const WAVE_C_PREFIXES = [
   'activity',
   // 62-24: file passages for the chat (`knowledge.ts`).
   'knowledge',
+  // 62-26: Business Memory (`business-memory.ts`).
+  'business_memory',
 ] as const;
 
 function isWaveC(id: string): boolean {

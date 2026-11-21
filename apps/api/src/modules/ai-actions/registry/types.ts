@@ -140,6 +140,9 @@ export const NEVER_REASONS = [
   // 62-09. The in-app AI's own chat turn: an AI principal must never start a turn (no AI calling
   // itself, no loop that spends credits through the tool surface).
   'ai_chat',
+  // 62-26. Approving, editing, confirming or retiring a Business Memory fact: the person's yes is
+  // the safeguard that keeps the AI from remembering on its own (plan 62 §4.6).
+  'business_memory_decision',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

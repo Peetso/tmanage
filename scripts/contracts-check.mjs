@@ -69,6 +69,14 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
+    'BusinessFactListView',
+    'No web consumer yet: 62-26 Business Memory routes (…/business-memory/facts, …/recall) are read by the AI chat tool recall_business_memory; the Settings → Business Memory screen is the 62-26 front-end follow-up.',
+  ],
+  [
+    'BusinessFactView',
+    'No web consumer yet: 62-26 element of BusinessFactListView (itself EXEMPT) and the answer of propose/approve/edit/confirm/retire; the screen is the 62-26 front-end follow-up.',
+  ],
+  [
     'FilePassageListView',
     'No web consumer yet: 62-24 GET …/knowledge/file-passages is read by the AI chat tool search_file_passages; the chat panel that shows sources is 62-15.',
   ],

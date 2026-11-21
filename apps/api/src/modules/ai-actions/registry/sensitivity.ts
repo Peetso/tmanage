@@ -76,6 +76,8 @@ export const OP_SENSITIVITY: Readonly<Record<string, Sensitivity>> = {
   'billing.tax_details.set': 'money',
   'billing.usage_alerts.create': 'money',
   'billing.usage_alerts.update': 'money',
+  // 62-26: only a proposal; a person approves it before anything reads it.
+  'business_memory.facts.propose': 'none',
   'calendar.focus_blocks.create': 'none',
   'calendar.focus_blocks.delete': 'destructive',
   'client_invoices.create': 'money',

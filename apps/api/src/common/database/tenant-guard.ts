@@ -1417,6 +1417,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0393 (62-23 AI FILE TEXTS). Tenant-owned: one extracted text per (workspace, content hash),
   // never shared across workspaces. No foreign key, so the company erasure may empty it in any order.
   ai_file_texts: 'organization_id',
+  // 0395 (62-26 BUSINESS MEMORY). Tenant-owned: a workspace's approved and proposed facts about its
+  // clients, projects, people, processes and company. No foreign key, so the company erasure may
+  // empty it in any order.
+  business_facts: 'organization_id',
   // 0394 (62-24 AI FILE CHUNKS). Tenant-owned passages of one file asset, with its project and
   // audience; deleted with the file. No foreign key, so the company erasure may empty it in any order.
   ai_file_chunks: 'organization_id',

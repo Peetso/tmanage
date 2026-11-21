@@ -15336,6 +15336,63 @@ export const aiFileChunks = mysqlTable(
 
 export type AiFileChunkRow = typeof aiFileChunks.$inferSelect;
 
+/**
+ * 62-26 (0395). Business Memory: lasting facts about a client, project, person, process or the
+ * company. The AI proposes, a person with `ai.manage` approves; the AI recall reads approved facts
+ * only, filtered by audience and entity before ranking (`copilot/memory/`).
+ */
+export const BUSINESS_FACT_ENTITY_TYPES = [
+  'client',
+  'project',
+  'person',
+  'process',
+  'company',
+] as const;
+export const BUSINESS_FACT_AUDIENCES = ['internal', 'client_visible', 'finance', 'hr'] as const;
+export const BUSINESS_FACT_STATUSES = ['proposed', 'approved', 'retired'] as const;
+export const BUSINESS_FACT_PROPOSED_VIA = ['ai', 'member'] as const;
+
+export const businessFacts = mysqlTable(
+  'business_facts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    entityType: mysqlEnum('entity_type', BUSINESS_FACT_ENTITY_TYPES).notNull(),
+    entityId: char('entity_id', { length: 36 }),
+    fact: varchar('fact', { length: 500 }).notNull(),
+    category: varchar('category', { length: 32 }).notNull(),
+    sourceHref: varchar('source_href', { length: 500 }),
+    audience: mysqlEnum('audience', BUSINESS_FACT_AUDIENCES).notNull().default('internal'),
+    status: mysqlEnum('status', BUSINESS_FACT_STATUSES).notNull().default('proposed'),
+    proposedVia: mysqlEnum('proposed_via', BUSINESS_FACT_PROPOSED_VIA).notNull(),
+    ownerUserId: char('owner_user_id', { length: 36 }).notNull(),
+    proposedByUserId: char('proposed_by_user_id', { length: 36 }).notNull(),
+    approvedByUserId: char('approved_by_user_id', { length: 36 }),
+    approvedAt: datetime('approved_at', { mode: 'date', fsp: 3 }),
+    lastConfirmedAt: datetime('last_confirmed_at', { mode: 'date', fsp: 3 }),
+    retiredByUserId: char('retired_by_user_id', { length: 36 }),
+    retiredAt: datetime('retired_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_business_facts_org_id').on(table.organizationId, table.id),
+    index('ix_business_facts_entity').on(
+      table.organizationId,
+      table.status,
+      table.entityType,
+      table.entityId,
+    ),
+    index('ix_business_facts_confirmed').on(
+      table.organizationId,
+      table.status,
+      table.lastConfirmedAt,
+    ),
+  ],
+);
+
+export type BusinessFactRow = typeof businessFacts.$inferSelect;
+
 export type AiBudgetPoolRow = typeof aiBudgetPools.$inferSelect;
 export type AiWorkspacePeriodRow = typeof aiWorkspacePeriods.$inferSelect;
 export type AiMemberPeriodRow = typeof aiMemberPeriods.$inferSelect;
@@ -15358,6 +15415,7 @@ Object.assign(TABLES, {
   ai_conversation_messages: aiConversationMessages,
   ai_file_texts: aiFileTexts,
   ai_file_chunks: aiFileChunks,
+  business_facts: businessFacts,
 });
 
 // ---- DC-3 / RT-3 · lane K · leader lease ----

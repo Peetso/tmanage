@@ -1373,6 +1373,27 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/copilot/conversation-retention',
     reason: 'ai_chat',
   },
+  // 62-26. Business Memory decisions are a person's, never the AI's.
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/business-memory/facts/:factId',
+    reason: 'business_memory_decision',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/business-memory/facts/:factId/approve',
+    reason: 'business_memory_decision',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/business-memory/facts/:factId/confirm',
+    reason: 'business_memory_decision',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/business-memory/facts/:factId/retire',
+    reason: 'business_memory_decision',
+  },
   { method: 'GET', path: '/v1/platform/ai/test-list/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/ai/test-list/:organizationId', reason: 'platform_admin' },
   {

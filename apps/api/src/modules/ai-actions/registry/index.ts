@@ -20,6 +20,7 @@ import { financeTimeOps } from './finance-time.js';
 import { financeDocumentOps } from './finance-documents.js';
 import { activityOps } from './activity.js';
 import { knowledgeOps } from './knowledge.js';
+import { businessMemoryOps } from './business-memory.js';
 
 export * from './types.js';
 export { OP_SENSITIVITY } from './sensitivity.js';
@@ -6378,6 +6379,7 @@ export const OPS: readonly AiActionOp[] = [
   ...activityOps,
   // ---- 62-24 · file passages for the knowledge layer (read) ----
   ...knowledgeOps,
+  ...businessMemoryOps,
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',

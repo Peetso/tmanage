@@ -78,12 +78,25 @@ describe('56-18 account erasure', () => {
     expect(deletes.map((s) => /`([a-z0-9_]+)`/u.exec(s.sql)?.[1])).toEqual([
       'ai_conversation_messages',
       'ai_conversations',
+      'business_facts',
     ]);
-    for (const statement of deletes) {
+    for (const statement of deletes.slice(0, 2)) {
       expect(statement.sql).toMatch(/`organization_id` = \?/u);
       expect(statement.sql).toMatch(/`membership_id` in \(\?\)/u);
       expect(statement.params).toEqual([ORG, 'm']);
     }
+  });
+
+  it('62-26: deletes the Business Memory facts about the person in the requesting company', async () => {
+    const { database, statements } = fakeDatabase({ member: true });
+    await new AccountErasure(database).run(context, USER);
+    const facts = writes(statements.filter((s) => s.path === 'tenant')).find(
+      (s) => s.sql.startsWith('delete') && s.sql.includes('`business_facts`'),
+    );
+    expect(facts?.sql).toMatch(/`organization_id` = \?/u);
+    expect(facts?.sql).toMatch(/`entity_type` = \?/u);
+    expect(facts?.sql).toMatch(/`entity_id` = \?/u);
+    expect(facts?.params).toEqual([ORG, 'person', USER]);
   });
 
   it('erases the global account once the person belongs nowhere', async () => {

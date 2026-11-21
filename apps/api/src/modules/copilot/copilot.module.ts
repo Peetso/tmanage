@@ -52,6 +52,12 @@ import {
 import { KnowledgeRepository, MariaDbVectorStore } from './knowledge/knowledge.repository.js';
 import { KNOWLEDGE_RETRIEVAL, KnowledgeController } from './knowledge/knowledge.controller.js';
 import { KnowledgeRetrieval } from './knowledge/knowledge-retrieval.js';
+import {
+  BUSINESS_MEMORY_SERVICE,
+  BusinessMemoryController,
+} from './memory/business-memory.controller.js';
+import { BusinessMemoryRepository } from './memory/business-memory.repository.js';
+import { BusinessMemoryService } from './memory/business-memory.service.js';
 
 /** The budget the chat runs on and the confirm/undo refunds through (one per module). */
 const AI_BUDGET_SERVICE = Symbol.for('tmanage.copilot.AiBudgetService');
@@ -100,6 +106,17 @@ export class CopilotModule {
               new MariaDbVectorStore(),
               null,
             ),
+        },
+        // 62-26: Business Memory (approved facts the AI may recall; a person approves).
+        {
+          provide: BUSINESS_MEMORY_SERVICE,
+          inject: [TENANT_DATABASE, AUDIT_SERVICE],
+          useFactory: (database: TenantDatabase, audit: AuditService) =>
+            new BusinessMemoryService({
+              database,
+              audit,
+              repository: new BusinessMemoryRepository(),
+            }),
         },
         {
           provide: AI_BUDGET_SERVICE,
@@ -232,6 +249,7 @@ export class CopilotModule {
         CopilotChatController,
         AiConversationsController,
         KnowledgeController,
+        BusinessMemoryController,
       ],
     };
   }
