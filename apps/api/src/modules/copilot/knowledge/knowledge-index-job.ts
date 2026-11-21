@@ -148,7 +148,13 @@ export class KnowledgeIndexJob implements OnApplicationBootstrap, OnModuleDestro
       {
         correlationId,
         reason: KNOWLEDGE_INDEX_REASON,
-        tables: ['file_assets', 'file_versions', 'ai_file_texts', 'ai_file_chunks'],
+        tables: [
+          'file_assets',
+          'file_versions',
+          'ai_file_texts',
+          'ai_file_chunks',
+          'ai_file_summaries',
+        ],
       },
       (db) => this.repository.organizationsWithWork(db),
     );
@@ -166,6 +172,10 @@ export class KnowledgeIndexJob implements OnApplicationBootstrap, OnModuleDestro
   private async organization(context: TenantContext, tally: Tally): Promise<void> {
     tally.forgotten += await this.database.transaction(context, (tx) =>
       this.repository.deleteStale(tx, context, this.options.staleBatchSize),
+    );
+    // 62-25: a summary goes with the text row of its bytes.
+    tally.forgotten += await this.database.transaction(context, (tx) =>
+      this.repository.deleteOrphanSummaries(tx, context, this.options.staleBatchSize),
     );
     tally.resynced += await this.database.transaction(context, (tx) =>
       this.repository.resyncScope(tx, context),

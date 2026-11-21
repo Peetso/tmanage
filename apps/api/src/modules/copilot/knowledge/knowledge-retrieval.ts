@@ -1,5 +1,6 @@
 import type { Principal } from '@tmanage/domain';
 import { isServableVersion } from '@tmanage/domain';
+import type { FileAssetRow } from '../../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../../common/database/tenant-context.js';
 import { mayReadHit } from '../../search/search-permission.js';
 import type { EmbeddingProvider } from './embeddings.js';
@@ -68,10 +69,18 @@ export function retrievalScope(principal: Principal, projectId?: string): Retrie
 /** Pure: whether a fetched passage may go to this member (the re-check). */
 export function mayReadPassage(principal: Principal, chunk: FetchedChunk): boolean {
   const asset = chunk.asset;
-  if (asset === null || asset.deletedAt !== null || asset.purgedAt !== null) return false;
-  if (asset.projectId !== chunk.projectId) return false;
-  // The asset half of the servable rule; the version half is the passage's own provenance
-  // (written only from a clean, promoted version's text, deleted when that version changes).
+  if (asset === null || asset.projectId !== chunk.projectId) return false;
+  return mayReadFileAsset(principal, asset);
+}
+
+/**
+ * Pure: whether this member may read what the AI layer holds about a file (its text, passages and
+ * summary): the file is live, and the member may open it (`mayReadHit`, kind `file`). The asset
+ * half of the servable rule; the version half is the derivative's own provenance (written only from
+ * a clean, promoted version's text, deleted when that version changes).
+ */
+export function mayReadFileAsset(principal: Principal, asset: FileAssetRow): boolean {
+  if (asset.deletedAt !== null || asset.purgedAt !== null) return false;
   if (!isServableVersion({ status: asset.status, scanVerdict: 'clean', trustZone: 'private' })) {
     return false;
   }
@@ -100,10 +109,18 @@ export class KnowledgeRetrieval {
     context: TenantContext,
     principal: Principal,
     query: string,
-    options: { readonly projectId?: string; readonly limit?: number } = {},
+    options: {
+      readonly projectId?: string;
+      readonly limit?: number;
+      /** 62-25: only this file's passages (a question about one file). */
+      readonly fileAssetId?: string;
+    } = {},
   ): Promise<readonly Passage[]> {
     const limit = Math.min(Math.max(options.limit ?? DEFAULT_PASSAGES, 1), MAX_PASSAGES);
-    const scope = retrievalScope(principal, options.projectId);
+    const scope = {
+      ...retrievalScope(principal, options.projectId),
+      ...(options.fileAssetId === undefined ? {} : { fileAssetId: options.fileAssetId }),
+    };
     const vector =
       this.embeddings === null
         ? null

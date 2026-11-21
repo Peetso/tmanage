@@ -62,7 +62,21 @@ export type AiUserBlock =
       readonly toolUseId: string;
       readonly content: string;
       readonly isError?: boolean;
-    };
+    }
+  | AiDocumentBlock;
+
+/**
+ * 62-25: a PDF the model reads as pages (text and images), sent as a base64 `document` block
+ * before the question. Only the chat's explicit "read the scan with AI" turn builds one.
+ * `pages` is ours (the prompt estimate), never sent.
+ */
+export interface AiDocumentBlock {
+  readonly type: 'document';
+  readonly mediaType: 'application/pdf';
+  /** The file's bytes, base64. */
+  readonly data: string;
+  readonly pages: number;
+}
 
 export type AiMessage =
   | { readonly role: 'user'; readonly content: string | readonly AiUserBlock[] }
@@ -171,6 +185,12 @@ function validate(request: AiRequest): void {
 
 function userBlock(block: AiUserBlock): JsonObject {
   if (block.type === 'text') return { type: 'text', text: block.text };
+  if (block.type === 'document') {
+    return {
+      type: 'document',
+      source: { type: 'base64', media_type: block.mediaType, data: block.data },
+    };
+  }
   return {
     type: 'tool_result',
     tool_use_id: block.toolUseId,

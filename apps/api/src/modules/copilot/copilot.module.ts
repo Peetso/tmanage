@@ -3,7 +3,12 @@ import type { DynamicModule } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
-import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import {
+  API_CONFIG,
+  AUDIT_SERVICE,
+  OBJECT_STORE,
+  TENANT_DATABASE,
+} from '../../common/http/tokens.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { AiAllowanceService } from '../billing/ai-allowance.service.js';
 import { AiPacksService } from '../billing/ai-packs.service.js';
@@ -52,6 +57,16 @@ import {
 import { KnowledgeRepository, MariaDbVectorStore } from './knowledge/knowledge.repository.js';
 import { KNOWLEDGE_RETRIEVAL, KnowledgeController } from './knowledge/knowledge.controller.js';
 import { KnowledgeRetrieval } from './knowledge/knowledge-retrieval.js';
+import { FileKnowledgeRepository } from './knowledge/file-knowledge.repository.js';
+import { FileKnowledgeService } from './knowledge/file-knowledge.js';
+import {
+  FILE_KNOWLEDGE_SERVICE,
+  FileKnowledgeController,
+} from './knowledge/file-knowledge.controller.js';
+import { FileScanSource } from './knowledge/file-scan-source.js';
+import type { ObjectStore } from '@tmanage/storage';
+import { FileAssetsRepository } from '../files/file-assets.repository.js';
+import { providerObjectSources } from '../files/provider-object-sources.js';
 import {
   BUSINESS_MEMORY_SERVICE,
   BusinessMemoryController,
@@ -114,6 +129,14 @@ export class CopilotModule {
               new MariaDbVectorStore(),
               null,
             ),
+        },
+        // 62-25: one file as the AI may read it for a question (its text state, cached summary,
+        // text or passages), and the summary cache the chat writes.
+        {
+          provide: FILE_KNOWLEDGE_SERVICE,
+          inject: [TENANT_DATABASE, KNOWLEDGE_RETRIEVAL],
+          useFactory: (database: TenantDatabase, retrieval: KnowledgeRetrieval) =>
+            new FileKnowledgeService(database, new FileKnowledgeRepository(), retrieval),
         },
         // 62-28: the optional AI wording of the weekly digest. No batch client exists (no API key),
         // so the job never starts and every digest is the plain template.
@@ -180,6 +203,8 @@ export class CopilotModule {
             PENDING_AI_ACTIONS_SERVICE,
             AI_CONVERSATIONS_SERVICE,
             AUDIT_SERVICE,
+            FILE_KNOWLEDGE_SERVICE,
+            OBJECT_STORE,
             { token: API_CONFIG, optional: true },
             { token: DURABLE_RATE_LIMITER, optional: true },
           ],
@@ -190,11 +215,25 @@ export class CopilotModule {
             pending: PendingAiActionsService,
             conversations: AiConversationsService,
             audit: AuditService,
+            files: FileKnowledgeService,
+            store: ObjectStore,
             config: ApiConfig | undefined,
             limiter: DurableRateLimiter | undefined,
           ) => {
             const cardKey = cardKeyFrom(config?.sessionSecret);
+            // 62-25: a scan's bytes wherever the version lives (own store, Drive, OneDrive).
+            const scans = new FileScanSource(
+              database,
+              new FileAssetsRepository(),
+              new FileKnowledgeRepository(),
+              store,
+              config === undefined ? {} : providerObjectSources(database, audit, config),
+            );
             return new CopilotChatService({
+              fileSummaries: {
+                record: (context, summary, now) => files.recordSummary(context, summary, now),
+              },
+              fileScans: scans,
               standing: databaseStanding(database),
               allowance: (context) => wired.allowance.forBudget(context),
               budget: wired.budget,
@@ -275,6 +314,7 @@ export class CopilotModule {
         CopilotChatController,
         AiConversationsController,
         KnowledgeController,
+        FileKnowledgeController,
         BusinessMemoryController,
       ],
     };

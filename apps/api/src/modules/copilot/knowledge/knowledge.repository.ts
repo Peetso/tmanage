@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, notExists, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { tenantDrizzle } from '../../../common/database/drizzle.js';
 import {
   aiFileChunks,
+  aiFileSummaries,
   aiFileTexts,
   fileAssets,
   fileVersions,
@@ -36,6 +37,8 @@ export interface RetrievalScope {
   readonly projectIds: readonly string[] | null;
   /** Narrowed to one project by the caller (already checked visible). */
   readonly projectId?: string;
+  /** 62-25: narrowed to one file by the caller (already checked readable). */
+  readonly fileAssetId?: string;
 }
 
 export interface RankedChunk {
@@ -84,7 +87,7 @@ function affected(result: unknown): number {
  * The content hash of an asset's current servable version (latest version number, clean,
  * promoted, asset ready and live), as a correlated subquery on `file_assets`.
  */
-function currentHashOf(organizationId: SQL | string, assetId: SQL): SQL {
+export function currentHashOf(organizationId: SQL | string, assetId: SQL): SQL {
   return sql`(select v.content_hash from ${fileVersions} v
     where v.organization_id = ${organizationId} and v.file_asset_id = ${assetId}
       and v.trust_zone = 'private' and v.scan_verdict = 'clean' and v.content_hash is not null
@@ -110,6 +113,15 @@ function stale(): SQL {
       and ${currentHashOf(sql`${fileAssets.organizationId}`, sql`${fileAssets.id}`)} = ${aiFileChunks.contentHash})`;
 }
 
+/** A summary no text row of its workspace holds the hash of any more. */
+function orphanedSummary() {
+  return notExists(
+    sql`(select 1 from ${aiFileTexts} t
+      where t.organization_id = ${aiFileSummaries.organizationId}
+        and t.content_hash = ${aiFileSummaries.contentHash})`,
+  );
+}
+
 function needsChunks(): SQL {
   const hash = currentHashOf(sql`${fileAssets.organizationId}`, sql`${fileAssets.id}`);
   return sql`${liveAsset()}
@@ -124,6 +136,7 @@ function scoped(context: TenantContext, scope: RetrievalScope): SQL | undefined 
   return and(
     eq(aiFileChunks.organizationId, context.organizationId),
     scope.projectId === undefined ? undefined : eq(aiFileChunks.projectId, scope.projectId),
+    scope.fileAssetId === undefined ? undefined : eq(aiFileChunks.fileAssetId, scope.fileAssetId),
     scope.projectIds === null ? undefined : inArray(aiFileChunks.projectId, [...scope.projectIds]),
   );
 }
@@ -144,7 +157,12 @@ export class KnowledgeRepository {
       .selectDistinct({ organizationId: aiFileChunks.organizationId })
       .from(aiFileChunks)
       .where(stale());
-    return [...new Set([...needing, ...old].map((row) => row.organizationId))].sort();
+    // 62-25: summaries whose text row is gone.
+    const summaries = await db
+      .selectDistinct({ organizationId: aiFileSummaries.organizationId })
+      .from(aiFileSummaries)
+      .where(orphanedSummary());
+    return [...new Set([...needing, ...old, ...summaries].map((row) => row.organizationId))].sort();
   }
 
   async listAssetsNeedingChunks(
@@ -250,6 +268,33 @@ export class KnowledgeRepository {
           aiFileChunks.id,
           ids.map((row) => row.id),
         ),
+      ),
+    );
+    return affected(result);
+  }
+
+  /** 62-25 (0397). Deletes up to `limit` summaries whose hash no text row holds (a deleted or changed file). */
+  async deleteOrphanSummaries(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    limit: number,
+  ): Promise<number> {
+    const db = tenantDrizzle(runner);
+    const ids = await db
+      .select({ id: aiFileSummaries.id })
+      .from(aiFileSummaries)
+      .where(and(eq(aiFileSummaries.organizationId, context.organizationId), orphanedSummary()))
+      .orderBy(asc(aiFileSummaries.id))
+      .limit(Math.min(Math.max(limit, 1), 500));
+    if (ids.length === 0) return 0;
+    const result = await db.delete(aiFileSummaries).where(
+      and(
+        eq(aiFileSummaries.organizationId, context.organizationId),
+        inArray(
+          aiFileSummaries.id,
+          ids.map((row) => row.id),
+        ),
+        orphanedSummary(),
       ),
     );
     return affected(result);

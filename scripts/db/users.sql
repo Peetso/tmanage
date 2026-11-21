@@ -2710,6 +2710,10 @@ GRANT INSERT, UPDATE ON `tmanage`.`business_facts` TO 'tmanage_app'@'%';
 -- wording is used only while young and only for the exact section it was made for. SELECT rides
 -- the database-wide read.
 GRANT INSERT, UPDATE ON `tmanage`.`ai_digest_wordings` TO 'tmanage_app'@'%';
+-- 0397 (62-25 AI FILE SUMMARIES). A file question records the summary the model wrote (INSERT,
+-- or UPDATE of the same key on a repeat); the knowledge index job deletes a summary once no text
+-- row holds its hash (DELETE). SELECT rides the database-wide read. The worker touches none of it.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`ai_file_summaries` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_app'@'%';
 -- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
 -- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
@@ -2797,6 +2801,7 @@ GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_erasure'
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_packs` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_digest_wordings` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_file_summaries` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_texts` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_member_periods` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_tasks` TO 'tmanage_erasure'@'%';

@@ -252,6 +252,7 @@ describe('index job (62-24)', () => {
     const repository = {
       organizationsWithWork: () => Promise.resolve([ORG]),
       deleteStale: () => Promise.resolve(2),
+      deleteOrphanSummaries: () => Promise.resolve(0),
       resyncScope: () => Promise.resolve(0),
       listAssetsNeedingChunks: (): Promise<AssetNeedingChunks[]> =>
         Promise.resolve([

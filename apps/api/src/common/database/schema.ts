@@ -15426,6 +15426,36 @@ export const aiDigestWordings = mysqlTable(
 
 export type AiDigestWordingRow = typeof aiDigestWordings.$inferSelect;
 
+/**
+ * 62-25 (0397). The cached AI summary of a workspace file, once per (workspace, content hash,
+ * audience): the second question about the same bytes reads it instead of the whole text. Read
+ * only through the file's own read rule; deleted by the knowledge index job once no text row
+ * holds its hash. `0397_ai_file_summaries.sql`.
+ */
+export const aiFileSummaries = mysqlTable(
+  'ai_file_summaries',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    contentHash: varchar('content_hash', { length: 128 }).notNull(),
+    audience: mysqlEnum('audience', WORK_ITEM_AUDIENCE).notNull(),
+    summary: text('summary').notNull(),
+    model: varchar('model', { length: 64 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_file_summaries_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_file_summaries_key').on(
+      table.organizationId,
+      table.contentHash,
+      table.audience,
+    ),
+  ],
+);
+
+export type AiFileSummaryRow = typeof aiFileSummaries.$inferSelect;
+
 export type AiBudgetPoolRow = typeof aiBudgetPools.$inferSelect;
 export type AiWorkspacePeriodRow = typeof aiWorkspacePeriods.$inferSelect;
 export type AiMemberPeriodRow = typeof aiMemberPeriods.$inferSelect;
@@ -15450,6 +15480,7 @@ Object.assign(TABLES, {
   ai_file_chunks: aiFileChunks,
   business_facts: businessFacts,
   ai_digest_wordings: aiDigestWordings,
+  ai_file_summaries: aiFileSummaries,
 });
 
 // ---- DC-3 / RT-3 · lane K · leader lease ----

@@ -28,6 +28,17 @@ import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
 import { packTools } from './packs/index.js';
 import {
+  FILE_READ_OP,
+  RECORD_FILE_SUMMARY_TOOL,
+  RECORD_FILE_SUMMARY_TOOL_DEFINITION,
+  SCAN_MAX_PAGES,
+  fileContextText,
+  fileReadOf,
+  offersSummary,
+  planFileQuestion,
+} from './packs/files.js';
+import type { ScanSourceResult } from './knowledge/file-scan-source.js';
+import {
   EXPLAIN_DEFAULT_MESSAGE,
   EXPLAIN_DOMAIN,
   EXPLAIN_SIGNAL_TOOL_DEFINITION,
@@ -108,6 +119,8 @@ import { isUntrustedOpId, markUntrusted } from './untrusted-sources.js';
  */
 
 export const CHAT_MESSAGE_MAX_CHARS = 4_000;
+/** 62-25: the question as the file route's `q` (its cap). */
+export const FILE_QUESTION_QUERY_MAX_CHARS = 300;
 
 /** Plan 62 §4.1 step 6: tool calls per turn by tier. Help answers without tools. */
 export const TOOL_CALLS_PER_TURN: Readonly<Record<AiTier, number>> = Object.freeze({
@@ -266,7 +279,40 @@ export interface CopilotChatDeps {
     context: TenantContext,
     change: { readonly taskId: string; readonly opId: string },
   ) => Promise<void>;
+  /**
+   * 62-25: records the summary the model wrote of a file it read whole (the cache that makes the
+   * next question about the same bytes cheap). Absent: no summary is offered or kept.
+   */
+  readonly fileSummaries?: ChatFileSummaries;
+  /** 62-25: the bytes of a scanned PDF, only for a turn whose member accepted the scan read. */
+  readonly fileScans?: ChatFileScans;
   readonly now?: () => Date;
+}
+
+/** 62-25: the summary cache of file questions (`FileKnowledgeService.recordSummary`). */
+export interface ChatFileSummaries {
+  record(
+    context: TenantContext,
+    summary: {
+      readonly textId: string;
+      readonly audience: 'internal' | 'client_visible' | 'client_action_required';
+      readonly summary: string;
+      readonly model: string;
+    },
+    now: Date,
+  ): Promise<boolean>;
+}
+
+/** 62-25: a scanned PDF's bytes for the accepted scan read (`FileScanSource.read`). */
+export interface ChatFileScans {
+  read(context: TenantContext, fileAssetId: string, maxPages: number): Promise<ScanSourceResult>;
+}
+
+/** 62-25: a question about one file the member can open. */
+export interface ChatFileQuestion {
+  readonly fileId: string;
+  /** The member accepted reading the scan with AI (sent back with the estimate). */
+  readonly readScan: boolean;
 }
 
 export interface ChatTurnInput {
@@ -279,6 +325,8 @@ export interface ChatTurnInput {
   readonly conversationId?: string | null;
   /** 62-28: "Explain this alert": a Low turn with no router call and the `explain_signal` tool. */
   readonly explain?: ExplainRequest | null;
+  /** 62-25: the turn is a question about this file (no router call; the file decides the tier). */
+  readonly file?: ChatFileQuestion | null;
 }
 
 export type ChatStop =
@@ -287,7 +335,9 @@ export type ChatStop =
   | 'provider_error'
   | 'model_refused'
   | 'not_understood'
-  | 'rate_limited';
+  | 'rate_limited'
+  /** 62-25: the scan the member accepted cannot be read (see `file.reasonCode`). */
+  | 'scan_unavailable';
 
 /** 62-14: what the abuse limits said about one turn. */
 export type ChatLimitDecision =
@@ -339,6 +389,19 @@ export interface CopilotChatView {
   readonly conversationId: string | null;
   /** 62-14: on `rate_limited`, the seconds until the member can ask again. */
   readonly retryAfterSeconds: number | null;
+  /** 62-25: on a file question's estimate or scan stop, what to send back or why it stopped. */
+  readonly file: ChatFileOffer | null;
+}
+
+/**
+ * 62-25: the file of an estimate. `readScan` = the estimate offers reading the scan with AI: the
+ * member accepts by sending `file: { fileId, readScan: true }` with `confirmed`.
+ */
+export interface ChatFileOffer {
+  readonly fileId: string;
+  readonly readScan: boolean;
+  /** On `scan_unavailable`: why (`too_many_pages`, `too_large`, `not_pdf`, …). */
+  readonly reasonCode: string | null;
 }
 
 const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
@@ -357,6 +420,7 @@ const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
   undo: null,
   conversationId: null,
   retryAfterSeconds: null,
+  file: null,
 };
 
 const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -420,8 +484,26 @@ export function parseChatBody(body: Readonly<Record<string, unknown>> | null): C
     ]);
   }
   const conversationId = typeof rawConversation === 'string' ? rawConversation.toLowerCase() : null;
+  const file = parseFileQuestion(body?.['file']);
+  if (file === undefined) {
+    throw new ApiError(400, 'validation_failed', 'Send the file you are asking about.', [
+      { field: 'file', message: 'a file id, and readScan only as true or false' },
+    ]);
+  }
+  if (file !== null && help) {
+    throw new ApiError(400, 'validation_failed', 'A help question is not about a file.', [
+      { field: 'file', message: 'not with help' },
+    ]);
+  }
   const raw = body?.['confirmed'];
-  if (raw === undefined || raw === null) return { message, confirmed: null, help, conversationId };
+  if (raw === undefined || raw === null) {
+    if (file?.readScan === true) {
+      throw new ApiError(400, 'validation_failed', 'Send back the estimate you accepted.', [
+        { field: 'confirmed', message: 'reading a scan needs the accepted estimate' },
+      ]);
+    }
+    return { message, confirmed: null, help, conversationId, ...(file === null ? {} : { file }) };
+  }
   if (help) {
     throw new ApiError(400, 'validation_failed', 'A help question has no estimate.', [
       { field: 'confirmed', message: 'not with help' },
@@ -440,7 +522,32 @@ export function parseChatBody(body: Readonly<Record<string, unknown>> | null): C
       { field: 'confirmed', message: 'a tier that asks first and its domain' },
     ]);
   }
-  return { message, confirmed: { tier, domain }, conversationId };
+  if (file !== null && domain !== 'files') {
+    throw new ApiError(400, 'validation_failed', 'Send back the estimate you accepted.', [
+      { field: 'confirmed', message: 'a file question is in the files domain' },
+    ]);
+  }
+  return {
+    message,
+    confirmed: { tier, domain },
+    conversationId,
+    ...(file === null ? {} : { file }),
+  };
+}
+
+const FILE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** 62-25: `file` of the body: `null` when absent, `undefined` when malformed. */
+function parseFileQuestion(raw: unknown): ChatFileQuestion | null | undefined {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  const fileId = record['fileId'];
+  const readScan = record['readScan'] ?? false;
+  if (typeof fileId !== 'string' || !FILE_ID.test(fileId) || typeof readScan !== 'boolean') {
+    return undefined;
+  }
+  return { fileId, readScan };
 }
 
 const notFound = (auditCode: string) =>
@@ -464,10 +571,34 @@ export async function openStanding(
   return read;
 }
 
-/** A byte-length upper estimate of a request's prompt tokens (a token is never under a byte). */
-async function bytesAsTokens(request: AiRequest): Promise<number> {
+/**
+ * 62-25: the prompt tokens one PDF page is held at when the model reads it as pages (its text and
+ * its image). A provisional upper bound until Gate B measures real scans with `count_tokens`.
+ */
+export const DOCUMENT_PAGE_TOKENS = 5_000;
+
+/**
+ * A byte-length upper estimate of a request's prompt tokens (a token is never under a byte). A
+ * document block counts {@link DOCUMENT_PAGE_TOKENS} a page, not its base64 bytes.
+ */
+export async function bytesAsTokens(request: AiRequest): Promise<number> {
   const { model: _model, maxTokens: _max, ...prompt } = request;
-  return Buffer.byteLength(JSON.stringify(prompt), 'utf8');
+  let pages = 0;
+  const messages = prompt.messages.map((message) => {
+    if (message.role !== 'user' || typeof message.content === 'string') return message;
+    return {
+      ...message,
+      content: message.content.map((block) => {
+        if (block.type !== 'document') return block;
+        pages += block.pages;
+        return { ...block, data: '' };
+      }),
+    };
+  });
+  return (
+    Buffer.byteLength(JSON.stringify({ ...prompt, messages }), 'utf8') +
+    pages * DOCUMENT_PAGE_TOKENS
+  );
 }
 
 type CallOutcome =
@@ -503,6 +634,27 @@ interface TurnChanges {
   tainted: boolean;
   /** What the tools returned and the member wrote: the evidence figures are grounded in. */
   readonly evidence: string[];
+}
+
+/** 62-25: a server-side tool of one turn; its arguments are the model's, its keys the server's. */
+type LocalTool = (args: Readonly<Record<string, unknown>>) => Promise<{
+  readonly ok: boolean;
+  readonly text: string;
+}>;
+
+interface LoopExtras {
+  /** 62-28/62-25: a turn's own tools, before the meta-tools. */
+  readonly tools?: readonly AiToolDefinition[];
+  /** 62-25: how this turn runs its own tools (by name). */
+  readonly local?: ReadonlyMap<string, LocalTool>;
+  /** 62-25: what the first message carries before the question (a file, marked untrusted). */
+  readonly lead?: {
+    readonly blocks: readonly AiUserBlock[];
+    readonly opId: string;
+    readonly text: string;
+  };
+  /** 62-25: reads made for the turn before it opened (the file), in its tool records. */
+  readonly priorCalls?: readonly ChatToolRecord[];
 }
 
 interface LoopResult {
@@ -551,7 +703,10 @@ export class CopilotChatService {
 
     // 2. Rules pre-pass: a plain command costs nothing.
     const navigation =
-      input.confirmed === null && input.help !== true && (input.explain ?? null) === null
+      input.confirmed === null &&
+      input.help !== true &&
+      (input.explain ?? null) === null &&
+      (input.file ?? null) === null
         ? plainCommand(scope.commands, input.message)
         : null;
     if (navigation) return { ...EMPTY_VIEW, state: 'navigate', navigation };
@@ -568,6 +723,11 @@ export class CopilotChatService {
     }
 
     const allowance = await this.deps.allowance(context);
+
+    // 62-25: a question about one file: the file decides the tier, never a router call.
+    if ((input.file ?? null) !== null) {
+      return this.fileQuestion(context, scope, input, input.file!, standing, history, allowance);
+    }
 
     // 3. The route: the accepted estimate, or one router call under a low task.
     let route: AiRoute;
@@ -630,8 +790,31 @@ export class CopilotChatService {
       explain === null ? input.message : explainMessage(input.message, explain),
       standing,
       history,
-      explain === null ? [] : [EXPLAIN_SIGNAL_TOOL_DEFINITION],
+      explain === null ? {} : { tools: [EXPLAIN_SIGNAL_TOOL_DEFINITION] },
     );
+    return this.conclude(
+      context,
+      turn,
+      route,
+      input,
+      result,
+      conversationId,
+      askedAt,
+      routingCharged,
+    );
+  }
+
+  /** The end of an answered or stopped turn: card, receipt, conversation, view. */
+  private async conclude(
+    context: TenantContext,
+    turn: TurnState,
+    route: AiRoute,
+    input: ChatTurnInput,
+    result: LoopResult,
+    conversationId: string | null,
+    askedAt: Date,
+    routingCharged: number,
+  ): Promise<CopilotChatView> {
     const completed = result.stop === null;
     const card = completed ? this.card(context, turn, result.changes) : null;
     const changeState = this.changeState(result.changes, card);
@@ -684,6 +867,136 @@ export class CopilotChatService {
       card: card === null ? null : card.view,
       undo,
     };
+  }
+
+  /**
+   * 62-25 — a question about one file (`packs/files.ts`). The file is read first through the
+   * member's own route (`knowledge.files.get`: the file's read rule; 404 when they cannot open
+   * it), before any task opens; its state decides the tier. A tier that asks first, and every
+   * scan, stops at an estimate the member accepts; a scan is read only on that accepted turn.
+   * The file's content reaches the model marked untrusted, and taints the turn.
+   */
+  private async fileQuestion(
+    context: TenantContext,
+    scope: ChatRequestScope,
+    input: ChatTurnInput,
+    question: ChatFileQuestion,
+    standing: ChatStanding,
+    history: readonly ChatHistoryMessage[],
+    allowance: AiCreditAllowance,
+  ): Promise<CopilotChatView> {
+    const askedAt = this.now();
+    const surface = this.deps.surface({
+      context,
+      orgSlug: scope.orgSlug,
+      scopes: chatScopesFor(standing.writeScope),
+      grantId: 'file-question',
+      idempotencyKey: () => null,
+    });
+    const q = [...input.message].slice(0, FILE_QUESTION_QUERY_MAX_CHARS).join('');
+    const ran = await surface.runTool(META_TOOL_NAMES.run, {
+      action_id: FILE_READ_OP,
+      args: { fileAssetId: question.fileId, q },
+    });
+    const file = ran.isError === true ? null : fileReadOf(ran.data);
+    if (file === null || file.fileId !== question.fileId)
+      throw notFound('copilot.chat:file_not_visible');
+    const read: ChatToolRecord = { opId: FILE_READ_OP, outcome: 'ok' };
+    const accepted =
+      input.confirmed === null ? null : { tier: input.confirmed.tier, scan: question.readScan };
+    const plan = planFileQuestion(file, accepted);
+    const offer = (readScan: boolean, reasonCode: string | null = null): ChatFileOffer => ({
+      fileId: file.fileId,
+      readScan,
+      reasonCode,
+    });
+    if (plan.kind === 'estimate') {
+      return {
+        ...EMPTY_VIEW,
+        state: 'estimate',
+        domain: 'files',
+        tier: plan.tier,
+        ceilingCredits: AI_TIER_SPECS[plan.tier].ceilingCredits,
+        toolCalls: [read],
+        file: offer(plan.scan),
+      };
+    }
+    const route: AiRoute = { domain: 'files', tier: plan.tier };
+    // The scan's bytes before any task opens: an unreadable scan costs nothing.
+    let lead: AiUserBlock[] = [];
+    if (plan.kind === 'scan') {
+      const scan =
+        this.deps.fileScans === undefined
+          ? ({ ok: false, code: 'unreadable' } as const)
+          : await this.deps.fileScans.read(context, file.fileId, SCAN_MAX_PAGES);
+      if (!scan.ok) {
+        return {
+          ...this.stopped(route, [read], 'scan_unavailable'),
+          file: offer(false, scan.code),
+        };
+      }
+      lead = [
+        { type: 'document', mediaType: 'application/pdf', data: scan.data, pages: scan.pages },
+      ];
+    }
+    const opened = await this.open(context, route.tier, 'file_analysis', allowance);
+    if (!opened.ok) return this.stopped(route, [read], opened.reason);
+    const turn = newTurn(opened.value, this.deps.clientFor(standing.poolClass)!);
+    turn.audited.push({
+      tool: FILE_READ_OP,
+      opId: FILE_READ_OP,
+      outcome: 'ok',
+      argsSha256: createHash('sha256')
+        .update(JSON.stringify({ fileAssetId: file.fileId, q }))
+        .digest('hex'),
+      latencyMs: 0,
+    });
+    const local = new Map<string, LocalTool>();
+    const summaries = this.deps.fileSummaries;
+    const summarise = summaries !== undefined && offersSummary(file, plan);
+    if (summarise) {
+      local.set(RECORD_FILE_SUMMARY_TOOL, async (args) => {
+        const summary = typeof args['summary'] === 'string' ? args['summary'] : '';
+        const saved = await summaries.record(
+          context,
+          {
+            textId: file.textId!,
+            audience: file.audience,
+            summary,
+            model: AI_TIER_SPECS[turn.task.tier].model,
+          },
+          this.now(),
+        );
+        return saved
+          ? { ok: true, text: 'Saved. Now answer the question.' }
+          : { ok: false, text: 'Not saved (the file changed). Answer the question.' };
+      });
+    }
+    const result = await this.loop(
+      context,
+      scope.orgSlug,
+      turn,
+      route,
+      input.message,
+      standing,
+      history,
+      {
+        tools: summarise ? [RECORD_FILE_SUMMARY_TOOL_DEFINITION] : [],
+        local,
+        lead: { blocks: lead, opId: FILE_READ_OP, text: fileContextText(file, plan) },
+        priorCalls: [read],
+      },
+    );
+    return this.conclude(
+      context,
+      turn,
+      route,
+      input,
+      result,
+      input.conversationId ?? null,
+      askedAt,
+      0,
+    );
   }
 
   /** The signed card of a turn's proposals, or `null` when nothing waits for a confirm. */
@@ -759,9 +1072,9 @@ export class CopilotChatService {
     message: string,
     standing: ChatStanding,
     history: readonly ChatHistoryMessage[] = [],
-    /** 62-28: a turn's own tools (the explain button), before the meta-tools. */
-    turnTools: readonly AiToolDefinition[] = [],
+    extras: LoopExtras = {},
   ): Promise<LoopResult> {
+    const turnTools = extras.tools ?? [];
     const writeScope = standing.writeScope;
     const changes: TurnChanges = {
       proposals: [],
@@ -769,8 +1082,13 @@ export class CopilotChatService {
       cannotUndo: false,
       // 62-13: an earlier answer may carry what an untrusted source said, and its taint is not
       // kept: a turn with history is tainted from the start (every change needs a card).
-      tainted: history.length > 0,
-      evidence: [...history.map((m) => m.body), message],
+      // 62-25: so is a turn that opens with a file's content.
+      tainted: history.length > 0 || extras.lead !== undefined,
+      evidence: [
+        ...history.map((m) => m.body),
+        message,
+        ...(extras.lead === undefined ? [] : [extras.lead.text]),
+      ],
     };
     const end = (
       stop: ChatStop | null,
@@ -814,9 +1132,19 @@ export class CopilotChatService {
           ? { role: 'user', content: m.body }
           : { role: 'assistant', content: historyReplay(m.body) },
       ),
-      { role: 'user', content: message },
+      {
+        role: 'user',
+        content:
+          extras.lead === undefined
+            ? message
+            : [
+                ...extras.lead.blocks,
+                { type: 'text', text: markUntrusted(extras.lead.opId, extras.lead.text) },
+                { type: 'text', text: message },
+              ],
+      },
     ];
-    const toolCalls: ChatToolRecord[] = [];
+    const toolCalls: ChatToolRecord[] = [...(extras.priorCalls ?? [])];
     let currentKey: string | null = null;
     const surface = this.deps.surface({
       context,
@@ -851,7 +1179,8 @@ export class CopilotChatService {
         (b): b is Extract<AiResponse['content'][number], { type: 'tool_use' }> =>
           b.type === 'tool_use',
       );
-      if (tools.length === 0 || toolCalls.length + uses.length > toolBudget) {
+      const prior = extras.priorCalls?.length ?? 0;
+      if (tools.length === 0 || toolCalls.length - prior + uses.length > toolBudget) {
         return end('tool_limit', textOf(response));
       }
       const results: AiUserBlock[] = [];
@@ -865,6 +1194,20 @@ export class CopilotChatService {
             argsSha256: createHash('sha256').update(JSON.stringify(use.input)).digest('hex'),
             latencyMs: Date.now() - startedAt,
           });
+        // 62-25: a server-side tool of this turn (never a registry op, never the model's keys).
+        const local = extras.local?.get(use.name);
+        if (local !== undefined) {
+          const done = await local(use.input);
+          toolCalls.push({ opId: null, outcome: done.ok ? 'ok' : 'error' });
+          audit(toolCalls.at(-1)!);
+          results.push({
+            type: 'tool_result',
+            toolUseId: use.id,
+            content: done.text,
+            ...(done.ok ? {} : { isError: true }),
+          });
+          continue;
+        }
         const plan = planToolCall(use.name, use.input);
         if (plan.kind === 'change') {
           currentKey = idempotencyKeyOf(use.id, plan.rawArgs);
