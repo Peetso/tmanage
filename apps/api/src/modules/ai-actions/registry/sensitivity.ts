@@ -80,7 +80,8 @@ export const OP_SENSITIVITY: Readonly<Record<string, Sensitivity>> = {
   'business_memory.facts.propose': 'none',
   'calendar.focus_blocks.create': 'none',
   'calendar.focus_blocks.delete': 'destructive',
-  'client_invoices.create': 'money',
+  // 62-29 (manager 2026-11-21): an empty draft moves no money; pull, issue and expense stay money.
+  'client_invoices.create': 'none',
   'client_invoices.label.set': 'money',
   'client_invoices.mark_sent': 'money',
   'client_invoices.pull': 'money',

@@ -31,9 +31,11 @@ import type {
   EinvoiceView,
   InvoiceSummary,
   InvoiceView,
+  PullPreview,
   PullResult,
 } from './client-invoices.service.js';
 import { RequireFeature } from '../admin/feature-gate.js';
+import { pullBodyOfQuery } from './client-invoices-rules.js';
 
 export const CLIENT_INVOICES_SERVICE = Symbol.for('tmanage.ClientInvoicesService');
 
@@ -112,6 +114,18 @@ export class ClientInvoicesController {
     @Body() body: unknown,
   ): Promise<PullResult> {
     return this.service.pull(context, principal, invoiceId, body);
+  }
+
+  /** 62-29: what the pull would make of the draft, changing nothing (the AI card's amount). */
+  @Get('client-invoices/:invoiceId/pull-preview')
+  @RequireCapability('finance.manage')
+  pullPreview(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('invoiceId') invoiceId: string,
+    @Query() query: Record<string, unknown>,
+  ): Promise<PullPreview> {
+    return this.service.pullPreview(context, principal, invoiceId, pullBodyOfQuery(query));
   }
 
   @Post('client-invoices/:invoiceId/send')

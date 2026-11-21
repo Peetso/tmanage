@@ -21,7 +21,9 @@ import type {
 } from './ai-budget.service.js';
 import { callerClassOf } from './ai-budget.service.js';
 import { guardAnswer } from './ai-answer-guard.js';
-import { currentValues, runChange, undoPossible } from './ai-change.js';
+import { currentValues, readTarget, runChange, undoPossible } from './ai-change.js';
+import { billingCardAmount, billingCardWarnings } from './packs/billing.js';
+import type { BillingRead } from './packs/billing.js';
 import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
 import { packTools } from './packs/index.js';
@@ -59,7 +61,7 @@ import {
   type CardItem,
   type CardPayloadItem,
 } from './ai-preview.js';
-import { AI_UNDO_WINDOW_MS, type AiUndoEntry } from './ai-undo.js';
+import { AI_UNDO_WINDOW_MS, recordOf, type AiUndoEntry } from './ai-undo.js';
 import { isPricedModel } from './ai-price-table.js';
 import { historyReplay, type AiResponse } from './ai-response.js';
 import {
@@ -1006,7 +1008,14 @@ export class CopilotChatService {
       }
       approvalId = await this.deps.freezeApproval(context, change.op.id, change.args);
     }
-    const item = buildCardItem(changes.proposals.length, change, gate, current, approvalId);
+    // 62-29: a billing op decides its own amount; a new expense is checked for a duplicate.
+    const read: BillingRead = (id, args) => readTarget(surface, id, args);
+    const amount = await billingCardAmount(change.op.id, change.args, recordOf(current), read);
+    const warnings = await billingCardWarnings(change.op.id, change.args, read);
+    const item = buildCardItem(changes.proposals.length, change, gate, current, approvalId, {
+      ...(amount === undefined ? {} : { amount }),
+      warnings,
+    });
     // The card shows these values to the member: the answer may name them.
     changes.evidence.push(JSON.stringify(change.args));
     changes.proposals.push({
@@ -1017,7 +1026,12 @@ export class CopilotChatService {
       outcome: 'proposed',
       text:
         `Proposed, not run: "${change.title}" is on a preview card the member confirms in ` +
-        'TManage. Tell the member what you proposed; do not ask for it again.',
+        'TManage. Tell the member what you proposed; do not ask for it again.' +
+        warnings
+          .map(
+            (w) => ` It may repeat expense ${w.expenseIds.join(', ')}: say so before they confirm.`,
+          )
+          .join(''),
       isError: false,
     };
   }

@@ -3,6 +3,7 @@ import type { AiActionOp } from '../../ai-actions/registry/index.js';
 import { allDetailsById, toolNameForOp } from '../../mcp/tool-catalog.js';
 import type { AiToolDefinition } from '../ai-client.js';
 import type { AiDomain } from '../ai-router.js';
+import { BILLING_PACK_OPS } from './billing.js';
 import { strictToolSchema } from './pack-schema.js';
 
 /**
@@ -14,8 +15,8 @@ import { strictToolSchema } from './pack-schema.js';
  * Packs are constants: the same tools in the same order for every workspace and member (one cached
  * prefix per domain). What a member may actually run is decided at run time by their surface
  * (`liveMcpSurface` + the API's guards), never by which tools were offered. `files` holds the
- * knowledge pack's structured finders (62-22); `billing` has no pack yet (62-29): the meta-tools
- * only. `help` has no tools.
+ * knowledge pack's structured finders (62-22); `billing` is the billing assistant (62-29,
+ * `billing.ts`). `help` has no tools.
  *
  * Changes in a pack (`work_items.create`, `work_items.update`, timer start/stop) go through the
  * same preview / confirm / undo path as a `run_action` change (62-11).
@@ -91,6 +92,8 @@ export const PACK_OPS: Readonly<Partial<Record<AiDomain, readonly string[]>>> = 
     'time.timer.start',
     'time.timer.stop',
   ],
+  // 62-29: invoices, aging, unbilled work, expenses, the pull preview; draft, pull, issue, expense.
+  billing: BILLING_PACK_OPS,
 };
 
 export const PACK_MIN_TOOLS = 8;

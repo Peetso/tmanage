@@ -343,6 +343,34 @@ export interface PullInput {
   readonly quote: { readonly quoteId: string; readonly depositBp: number | null } | null;
 }
 
+/**
+ * 62-29 — a pull preview's query string as the pull's own body, so `validatePull` decides both
+ * (one rule, AR-8). `from`/`to` are the period; `time` a grouping or `false`; `expenses` and
+ * `retainer` are `true`/`false`; `quoteId` (+ `depositPercent`) names an accepted quote.
+ */
+export function pullBodyOfQuery(query: Readonly<Record<string, unknown>>): unknown {
+  const flag = (value: unknown): boolean => value === 'true';
+  const time = query['time'];
+  const quoteId = query['quoteId'];
+  const deposit = query['depositPercent'];
+  return {
+    period: { from: query['from'], to: query['to'] },
+    include: {
+      ...(time === undefined || time === 'false' ? {} : { time }),
+      expenses: flag(query['expenses']),
+      retainer: flag(query['retainer']),
+      ...(quoteId === undefined
+        ? {}
+        : {
+            quote: {
+              quoteId,
+              ...(deposit === undefined ? {} : { depositPercent: Number(deposit) }),
+            },
+          }),
+    },
+  };
+}
+
 export function validatePull(raw: unknown): PullInput {
   const body = record(raw);
   const period = record(body['period']);

@@ -21,6 +21,7 @@ import { financeDocumentOps } from './finance-documents.js';
 import { activityOps } from './activity.js';
 import { knowledgeOps } from './knowledge.js';
 import { businessMemoryOps } from './business-memory.js';
+import { billingAssistantOps } from './billing-assistant.js';
 
 export * from './types.js';
 export { OP_SENSITIVITY } from './sensitivity.js';
@@ -6390,6 +6391,8 @@ export const OPS: readonly AiActionOp[] = [
   // ---- 62-24 · file passages for the knowledge layer (read) ----
   ...knowledgeOps,
   ...businessMemoryOps,
+  // ---- 62-29 · the billing assistant's pull preview (read) ----
+  ...billingAssistantOps,
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',

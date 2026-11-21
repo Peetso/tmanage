@@ -4,6 +4,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import { verifyReauthToken } from '../identity/reauth-token.js';
 import type { AiBudgetService } from './ai-budget.service.js';
 import { currentValues, readTarget, runOp, runChange } from './ai-change.js';
+import { billingCardAmount } from './packs/billing.js';
 import {
   AiChangeRepository,
   type AiChangeState,
@@ -395,7 +396,11 @@ export class AiChangeService {
     for (const [index, change] of changes.entries()) {
       if (gates[index]?.typedAmount !== true) continue;
       const current = recordOf(await currentValues(surface, change));
-      const amount = amountOf(change.args, current);
+      // 62-29: the op's own rule first (a pull's total is recomputed now), else the general one.
+      const decided = await billingCardAmount(change.op.id, change.args, current, (id, args) =>
+        readTarget(surface, id, args),
+      );
+      const amount = decided !== undefined ? decided : amountOf(change.args, current);
       if (amount === null) {
         throw conflict('Make this change in TManage directly.', 'ai_card_amount_unknown');
       }

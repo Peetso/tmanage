@@ -29,6 +29,7 @@ import { einvoiceChainDetails } from './einvoice-chain.js';
 import { einvoiceCertificateDetails } from './einvoice-certificate.js';
 import { activityDetails } from './activity.js';
 import { knowledgeDetails } from './knowledge.js';
+import { billingAssistantDetails } from './billing-assistant.js';
 import { businessMemoryDetails } from './business-memory.js';
 
 export const waveCDetails: readonly AiActionDetail[] = [
@@ -55,6 +56,8 @@ export const waveCDetails: readonly AiActionDetail[] = [
   ...activityDetails,
   // 62-24: file passages for the knowledge layer (`knowledge.ts`).
   ...knowledgeDetails,
+  // 62-29: the billing assistant's pull preview (`billing-assistant.ts`).
+  ...billingAssistantDetails,
   ...businessMemoryDetails,
 ];
 

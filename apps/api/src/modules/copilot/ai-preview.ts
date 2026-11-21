@@ -5,6 +5,7 @@ import { argsSha256 } from '../mcp/internal-grant.js';
 import { mcpBodyShapeRefusal } from '../mcp/mcp-body-shape.js';
 import { allDetailsById } from '../mcp/tool-catalog.js';
 import { changedFields, recordOf } from './ai-undo.js';
+import type { CardWarning } from './packs/billing.js';
 
 /**
  * 62-11 (plan 62 §4.3), part 1 — the gate of one AI-proposed change, decided once from the op's
@@ -114,6 +115,8 @@ export interface CardItem {
   readonly cannotBeUndone: boolean;
   /** A confirm-class op frozen in `pending_ai_actions` (10 minutes). */
   readonly approvalId: string | null;
+  /** 62-29: what the member should see before confirming (a likely duplicate expense). */
+  readonly warnings: readonly CardWarning[];
 }
 
 function valueText(value: unknown): string {
@@ -156,6 +159,11 @@ export function buildCardItem(
   gate: AiChangeGate,
   currentBody: unknown,
   approvalId: string | null,
+  /** 62-29: the amount an op's own rule decided (`billingCardAmount`), and the warnings. */
+  decided: {
+    readonly amount?: number | null;
+    readonly warnings?: readonly CardWarning[];
+  } = {},
 ): CardItem {
   const current = currentBody === null ? null : recordOf(currentBody);
   const fields = changedFields(change.op, change.args).slice(0, MAX_CARD_FIELDS);
@@ -172,9 +180,14 @@ export function buildCardItem(
     })),
     stepUp: gate.stepUp,
     typedAmount: gate.typedAmount,
-    amount: gate.typedAmount ? amountOf(change.args, current) : null,
+    amount: gate.typedAmount
+      ? decided.amount !== undefined
+        ? decided.amount
+        : amountOf(change.args, current)
+      : null,
     cannotBeUndone: gate.cannotBeUndone,
     approvalId,
+    warnings: decided.warnings ?? [],
   };
 }
 

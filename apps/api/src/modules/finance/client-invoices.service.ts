@@ -93,7 +93,7 @@ import {
   validateSend,
   validateTaxRegistration,
 } from './client-invoices-rules.js';
-import type { LineInput } from './client-invoices-rules.js';
+import type { LineInput, PullInput } from './client-invoices-rules.js';
 import type { ClientInvoicesRepository, InvoiceChange } from './client-invoices.repository.js';
 import type { DocumentSequenceService } from './document-sequences.js';
 import { withSequenceRetry } from './document-sequences.js';
@@ -257,6 +257,29 @@ export interface EinvoiceView {
   readonly certFingerprint: string | null;
   /** The rebuilt XML verifies against the stored signature (second tamper check); null unsigned. */
   readonly signatureValid: boolean | null;
+}
+
+/** 62-29: what a pull would make of a draft (`pullPreview`), in the invoice's currency. */
+export interface PullPreview {
+  readonly invoiceId: string;
+  readonly currency: string;
+  readonly totalBeforeMinor: number;
+  /** The draft's total after the pull: the amount its AI card names. */
+  readonly totalMinor: number;
+  readonly pulledLines: number;
+  readonly keptLines: number;
+  readonly waiting: { readonly minutes: number };
+  readonly unpriced: { readonly minutes: number };
+}
+
+interface PullPlan {
+  readonly removed: readonly string[];
+  readonly kept: readonly ClientInvoiceLineRow[];
+  readonly pulled: readonly PulledLine[];
+  readonly waiting: number;
+  readonly unpriced: number;
+  readonly retainerPeriodId: string | null;
+  readonly quoteId: string | null;
 }
 
 export interface PullResult {
@@ -884,109 +907,156 @@ export class ClientInvoicesService {
     const at = this.now();
     return this.options.database.transaction(context, async (tx) => {
       const row = await this.draft(tx, org, id);
-      const profile = await this.profile(tx, org);
-      const convert = (amountBaseMinor: number): number =>
-        convertMinor(amountBaseMinor, row.fxRate, row.baseCurrency, row.currency);
-      // B2: only the kinds this pull asks for are replaced; every other line stays on the draft.
-      const replaced = pulledSourceTypes(input);
-      const existing = await this.repo.lines(tx, org, id);
-      await this.repo.deleteLines(
-        tx,
-        org,
-        id,
-        existing.filter((l) => replaced.has(l.sourceType)).map((l) => l.id),
-      );
-      const kept = existing.filter((l) => !replaced.has(l.sourceType));
-      const pulled: PulledLine[] = [];
-      let waiting = 0;
-      let unpriced = 0;
-      let retainerPeriodId: string | null = input.retainer ? null : (row.retainerPeriodId ?? null);
-      let quoteId: string | null = row.quoteId;
-      const client = row.clientOrganizationId;
-      if (input.time !== null) {
-        const rows = await this.repo.approvedTime(
-          tx,
-          org,
-          client,
-          input.periodStart,
-          input.periodEnd,
-        );
-        const priced = timeLines(rows, {
-          grouping: input.time,
-          taxBp: profile.defaultTaxRateBp,
-          periodStart: input.periodStart,
-          periodEnd: input.periodEnd,
-          convert,
-        });
-        pulled.push(...priced.lines);
-        unpriced = priced.unpricedMinutes;
-        waiting = await this.repo.waitingMinutes(
-          tx,
-          org,
-          client,
-          input.periodStart,
-          input.periodEnd,
-        );
-      }
-      if (input.expenses) {
-        const projects = await this.repo.clientProjectIds(tx, org, client);
-        const rows = await this.repo.approvedExpenses(
-          tx,
-          org,
-          client,
-          projects,
-          input.periodStart,
-          input.periodEnd,
-        );
-        pulled.push(...expenseLines(rows, convert));
-      }
-      if (input.retainer) {
-        const period = await this.repo.retainerPeriod(
-          tx,
-          org,
-          client,
-          input.periodStart,
-          input.periodEnd,
-        );
-        if (period !== null) {
-          pulled.push(retainerLine(period, profile.defaultTaxRateBp, convert));
-          retainerPeriodId = period.periodId;
-        }
-      }
-      if (input.quote !== null) {
-        const quote = await this.repo.acceptedQuote(tx, org, client, input.quote.quoteId);
-        if (quote === null) throw invalid('include.quote.quoteId', 'quote_not_accepted_for_client');
-        if (quote.currency !== row.currency) {
-          throw invalid('include.quote.quoteId', 'quote_currency_differs_from_invoice');
-        }
-        pulled.push(...quoteLines(quote, input.quote.depositBp));
-        quoteId = input.quote.quoteId;
-      }
-      if (kept.length + pulled.length > MAX_INVOICE_LINES) {
-        throw invalid('include', `an invoice holds at most ${String(MAX_INVOICE_LINES)} lines`);
-      }
-      const start = kept.reduce((max, l) => Math.max(max, l.position + 1), 0);
+      const plan = await this.planPull(tx, org, row, input);
+      await this.repo.deleteLines(tx, org, id, plan.removed);
+      const start = plan.kept.reduce((max, l) => Math.max(max, l.position + 1), 0);
       await this.repo.insertLines(
         tx,
-        pulled.map((line, index) => this.lineRow(org, id, start + index, line, at)),
+        plan.pulled.map((line, index) => this.lineRow(org, id, start + index, line, at)),
       );
       const totals = await this.totals(tx, org, id);
       const change: InvoiceChange = {
         ...totals,
         periodStart: input.periodStart,
         periodEnd: input.periodEnd,
-        retainerPeriodId,
-        quoteId,
+        retainerPeriodId: plan.retainerPeriodId,
+        quoteId: plan.quoteId,
         version: row.version + 1,
         updatedAt: at,
       };
       await this.repo.updateInvoice(tx, org, id, change);
       return {
         invoice: await this.view(tx, org, { ...row, ...change } as ClientInvoiceRow),
-        waiting: { minutes: waiting },
-        unpriced: { minutes: unpriced },
+        waiting: { minutes: plan.waiting },
+        unpriced: { minutes: plan.unpriced },
       };
     });
+  }
+
+  /**
+   * 62-29 — what a pull with these arguments would make of the draft, changing nothing: the same
+   * plan as {@link pull} (same reads, same pricing), its totals from the kept and pulled lines. The
+   * AI card shows this total and the member types it back; the confirm recomputes it, so a draft
+   * whose sources moved in between refuses the typed amount (62-11 money gate).
+   */
+  async pullPreview(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+  ): Promise<PullPreview> {
+    this.requireManage(principal, context);
+    const input = validatePull(body);
+    const org = context.organizationId;
+    const at = this.now();
+    return this.options.database.read(context, async (tx) => {
+      // A read: no row lock (the confirm recomputes this before the pull runs).
+      const row = await this.draft(tx, org, id, false);
+      const plan = await this.planPull(tx, org, row, input);
+      const lines = [
+        ...plan.kept.map(lineInputOf),
+        ...plan.pulled.map((line, index) => lineInputOf(this.lineRow(org, id, index, line, at))),
+      ];
+      const totals = invoiceTotals(lines);
+      return {
+        invoiceId: id,
+        currency: row.currency,
+        totalBeforeMinor: Number(row.totalMinor),
+        totalMinor: totals.totalMinor,
+        pulledLines: plan.pulled.length,
+        keptLines: plan.kept.length,
+        waiting: { minutes: plan.waiting },
+        unpriced: { minutes: plan.unpriced },
+      };
+    });
+  }
+
+  /** The pull's plan on a draft: the lines it replaces, keeps and adds; nothing is written. */
+  private async planPull(
+    tx: TenantQueryRunner,
+    org: string,
+    row: ClientInvoiceRow,
+    input: PullInput,
+  ): Promise<PullPlan> {
+    const id = row.id;
+    const profile = await this.profile(tx, org);
+    const convert = (amountBaseMinor: number): number =>
+      convertMinor(amountBaseMinor, row.fxRate, row.baseCurrency, row.currency);
+    // B2: only the kinds this pull asks for are replaced; every other line stays on the draft.
+    const replaced = pulledSourceTypes(input);
+    const existing = await this.repo.lines(tx, org, id);
+    const kept = existing.filter((l) => !replaced.has(l.sourceType));
+    const pulled: PulledLine[] = [];
+    let waiting = 0;
+    let unpriced = 0;
+    let retainerPeriodId: string | null = input.retainer ? null : (row.retainerPeriodId ?? null);
+    let quoteId: string | null = row.quoteId;
+    const client = row.clientOrganizationId;
+    if (input.time !== null) {
+      const rows = await this.repo.approvedTime(
+        tx,
+        org,
+        client,
+        input.periodStart,
+        input.periodEnd,
+      );
+      const priced = timeLines(rows, {
+        grouping: input.time,
+        taxBp: profile.defaultTaxRateBp,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        convert,
+      });
+      pulled.push(...priced.lines);
+      unpriced = priced.unpricedMinutes;
+      waiting = await this.repo.waitingMinutes(tx, org, client, input.periodStart, input.periodEnd);
+    }
+    if (input.expenses) {
+      const projects = await this.repo.clientProjectIds(tx, org, client);
+      const rows = await this.repo.approvedExpenses(
+        tx,
+        org,
+        client,
+        projects,
+        input.periodStart,
+        input.periodEnd,
+      );
+      pulled.push(...expenseLines(rows, convert));
+    }
+    if (input.retainer) {
+      const period = await this.repo.retainerPeriod(
+        tx,
+        org,
+        client,
+        input.periodStart,
+        input.periodEnd,
+      );
+      if (period !== null) {
+        pulled.push(retainerLine(period, profile.defaultTaxRateBp, convert));
+        retainerPeriodId = period.periodId;
+      }
+    }
+    if (input.quote !== null) {
+      const quote = await this.repo.acceptedQuote(tx, org, client, input.quote.quoteId);
+      if (quote === null) throw invalid('include.quote.quoteId', 'quote_not_accepted_for_client');
+      if (quote.currency !== row.currency) {
+        throw invalid('include.quote.quoteId', 'quote_currency_differs_from_invoice');
+      }
+      pulled.push(...quoteLines(quote, input.quote.depositBp));
+      quoteId = input.quote.quoteId;
+    }
+    if (kept.length + pulled.length > MAX_INVOICE_LINES) {
+      throw invalid('include', `an invoice holds at most ${String(MAX_INVOICE_LINES)} lines`);
+    }
+    return {
+      removed: existing.filter((l) => replaced.has(l.sourceType)).map((l) => l.id),
+      kept,
+      pulled,
+      waiting,
+      unpriced,
+      retainerPeriodId,
+      quoteId,
+    };
   }
 
   /**
@@ -1903,8 +1973,13 @@ export class ClientInvoicesService {
   }
 
   /** The row, locked, when it is a draft: 404 when absent, 409 when issued. */
-  private async draft(tx: TenantQueryRunner, org: string, id: string): Promise<ClientInvoiceRow> {
-    const row = await this.repo.findInvoice(tx, org, id, true);
+  private async draft(
+    tx: TenantQueryRunner,
+    org: string,
+    id: string,
+    lock = true,
+  ): Promise<ClientInvoiceRow> {
+    const row = await this.repo.findInvoice(tx, org, id, lock);
     if (row === null) throw notFound();
     if (row.state !== 'draft') throw conflict('not_draft');
     return row;

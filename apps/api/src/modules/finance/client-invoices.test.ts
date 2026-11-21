@@ -16,6 +16,7 @@ import type { TenantContext } from '../../common/database/tenant-context.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import { ClientInvoicesController } from './client-invoices.controller.js';
 import type { ClientInvoicesRepository } from './client-invoices.repository.js';
+import { pullBodyOfQuery, validatePull } from './client-invoices-rules.js';
 import {
   ClientInvoicesService,
   composeInvoiceEmail,
@@ -295,6 +296,50 @@ describe('52-09 client invoices', () => {
     });
     expect(result.invoice.lines.map((l) => l.sourceType).sort()).toEqual(['expense', 'time']);
     expect(result.invoice.lines.find((l) => l.sourceType === 'expense')?.id).toBe('e1');
+  });
+
+  it('62-29: the pull preview is the same total as the pull, and changes nothing', async () => {
+    const w = world();
+    const body = {
+      period: { from: '2026-10-01', to: '2026-10-31' },
+      include: { time: 'by_person' },
+    };
+    const before = JSON.stringify(w.lines);
+    const preview = await w.service.pullPreview(context, owner, w.invoice.id, body);
+    expect(JSON.stringify(w.lines)).toBe(before);
+    expect(w.invoice.version).toBe(1);
+    expect(preview).toMatchObject({
+      invoiceId: w.invoice.id,
+      currency: 'SAR',
+      totalBeforeMinor: 0,
+      pulledLines: 1,
+      keptLines: 0,
+      waiting: { minutes: 120 },
+      unpriced: { minutes: 60 },
+    });
+    const pulled = await w.service.pull(context, owner, w.invoice.id, body);
+    expect(preview.totalMinor).toBe(pulled.invoice.totalMinor);
+    expect(preview.totalMinor).toBeGreaterThan(0);
+  });
+
+  it('62-29: the preview query reads as the pull body', () => {
+    expect(
+      pullBodyOfQuery({ from: '2026-10-01', to: '2026-10-31', time: 'by_task', expenses: 'true' }),
+    ).toEqual({
+      period: { from: '2026-10-01', to: '2026-10-31' },
+      include: { time: 'by_task', expenses: true, retainer: false },
+    });
+    expect(
+      validatePull(pullBodyOfQuery({ from: '2026-10-01', to: '2026-10-31', time: 'false' })),
+    ).toMatchObject({ time: null, expenses: false, retainer: false, quote: null });
+    expect(
+      pullBodyOfQuery({
+        from: '2026-10-01',
+        to: '2026-10-31',
+        quoteId: 'q1',
+        depositPercent: '30',
+      }),
+    ).toMatchObject({ include: { quote: { quoteId: 'q1', depositPercent: 30 } } });
   });
 });
 
