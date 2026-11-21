@@ -8,6 +8,7 @@ import type { FileAssetsRepository } from './file-assets.repository.js';
 import { DEFAULT_TEXT_LIMITS, extractText, textMimeTypes } from './file-text-extractors.js';
 import type { ExtractedText, TextLimits } from './file-text-extractors.js';
 import type { FileText, FileTextsRepository } from './file-texts.repository.js';
+import type { IsolatedTextExtractor } from './file-text-isolation.js';
 import { VersionStore } from './provider-objects.js';
 import type { ProviderObjectSources, StoredVersion } from './provider-objects.js';
 import { describeFailure } from './upload-session-sweeper.js';
@@ -150,6 +151,8 @@ export class FileTextJob implements OnApplicationBootstrap, OnModuleDestroy {
     private readonly now: () => Date = () => new Date(),
     private readonly rss: () => number = () => process.memoryUsage().rss,
     providers: ProviderObjectSources = {},
+    /** 62-A0: big files are read in a capped child process (`file-text-isolation.ts`). */
+    private readonly isolated: IsolatedTextExtractor | null = null,
   ) {
     this.versions = new VersionStore(store, providers);
   }
@@ -313,12 +316,12 @@ export class FileTextJob implements OnApplicationBootstrap, OnModuleDestroy {
       else tally[result] += 1;
       return;
     }
-    await this.conclude(
-      context,
-      row,
-      await extractText(bytes, mimeType, this.options.limits),
-      tally,
-    );
+    // 62-A0: a big file is read in the child, so this process keeps answering web requests.
+    const outcome =
+      this.isolated !== null && this.isolated.takes(bytes.byteLength)
+        ? await this.isolated.extract(bytes, mimeType, this.options.limits)
+        : await extractText(bytes, mimeType, this.options.limits);
+    await this.conclude(context, row, outcome, tally);
   }
 
   private async read(context: TenantContext, version: StoredVersion): Promise<Uint8Array> {

@@ -296,7 +296,7 @@ organization (`scannerContextFor`, `file-scanner.ts:116`).
 (`preview-job.ts`), preview orphan sweeper, upload-session sweeper, usage reconciler, quarantine
 cleanup, usage thresholds, and the 62-23 text job (`file-text-job.ts`: the plain text of servable
 files, once per content hash, for the AI knowledge layer; in-process under `WORKER_INPROCESS=1` or
-`FILE_TEXT_INPROCESS=1`, row claims as the preview job; it forgets the text of deleted files).
+`FILE_TEXT_INPROCESS=1`, row claims as the preview job; it forgets the text of deleted files. 62-A0: a file over 2 MB is read in one short-lived child process, `file-text-isolation.ts` + `file-text-child.ts`, with a 384 MB heap cap, killed after the text timeout plus 10 s, at most one alive, with the app server's parent watchdog preloaded, so it dies with the app; an overrun is `failed` `extract_timeout` / `extract_out_of_memory` / `extract_crashed`).
 
 **Where they run.** In the single Hostinger app: the scan job (verify + scan) and the preview job
 run in-process only when `WORKER_INPROCESS=1` or `FILE_SCAN_INPROCESS=1` / `FILE_PREVIEW_INPROCESS=1`

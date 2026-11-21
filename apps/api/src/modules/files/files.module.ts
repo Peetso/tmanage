@@ -81,6 +81,7 @@ import {
 } from './preview-job.js';
 import { PreviewUsageMeter } from './preview-usage.js';
 import { FILE_TEXT_JOB, FileTextJob, fileTextJobEnabled } from './file-text-job.js';
+import { isolatedTextExtractor } from './file-text-isolation.js';
 import { FileTextsRepository } from './file-texts.repository.js';
 import { PREVIEW_ORPHAN_SWEEPER, PreviewOrphanSweeper } from './preview-orphan-sweeper.js';
 import { FileDownloadService } from './file-download.service.js';
@@ -497,6 +498,7 @@ export class FilesModule {
           undefined,
           undefined,
           providerSources(database, audit, config),
+          fileTextJobEnabled() ? isolatedTextExtractor() : null,
         ),
     };
 
