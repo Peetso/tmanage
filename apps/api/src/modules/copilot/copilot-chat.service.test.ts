@@ -86,6 +86,7 @@ function setup(
     refuseOpen?: AiBudgetRefusal;
     conversations?: ChatConversations;
     limits?: (context: TenantContext) => Promise<ChatLimitDecision>;
+    toolData?: unknown;
   } = {},
 ) {
   const audits: AiTurnAudit[] = [];
@@ -188,7 +189,10 @@ function setup(
       return {
         async runTool(name, args) {
           toolRuns.push({ name, args, key: input.idempotencyKey() });
-          return { summary: 'ran', data: { items: [{ title: 'Homepage' }] } };
+          return {
+            summary: 'ran',
+            data: options.toolData ?? { items: [{ title: 'Homepage' }] },
+          };
         },
       };
     },
@@ -616,5 +620,39 @@ describe('abuse limits and audit rows (62-14)', () => {
     for (const secret of ['secret-project-name', 'list my secret tasks', 'Homepage']) {
       expect(rows).not.toContain(secret);
     }
+  });
+});
+
+describe('knowledge pack in the chat (62-22)', () => {
+  it('search_knowledge runs the member’s search; hits come back as cited, untrusted sources', async () => {
+    const env = setup(
+      [
+        route('files', 'low'),
+        toolUse('k1', 'search_knowledge', { query: 'brand brief', projectId: null }),
+        text('It is in [the brief](/docs/doc_1); see also [old](/docs/doc_404).'),
+      ],
+      {
+        toolData: {
+          results: [{ kind: 'document', id: 'doc_1', title: 'Brand brief', audience: 'internal' }],
+        },
+      },
+    );
+    const view = await env.turn('where is the brand brief?');
+    expect(env.toolRuns[0]).toMatchObject({
+      name: META_TOOL_NAMES.run,
+      args: { action_id: 'search.list', args: { q: 'brand brief', limit: 10 } },
+    });
+    const sent = JSON.stringify(env.requests.at(-1)!.messages);
+    expect(sent).toContain('[1] document | Brand brief | /docs/doc_1');
+    expect(sent).toContain('untrusted_content');
+    expect(view.answer).toBe('It is in [the brief](/docs/doc_1); see also old.');
+    expect(env.finished.at(-1)?.receipt).toMatchObject({ tainted: true, unverifiedLinks: 1 });
+  });
+
+  it('every domain offers search_knowledge after its pack, before the meta-tools', async () => {
+    const env = setup([route('tasks', 'low'), text('ok')]);
+    await env.turn('what is due?');
+    const names = env.requests[1]!.tools.map((t) => t.name);
+    expect(names.indexOf('search_knowledge')).toBe(names.indexOf(META_TOOL_NAMES.find) - 1);
   });
 });

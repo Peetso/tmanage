@@ -4,6 +4,11 @@ import type { AiStrictSchema, AiToolDefinition } from './ai-client.js';
 import type { JsonObject } from './ai-response.js';
 import { dropNulls } from './packs/pack-schema.js';
 import { packOpFor } from './packs/index.js';
+import {
+  SEARCH_KNOWLEDGE_OP,
+  SEARCH_KNOWLEDGE_TOOL,
+  knowledgeSearchArgs,
+} from './packs/knowledge.js';
 
 /**
  * 62-09 (plan 62 §4.1 steps 4–5) — the tools the in-app AI is given in this slice: the four
@@ -118,6 +123,18 @@ export function planToolCall(name: string, input: JsonObject): ChatToolPlan {
       };
     case META_TOOL_NAMES.run:
       return planRun(input);
+    case SEARCH_KNOWLEDGE_TOOL: {
+      // 62-22: the global search as the member (per-hit rule in the route), never a filter the
+      // model builds.
+      const args = knowledgeSearchArgs(input);
+      if (args.q === '') return refuse(SEARCH_KNOWLEDGE_OP, 'Say what to search for.');
+      return {
+        kind: 'run',
+        catalogTool: META_TOOL_NAMES.run,
+        args: { action_id: SEARCH_KNOWLEDGE_OP, args },
+        opId: SEARCH_KNOWLEDGE_OP,
+      };
+    }
     default: {
       // A pack tool (62-10) is its one registry op, planned exactly as `run_action` of it.
       const op = packOpFor(name);

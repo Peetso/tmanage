@@ -13,8 +13,9 @@ import { strictToolSchema } from './pack-schema.js';
  *
  * Packs are constants: the same tools in the same order for every workspace and member (one cached
  * prefix per domain). What a member may actually run is decided at run time by their surface
- * (`liveMcpSurface` + the API's guards), never by which tools were offered. `billing` and `files`
- * have no pack yet (62-29, 62-25): the meta-tools only. `help` has no tools.
+ * (`liveMcpSurface` + the API's guards), never by which tools were offered. `files` holds the
+ * knowledge pack's structured finders (62-22); `billing` has no pack yet (62-29): the meta-tools
+ * only. `help` has no tools.
  *
  * Changes in a pack (`work_items.create`, `work_items.update`, timer start/stop) go through the
  * same preview / confirm / undo path as a `run_action` change (62-11).
@@ -62,6 +63,22 @@ export const PACK_OPS: Readonly<Partial<Record<AiDomain, readonly string[]>>> = 
     'client_requests.list',
     'client_requests.get',
     'approvals.deliverables.list',
+    'quotes.list',
+  ],
+  // 62-22: the knowledge pack's structured finders (level 1, plan §4.4) across clients,
+  // projects, files, documents, invoices and quotes; `search_knowledge` (level 2) follows every
+  // pack (`knowledge.ts`).
+  files: [
+    'projects.files.list',
+    'work_items.files.list',
+    'documents.list',
+    'documents.get',
+    'client_organizations.list',
+    'client_organizations.get',
+    'projects.list',
+    'projects.get',
+    'billing.invoices.list',
+    'billing.invoices.get',
     'quotes.list',
   ],
   time: [

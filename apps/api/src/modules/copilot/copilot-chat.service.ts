@@ -24,6 +24,12 @@ import { currentValues, runChange, undoPossible } from './ai-change.js';
 import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
 import { packTools } from './packs/index.js';
+import {
+  KNOWLEDGE_TOOL,
+  SEARCH_KNOWLEDGE_TOOL,
+  knowledgeSources,
+  validateRecordLinks,
+} from './packs/knowledge.js';
 import type { ChatConversations, ChatHistoryMessage } from './ai-conversations.service.js';
 import type { AiToolCallAudit, ChatAudit } from './ai-audit.js';
 import {
@@ -447,6 +453,7 @@ interface LoopResult {
   readonly changes: TurnChanges;
   readonly withheldFigures: number;
   readonly inertLinks: number;
+  readonly unverifiedLinks: number;
 }
 
 export class CopilotChatService {
@@ -566,6 +573,7 @@ export class CopilotChatService {
         tainted: result.changes.tainted,
         withheldFigures: result.withheldFigures,
         inertLinks: result.inertLinks,
+        unverifiedLinks: result.unverifiedLinks,
       },
       changeState,
     );
@@ -694,9 +702,13 @@ export class CopilotChatService {
       answer: string | null = null,
       truncated = false,
     ): LoopResult => {
-      const guarded = answer === null ? null : guardAnswer(answer, changes.evidence);
+      // 62-22: a record link survives only when a tool returned that record this turn; checked
+      // first, so the figure guard never reads a record id as a figure.
+      const cited = answer === null ? null : validateRecordLinks(answer, changes.evidence);
+      const guarded = cited === null ? null : guardAnswer(cited.text, changes.evidence);
       return {
         answer: guarded?.text ?? null,
+        unverifiedLinks: cited?.unverifiedLinks ?? 0,
         truncated,
         stop,
         toolCalls,
@@ -709,7 +721,9 @@ export class CopilotChatService {
     const toolBudget = TOOL_CALLS_PER_TURN[tier];
     // The domain's pack, then the meta-tools as the long-tail fallback (their last tool closes
     // the cached prefix); help has none.
-    const tools = route.domain === 'help' ? [] : [...packTools(route.domain), ...CHAT_TOOLS];
+    // 62-22: `search_knowledge` follows every pack, before the meta-tools.
+    const tools =
+      route.domain === 'help' ? [] : [...packTools(route.domain), KNOWLEDGE_TOOL, ...CHAT_TOOLS];
     const messages: AiMessage[] = [
       ...history.map((m): AiMessage =>
         m.role === 'member'
@@ -814,7 +828,12 @@ export class CopilotChatService {
         }
         toolCalls.push({ opId: plan.opId, outcome: ran.isError === true ? 'error' : 'ok' });
         audit(toolCalls.at(-1)!);
-        const resultText = toolResultText(ran);
+        // 62-22: search hits go to the model as numbered sources with their in-app paths.
+        const sources =
+          use.name === SEARCH_KNOWLEDGE_TOOL && ran.isError !== true
+            ? knowledgeSources(ran.data)
+            : null;
+        const resultText = sources ?? toolResultText(ran);
         changes.evidence.push(resultText);
         // An approval's outcome or a read of other people's text: marked as data, and taints.
         const untrusted =
