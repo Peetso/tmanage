@@ -25,8 +25,11 @@ import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
 import { packTools } from './packs/index.js';
 import {
+  FILE_PASSAGES_TOOL,
   KNOWLEDGE_TOOL,
+  SEARCH_FILE_PASSAGES_TOOL,
   SEARCH_KNOWLEDGE_TOOL,
+  filePassageSources,
   knowledgeSources,
   validateRecordLinks,
 } from './packs/knowledge.js';
@@ -723,7 +726,9 @@ export class CopilotChatService {
     // the cached prefix); help has none.
     // 62-22: `search_knowledge` follows every pack, before the meta-tools.
     const tools =
-      route.domain === 'help' ? [] : [...packTools(route.domain), KNOWLEDGE_TOOL, ...CHAT_TOOLS];
+      route.domain === 'help'
+        ? []
+        : [...packTools(route.domain), KNOWLEDGE_TOOL, FILE_PASSAGES_TOOL, ...CHAT_TOOLS];
     const messages: AiMessage[] = [
       ...history.map((m): AiMessage =>
         m.role === 'member'
@@ -830,9 +835,13 @@ export class CopilotChatService {
         audit(toolCalls.at(-1)!);
         // 62-22: search hits go to the model as numbered sources with their in-app paths.
         const sources =
-          use.name === SEARCH_KNOWLEDGE_TOOL && ran.isError !== true
-            ? knowledgeSources(ran.data)
-            : null;
+          ran.isError === true
+            ? null
+            : use.name === SEARCH_KNOWLEDGE_TOOL
+              ? knowledgeSources(ran.data)
+              : use.name === SEARCH_FILE_PASSAGES_TOOL
+                ? filePassageSources(ran.data)
+                : null;
         const resultText = sources ?? toolResultText(ran);
         changes.evidence.push(resultText);
         // An approval's outcome or a read of other people's text: marked as data, and taints.

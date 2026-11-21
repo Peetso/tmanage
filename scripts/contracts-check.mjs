@@ -69,6 +69,14 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
+    'FilePassageListView',
+    'No web consumer yet: 62-24 GET …/knowledge/file-passages is read by the AI chat tool search_file_passages; the chat panel that shows sources is 62-15.',
+  ],
+  [
+    'FilePassageView',
+    'No web consumer yet: 62-24 element of FilePassageListView (itself EXEMPT); read only by the AI chat tool.',
+  ],
+  [
     'JourneyStepView',
     'No web consumer yet: 52-27 studio journey steps (GET|POST|PATCH|DELETE …/projects/:projectId/journey-steps) have no apps/web client; only the portal stepper is built.',
   ],

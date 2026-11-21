@@ -5,8 +5,11 @@ import type { JsonObject } from './ai-response.js';
 import { dropNulls } from './packs/pack-schema.js';
 import { packOpFor } from './packs/index.js';
 import {
+  SEARCH_FILE_PASSAGES_OP,
+  SEARCH_FILE_PASSAGES_TOOL,
   SEARCH_KNOWLEDGE_OP,
   SEARCH_KNOWLEDGE_TOOL,
+  filePassageArgs,
   knowledgeSearchArgs,
 } from './packs/knowledge.js';
 
@@ -133,6 +136,17 @@ export function planToolCall(name: string, input: JsonObject): ChatToolPlan {
         catalogTool: META_TOOL_NAMES.run,
         args: { action_id: SEARCH_KNOWLEDGE_OP, args },
         opId: SEARCH_KNOWLEDGE_OP,
+      };
+    }
+    case SEARCH_FILE_PASSAGES_TOOL: {
+      // 62-24: file passages as the member (filter before rank, re-check per hit in the route).
+      const args = filePassageArgs(input);
+      if (args.q === '') return refuse(SEARCH_FILE_PASSAGES_OP, 'Say what to look for.');
+      return {
+        kind: 'run',
+        catalogTool: META_TOOL_NAMES.run,
+        args: { action_id: SEARCH_FILE_PASSAGES_OP, args },
+        opId: SEARCH_FILE_PASSAGES_OP,
       };
     }
     default: {

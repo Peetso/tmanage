@@ -19,6 +19,7 @@ import { NEVER, neverByKey, isNever } from './never.js';
 import { financeTimeOps } from './finance-time.js';
 import { financeDocumentOps } from './finance-documents.js';
 import { activityOps } from './activity.js';
+import { knowledgeOps } from './knowledge.js';
 
 export * from './types.js';
 export { OP_SENSITIVITY } from './sensitivity.js';
@@ -6375,6 +6376,8 @@ export const OPS: readonly AiActionOp[] = [
   ...financeDocumentOps,
   // ---- 62-A2 · the Activity tab of a project and of a client (read) ----
   ...activityOps,
+  // ---- 62-24 · file passages for the knowledge layer (read) ----
+  ...knowledgeOps,
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',

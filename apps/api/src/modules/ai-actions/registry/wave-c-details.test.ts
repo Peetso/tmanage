@@ -42,6 +42,8 @@ const WAVE_C_PREFIXES = [
   'client_invoices',
   // 62-A2: the Activity tab of a project and of a client (`activity.ts`).
   'activity',
+  // 62-24: file passages for the chat (`knowledge.ts`).
+  'knowledge',
 ] as const;
 
 function isWaveC(id: string): boolean {

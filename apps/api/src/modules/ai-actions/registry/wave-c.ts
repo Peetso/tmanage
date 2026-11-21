@@ -28,6 +28,7 @@ import { financeExportDetails } from './finance-exports.js';
 import { einvoiceChainDetails } from './einvoice-chain.js';
 import { einvoiceCertificateDetails } from './einvoice-certificate.js';
 import { activityDetails } from './activity.js';
+import { knowledgeDetails } from './knowledge.js';
 
 export const waveCDetails: readonly AiActionDetail[] = [
   ...clientsDetails,
@@ -51,6 +52,8 @@ export const waveCDetails: readonly AiActionDetail[] = [
   ...einvoiceCertificateDetails,
   // 62-A2: the Activity tab of a project and of a client (`activity.ts`).
   ...activityDetails,
+  // 62-24: file passages for the knowledge layer (`knowledge.ts`).
+  ...knowledgeDetails,
 ];
 
 /** Wave C details indexed by op id (throws on a duplicate id within the wave). */

@@ -49,7 +49,9 @@ import {
   KnowledgeIndexJob,
   knowledgeIndexEnabled,
 } from './knowledge/knowledge-index-job.js';
-import { KnowledgeRepository } from './knowledge/knowledge.repository.js';
+import { KnowledgeRepository, MariaDbVectorStore } from './knowledge/knowledge.repository.js';
+import { KNOWLEDGE_RETRIEVAL, KnowledgeController } from './knowledge/knowledge.controller.js';
+import { KnowledgeRetrieval } from './knowledge/knowledge-retrieval.js';
 
 /** The budget the chat runs on and the confirm/undo refunds through (one per module). */
 const AI_BUDGET_SERVICE = Symbol.for('tmanage.copilot.AiBudgetService');
@@ -84,6 +86,19 @@ export class CopilotModule {
               new KnowledgeRepository(),
               null,
               knowledgeIndexEnabled(),
+            ),
+        },
+        // 62-24: file passages for a member's question (the knowledge route; keyword-only until
+        // an embedding provider is configured).
+        {
+          provide: KNOWLEDGE_RETRIEVAL,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new KnowledgeRetrieval(
+              database,
+              new KnowledgeRepository(),
+              new MariaDbVectorStore(),
+              null,
             ),
         },
         {
@@ -212,7 +227,12 @@ export class CopilotModule {
           },
         },
       ],
-      controllers: [CopilotController, CopilotChatController, AiConversationsController],
+      controllers: [
+        CopilotController,
+        CopilotChatController,
+        AiConversationsController,
+        KnowledgeController,
+      ],
     };
   }
 }

@@ -190,3 +190,114 @@ export function validateRecordLinks(
   });
   return { text: bare, unverifiedLinks };
 }
+
+/**
+ * 62-24 (plan 62 §4.4 level 3) — `search_file_passages`: the passages of files the member can
+ * open that best answer the question (`GET …/knowledge/file-passages`, op
+ * `knowledge.file_passages.list`). The route filters by workspace, project and audience before
+ * ranking and re-checks every hit; passages are text other people wrote, so they are marked
+ * untrusted and taint the turn like every search result.
+ */
+export const SEARCH_FILE_PASSAGES_TOOL = 'search_file_passages';
+export const SEARCH_FILE_PASSAGES_OP = 'knowledge.file_passages.list';
+export const FILE_PASSAGE_LIMIT = 6;
+/** The passage route's own query cap (`knowledge.controller.ts` MAX_PASSAGE_QUERY_LENGTH). */
+export const FILE_PASSAGE_QUERY_MAX_CHARS = 300;
+
+export const FILE_PASSAGES_TOOL: AiToolDefinition = Object.freeze({
+  name: SEARCH_FILE_PASSAGES_TOOL,
+  description:
+    'Find the passages inside uploaded files (PDF, Word, slides, sheets, text) that answer a ' +
+    'question, from files the member can open. Returns numbered sources with the file, its ' +
+    'in-app path and page; quote them and cite the file as a link.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['query', 'projectId'],
+    properties: {
+      query: { type: 'string', description: 'The question or words to look for.' },
+      projectId: {
+        anyOf: [{ type: 'string' }, { type: 'null' }],
+        description: 'Only files of this project, or null for the whole workspace.',
+      },
+    },
+  },
+}) as AiToolDefinition;
+
+/** The `knowledge.file_passages.list` arguments of a `search_file_passages` call. */
+export function filePassageArgs(input: Readonly<Record<string, unknown>>): {
+  readonly q: string;
+  readonly projectId?: string;
+  readonly limit: number;
+} {
+  const q = [...String(input['query'] ?? '').trim()]
+    .slice(0, FILE_PASSAGE_QUERY_MAX_CHARS)
+    .join('');
+  const projectId = input['projectId'];
+  return {
+    q,
+    ...(typeof projectId === 'string' && projectId !== '' ? { projectId } : {}),
+    limit: FILE_PASSAGE_LIMIT,
+  };
+}
+
+interface PassageHit {
+  readonly fileId: string;
+  readonly fileName: string;
+  readonly pageNo: number | null;
+  readonly text: string;
+}
+
+function passagesOf(data: unknown, depth = 0): readonly PassageHit[] | null {
+  if (typeof data === 'string') {
+    try {
+      return passagesOf(JSON.parse(data), depth);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof data !== 'object' || data === null || depth > 3) return null;
+  const record = data as Record<string, unknown>;
+  const passages = record['passages'];
+  if (Array.isArray(passages)) {
+    return passages.flatMap((raw): PassageHit[] => {
+      if (typeof raw !== 'object' || raw === null) return [];
+      const hit = raw as Record<string, unknown>;
+      if (typeof hit['fileId'] !== 'string' || typeof hit['text'] !== 'string') return [];
+      return [
+        {
+          fileId: hit['fileId'],
+          fileName: typeof hit['fileName'] === 'string' ? hit['fileName'] : '',
+          pageNo: typeof hit['pageNo'] === 'number' ? hit['pageNo'] : null,
+          text: hit['text'],
+        },
+      ];
+    });
+  }
+  for (const key of ['data', 'body', 'result']) {
+    const inner = passagesOf(record[key], depth + 1);
+    if (inner !== null) return inner;
+  }
+  return null;
+}
+
+/**
+ * The passages as numbered sources: `[n] file | name | /files/<id> | page p`, then the passage
+ * text on the next lines. `null` when the result is not a passage list (errors pass through).
+ */
+export function filePassageSources(data: unknown): string | null {
+  const passages = passagesOf(data);
+  if (passages === null) return null;
+  if (passages.length === 0) return 'No file passages found that you can open.';
+  return passages
+    .map((passage, index) => {
+      const head = [
+        `[${String(index + 1)}] file`,
+        passage.fileName === '' ? '(untitled)' : passage.fileName,
+        recordHref('file', passage.fileId) ?? `id ${passage.fileId}`,
+        ...(passage.pageNo === null ? [] : [`page ${String(passage.pageNo)}`]),
+      ].join(' | ');
+      return [head, passage.text].join(String.fromCodePoint(10));
+    })
+    .join(String.fromCodePoint(10, 10));
+}
