@@ -19,10 +19,12 @@ import { MCP_TOOL_CALL_ACTION_NAME, safeAuditValue } from '../mcp/mcp-call-audit
  *   tainted and how many figures the answer guard withheld. Never the question or the answer.
  *
  * All rows of a turn are written in one transaction, stamped `actor_channel = ai_assistant` (the AI
- * acted on the member's behalf), after the task is closed. Best-effort like the `/mcp` auditor: a
- * lost row is logged with the correlation id and never takes the member's answer away (the budget
- * receipt in `ai_tasks` is the system of record for spend; plan §7 "row counts equal call counts"
- * is checked in the test phase).
+ * acted on the member's behalf), after the task is closed. These rows describe reads and closed
+ * turns, so they are fail-open: a lost row is logged at error level with the correlation id and
+ * counted ({@link DatabaseAiAudit.lostRows}), and never takes the member's answer away. Changes
+ * are different (OWASP ASVS 5.0 V16, security events must not be silently lost): a confirm, an
+ * undo and a change run at once write their audit row fail-closed, before the change runs
+ * (`ai-change.service.ts`, `CopilotChatDeps.changeAudit`).
  */
 
 export const AI_CLIENT_ID = 'tmanage-ai';
@@ -105,6 +107,13 @@ const safe = (metadata: AuditMetadata, outcome: string): AuditMetadata =>
 export class DatabaseAiAudit implements ChatAudit {
   private readonly logger = new Logger('AiAudit');
 
+  private lost = 0;
+
+  /** Turn audit rows lost since start (a write failed); the metric the error log line carries. */
+  get lostRows(): number {
+    return this.lost;
+  }
+
   constructor(
     private readonly database: TenantDatabase,
     private readonly events: AuditEventsRepository = new AuditEventsRepository(),
@@ -130,11 +139,14 @@ export class DatabaseAiAudit implements ChatAudit {
         });
       });
     } catch (error) {
-      this.logger.warn(
+      this.lost += turn.toolCalls.length + 1;
+      this.logger.error(
         JSON.stringify({
           event: 'ai.turn_audit_failed',
           correlationId: context.correlationId,
           error: error instanceof Error ? error.name : 'unknown',
+          lostRows: turn.toolCalls.length + 1,
+          lostRowsTotal: this.lost,
         }),
       );
     }

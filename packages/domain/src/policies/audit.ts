@@ -1284,6 +1284,16 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'ai_task',
     clause: '§12 62-11 — the member undid the changes the AI made (op ids only)',
   },
+  /** What a confirmed card or an undo did, item by item. Metadata: kind, op ids, outcomes. */
+  'ai_change.applied': {
+    objectType: 'ai_task',
+    clause: '§12 62-11 — the outcome of an AI confirm or undo (op ids and outcomes only)',
+  },
+  /** A change the AI ran at once (owner setting), recorded before it ran. Metadata: op ids. */
+  'ai_change.ran_at_once': {
+    objectType: 'ai_task',
+    clause: '§12 62-11 — the AI ran an everyday change at once, as the owner allows (op ids only)',
+  },
   // ---- 62-13 · AI conversations ----
   /** The owner changed how long AI conversations are kept. Metadata: days before and after. */
   'ai_conversation.retention_updated': {
@@ -2140,6 +2150,8 @@ const AUDIT_ACTION_LABELS = {
   'ai_credit_pack.requested': 'Asked for more AI credits',
   'ai_change.confirmed': 'Confirmed changes the AI proposed',
   'ai_change.undone': 'Undid changes the AI made',
+  'ai_change.applied': 'Applied the AI changes',
+  'ai_change.ran_at_once': 'The AI made a change at once',
   'ai_conversation.retention_updated': 'Changed how long AI conversations are kept',
   'ai.turn_completed': 'The AI assistant answered a request',
 } as const satisfies Record<AuditAction, string>;

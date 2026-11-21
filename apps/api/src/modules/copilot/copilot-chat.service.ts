@@ -230,8 +230,17 @@ export interface CopilotChatDeps {
    * before any task is opened so a refused turn leaves no hold. Absent = not limited (unit tests).
    */
   readonly limits?: (context: TenantContext) => Promise<ChatLimitDecision>;
-  /** 62-14: one audit row per tool call and per turn, no text. */
+  /** 62-14: one audit row per tool call and per turn, no text (best-effort: reads only). */
   readonly audit?: ChatAudit;
+  /**
+   * 62-14 (OWASP ASVS 5.0 V16): the fail-closed audit row of a change the AI runs at once, written
+   * before the change runs; it throws when the row cannot be written, and then nothing runs.
+   * Absent: run at once is off (every change needs a card, whose confirm audits fail closed).
+   */
+  readonly changeAudit?: (
+    context: TenantContext,
+    change: { readonly taskId: string; readonly opId: string },
+  ) => Promise<void>;
   readonly now?: () => Date;
 }
 
@@ -763,7 +772,15 @@ export class CopilotChatService {
           currentKey = idempotencyKeyOf(use.id, plan.rawArgs);
           let done;
           try {
-            done = await this.change(context, surface, standing, changes, plan.opId, plan.rawArgs);
+            done = await this.change(
+              context,
+              surface,
+              standing,
+              changes,
+              plan.opId,
+              plan.rawArgs,
+              turn.task.taskId,
+            );
           } finally {
             currentKey = null;
           }
@@ -829,6 +846,7 @@ export class CopilotChatService {
     changes: TurnChanges,
     opId: string,
     rawArgs: Record<string, unknown>,
+    taskId: string,
   ): Promise<{ outcome: ChatToolRecord['outcome']; text: string; isError: boolean }> {
     const refused = (text: string) => ({ outcome: 'refused' as const, text, isError: true });
     if (standing.writeScope !== 'read_write') {
@@ -848,11 +866,17 @@ export class CopilotChatService {
     const current = await currentValues(surface, change);
     // The taint rule: after an untrusted read, nothing runs at once.
     const gate = changeGateFor(change.op, {
-      runAtOnce: standing.runAtOnce && !changes.tainted,
+      runAtOnce: standing.runAtOnce && !changes.tainted && this.deps.changeAudit !== undefined,
       hasUndo: undoPossible(change, current),
     });
     if (gate === null) return refused(`${opId} does not change data.`);
     if (!gate.card) {
+      // Its audit row first: a change whose record cannot be kept does not run (V16).
+      try {
+        await this.deps.changeAudit!(context, { taskId, opId: change.op.id });
+      } catch {
+        return refused(`${opId} could not be recorded in the audit log. Nothing was changed.`);
+      }
       const ran = await runChange(surface, change);
       if (ran.ok) {
         if (ran.undo === null) changes.cannotUndo = true;

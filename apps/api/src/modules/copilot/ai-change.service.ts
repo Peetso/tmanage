@@ -41,16 +41,26 @@ import {
  * 3. The card is claimed (`card → confirming`, one guarded UPDATE): a second confirm loses.
  * 4. The items run in order through the member's surface, their undo captured; a confirm-class
  *    item runs by approving its `pending_ai_actions` row (same member, frozen args, once). The
- *    first failure stops the rest. One audit row: `ai_change.confirmed` (ops and outcomes only).
+ *    first failure stops the rest.
+ *
+ * **Audit, fail closed (OWASP ASVS 5.0 V16, security logging):** the `ai_change.confirmed` row is
+ * written in the same transaction as the claim, before anything runs; if it cannot be written the
+ * claim rolls back and nothing changes. The outcomes follow in `ai_change.applied`, written with
+ * the final state move. Undo likewise: `ai_change.undone` with the `done → undoing` claim, before
+ * any inverse runs, then `ai_change.applied` (kind `undo`). Each changed record also carries its
+ * own route's audit row, written by that route in the change's own transaction.
  *
  * **Undo** — within 15 minutes of the change, by the same member: refused when the task has a
  * change without an inverse, or when any record changed since (checked for all before anything
  * runs); claimed (`done → undoing`); the inverses run newest first; the task's credits are refunded
- * (`AiBudgetService.refundTask`: 5 a day per member). One audit row: `ai_change.undone`.
+ * (`AiBudgetService.refundTask`: 5 a day per member).
  */
 
 export const AI_CHANGE_CONFIRMED_AUDIT_ACTION = 'ai_change.confirmed';
 export const AI_CHANGE_UNDONE_AUDIT_ACTION = 'ai_change.undone';
+export const AI_CHANGE_APPLIED_AUDIT_ACTION = 'ai_change.applied';
+/** A change the AI ran at once (owner setting), recorded before it ran (fail closed). */
+export const AI_CHANGE_RAN_AT_ONCE_AUDIT_ACTION = 'ai_change.ran_at_once';
 
 /** A step-up proves the password within the last 15 minutes (the finance send's window). */
 export interface ConfirmMeta {
@@ -187,12 +197,22 @@ export class AiChangeService {
     await this.checkSensitive(context, surface, changes, input, meta);
 
     const before = await this.readState(context, payload.taskId);
-    const claimed = await this.deps.database.transaction(context, (tx) =>
-      this.repository.claimCard(tx, context, payload.taskId, payload.cardId, {
+    // The claim and its audit row commit together, before anything runs (fail closed, V16).
+    const claimed = await this.deps.database.transaction(context, async (tx) => {
+      const won = await this.repository.claimCard(tx, context, payload.taskId, payload.cardId, {
         ...before,
         state: 'confirming',
-      }),
-    );
+      });
+      if (!won) return false;
+      await this.deps.audit.record(tx, context, {
+        action: AI_CHANGE_CONFIRMED_AUDIT_ACTION,
+        result: 'allowed',
+        objectId: payload.taskId,
+        actorUserId: context.userId,
+        metadata: { client_id: 'tmanage-ai', ops: changes.map((c) => c.op.id) },
+      });
+      return true;
+    });
     if (!claimed) throw conflict('This preview was already confirmed.', 'ai_card_used');
 
     const outcomes: ConfirmedItemOutcome[] = changes.map(() => 'not_run');
@@ -221,12 +241,13 @@ export class AiChangeService {
     await this.deps.database.transaction(context, async (tx) => {
       await this.repository.move(tx, context, payload.taskId, 'confirming', final);
       await this.deps.audit.record(tx, context, {
-        action: AI_CHANGE_CONFIRMED_AUDIT_ACTION,
+        action: AI_CHANGE_APPLIED_AUDIT_ACTION,
         result: anyRan ? 'allowed' : 'denied',
         objectId: payload.taskId,
         actorUserId: context.userId,
         metadata: {
           client_id: 'tmanage-ai',
+          kind: 'confirm',
           ops: changes.map((c) => c.op.id),
           outcomes,
         },
@@ -274,9 +295,22 @@ export class AiChangeService {
         );
       }
     }
-    const claimed = await this.deps.database.transaction(context, (tx) =>
-      this.repository.move(tx, context, taskId, 'done', { ...state, state: 'undoing' }),
-    );
+    // The claim and its audit row commit together, before any inverse runs (fail closed, V16).
+    const claimed = await this.deps.database.transaction(context, async (tx) => {
+      const won = await this.repository.move(tx, context, taskId, 'done', {
+        ...state,
+        state: 'undoing',
+      });
+      if (!won) return false;
+      await this.deps.audit.record(tx, context, {
+        action: AI_CHANGE_UNDONE_AUDIT_ACTION,
+        result: 'allowed',
+        objectId: taskId,
+        actorUserId: context.userId,
+        metadata: { client_id: 'tmanage-ai', ops: state.entries.map((e) => e.opId) },
+      });
+      return true;
+    });
     if (!claimed) throw conflict('This change is already being undone.', 'ai_undo_in_progress');
 
     let failed = false;
@@ -291,11 +325,16 @@ export class AiChangeService {
     await this.deps.database.transaction(context, async (tx) => {
       await this.repository.move(tx, context, taskId, 'undoing', { ...state, state: next });
       await this.deps.audit.record(tx, context, {
-        action: AI_CHANGE_UNDONE_AUDIT_ACTION,
+        action: AI_CHANGE_APPLIED_AUDIT_ACTION,
         result: failed ? 'denied' : 'allowed',
         objectId: taskId,
         actorUserId: context.userId,
-        metadata: { client_id: 'tmanage-ai', ops: state.entries.map((e) => e.opId) },
+        metadata: {
+          client_id: 'tmanage-ai',
+          kind: 'undo',
+          ops: state.entries.map((e) => e.opId),
+          outcomes: [failed ? 'failed' : 'done'],
+        },
       });
     });
     if (failed) return { taskId, state: 'failed', refundedCredits: 0 };

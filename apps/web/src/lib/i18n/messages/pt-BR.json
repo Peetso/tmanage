@@ -20729,6 +20729,8 @@
   "AuditActionLabel.ai_credit_pack.requested": "Solicitou mais créditos de IA",
   "AuditActionLabel.ai_change.confirmed": "Confirmou as alterações propostas pela IA",
   "AuditActionLabel.ai_change.undone": "Desfez as alterações feitas pela IA",
+  "AuditActionLabel.ai_change.applied": "Alterações da IA aplicadas",
+  "AuditActionLabel.ai_change.ran_at_once": "A IA fez uma alteração na hora",
   "AuditActionLabel.ai_conversation.retention_updated": "Alterou por quanto tempo as conversas com a IA são mantidas",
   "AuditActionLabel.ai.turn_completed": "O assistente de IA respondeu a uma solicitação",
   "Overview.signal.projects_at_riskOne": "Uma tarefa está atrasada ou em risco",

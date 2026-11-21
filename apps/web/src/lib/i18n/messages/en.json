@@ -20935,6 +20935,8 @@
   "AuditActionLabel.ai_credit_pack.requested": "Asked for more AI credits",
   "AuditActionLabel.ai_change.confirmed": "Confirmed changes the AI proposed",
   "AuditActionLabel.ai_change.undone": "Undid changes the AI made",
+  "AuditActionLabel.ai_change.applied": "Applied the AI changes",
+  "AuditActionLabel.ai_change.ran_at_once": "The AI made a change at once",
   "AuditActionLabel.ai_conversation.retention_updated": "Changed how long AI conversations are kept",
   "AuditActionLabel.ai.turn_completed": "The AI assistant answered a request",
   "Overview.signal.projects_at_riskOne": "One task is late or at risk",

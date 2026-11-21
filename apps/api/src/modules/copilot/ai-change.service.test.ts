@@ -150,7 +150,11 @@ function workspace() {
   return { items, calls, surface, touch: (id: string) => (items.get(id)!.updatedAt = stamp()) };
 }
 
-function setup(script: AiCallResult[], standing: Partial<ChatStanding> = {}) {
+function setup(
+  script: AiCallResult[],
+  standing: Partial<ChatStanding> = {},
+  options: { auditFails?: string } = {},
+) {
   let now = new Date('2026-11-21T10:00:00Z');
   const clock = () => now;
   const ws = workspace();
@@ -290,6 +294,10 @@ function setup(script: AiCallResult[], standing: Partial<ChatStanding> = {}) {
     countTokens: async () => 10,
     cardKey: CARD_KEY,
     freezeApproval: async () => 'pending_1',
+    changeAudit: async (_c, change) => {
+      if (options.auditFails === 'ai_change.ran_at_once') throw new Error('audit store down');
+      audits.push({ action: 'ai_change.ran_at_once', metadata: { ops: [change.opId] } });
+    },
     now: clock,
   });
   const changes = new AiChangeService({
@@ -299,6 +307,7 @@ function setup(script: AiCallResult[], standing: Partial<ChatStanding> = {}) {
     budget: budget as never,
     audit: {
       async record(_r: unknown, _c: TenantContext, input: { action: string; metadata?: unknown }) {
+        if (options.auditFails === input.action) throw new Error('audit store down');
         audits.push({ action: input.action, metadata: input.metadata });
         return {} as never;
       },
@@ -401,10 +410,20 @@ describe('the card equals what runs', () => {
       },
     ]);
     expect(env.ws.items.get('wi_1')!['dueAt']).toBe('2026-11-23T09:00:00Z');
+    // The intent row with the claim (before anything ran), then the outcome row.
     expect(env.audits).toEqual([
       {
         action: 'ai_change.confirmed',
-        metadata: { client_id: 'tmanage-ai', ops: ['work_items.update'], outcomes: ['done'] },
+        metadata: { client_id: 'tmanage-ai', ops: ['work_items.update'] },
+      },
+      {
+        action: 'ai_change.applied',
+        metadata: {
+          client_id: 'tmanage-ai',
+          kind: 'confirm',
+          ops: ['work_items.update'],
+          outcomes: ['done'],
+        },
       },
     ]);
     // A second confirm of the same card runs nothing.
@@ -531,7 +550,12 @@ describe('undo', () => {
     expect(undone).toEqual({ taskId, state: 'undone', refundedCredits: 3 });
     expect(env.ws.items.get('wi_1')!['dueAt']).toBe('2026-11-20T09:00:00Z');
     expect(env.refunds).toEqual([taskId]);
-    expect(env.audits.map((a) => a.action)).toEqual(['ai_change.confirmed', 'ai_change.undone']);
+    expect(env.audits.map((a) => a.action)).toEqual([
+      'ai_change.confirmed',
+      'ai_change.applied',
+      'ai_change.undone',
+      'ai_change.applied',
+    ]);
     expect(await status(env.undo(taskId))).toBe('409 ai_undo_not_available');
   });
 
@@ -586,6 +610,47 @@ describe('undo', () => {
     const view = await env.turn('delete it');
     expect(view.state).toBe('preview');
     expect(env.ws.items.has('wi_1')).toBe(true);
+  });
+});
+
+describe('audit fails closed for changes (ASVS 5.0 V16)', () => {
+  it('a confirm whose audit row cannot be written runs nothing', async () => {
+    const env = setup(
+      [route('tasks', 'medium'), moveDue('2026-11-23T09:00:00Z'), text('Proposed.')],
+      {},
+      { auditFails: 'ai_change.confirmed' },
+    );
+    const view = await env.turn('move it');
+    await expect(env.confirm(view.card!.token)).rejects.toThrow('audit store down');
+    expect(env.ws.calls.filter((c) => c.opId === 'work_items.update')).toEqual([]);
+    expect(env.ws.items.get('wi_1')!['dueAt']).toBe('2026-11-20T09:00:00Z');
+  });
+
+  it('a change run at once whose audit row cannot be written does not run', async () => {
+    const env = setup(
+      [route('tasks', 'medium'), moveDue('2026-11-23T09:00:00Z'), text('Could not.')],
+      { runAtOnce: true },
+      { auditFails: 'ai_change.ran_at_once' },
+    );
+    const view = await env.turn('move it');
+    expect(view.toolCalls).toEqual([{ opId: 'work_items.update', outcome: 'refused' }]);
+    expect(env.ws.calls.filter((c) => c.opId === 'work_items.update')).toEqual([]);
+    expect(env.ws.items.get('wi_1')!['dueAt']).toBe('2026-11-20T09:00:00Z');
+  });
+
+  it('an undo whose audit row cannot be written runs no inverse and refunds nothing', async () => {
+    const env = setup(
+      [route('tasks', 'medium'), moveDue('2026-11-23T09:00:00Z'), text('Proposed.')],
+      {},
+      { auditFails: 'ai_change.undone' },
+    );
+    const view = await env.turn('move it');
+    await env.confirm(view.card!.token);
+    const writesBefore = env.ws.calls.filter((c) => c.opId === 'work_items.update').length;
+    await expect(env.undo(view.card!.taskId)).rejects.toThrow('audit store down');
+    expect(env.ws.calls.filter((c) => c.opId === 'work_items.update')).toHaveLength(writesBefore);
+    expect(env.ws.items.get('wi_1')!['dueAt']).toBe('2026-11-23T09:00:00Z');
+    expect(env.refunds).toEqual([]);
   });
 });
 

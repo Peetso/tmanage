@@ -20935,6 +20935,8 @@
   "AuditActionLabel.ai_credit_pack.requested": "طلب رصيدًا إضافيًا للذكاء الاصطناعي",
   "AuditActionLabel.ai_change.confirmed": "أكّد التغييرات التي اقترحها الذكاء الاصطناعي",
   "AuditActionLabel.ai_change.undone": "تراجع عن التغييرات التي أجراها الذكاء الاصطناعي",
+  "AuditActionLabel.ai_change.applied": "طُبِّقت تغييرات الذكاء الاصطناعي",
+  "AuditActionLabel.ai_change.ran_at_once": "أجرى الذكاء الاصطناعي تغييرًا فوريًا",
   "AuditActionLabel.ai_conversation.retention_updated": "غيّر مدة الاحتفاظ بمحادثات الذكاء الاصطناعي",
   "AuditActionLabel.ai.turn_completed": "أجاب مساعد الذكاء الاصطناعي عن طلب",
   "Overview.signal.projects_at_riskOne": "مهمة واحدة متأخرة أو معرّضة للتأخير",

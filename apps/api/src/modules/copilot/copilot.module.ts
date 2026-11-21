@@ -15,7 +15,7 @@ import {
 import { PlatformAiBudgetSettings } from '../platform-admin/settings/ai-budget.js';
 import { AiBudgetRepository } from './ai-budget.repository.js';
 import { AiBudgetService } from './ai-budget.service.js';
-import { AiChangeService } from './ai-change.service.js';
+import { AI_CHANGE_RAN_AT_ONCE_AUDIT_ACTION, AiChangeService } from './ai-change.service.js';
 import { DatabaseAiAudit } from './ai-audit.js';
 import type { DurableRateLimiter } from '../rate-limits/durable-rate-limiter.js';
 import { DURABLE_RATE_LIMITER } from '../rate-limits/durable-throttle.guard.js';
@@ -102,6 +102,7 @@ export class CopilotModule {
             HttpAdapterHost,
             PENDING_AI_ACTIONS_SERVICE,
             AI_CONVERSATIONS_SERVICE,
+            AUDIT_SERVICE,
             { token: API_CONFIG, optional: true },
             { token: DURABLE_RATE_LIMITER, optional: true },
           ],
@@ -111,6 +112,7 @@ export class CopilotModule {
             host: HttpAdapterHost,
             pending: PendingAiActionsService,
             conversations: AiConversationsService,
+            audit: AuditService,
             config: ApiConfig | undefined,
             limiter: DurableRateLimiter | undefined,
           ) => {
@@ -124,6 +126,16 @@ export class CopilotModule {
               freezeApproval: pendingFreezer(pending),
               conversations,
               audit: new DatabaseAiAudit(database),
+              changeAudit: (context: TenantContext, change: { taskId: string; opId: string }) =>
+                audit
+                  .recordStandalone(context, {
+                    action: AI_CHANGE_RAN_AT_ONCE_AUDIT_ACTION,
+                    result: 'allowed',
+                    objectId: change.taskId,
+                    actorUserId: context.userId,
+                    metadata: { client_id: 'tmanage-ai', ops: [change.opId] },
+                  })
+                  .then(() => undefined),
               ...(limiter === undefined
                 ? {}
                 : {

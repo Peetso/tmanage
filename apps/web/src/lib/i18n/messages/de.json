@@ -20729,6 +20729,8 @@
   "AuditActionLabel.ai_credit_pack.requested": "Hat mehr KI-Guthaben angefordert",
   "AuditActionLabel.ai_change.confirmed": "Von der KI vorgeschlagene Änderungen bestätigt",
   "AuditActionLabel.ai_change.undone": "Von der KI vorgenommene Änderungen rückgängig gemacht",
+  "AuditActionLabel.ai_change.applied": "KI-Änderungen angewendet",
+  "AuditActionLabel.ai_change.ran_at_once": "Die KI hat sofort eine Änderung vorgenommen",
   "AuditActionLabel.ai_conversation.retention_updated": "Aufbewahrungsdauer der KI-Unterhaltungen geändert",
   "AuditActionLabel.ai.turn_completed": "Der KI-Assistent hat eine Anfrage beantwortet",
   "Overview.signal.projects_at_riskOne": "Eine Aufgabe ist verspätet oder gefährdet",

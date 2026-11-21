@@ -97,9 +97,11 @@ describe('AI audit rows (62-14)', () => {
     });
   });
 
-  it('never throws: a lost row is logged, the answer stands', async () => {
+  it('never throws: a lost row is logged at error and counted, the answer stands', async () => {
     const { audit } = fakes(true);
     await expect(audit.turn(ctx, TURN)).resolves.toBeUndefined();
+    // Counted: two tool rows and the turn row.
+    expect(audit.lostRows).toBe(3);
   });
 
   it('maps outcomes to results', () => {
