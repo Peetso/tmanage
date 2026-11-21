@@ -21259,5 +21259,18 @@
   "FormCheck.wholeNumberAtLeast": "Enter a whole number of {min} or more.",
   "FormCheck.wholeNumberAtMost": "Enter a whole number of {max} or less.",
   "FormCheck.minLength": "Write at least {min} characters.",
-  "FormCheck.format": "Check what you entered here."
+  "FormCheck.format": "Check what you entered here.",
+  "PermissionMatrix.area.ai_employees": "AI employees",
+  "PermissionMatrix.cap.ai_employee.manage": "Hire, connect, pause and retire AI employees",
+  "PermissionMatrix.cap.ai_employee.assign": "Give briefed tasks to AI employees",
+  "PermissionMatrix.cap.brief.manage": "Manage task types and the brief library",
+  "CapabilityLabel.ai_employee.manage": "Hire, connect, pause and retire AI employees",
+  "CapabilityLabel.ai_employee.assign": "Give briefed tasks to AI employees",
+  "CapabilityLabel.brief.manage": "Manage task types and the brief library",
+  "AuditActionLabel.ai_employee.hired": "Hired an AI employee",
+  "AuditActionLabel.ai_employee.updated": "Changed an AI employee",
+  "AuditActionLabel.ai_employee.paused": "Paused an AI employee",
+  "AuditActionLabel.ai_employee.resumed": "Resumed an AI employee",
+  "AuditActionLabel.ai_employee.sponsor_changed": "Changed an AI employee's sponsor",
+  "AuditActionLabel.ai_employee.retired": "Retired an AI employee"
 }

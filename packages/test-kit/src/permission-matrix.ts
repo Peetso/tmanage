@@ -207,6 +207,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance reads, were project.manage
       'finance.manage', // 52-23 §10: finance writes, were workspace.manage
       'time.view_team', // FIX-2026-11-10: team time view, held by the admins
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
     denied: [
       'client_request.submit', // Submit client request: "No"
@@ -281,6 +284,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance reads, were project.manage
       'finance.manage', // 52-23 §10: finance writes, were workspace.manage
       'time.view_team', // FIX-2026-11-10: team time view, held by the admins
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
     denied: [
       'client_request.submit', // Submit client request: "No"
@@ -352,6 +358,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance reads, were project.manage
       'finance.manage', // 52-23 §10: finance writes, were workspace.manage
       'time.view_team', // FIX-2026-11-10: team time view, held by the admins
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
     denied: [
       'client_request.submit', // internal principal; same reading as owner
@@ -417,6 +426,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance reads, were project.manage
       'finance.manage', // 52-23 §10: finance writes, were workspace.manage
       'time.view_team', // FIX-2026-11-10: team time view, held by the admins
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
     denied: [
       'org.manage', // Billing/ownership: "No"
@@ -486,6 +498,8 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'report.view', // SPEC §3.3 ceiling paragraph
       'report.export', // SPEC §3.3 ceiling paragraph
       'finance.view', // 52-23 §10: finance reads, were project.manage
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
     denied: [
       'org.manage', // Billing/ownership: "No"
@@ -506,6 +520,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'ai.manage', // SPEC §3.3 ceiling paragraph
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
   },
 
@@ -581,6 +596,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
   },
 
@@ -656,6 +674,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
   },
 
@@ -735,6 +756,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
   },
 
@@ -814,6 +838,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
   },
 
@@ -885,6 +912,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
   },
 
@@ -961,6 +991,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
   },
 
@@ -1040,6 +1073,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'finance.view', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'finance.manage', // 52-23 §10: finance is internal; held by the project.manage / workspace.manage holders only
       'time.view_team', // FIX-2026-11-10: team time view; an admin may grant it, never a ceiling
+      'ai_employee.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'ai_employee.assign', // plan 60 v2 §4.6 / open question 2 (60-01)
+      'brief.manage', // plan 60 v2 §4.6 / open question 2 (60-01)
     ],
   },
 };

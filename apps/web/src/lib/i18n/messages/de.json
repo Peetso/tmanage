@@ -21053,5 +21053,18 @@
   "FormCheck.wholeNumberAtLeast": "Geben Sie eine ganze Zahl ab {min} ein.",
   "FormCheck.wholeNumberAtMost": "Geben Sie eine ganze Zahl bis {max} ein.",
   "FormCheck.minLength": "Schreiben Sie mindestens {min} Zeichen.",
-  "FormCheck.format": "Prüfen Sie Ihre Eingabe hier."
+  "FormCheck.format": "Prüfen Sie Ihre Eingabe hier.",
+  "PermissionMatrix.area.ai_employees": "KI-Mitarbeitende",
+  "PermissionMatrix.cap.ai_employee.manage": "KI-Mitarbeitende einstellen, verbinden, pausieren und ausscheiden lassen",
+  "PermissionMatrix.cap.ai_employee.assign": "Aufgaben mit Briefing an KI-Mitarbeitende vergeben",
+  "PermissionMatrix.cap.brief.manage": "Aufgabentypen und die Briefing-Bibliothek verwalten",
+  "CapabilityLabel.ai_employee.manage": "KI-Mitarbeitende einstellen, verbinden, pausieren und ausscheiden lassen",
+  "CapabilityLabel.ai_employee.assign": "Aufgaben mit Briefing an KI-Mitarbeitende vergeben",
+  "CapabilityLabel.brief.manage": "Aufgabentypen und die Briefing-Bibliothek verwalten",
+  "AuditActionLabel.ai_employee.hired": "Hat KI-Mitarbeitende eingestellt",
+  "AuditActionLabel.ai_employee.updated": "Hat KI-Mitarbeitende geändert",
+  "AuditActionLabel.ai_employee.paused": "Hat KI-Mitarbeitende pausiert",
+  "AuditActionLabel.ai_employee.resumed": "Hat KI-Mitarbeitende fortgesetzt",
+  "AuditActionLabel.ai_employee.sponsor_changed": "Hat die verantwortliche Person von KI-Mitarbeitenden geändert",
+  "AuditActionLabel.ai_employee.retired": "Hat KI-Mitarbeitende ausscheiden lassen"
 }

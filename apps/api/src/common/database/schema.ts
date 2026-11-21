@@ -151,6 +151,11 @@ export const personalAccessTokens = mysqlTable(
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
     membershipId: char('membership_id', { length: 36 }).notNull(),
+    /**
+     * 60-02 (0401). Who created an agent key whose membership is an AI employee; NULL for a
+     * person's own token (the holder created it).
+     */
+    createdByMembershipId: char('created_by_membership_id', { length: 36 }),
     userId: char('user_id', { length: 36 }).notNull(),
     name: varchar('name', { length: 190 }).notNull(),
     /** SHA-256 hex of the plaintext — the only form of the secret that reaches the database. */
@@ -220,6 +225,11 @@ export const oauthGrants = mysqlTable(
     clientPk: char('client_pk', { length: 36 }).notNull(),
     membershipId: char('membership_id', { length: 36 }).notNull(),
     userId: char('user_id', { length: 36 }).notNull(),
+    /**
+     * 60-02 (0400). The person who consented to a grant that works as an AI employee (the sponsor
+     * or an `ai_employee.manage` holder); NULL for a person's own grant.
+     */
+    authorizedByMembershipId: char('authorized_by_membership_id', { length: 36 }),
     /** Space-separated consented scopes, e.g. `tmanage:read tmanage:write`. */
     scopes: varchar('scopes', { length: 255 }).notNull(),
     revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
@@ -383,6 +393,11 @@ export const memberships = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     userId: char('user_id', { length: 36 }).notNull(),
     role: varchar('role', { length: 64 }).notNull(),
+    /**
+     * 60-02 (0398). `human` or `ai` (an AI employee, plan 60 v2 §4.1). Read with
+     * `parseMembershipKind`; an unreadable value is refused at every door (deny by default).
+     */
+    kind: varchar('kind', { length: 8 }).notNull().default('human'),
     status: mysqlEnum('status', MEMBERSHIP_STATUS).notNull().default('active'),
     /** Stored rather than derived, so a policy change cannot silently widen historical scope. */
     hasOrgWideScope: boolean('has_org_wide_scope').notNull().default(false),
@@ -15672,4 +15687,73 @@ export type OutreachRecipientRow = typeof outreachRecipients.$inferSelect;
 Object.assign(TABLES, {
   outreach_campaigns: outreachCampaigns,
   outreach_recipients: outreachRecipients,
+});
+
+// ---- 60-02 · plan 60 v2 · AI employees ----
+
+export const AI_EMPLOYEE_STATUS_VALUES = ['active', 'paused', 'retired'] as const;
+
+/**
+ * 0399 `ai_employees`. The companion row of a `memberships` row of kind `ai`: sponsor, hirer, job,
+ * disclosed vendor and model labels, status, allowed task types, hours, limits, client disclosure.
+ * Tenant-owned (TENANT_TABLES); never deleted while the company exists (retired is final).
+ * JSON columns are LONGTEXT parsed by the domain parsers (`policies/ai-employees/limits.ts`).
+ */
+export const aiEmployees = mysqlTable(
+  'ai_employees',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    sponsorMembershipId: char('sponsor_membership_id', { length: 36 }).notNull(),
+    createdByMembershipId: char('created_by_membership_id', { length: 36 }).notNull(),
+    jobTitle: varchar('job_title', { length: 120 }).notNull(),
+    departmentKey: varchar('department_key', { length: 64 }),
+    vendorLabel: varchar('vendor_label', { length: 80 }),
+    modelLabel: varchar('model_label', { length: 80 }),
+    status: mysqlEnum('status', AI_EMPLOYEE_STATUS_VALUES).notNull().default('active'),
+    pausedReason: varchar('paused_reason', { length: 32 }),
+    pausedAt: datetime('paused_at', { mode: 'date', fsp: 3 }),
+    retiredAt: datetime('retired_at', { mode: 'date', fsp: 3 }),
+    retiredByMembershipId: char('retired_by_membership_id', { length: 36 }),
+    allowedTaskTypesJson: text('allowed_task_types_json'),
+    timezone: varchar('timezone', { length: 64 }).notNull().default('UTC'),
+    workingHoursJson: text('working_hours_json'),
+    limitsJson: text('limits_json'),
+    discloseToClients: boolean('disclose_to_clients').notNull().default(true),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_employees_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_employees_org_membership').on(table.organizationId, table.membershipId),
+    index('ix_ai_employees_org_status').on(table.organizationId, table.status),
+    index('ix_ai_employees_org_sponsor').on(table.organizationId, table.sponsorMembershipId),
+  ],
+);
+
+export type AiEmployeeRow = typeof aiEmployees.$inferSelect;
+
+/**
+ * 0402 `ai_excluded_projects`. "AI may not read this project": one row per excluded project of a
+ * workspace, for every AI employee (plan 60 v2 §4.6 step 6). The key is the idempotency key.
+ */
+export const aiExcludedProjects = mysqlTable(
+  'ai_excluded_projects',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    setByMembershipId: char('set_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.projectId] })],
+);
+
+export type AiExcludedProjectRow = typeof aiExcludedProjects.$inferSelect;
+
+Object.assign(TABLES, {
+  ai_employees: aiEmployees,
+  ai_excluded_projects: aiExcludedProjects,
 });

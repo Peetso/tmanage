@@ -19,6 +19,9 @@ import { CAPABILITIES, type Capability } from './capabilities.js';
  * 4. People · manage is `roles.assign`, which replaced the hard-coded owner/org-admin list.
  * 5. Finance (52-23 §10) is not a SPEC §3.3 row; it was added with `finance.view` / `finance.manage`
  *    so every capability keeps exactly one primary cell. Time (team time view) likewise.
+ * 6. 60-01 (plan 60 v2 §4.6): work items · manage is `brief.manage` (task types and the brief
+ *    library); AI employees · edit is `ai_employee.assign` (give a briefed task to an AI) and
+ *    · manage is `ai_employee.manage` (hire, connect, pause, retire).
  */
 
 export const MATRIX_ACTIONS = [
@@ -52,6 +55,8 @@ export const MATRIX_AREAS = [
   'settings',
   'workspaces',
   'ai',
+  // 60-01: AI employees (hire and manage; give briefed tasks).
+  'ai_employees',
   'reports',
   'audit',
   'search',
@@ -89,6 +94,8 @@ export const MATRIX: Readonly<Record<MatrixArea, MatrixRow>> = Object.freeze({
     delete: 'work.delete',
     approve: 'work.transition',
     export: 'work.export',
+    // 60-01: task types and the reusable brief library (footnote 6).
+    manage: 'brief.manage',
   }),
   approvals: row({
     view: 'approval.read',
@@ -148,6 +155,7 @@ export const MATRIX: Readonly<Record<MatrixArea, MatrixRow>> = Object.freeze({
   settings: row({ view: 'settings.view', edit: 'org.manage', manage: 'org.security.manage' }),
   workspaces: row({ manage: 'workspace.manage' }),
   ai: row({ view: 'ai.use', manage: 'ai.manage' }),
+  ai_employees: row({ edit: 'ai_employee.assign', manage: 'ai_employee.manage' }),
   reports: row({ view: 'report.view', export: 'report.export' }),
   audit: row({ view: 'audit.read', export: 'audit.export' }),
   search: row({ view: 'search.use' }),

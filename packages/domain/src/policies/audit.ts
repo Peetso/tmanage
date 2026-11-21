@@ -1334,6 +1334,35 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'business_fact',
     clause: '§12 62-26 — a person retired a Business Memory fact; the AI no longer recalls it',
   },
+  // ---- 60-03 · AI employees (plan 60 v2 §4.8) ----
+  /**
+   * A person hired an AI employee. Metadata: the membership id, the role, the sponsor membership
+   * id, the department key — never the disclosed vendor or model labels' text beyond their keys.
+   */
+  'ai_employee.hired': {
+    objectType: 'ai_employee',
+    clause: '§12 60-03 — a person hired an AI employee (a member of kind ai with a sponsor)',
+  },
+  'ai_employee.updated': {
+    objectType: 'ai_employee',
+    clause: '§12 60-03 — a person changed an AI employee (field names only)',
+  },
+  'ai_employee.paused': {
+    objectType: 'ai_employee',
+    clause: '§12 60-03 — an AI employee was paused; every agent call is refused until resumed',
+  },
+  'ai_employee.resumed': {
+    objectType: 'ai_employee',
+    clause: '§12 60-03 — a person resumed a paused AI employee',
+  },
+  'ai_employee.sponsor_changed': {
+    objectType: 'ai_employee',
+    clause: '§12 60-03 — the person who answers for an AI employee changed (membership ids only)',
+  },
+  'ai_employee.retired': {
+    objectType: 'ai_employee',
+    clause: '§12 60-03 — an AI employee was retired; its membership is offboarded, history kept',
+  },
   // ---- 62-27 (B05) · signals engine ----
   'work_signal_settings.updated': {
     objectType: 'organization',
@@ -2184,6 +2213,12 @@ const AUDIT_ACTION_LABELS = {
   'business_fact.updated': 'Edited a Business Memory fact',
   'business_fact.confirmed': 'Confirmed a Business Memory fact',
   'business_fact.retired': 'Retired a Business Memory fact',
+  'ai_employee.hired': 'Hired an AI employee',
+  'ai_employee.updated': 'Changed an AI employee',
+  'ai_employee.paused': 'Paused an AI employee',
+  'ai_employee.resumed': 'Resumed an AI employee',
+  'ai_employee.sponsor_changed': "Changed an AI employee's sponsor",
+  'ai_employee.retired': 'Retired an AI employee',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

@@ -21259,5 +21259,18 @@
   "FormCheck.wholeNumberAtLeast": "أدخل عددًا صحيحًا لا يقل عن {min}.",
   "FormCheck.wholeNumberAtMost": "أدخل عددًا صحيحًا لا يزيد على {max}.",
   "FormCheck.minLength": "اكتب ما لا يقل عن {min} من الأحرف.",
-  "FormCheck.format": "راجع ما أدخلته هنا."
+  "FormCheck.format": "راجع ما أدخلته هنا.",
+  "PermissionMatrix.area.ai_employees": "موظفو الذكاء الاصطناعي",
+  "PermissionMatrix.cap.ai_employee.manage": "تعيين موظفي الذكاء الاصطناعي وربطهم وإيقافهم مؤقتًا وإنهاء خدمتهم",
+  "PermissionMatrix.cap.ai_employee.assign": "إسناد المهام ذات الموجز إلى موظفي الذكاء الاصطناعي",
+  "PermissionMatrix.cap.brief.manage": "إدارة أنواع المهام ومكتبة الموجزات",
+  "CapabilityLabel.ai_employee.manage": "تعيين موظفي الذكاء الاصطناعي وربطهم وإيقافهم مؤقتًا وإنهاء خدمتهم",
+  "CapabilityLabel.ai_employee.assign": "إسناد المهام ذات الموجز إلى موظفي الذكاء الاصطناعي",
+  "CapabilityLabel.brief.manage": "إدارة أنواع المهام ومكتبة الموجزات",
+  "AuditActionLabel.ai_employee.hired": "عيّن موظفًا بالذكاء الاصطناعي",
+  "AuditActionLabel.ai_employee.updated": "عدّل بيانات موظف بالذكاء الاصطناعي",
+  "AuditActionLabel.ai_employee.paused": "أوقف موظفًا بالذكاء الاصطناعي مؤقتًا",
+  "AuditActionLabel.ai_employee.resumed": "استأنف عمل موظف بالذكاء الاصطناعي",
+  "AuditActionLabel.ai_employee.sponsor_changed": "غيّر المسؤول عن موظف بالذكاء الاصطناعي",
+  "AuditActionLabel.ai_employee.retired": "أنهى خدمة موظف بالذكاء الاصطناعي"
 }

@@ -1434,6 +1434,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0387 (QA-FIX-O H1). Tenant-owned: what happened to each approval-request e-mail of a company's
   // approvals. No foreign key, so the company erasure may empty it in any order.
   approval_email_sends: 'organization_id',
+  // 0399 (60-02 AI EMPLOYEES). Tenant-owned: the companion row of a workspace's `ai` memberships
+  // (sponsor, job, status, limits). Never deleted while the company exists; no foreign key, so
+  // the company erasure may empty it in any order.
+  ai_employees: 'organization_id',
+  // 0402 (60-02 AI EMPLOYEES). Tenant-owned: the projects a workspace keeps away from every AI
+  // employee. No foreign key, so the company erasure may empty it in any order.
+  ai_excluded_projects: 'organization_id',
 });
 
 /**

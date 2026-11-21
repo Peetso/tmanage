@@ -123,12 +123,29 @@ export const CAPABILITIES = [
   // org admins and workspace admins hold it; an admin grants it to anyone else through a custom
   // role or a per-person override (both audited). Internal-only.
   'time.view_team',
+  // ---- 60-01 · AI employees (plan 60 v2 §4.6) ----
+  // `ai_employee.manage`: hire, connect, pause, resume, retire an AI employee and change its
+  // sponsor. `ai_employee.assign`: give a briefed task to an AI employee (the project relation and
+  // the brief readiness gate still decide each case). `brief.manage`: the workspace's task types and
+  // reusable brief assets (brand kits, audiences, glossaries, facts, playbooks). Appended for the
+  // same reason as the blocks above. Internal-only; none of them is ever held by an `ai` membership
+  // (`policies/ai-employees/ceiling.ts`).
+  'ai_employee.manage',
+  'ai_employee.assign',
+  'brief.manage',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
 
 /** 52-23 §10: the finance capabilities, in `CAPABILITIES` order. */
 export const FINANCE_CAPABILITIES: readonly Capability[] = ['finance.view', 'finance.manage'];
+
+/** 60-01: the AI-employee and brief capabilities, in `CAPABILITIES` order. */
+export const AI_EMPLOYEE_CAPABILITIES: readonly Capability[] = [
+  'ai_employee.manage',
+  'ai_employee.assign',
+  'brief.manage',
+];
 
 /** PA-01: the capabilities SPEC §3.3 added (its bold cells), in `CAPABILITIES` order. */
 export const MATRIX_NEW_CAPABILITIES: readonly Capability[] = [
@@ -351,6 +368,11 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'finance.manage',
     // FIX-2026-11-10: workspace admins always see their team's time.
     'time.view_team',
+    // 60-01 (plan 60 v2 open question 2: "Hire: owner and admins. Assign: managers and project
+    // managers on their projects"). A workspace admin hires, assigns and keeps the brief library.
+    'ai_employee.manage',
+    'ai_employee.assign',
+    'brief.manage',
   ],
 
   manager: [
@@ -407,6 +429,11 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     // 52-23 §10: reads the finance settings (who drafts quotes needs the rates), as
     // `project.manage` gave; writes stay with `workspace.manage` holders, which a manager is not.
     'finance.view',
+    // 60-01: a manager gives briefed tasks to AI employees on the projects they manage (the
+    // relation is checked at decision time) and keeps task types and brief assets. Hiring stays
+    // with the admins.
+    'ai_employee.assign',
+    'brief.manage',
   ],
 
   moderator: [
@@ -778,6 +805,8 @@ export const INTERNAL_ONLY_CAPABILITIES: readonly Capability[] = [
   ...FINANCE_CAPABILITIES,
   // FIX-2026-11-10: another person's tracked time is internal.
   'time.view_team',
+  // 60-01: AI employees and the brief library are internal.
+  ...AI_EMPLOYEE_CAPABILITIES,
 ];
 
 const INTERNAL_ONLY_SET: ReadonlySet<Capability> = new Set(INTERNAL_ONLY_CAPABILITIES);

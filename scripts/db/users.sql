@@ -2714,6 +2714,19 @@ GRANT INSERT, UPDATE ON `tmanage`.`ai_digest_wordings` TO 'tmanage_app'@'%';
 -- or UPDATE of the same key on a repeat); the knowledge index job deletes a summary once no text
 -- row holds its hash (DELETE). SELECT rides the database-wide read. The worker touches none of it.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`ai_file_summaries` TO 'tmanage_app'@'%';
+-- 0398 / 0400 / 0401 (60-02 AI EMPLOYEES). New columns only (`memberships.kind`,
+-- `oauth_grants.authorized_by_membership_id`, `personal_access_tokens.created_by_membership_id`):
+-- the existing table grants above cover them.
+-- 0399 (60-02 AI EMPLOYEES). Hiring writes the companion row (INSERT, in the transaction that
+-- writes the user and the membership); edits, pause, resume, sponsor change and retire are UPDATEs
+-- (conditional on `version`). Never deleted on the app path: retired is final and the row keeps the
+-- history's author; the company erasure deletes through tmanage_erasure. SELECT rides the
+-- database-wide read.
+GRANT INSERT, UPDATE ON `tmanage`.`ai_employees` TO 'tmanage_app'@'%';
+-- 0402 (60-02 AI EMPLOYEES). Excluding a project from AI is an INSERT; lifting it is a DELETE of
+-- that row (audited in the same transaction). Nothing else is ever written. SELECT rides the
+-- database-wide read.
+GRANT INSERT, DELETE ON `tmanage`.`ai_excluded_projects` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_app'@'%';
 -- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
 -- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
@@ -2800,6 +2813,8 @@ GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_moves` TO 'tmanage_erasure'@'%
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_packs` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_digest_wordings` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_employees` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_excluded_projects` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_summaries` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_texts` TO 'tmanage_erasure'@'%';

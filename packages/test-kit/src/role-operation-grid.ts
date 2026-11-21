@@ -492,6 +492,18 @@ export const UNGUARDED_CAPABILITIES: readonly UnguardedCapability[] = [
     capability: 'report.export',
     why: 'Declared but unwired (PA-01): the SPEC §3.3 matrix names it ahead of its route; no route or service exercises it yet.',
   },
+  {
+    capability: 'ai_employee.manage',
+    why: 'Declared but unwired (60-01): plan 60 v2 §4.6 names it ahead of the AI-employee routes (60-03).',
+  },
+  {
+    capability: 'ai_employee.assign',
+    why: 'Object-layer only once wired (60-15): assigning a briefed task to an AI is decided with the task, its project relation and the brief readiness gate in hand.',
+  },
+  {
+    capability: 'brief.manage',
+    why: 'Declared but unwired (60-01): plan 60 v2 §4.6 names it ahead of the task-type and brief-asset routes (60-14).',
+  },
 ];
 
 /**

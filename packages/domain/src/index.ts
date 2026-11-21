@@ -321,6 +321,7 @@ export type { LegalDocument, LegalDocumentKey } from './legal/legal-content.js';
 // SPEC §3.3: the permission matrix layout, per-member overrides and "what can this person do".
 export {
   ASSIGNABLE_INTERNAL_ROLES,
+  AI_EMPLOYEE_CAPABILITIES,
   MATRIX_NEW_CAPABILITIES,
   PLATFORM_SUPPORT_ROLE,
   isPlatformSupportRole,
@@ -574,3 +575,6 @@ export * from './flags/flag-chain.js';
 
 // Growth figures: when they count as current (57-14, GROWTH-FIX)
 export * from './growth/freshness.js';
+
+// AI employees: kind, AI ceiling, doors, lifecycle, limits — plan 60 v2, 60-01
+export * from './policies/ai-employees/index.js';

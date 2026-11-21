@@ -21055,5 +21055,18 @@
   "FormCheck.wholeNumberAtLeast": "Introduzca un número entero de {min} o más.",
   "FormCheck.wholeNumberAtMost": "Introduzca un número entero de {max} o menos.",
   "FormCheck.minLength": "Escriba al menos {min} caracteres.",
-  "FormCheck.format": "Revise lo que introdujo aquí."
+  "FormCheck.format": "Revise lo que introdujo aquí.",
+  "PermissionMatrix.area.ai_employees": "Empleados de IA",
+  "PermissionMatrix.cap.ai_employee.manage": "Contratar, conectar, pausar y retirar empleados de IA",
+  "PermissionMatrix.cap.ai_employee.assign": "Asignar tareas con brief a empleados de IA",
+  "PermissionMatrix.cap.brief.manage": "Gestionar tipos de tarea y la biblioteca de briefs",
+  "CapabilityLabel.ai_employee.manage": "Contratar, conectar, pausar y retirar empleados de IA",
+  "CapabilityLabel.ai_employee.assign": "Asignar tareas con brief a empleados de IA",
+  "CapabilityLabel.brief.manage": "Gestionar tipos de tarea y la biblioteca de briefs",
+  "AuditActionLabel.ai_employee.hired": "Contrató un empleado de IA",
+  "AuditActionLabel.ai_employee.updated": "Cambió un empleado de IA",
+  "AuditActionLabel.ai_employee.paused": "Pausó un empleado de IA",
+  "AuditActionLabel.ai_employee.resumed": "Reanudó un empleado de IA",
+  "AuditActionLabel.ai_employee.sponsor_changed": "Cambió el responsable de un empleado de IA",
+  "AuditActionLabel.ai_employee.retired": "Retiró un empleado de IA"
 }

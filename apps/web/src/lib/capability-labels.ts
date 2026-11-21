@@ -105,6 +105,13 @@ const LABELS: Readonly<Record<Capability, CapabilityLabel>> = {
   },
   // ---- FIX-2026-11-10: team time ----
   'time.view_team': { area: 'Work', label: 'View team time (everyone’s tracked time)' },
+  // ---- 60-01: AI employees and the brief library ----
+  'ai_employee.manage': {
+    area: 'AI and reports',
+    label: 'Hire, connect, pause and retire AI employees',
+  },
+  'ai_employee.assign': { area: 'AI and reports', label: 'Give briefed tasks to AI employees' },
+  'brief.manage': { area: 'Work', label: 'Manage task types and the brief library' },
 };
 
 const AREA_ORDER: readonly CapabilityArea[] = [

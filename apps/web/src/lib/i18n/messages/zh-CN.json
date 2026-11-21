@@ -21053,5 +21053,18 @@
   "FormCheck.wholeNumberAtLeast": "请输入不小于 {min} 的整数。",
   "FormCheck.wholeNumberAtMost": "请输入不大于 {max} 的整数。",
   "FormCheck.minLength": "请至少输入 {min} 个字符。",
-  "FormCheck.format": "请检查此处输入的内容。"
+  "FormCheck.format": "请检查此处输入的内容。",
+  "PermissionMatrix.area.ai_employees": "AI 员工",
+  "PermissionMatrix.cap.ai_employee.manage": "雇用、连接、暂停和停用 AI 员工",
+  "PermissionMatrix.cap.ai_employee.assign": "向 AI 员工分配带简报的任务",
+  "PermissionMatrix.cap.brief.manage": "管理任务类型和简报库",
+  "CapabilityLabel.ai_employee.manage": "雇用、连接、暂停和停用 AI 员工",
+  "CapabilityLabel.ai_employee.assign": "向 AI 员工分配带简报的任务",
+  "CapabilityLabel.brief.manage": "管理任务类型和简报库",
+  "AuditActionLabel.ai_employee.hired": "雇用了 AI 员工",
+  "AuditActionLabel.ai_employee.updated": "修改了 AI 员工",
+  "AuditActionLabel.ai_employee.paused": "暂停了 AI 员工",
+  "AuditActionLabel.ai_employee.resumed": "恢复了 AI 员工",
+  "AuditActionLabel.ai_employee.sponsor_changed": "更改了 AI 员工的负责人",
+  "AuditActionLabel.ai_employee.retired": "停用了 AI 员工"
 }

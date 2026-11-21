@@ -21053,5 +21053,18 @@
   "FormCheck.wholeNumberAtLeast": "Saisissez un nombre entier égal ou supérieur à {min}.",
   "FormCheck.wholeNumberAtMost": "Saisissez un nombre entier égal ou inférieur à {max}.",
   "FormCheck.minLength": "Écrivez au moins {min} caractères.",
-  "FormCheck.format": "Vérifiez ce que vous avez saisi ici."
+  "FormCheck.format": "Vérifiez ce que vous avez saisi ici.",
+  "PermissionMatrix.area.ai_employees": "Employés IA",
+  "PermissionMatrix.cap.ai_employee.manage": "Recruter, connecter, mettre en pause et retirer des employés IA",
+  "PermissionMatrix.cap.ai_employee.assign": "Confier des tâches avec brief aux employés IA",
+  "PermissionMatrix.cap.brief.manage": "Gérer les types de tâches et la bibliothèque de briefs",
+  "CapabilityLabel.ai_employee.manage": "Recruter, connecter, mettre en pause et retirer des employés IA",
+  "CapabilityLabel.ai_employee.assign": "Confier des tâches avec brief aux employés IA",
+  "CapabilityLabel.brief.manage": "Gérer les types de tâches et la bibliothèque de briefs",
+  "AuditActionLabel.ai_employee.hired": "A recruté un employé IA",
+  "AuditActionLabel.ai_employee.updated": "A modifié un employé IA",
+  "AuditActionLabel.ai_employee.paused": "A mis en pause un employé IA",
+  "AuditActionLabel.ai_employee.resumed": "A relancé un employé IA",
+  "AuditActionLabel.ai_employee.sponsor_changed": "A changé le responsable d’un employé IA",
+  "AuditActionLabel.ai_employee.retired": "A retiré un employé IA"
 }

@@ -16,8 +16,8 @@ import {
 
 /** platform-admin v2 · PA-01 — the matrix layout the editor and the preview draw (SPEC §3.3). */
 describe('permission matrix layout', () => {
-  it('has 19 areas and 7 actions', () => {
-    expect(MATRIX_AREAS).toHaveLength(19);
+  it('has 20 areas and 7 actions', () => {
+    expect(MATRIX_AREAS).toHaveLength(20);
     expect(MATRIX_ACTIONS).toEqual([
       'view',
       'create',
@@ -38,8 +38,8 @@ describe('permission matrix layout', () => {
     }
   });
 
-  it('every one of the 59 capabilities has exactly one primary cell', () => {
-    expect(CAPABILITIES).toHaveLength(59);
+  it('every one of the 62 capabilities has exactly one primary cell', () => {
+    expect(CAPABILITIES).toHaveLength(62);
     expect(capabilitiesWithoutCell()).toEqual([]);
     for (const capability of CAPABILITIES) {
       const cell = capabilityCell(capability);
@@ -91,6 +91,11 @@ describe('permission matrix layout', () => {
   it('52-23 §10: the finance row draws finance.view and finance.manage', () => {
     expect(areaCapabilities('finance')).toEqual(['finance.view', 'finance.manage']);
     expect(capabilityCell('finance.manage')).toEqual({ area: 'finance', action: 'manage' });
+  });
+
+  it('60-01: the AI employees row and the brief library cell', () => {
+    expect(areaCapabilities('ai_employees')).toEqual(['ai_employee.assign', 'ai_employee.manage']);
+    expect(capabilityCell('brief.manage')).toEqual({ area: 'work_items', action: 'manage' });
   });
 
   it('row and column toggles list each capability once', () => {
