@@ -165,7 +165,7 @@ class MemoryRepository extends AiEmployeesRepository {
   }
 }
 
-function harness() {
+function harness(enabled = true) {
   const repository = new MemoryRepository();
   const audits: { action: string; metadata: unknown }[] = [];
   const users: { id: string; email: string; displayName: string }[] = [];
@@ -221,6 +221,7 @@ function harness() {
         repository.pendingName = user.displayName;
       },
     },
+    enabled,
     now: () => T0,
   };
   return {

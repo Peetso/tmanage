@@ -90,6 +90,7 @@ beforeAll(async () => {
     repository: new AiEmployeesRepository(),
     memberships: new MembershipsRepository(),
     accounts: new InviteeAccountsRepository(),
+    enabled: true,
   });
 }, 180_000);
 

@@ -27,8 +27,8 @@ export const AI_EMPLOYEE_JOB_TITLE_MAX = 120;
 export const AI_EMPLOYEE_LABEL_MAX = 80;
 
 /** C0/C1 controls, zero-width characters and bidirectional controls (Unicode TR 9, TR 36). */
-// eslint-disable-next-line no-control-regex
 const HIDDEN =
+  // eslint-disable-next-line no-control-regex
   /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 const DEPARTMENT_KEY = /^[a-z][a-z0-9_]{0,63}$/;
 

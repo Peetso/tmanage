@@ -7,13 +7,17 @@ import { InviteeAccountsRepository } from '../tenancy/invitee-accounts.repositor
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { AI_EMPLOYEES_SERVICE, AiEmployeesController } from './ai-employees.controller.js';
 import { AiEmployeesRepository } from './ai-employees.repository.js';
-import { AiEmployeesService } from './ai-employees.service.js';
+import { AiEmployeesService, aiEmployeesEnabled } from './ai-employees.service.js';
 
 /**
  * 60-03 (plan 60 v2) — AI employees, part of the Tenancy & People context (VIEWS §4). Owns
  * `ai_employees` and `ai_excluded_projects`; writes the membership through tenancy's
  * `MembershipsRepository` (the same context) and the credential-less user through the invitee
  * account writer.
+ *
+ * Behind the server switch `TMANAGE_AI_EMPLOYEES=on`, off by default: while off every route is
+ * the calm 404 `not_found` (`feature.ai_employees_off`). The routes are NEVER in the AI action
+ * registry, so they are absent from the MCP catalog and `/openapi/ai.json` in both states.
  */
 @Module({})
 export class AiEmployeesModule {
@@ -31,6 +35,7 @@ export class AiEmployeesModule {
               repository: new AiEmployeesRepository(),
               memberships: new MembershipsRepository(),
               accounts: new InviteeAccountsRepository(),
+              enabled: aiEmployeesEnabled(process.env),
             }),
         },
       ],

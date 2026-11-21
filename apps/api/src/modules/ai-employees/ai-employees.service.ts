@@ -22,7 +22,7 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import { ApiError } from '../../common/http/errors.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { InviteeAccountsRepository } from '../tenancy/invitee-accounts.repository.js';
 import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
@@ -129,7 +129,30 @@ export interface AiEmployeesServiceOptions {
     'createAiMember' | 'requireById' | 'transitionStatus'
   >;
   readonly accounts: Pick<InviteeAccountsRepository, 'insertUser'>;
+  /**
+   * The server switch (`TMANAGE_AI_EMPLOYEES=on`, {@link aiEmployeesEnabled}). Required, so no
+   * caller can forget it; while `false` every route is the calm 404 of a feature that does not
+   * exist, before any read or write.
+   */
+  readonly enabled: boolean;
   readonly now?: () => Date;
+}
+
+/** The environment variable that turns the AI-employee surface on for this server. */
+export const AI_EMPLOYEES_SWITCH = 'TMANAGE_AI_EMPLOYEES';
+
+/**
+ * Whether this server exposes the AI-employee surface: only the exact value `on`. Absent, empty,
+ * `off`, `ON` or anything else is off (fail closed). It stays off until 60-04, 60-05, 60-06 and
+ * 60-09 (seats and headcount) have shipped; the platform owner then sets it in Hostinger.
+ */
+export function aiEmployeesEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
+  return env[AI_EMPLOYEES_SWITCH] === 'on';
+}
+
+/** The refusal while the switch is off: the same 404 as a feature flag that is off (52-24). */
+export function aiEmployeesOff(): ApiError {
+  return new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'feature.ai_employees_off');
 }
 
 const MANAGE: Capability = 'ai_employee.manage';
@@ -190,6 +213,7 @@ export class AiEmployeesService {
   }
 
   async list(context: TenantContext, principal: Principal): Promise<AiEmployeeListView> {
+    this.requireEnabled();
     requirePersonSession(context, principal);
     const rows = await this.options.database.read(context, (db) =>
       this.options.repository.list(db, context),
@@ -205,12 +229,14 @@ export class AiEmployeesService {
   }
 
   async get(context: TenantContext, principal: Principal, id: string): Promise<AiEmployeeView> {
+    this.requireEnabled();
     requirePersonSession(context, principal);
     const row = await this.options.database.read(context, (db) => this.find(db, context, id));
     return this.view(row, context.capabilities.includes(MANAGE));
   }
 
   async hire(context: TenantContext, principal: Principal, body: unknown): Promise<AiEmployeeView> {
+    this.requireEnabled();
     requirePersonSession(context, principal);
     const parsed = parseHire(body);
     if (!parsed.ok) throw validation(parsed.issues);
@@ -229,6 +255,7 @@ export class AiEmployeesService {
     id: string,
     body: unknown,
   ): Promise<AiEmployeeView> {
+    this.requireEnabled();
     requirePersonSession(context, principal);
     const parsed = parseUpdate(body);
     if (!parsed.ok) throw validation(parsed.issues);
@@ -271,6 +298,7 @@ export class AiEmployeesService {
     id: string,
     body: unknown,
   ): Promise<AiEmployeeView> {
+    this.requireEnabled();
     requirePersonSession(context, principal);
     const parsed = parseVersionOnly(body);
     if (!parsed.ok) throw validation(parsed.issues);
@@ -298,6 +326,7 @@ export class AiEmployeesService {
     id: string,
     body: unknown,
   ): Promise<AiEmployeeView> {
+    this.requireEnabled();
     requirePersonSession(context, principal);
     const parsed = parseVersionOnly(body);
     if (!parsed.ok) throw validation(parsed.issues);
@@ -332,6 +361,7 @@ export class AiEmployeesService {
     id: string,
     body: unknown,
   ): Promise<AiEmployeeView> {
+    this.requireEnabled();
     requirePersonSession(context, principal);
     const parsed = parseSponsorChange(body);
     if (!parsed.ok) throw validation(parsed.issues);
@@ -372,6 +402,7 @@ export class AiEmployeesService {
     id: string,
     body: unknown,
   ): Promise<AiEmployeeView> {
+    this.requireEnabled();
     requirePersonSession(context, principal);
     const parsed = parseVersionOnly(body);
     if (!parsed.ok) throw validation(parsed.issues);
@@ -400,6 +431,11 @@ export class AiEmployeesService {
       });
       return { status: 'retired', retiredAt: at, retiredByMembershipId: context.membershipId };
     });
+  }
+
+  /** Off: 404 before anything else runs, so the surface does not exist for any caller. */
+  private requireEnabled(): void {
+    if (!this.options.enabled) throw aiEmployeesOff();
   }
 
   view(row: AiEmployeeRecord, manager: boolean): AiEmployeeView {

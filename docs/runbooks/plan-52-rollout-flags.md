@@ -93,3 +93,15 @@ restart. No data migration is involved either way.
   are shared by several features and are not gated by these flags.
 - The company screen ("What this studio uses") and the platform screen list the new flags with plain names; no new
   screen was needed.
+
+## Server switches outside this list
+
+Some surfaces are not per-company flags but one switch for the whole server, set in Hostinger's
+environment variables and read at start-up (restart the app after a change):
+
+- `TMANAGE_DOC_COLLAB=on` — live co-editing of documents (53-10). Off: its routes answer 404.
+- `TMANAGE_AI_EMPLOYEES=on` — AI employees (plan 60 v2, `/v1/organizations/:orgSlug/ai-employees`).
+  Off by default; only the exact value `on` turns it on. Off: every route answers 404
+  `not_found` before any read or write. The routes are never in the AI connector catalog or
+  `/openapi/ai.json`, in either state. Do not turn it on before 60-04 (doors), 60-05 (keys),
+  60-06 (enforcement) and 60-09 (AI employees excluded from seats and headcount) have shipped.
