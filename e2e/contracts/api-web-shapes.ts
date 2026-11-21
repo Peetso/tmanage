@@ -5166,3 +5166,14 @@ type _chatNavigation = Assert<Exact<ApiChatNavigation, WebChatNavigation>>;
 type _cardItem = Assert<Exact<ApiCardItem, WebCardItem>>;
 type _cardChange = Assert<Exact<ApiCardChange, WebCardChange>>;
 type _cardWarning = Assert<Exact<ApiCardWarning, WebCardWarning>>;
+
+import type {
+  BusinessFactListView as ApiBusinessFactListView,
+  BusinessFactView as ApiBusinessFactView,
+} from '../../apps/api/src/modules/copilot/memory/business-memory.service.js';
+import type {
+  BusinessFactListView as WebBusinessFactListView,
+  BusinessFactView as WebBusinessFactView,
+} from '../../apps/web/src/lib/api/business-memory.js';
+type _businessFact = Assert<Exact<ApiBusinessFactView, WebBusinessFactView>>;
+type _businessFactList = Assert<Exact<ApiBusinessFactListView, WebBusinessFactListView>>;

@@ -85,14 +85,6 @@ const EXEMPT = new Map([
     'No web consumer yet: 62-28 GET …/home/briefing/signals/:signalId is read by the AI chat tool explain_signal; the Explain button on the briefing card sends a chat turn, it does not read this route.',
   ],
   [
-    'BusinessFactListView',
-    'No web consumer yet: 62-26 Business Memory routes (…/business-memory/facts, …/recall) are read by the AI chat tool recall_business_memory; the Settings → Business Memory screen is the 62-26 front-end follow-up.',
-  ],
-  [
-    'BusinessFactView',
-    'No web consumer yet: 62-26 element of BusinessFactListView (itself EXEMPT) and the answer of propose/approve/edit/confirm/retire; the screen is the 62-26 front-end follow-up.',
-  ],
-  [
     'FilePassageListView',
     'No web consumer yet: 62-24 GET …/knowledge/file-passages is read by the AI chat tool search_file_passages; the chat panel that shows sources is 62-15.',
   ],
@@ -422,6 +414,14 @@ const WEB_EXEMPT = new Map([
   ],
   // class-4 — union alias of AuthenticatedResponse | MfaRequiredResponse; the arms pair
   // individually (class-1-lift), so the union itself is never a single projection to Assert.
+  [
+    'BusinessFactProposal',
+    'Plan 62 Business Memory: the request body of `POST …/business-memory/facts`, not a response; the API parses it once in `parseProposal` (IP-2).',
+  ],
+  [
+    'BusinessFactEdit',
+    'Plan 62 Business Memory: the request body of `PATCH …/business-memory/facts/:factId`, not a response; the API parses it once in `parseEdit` (IP-2).',
+  ],
   [
     'ChatTurnRequest',
     'Plan 62-15: the request body of `POST …/copilot/chat`, not a response; the API parses it once in `parseChatBody` (IP-2).',

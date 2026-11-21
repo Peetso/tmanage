@@ -87,9 +87,7 @@ export function PlanUsageScreen({
   ) : null;
   // Plan 62 (Figma G14 772:46242): the AI credits block, drawn only where TManage AI is on.
   const aiCredits = (
-    <section className="tm-pu-card">
-      <AiCreditsBlock organizationSlug={organizationSlug} client={api} placement="plan" />
-    </section>
+    <AiCreditsBlock organizationSlug={organizationSlug} client={api} placement="plan" />
   );
   const betaHeading = useBetaBillingHeading(organizationSlug, organizationName);
 

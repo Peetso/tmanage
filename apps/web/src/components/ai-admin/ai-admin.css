@@ -1,0 +1,353 @@
+/*
+ * Control Center › AI (plan 62): the tabs, Business Memory (Figma G11 771:45216, 771:47033) and
+ * the AI credits block (G14 772:46242). Tokens only (UX-11), logical properties only (UX-14).
+ */
+
+.tm-aia-spacer {
+  flex: 1;
+}
+
+.tm-aia-muted {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-aia-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* Tabs (771:45480): Tabs/Item — 3 px lime indicator under the current one. */
+.tm-aia-tabs {
+  display: flex;
+  gap: var(--s1);
+  margin-block-end: var(--s6);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aia-tabs__item {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding-inline: var(--s3);
+  border-block-end: 3px solid transparent;
+  color: var(--ink-650);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-aia-tabs__item[aria-current='page'] {
+  color: var(--ink-950);
+  border-block-end-color: var(--lime-500);
+}
+
+.tm-aia-tabs__item:focus-visible,
+.tm-aia-chip:focus-visible,
+.tm-aia-icon-button:focus-visible,
+.tm-aia-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Business Memory list. */
+.tm-aia-memory,
+.tm-aia-usage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-aia-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-aia-notice:empty {
+  display: none;
+}
+
+.tm-aia-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-aia-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 32px;
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tm-aia-chip[aria-pressed='true'] {
+  border-color: var(--lime-500);
+  background: var(--lime-100);
+}
+
+.tm-aia-chip__count {
+  padding-inline: 6px;
+  padding-block: 1px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-aia-chip[aria-pressed='true'] .tm-aia-chip__count {
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-aia-facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-aia-fact {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding-block: var(--s4);
+  padding-inline: var(--s5);
+}
+
+.tm-aia-fact + .tm-aia-fact {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aia-fact__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-aia-fact__fact {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.tm-aia-fact__meta {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+.tm-aia-fact__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aia-more {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aia-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  text-align: center;
+}
+
+.tm-aia-empty__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+/* The fact editor (771:47033): a 560 px sheet. */
+.tm-aia-backdrop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tm-aia-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  inline-size: min(560px, calc(100vw - 2 * var(--s4)));
+  max-block-size: calc(100vh - 2 * var(--s4));
+  padding: var(--s6);
+  overflow-y: auto;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+}
+
+.tm-aia-editor__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aia-editor__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-aia-editor__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.tm-aia-editor__source {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-aia-editor__source-label {
+  color: var(--ink-650);
+}
+
+.tm-aia-link {
+  color: var(--ink-950);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+.tm-aia-editor__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aia-divider {
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aia-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 32px;
+  min-block-size: 32px;
+  padding: var(--s2);
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+/* The AI credits block (772:46252): a sunken card inside the plan card. */
+.tm-aia-credits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+}
+
+.tm-aia-credits__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-aia-meter {
+  flex: none;
+  inline-size: 100%;
+}
+
+.tm-aia-credits__extra {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-aia-credits__notice:empty {
+  display: none;
+}
+
+.tm-aia-credits__actions {
+  flex-wrap: wrap;
+}
+
+.tm-aia-figures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+}
+
+.tm-aia-figure {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-aia-figure dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Phone (UX-5): 44 px targets, rows stack. */
+@media (max-width: 767px) {
+  .tm-aia-fact {
+    flex-wrap: wrap;
+  }
+
+  .tm-aia-fact__text {
+    flex-basis: 100%;
+  }
+
+  .tm-aia-chip,
+  .tm-aia-icon-button {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+}
