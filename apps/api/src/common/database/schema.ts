@@ -15255,6 +15255,42 @@ export const aiConversationMessages = mysqlTable(
   ],
 );
 
+/** 62-23 (0393). The states of an extracted file text. */
+export const AI_FILE_TEXT_STATUSES = ['pending', 'ready', 'unsupported', 'failed'] as const;
+
+/**
+ * 62-23 (0393). The plain text of a workspace's files, once per (workspace, content hash), for the
+ * AI knowledge layer. Written only by the in-process text job (`files/file-text-job.ts`); never
+ * shared across workspaces. `0393_ai_file_texts.sql`.
+ */
+export const aiFileTexts = mysqlTable(
+  'ai_file_texts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    contentHash: varchar('content_hash', { length: 128 }).notNull(),
+    mimeType: varchar('mime_type', { length: 150 }).notNull(),
+    status: mysqlEnum('status', AI_FILE_TEXT_STATUSES).notNull(),
+    reasonCode: varchar('reason_code', { length: 48 }),
+    extractor: varchar('extractor', { length: 32 }),
+    body: mediumtext('body'),
+    charCount: int('char_count', { unsigned: true }).notNull().default(0),
+    pageCount: int('page_count', { unsigned: true }),
+    truncated: boolean('truncated').notNull().default(false),
+    attempts: smallint('attempts', { unsigned: true }).notNull().default(0),
+    claimedAt: datetime('claimed_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_file_texts_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_file_texts_org_hash').on(table.organizationId, table.contentHash),
+    index('ix_ai_file_texts_status').on(table.status, table.claimedAt, table.organizationId),
+  ],
+);
+
+export type AiFileTextRow = typeof aiFileTexts.$inferSelect;
+
 export type AiBudgetPoolRow = typeof aiBudgetPools.$inferSelect;
 export type AiWorkspacePeriodRow = typeof aiWorkspacePeriods.$inferSelect;
 export type AiMemberPeriodRow = typeof aiMemberPeriods.$inferSelect;
@@ -15275,6 +15311,7 @@ Object.assign(TABLES, {
   ai_credit_pack_requests: aiCreditPackRequests,
   ai_conversations: aiConversations,
   ai_conversation_messages: aiConversationMessages,
+  ai_file_texts: aiFileTexts,
 });
 
 // ---- DC-3 / RT-3 · lane K · leader lease ----

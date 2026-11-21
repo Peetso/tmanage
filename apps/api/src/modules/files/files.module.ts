@@ -80,6 +80,8 @@ import {
   previewJobOptionsFromEnv,
 } from './preview-job.js';
 import { PreviewUsageMeter } from './preview-usage.js';
+import { FILE_TEXT_JOB, FileTextJob, fileTextJobEnabled } from './file-text-job.js';
+import { FileTextsRepository } from './file-texts.repository.js';
 import { PREVIEW_ORPHAN_SWEEPER, PreviewOrphanSweeper } from './preview-orphan-sweeper.js';
 import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
@@ -473,6 +475,31 @@ export class FilesModule {
         ),
     };
 
+    // 62-23. The text job: scan-clean files' plain text, once per content hash, for the AI
+    // knowledge layer; in-process like the preview job, off unless background work runs here.
+    const fileTextJob: Provider = {
+      provide: FILE_TEXT_JOB,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, OBJECT_STORE, AUDIT_SERVICE, API_CONFIG],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        store: ObjectStore,
+        audit: AuditService,
+        config: ApiConfig,
+      ) =>
+        new FileTextJob(
+          database,
+          new FileTextsRepository(),
+          assets,
+          store,
+          fileTextJobEnabled(),
+          undefined,
+          undefined,
+          undefined,
+          providerSources(database, audit, config),
+        ),
+    };
+
     // R4 follow-up. The orphan-preview sweep: derivatives whose source file is gone lose their
     // bytes and their row, and give their counted bytes back. Hourly in the one process.
     const previewOrphanSweeper: Provider = {
@@ -813,6 +840,7 @@ export class FilesModule {
         rescanner,
         previewJob,
         previewOrphanSweeper,
+        fileTextJob,
         scanJob,
         downloads,
         filePreviews,
@@ -834,6 +862,7 @@ export class FilesModule {
         scanner,
         previewJob,
         previewOrphanSweeper,
+        fileTextJob,
         scanJob,
         downloads,
         filePreviews,

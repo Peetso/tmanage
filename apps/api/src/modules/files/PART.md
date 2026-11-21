@@ -246,17 +246,18 @@ previews.
 
 ## Data: tables and migrations
 
-| Table                                          | Created                                       | Notes                                          |
-| ---------------------------------------------- | --------------------------------------------- | ---------------------------------------------- |
-| `file_assets`, `file_versions`                 | `0015_file_uploads.sql`                       | state, `scan_verdict`, `trust_zone`, claim col |
-| `upload_sessions`, `usage_counters`            | `0015_file_uploads.sql`                       | idempotency key; conditional reserve           |
-| `usage_ledger_entries`                         | `0021_usage_ledger_entries.sql`               | idempotency key per entry                      |
-| `file_tags`                                    | `0140_file_tags.sql`                          | —                                              |
-| `file_folders`, `file_comments`                | `0198_file_folders.sql`, `0199_file_comments.sql` | page cap `MAX_FILE_FOLDERS_PAGE`           |
-| `attachment_versions`                          | `0228_attachment_versions.sql`                | —                                              |
-| `file_previews`                                | `0267_file_previews.sql`                      | orphan sweep                                   |
-| `review_threads`, `review_comments`            | `0268_review_threads.sql`                     | —                                              |
-| `file_review_decisions`                        | `0269_file_review_decisions.sql`              | —                                              |
+| Table                               | Created                                           | Notes                                          |
+| ----------------------------------- | ------------------------------------------------- | ---------------------------------------------- |
+| `file_assets`, `file_versions`      | `0015_file_uploads.sql`                           | state, `scan_verdict`, `trust_zone`, claim col |
+| `upload_sessions`, `usage_counters` | `0015_file_uploads.sql`                           | idempotency key; conditional reserve           |
+| `usage_ledger_entries`              | `0021_usage_ledger_entries.sql`                   | idempotency key per entry                      |
+| `file_tags`                         | `0140_file_tags.sql`                              | —                                              |
+| `file_folders`, `file_comments`     | `0198_file_folders.sql`, `0199_file_comments.sql` | page cap `MAX_FILE_FOLDERS_PAGE`               |
+| `attachment_versions`               | `0228_attachment_versions.sql`                    | —                                              |
+| `file_previews`                     | `0267_file_previews.sql`                          | orphan sweep                                   |
+| `review_threads`, `review_comments` | `0268_review_threads.sql`                         | —                                              |
+| `file_review_decisions`             | `0269_file_review_decisions.sql`                  | —                                              |
+| `ai_file_texts`                     | `0393_ai_file_texts.sql`                          | text job; one row per workspace + content hash |
 
 **Read but not owned:** `deliverable_versions` (approvals, `0027`), `memberships`,
 `project_memberships`, `client_memberships`, `project_clients` (tenancy / clients —
@@ -275,13 +276,13 @@ for provider-backed files (`provider-objects.ts:26-28`, backends `local | google
 Capabilities: `file.upload`, `file.download`, `file.delete`, `approval.decide`, `work.update`,
 `work.read`, `deliverable.create`, `client_projection.read`, `org.manage`, `org.security.manage`.
 
-| Decision                                 | Single owner                                         |
-| ---------------------------------------- | ---------------------------------------------------- |
-| Is a version servable?                   | `isServableVersion` (`upload.ts:80`)                 |
-| May a client get this file?              | `ClientFileSharing` / `clientFileState`              |
+| Decision                                 | Single owner                                                  |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| Is a version servable?                   | `isServableVersion` (`upload.ts:80`)                          |
+| May a client get this file?              | `ClientFileSharing` / `clientFileState`                       |
 | May this principal kind use this purpose | `mayUploadFor` / `mayDownloadFor` (`purpose-policy.ts:44,89`) |
-| Is the content what it claims?           | `content-signature.ts`, `archive-inspection.ts`      |
-| Quota                                    | `usage-counters.repository.ts:114-138` + billing allowance |
+| Is the content what it claims?           | `content-signature.ts`, `archive-inspection.ts`               |
+| Quota                                    | `usage-counters.repository.ts:114-138` + billing allowance    |
 
 **Trust zones.** Staff doors (`files/*`), client doors (`portal/files/*`, `portal/upload-sessions`,
 `portal/review/*`), and two anonymous doors: public-form uploads (`@Public`, gated by
@@ -293,7 +294,9 @@ organization (`scannerContextFor`, `file-scanner.ts:116`).
 
 **Jobs owned** (IP-17): verifier (`file-verifier.ts`), scanner (`file-scanner.ts`), preview job
 (`preview-job.ts`), preview orphan sweeper, upload-session sweeper, usage reconciler, quarantine
-cleanup, usage thresholds.
+cleanup, usage thresholds, and the 62-23 text job (`file-text-job.ts`: the plain text of servable
+files, once per content hash, for the AI knowledge layer; in-process under `WORKER_INPROCESS=1` or
+`FILE_TEXT_INPROCESS=1`, row claims as the preview job; it forgets the text of deleted files).
 
 **Where they run.** In the single Hostinger app: the scan job (verify + scan) and the preview job
 run in-process only when `WORKER_INPROCESS=1` or `FILE_SCAN_INPROCESS=1` / `FILE_PREVIEW_INPROCESS=1`
@@ -384,29 +387,29 @@ blocked reason) as decisions; screens never re-derive them from scan verdicts.
 
 ## Open defects, decisions and risks
 
-| Id    | Class       | Finding (verified at 3b7e4fa7)                                                                      | Pri | Exit                                       |
-| ----- | ----------- | --------------------------------------------------------------------------------------------------- | --- | ------------------------------------------ |
-| FIL-1 | DC-7        | Quarantine cleanup (`cleanup:once`) has no in-app scheduler entry; on the single app it never runs | P1  | add to `scheduled-sweeps.mjs` + fitness    |
-| FIL-2 | ST-1        | Drive/OneDrive transports used by cloud import have no fetch timeout (`google-drive.google.ts:372`) | P1  | `AbortSignal.timeout` in the transports    |
-| FIL-3 | QM-2 / ADR  | `MALWARE_SCAN_DRIVER=none` allowed in production; client files then only `checked`                 | P1  | ADR, or refuse `none` when clients exist   |
-| FIL-4 | AR-5 / AR-7 | `files.module.ts` imports other modules' repositories and controller-file helpers (`:29-141`)       | P2  | read services / move helpers to services   |
-| FIL-5 | AR-6        | `BlockedFilesController` uses a repository directly                                                 | P2  | move into `FilesService`                   |
-| FIL-6 | HT-5        | Part-sink bearer token in the URL query                                                             | P2  | ADR or header                              |
-| FIL-7 | DA-10       | 36 `current_timestamp(3)` row times                                                                 | P2  | bound `Date`                               |
-| FIL-8 | AR-10       | `UploadSessionView` has no API/web pair                                                             | P2  | add pair                                   |
-| FIL-10 | ST-4 / ops | Remote clamd (Oracle VM, SCANNER-TLS) is outside the repo: Hostinger's outbound IP or the stunnel cert changing makes the scanner `unreachable` (files wait, never `clean`); no circuit breaker, the probe-before-claim stops each pass | P2 | alert on `/healthz/deep` `scanner: unreachable`; runbook `D:/TManage/work/oracle-scanner/SETUP.md` §8 |
-| FIL-11 | QM-2 / ops | Live clamd `MaxFileSize 25M` with `AlertExceedsMax` unset answers `OK` for any file over 25 MB without scanning it (proved 2026-11-20: a 26 MB ZIP holding EICAR is `OK`, a 24 MB one is `FOUND`) | P0 | clamd `MaxFileSize`/`MaxScanSize` ≥ the upload cap, `AlertExceedsMax yes`; app cap = `UPLOAD_MAX_BYTES` |
-| FIL-9 | size        | `files.service.ts` is 2,199 lines, `files.module.ts` > 760 lines                                    | P2  | split per capability (upload, serve, purge)|
+| Id     | Class       | Finding (verified at 3b7e4fa7)                                                                                                                                                                                                          | Pri | Exit                                                                                                    |
+| ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------- |
+| FIL-1  | DC-7        | Quarantine cleanup (`cleanup:once`) has no in-app scheduler entry; on the single app it never runs                                                                                                                                      | P1  | add to `scheduled-sweeps.mjs` + fitness                                                                 |
+| FIL-2  | ST-1        | Drive/OneDrive transports used by cloud import have no fetch timeout (`google-drive.google.ts:372`)                                                                                                                                     | P1  | `AbortSignal.timeout` in the transports                                                                 |
+| FIL-3  | QM-2 / ADR  | `MALWARE_SCAN_DRIVER=none` allowed in production; client files then only `checked`                                                                                                                                                      | P1  | ADR, or refuse `none` when clients exist                                                                |
+| FIL-4  | AR-5 / AR-7 | `files.module.ts` imports other modules' repositories and controller-file helpers (`:29-141`)                                                                                                                                           | P2  | read services / move helpers to services                                                                |
+| FIL-5  | AR-6        | `BlockedFilesController` uses a repository directly                                                                                                                                                                                     | P2  | move into `FilesService`                                                                                |
+| FIL-6  | HT-5        | Part-sink bearer token in the URL query                                                                                                                                                                                                 | P2  | ADR or header                                                                                           |
+| FIL-7  | DA-10       | 36 `current_timestamp(3)` row times                                                                                                                                                                                                     | P2  | bound `Date`                                                                                            |
+| FIL-8  | AR-10       | `UploadSessionView` has no API/web pair                                                                                                                                                                                                 | P2  | add pair                                                                                                |
+| FIL-10 | ST-4 / ops  | Remote clamd (Oracle VM, SCANNER-TLS) is outside the repo: Hostinger's outbound IP or the stunnel cert changing makes the scanner `unreachable` (files wait, never `clean`); no circuit breaker, the probe-before-claim stops each pass | P2  | alert on `/healthz/deep` `scanner: unreachable`; runbook `D:/TManage/work/oracle-scanner/SETUP.md` §8   |
+| FIL-11 | QM-2 / ops  | Live clamd `MaxFileSize 25M` with `AlertExceedsMax` unset answers `OK` for any file over 25 MB without scanning it (proved 2026-11-20: a 26 MB ZIP holding EICAR is `OK`, a 24 MB one is `FOUND`)                                       | P0  | clamd `MaxFileSize`/`MaxScanSize` ≥ the upload cap, `AlertExceedsMax yes`; app cap = `UPLOAD_MAX_BYTES` |
+| FIL-9  | size        | `files.service.ts` is 2,199 lines, `files.module.ts` > 760 lines                                                                                                                                                                        | P2  | split per capability (upload, serve, purge)                                                             |
 
 DC classes checked: DC-1 (API) none; DC-3 handled by claims and named locks; DC-4 not found
 (ledger uses idempotency keys); DC-7 suspected (FIL-1).
 
 ## Glossary
 
-| Term           | Meaning                                                                         |
-| -------------- | ------------------------------------------------------------------------------- |
+| Term           | Meaning                                                                             |
+| -------------- | ----------------------------------------------------------------------------------- |
 | Upload session | a quota reservation + part target; ends `ready`, `rejected`, `expired`, `cancelled` |
-| Verify         | content-signature and archive checks before the malware scan                    |
-| Checked        | client-visible label for a file that passed the checks but not a virus scan     |
-| Quarantine     | rejected or blocked objects kept until the retention cutoff                     |
-| Door           | the route family a caller enters by: staff, portal, public form, part sink      |
+| Verify         | content-signature and archive checks before the malware scan                        |
+| Checked        | client-visible label for a file that passed the checks but not a virus scan         |
+| Quarantine     | rejected or blocked objects kept until the retention cutoff                         |
+| Door           | the route family a caller enters by: staff, portal, public form, part sink          |
