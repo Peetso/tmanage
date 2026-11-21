@@ -64,6 +64,28 @@ describe('56-18 account erasure', () => {
     expect(statements.some((s) => s.path === 'identity')).toBe(false);
   });
 
+  it('62-13: deletes the person’s AI conversations in the requesting company, messages first', async () => {
+    const { database, statements } = fakeDatabase({ member: true });
+    await new AccountErasure(database).run(context, USER);
+    const tenant = statements.filter((s) => s.path === 'tenant');
+    const lookup = tenant.find(
+      (s) => s.sql.startsWith('select') && s.sql.includes('from `memberships`'),
+    );
+    expect(lookup?.sql).toContain('`memberships`.`organization_id` = ?');
+    expect(lookup?.sql).toContain('`memberships`.`user_id` = ?');
+    expect(lookup?.params).toEqual([ORG, USER]);
+    const deletes = writes(tenant).filter((s) => s.sql.startsWith('delete'));
+    expect(deletes.map((s) => /`([a-z0-9_]+)`/u.exec(s.sql)?.[1])).toEqual([
+      'ai_conversation_messages',
+      'ai_conversations',
+    ]);
+    for (const statement of deletes) {
+      expect(statement.sql).toMatch(/`organization_id` = \?/u);
+      expect(statement.sql).toMatch(/`membership_id` in \(\?\)/u);
+      expect(statement.params).toEqual([ORG, 'm']);
+    }
+  });
+
   it('erases the global account once the person belongs nowhere', async () => {
     const { database, statements } = fakeDatabase({});
     const at = new Date('2026-11-16T10:00:00.000Z');

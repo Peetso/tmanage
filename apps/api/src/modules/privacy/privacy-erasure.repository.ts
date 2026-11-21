@@ -2,6 +2,8 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { ObjectStore } from '@tmanage/storage';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
+  aiConversationMessages,
+  aiConversations,
   authenticationEvents,
   clientInvoiceEvents,
   clientMemberships,
@@ -589,11 +591,16 @@ export class AccountErasure {
     return { tenantRowsRedacted, global };
   }
 
-  /** Null the person's IP and user agent on this company's invoice event log. */
+  /**
+   * Null the person's IP and user agent on this company's invoice event log, and delete their AI
+   * conversations in this company (62-13: private to the member, never shared work). Every
+   * statement names the organization and the subject (or the subject's membership here).
+   */
   private async redactInCompany(context: TenantContext, subjectUserId: string): Promise<number> {
-    return this.database.transaction(context, async (tx) =>
-      affected(
-        await tenantDrizzle(tx)
+    return this.database.transaction(context, async (tx) => {
+      const db = tenantDrizzle(tx);
+      let changed = affected(
+        await db
           .update(clientInvoiceEvents)
           .set({ ip: null, ua: null })
           .where(
@@ -602,8 +609,42 @@ export class AccountErasure {
               eq(clientInvoiceEvents.actorId, subjectUserId),
             ),
           ),
-      ),
-    );
+      );
+      const own = await db
+        .select({ id: memberships.id })
+        .from(memberships)
+        .where(
+          and(
+            eq(memberships.organizationId, context.organizationId),
+            eq(memberships.userId, subjectUserId),
+          ),
+        );
+      const membershipIds = own.map((row) => row.id);
+      if (membershipIds.length > 0) {
+        // Messages first, then their conversations (no foreign key, 0257 convention).
+        changed += affected(
+          await db
+            .delete(aiConversationMessages)
+            .where(
+              and(
+                eq(aiConversationMessages.organizationId, context.organizationId),
+                inArray(aiConversationMessages.membershipId, membershipIds),
+              ),
+            ),
+        );
+        changed += affected(
+          await db
+            .delete(aiConversations)
+            .where(
+              and(
+                eq(aiConversations.organizationId, context.organizationId),
+                inArray(aiConversations.membershipId, membershipIds),
+              ),
+            ),
+        );
+      }
+      return changed;
+    });
   }
 
   private async eraseAccount(
