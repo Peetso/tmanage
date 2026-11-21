@@ -103,3 +103,9 @@ user name or password is accepted.
 3. `migrations` fail: the last deploy did not finish; follow the rollback in `backup-restore.md`.
 4. `worker` fail: restart the Node.js app in hPanel; check the app log.
 5. A 5xx alert: search the app log for the reference id in the mail.
+6. `audit_log` is `rows_lost` (reported only, never a 503; OWASP ASVS 5.0 V16): since the last
+   restart a best-effort audit row could not be written. `sources` names which writer
+   (`ai_turn`, `mcp_tool_call`, `auth_guard_refusal`). Search the app log for
+   `ai.turn_audit_failed`, `mcp.tool_call_audit_failed` or `guard event failed` (each line has
+   the correlation id and the total lost), fix the database cause, then restart to reset it.
+   Audit rows of changes never land here: those fail with the change.

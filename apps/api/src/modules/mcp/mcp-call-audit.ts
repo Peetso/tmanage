@@ -6,6 +6,7 @@ import type { CatalogRuntime, CatalogTool, RunResult } from '@tmanage/mcp-server
 import { withActorChannel } from '../../common/database/tenant-context.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { AuditEventsRepository } from '../audit/audit-events.repository.js';
+import { AUDIT_LOSS, type AuditLossCounter } from '../../common/observability/audit-loss.js';
 import {
   MembershipNotResolvedError,
   MembershipResolver,
@@ -147,16 +148,20 @@ export class DatabaseMcpCallAuditor implements McpCallAuditor {
     private readonly events: AuditEventsRepository = new AuditEventsRepository(),
     private readonly memberships: MembershipResolver = new MembershipResolver(database),
     private readonly action: AuditAction | undefined = mcpToolCallAuditAction(),
+    private readonly loss: AuditLossCounter = AUDIT_LOSS,
   ) {}
 
   record(scope: McpCallAuditScope, call: McpToolCallAudit): void {
     if (this.action === undefined) return;
     this.append(this.action, scope, call).catch((error: unknown) => {
-      this.logger.warn(
+      // V16: a lost security log row is an error, counted for `/healthz/deep` (`audit-loss.ts`).
+      const lostRowsTotal = this.loss.record('mcp_tool_call');
+      this.logger.error(
         JSON.stringify({
           event: 'mcp.tool_call_audit_failed',
           correlationId: scope.correlationId,
           error: error instanceof Error ? error.name : 'unknown',
+          lostRowsTotal,
         }),
       );
     });

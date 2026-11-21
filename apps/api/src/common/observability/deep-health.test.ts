@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateDeepHealth, mailCheckOf, versionsFromFilenames } from './deep-health.js';
 import type { DeepHealthConfig, DeepHealthProbes } from './deep-health.js';
+import { AuditLossCounter } from './audit-loss.js';
 
 const NOW = new Date('2026-10-25T12:00:00.000Z');
 
@@ -36,9 +37,36 @@ describe('evaluateDeepHealth', () => {
         realtime: 'not_configured',
         leader: { state: 'not_configured' },
         mail: { state: 'not_configured' },
+        audit_log: {
+          state: 'ok',
+          sources: { ai_turn: 'ok', mcp_tool_call: 'ok', auth_guard_refusal: 'ok' },
+        },
       },
       checkedAt: NOW.toISOString(),
     });
+  });
+
+  it('reports lost audit rows by source, states only, without a 503 (ASVS 5.0 V16)', async () => {
+    const loss = new AuditLossCounter();
+    loss.record('mcp_tool_call', 2);
+    const report = await evaluateDeepHealth(
+      base,
+      probes(),
+      NOW,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      loss.check(),
+    );
+    expect(report.status).toBe('ok');
+    expect(report.checks.audit_log).toEqual({
+      state: 'rows_lost',
+      sources: { ai_turn: 'ok', mcp_tool_call: 'rows_lost', auth_guard_refusal: 'ok' },
+    });
+    expect(JSON.stringify(report.checks.audit_log)).not.toMatch(/\d/);
   });
 
   it('fails database and migrations when the ledger cannot be read', async () => {

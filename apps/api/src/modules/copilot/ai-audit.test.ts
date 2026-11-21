@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isSafeAuditMetadata, uuidv7 } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { AuditLossCounter } from '../../common/observability/audit-loss.js';
 import type { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { DatabaseAiAudit, toolCallResult, type AiTurnAudit } from './ai-audit.js';
 
@@ -102,6 +103,15 @@ describe('AI audit rows (62-14)', () => {
     await expect(audit.turn(ctx, TURN)).resolves.toBeUndefined();
     // Counted: two tool rows and the turn row.
     expect(audit.lostRows).toBe(3);
+    // And in the counter `/healthz/deep` reads (V16).
+    const loss = new AuditLossCounter();
+    const shared = new DatabaseAiAudit(
+      { transaction: () => Promise.reject(new Error('db down')) } as unknown as TenantDatabase,
+      undefined,
+      loss,
+    );
+    await shared.turn(ctx, TURN);
+    expect(loss.count('ai_turn')).toBe(3);
   });
 
   it('maps outcomes to results', () => {

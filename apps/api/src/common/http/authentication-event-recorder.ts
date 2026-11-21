@@ -1,4 +1,5 @@
 import { serializeForLog } from '../observability/logger.js';
+import { AUDIT_LOSS, type AuditLossCounter } from '../observability/audit-loss.js';
 import type { TenantDatabase } from '../database/tenant-context.js';
 import type { CredentialsRepository } from '../../modules/identity/credentials.repository.js';
 
@@ -96,6 +97,7 @@ export class DatabaseAuthenticationEventRecorder implements AuthenticationEventR
   constructor(
     private readonly database: TenantDatabase,
     private readonly credentials: CredentialsRepository,
+    private readonly loss: AuditLossCounter = AUDIT_LOSS,
   ) {}
 
   recordGuardRefusal(refusal: GuardRefusal): void {
@@ -104,6 +106,7 @@ export class DatabaseAuthenticationEventRecorder implements AuthenticationEventR
     // rather than an unhandled rejection, and never reaches the request path.
     void this.write(refusal).catch((error: unknown) => {
       this.lostRows += 1;
+      this.loss.record('auth_guard_refusal');
       console.error(
         `[identity] recording a refused ${refusal.action} (${refusal.reason}) guard event failed; ` +
           `the refusal still stands (loss ${String(this.lostRows)} in this process, correlation ${refusal.correlationId})`,

@@ -36,6 +36,8 @@ import type { LeaderCheck } from './leader-health.js';
 import { ALERT_NOTIFIER } from './alerts.js';
 import type { AlertNotifier } from './alerts.js';
 import { OriginTlsMonitor } from './origin-tls.js';
+import { AUDIT_LOSS, AuditLossCounter } from './audit-loss.js';
+import type { AuditLogCheck } from './audit-loss.js';
 import type { OriginTlsCheck } from './origin-tls.js';
 
 /**
@@ -71,6 +73,10 @@ import type { OriginTlsCheck } from './origin-tls.js';
  *   support, security) is accepted: `ok` / `login_refused` / `unreachable` / `not_configured`, the
  *   worst one as `state`; `checking` until the first reading (`MailLoginCheck`, 15 min cache, never
  *   awaited here). States only. Reported only, never a 503.
+ * - **audit_log** — OWASP ASVS 5.0 V16: `ok` while no fail-open audit writer (the AI assistant's
+ *   read-only turns, `/mcp` tool calls, guard refusals) has lost a row since boot, `rows_lost`
+ *   (with each source's state) once one has (`audit-loss.ts`). States only; the counts are in the
+ *   error log lines. Reported only, never a 503: the events were decided and served already.
  *
  * `fail` on database, migrations, worker or schema makes the answer 503 — the status code is what a
  * monitor matches on. `not_configured` is reported but is not a failure: a shared host that
@@ -118,6 +124,7 @@ export interface DeepHealthReport {
     readonly realtime: 'ok' | 'not_configured';
     readonly leader: LeaderCheck;
     readonly mail: MailCheck;
+    readonly audit_log: AuditLogCheck;
   };
   readonly checkedAt: string;
 }
@@ -173,6 +180,7 @@ export async function evaluateDeepHealth(
   growth: GrowthCheckState = 'not_configured',
   leader: LeaderCheck = { state: 'not_configured' },
   mail: MailCheck = { state: 'not_configured' },
+  auditLog: AuditLogCheck = new AuditLossCounter().check(),
 ): Promise<DeepHealthReport> {
   let database: CheckState = 'ok';
   let migrations: CheckState = 'ok';
@@ -208,7 +216,7 @@ export async function evaluateDeepHealth(
   const realtime = config.realtimeSocketUrl ? 'ok' : 'not_configured';
 
   // By design only these four decide the 503; origin_tls, backups, growth, scanner, realtime,
-  // leader and mail report (a refused mailbox login is an alert, not an outage of the app).
+  // leader, mail and audit_log report (a refused mailbox login is an alert, not an outage of the app).
   const failed = [database, migrations, worker, schema].includes('fail');
   return {
     status: failed ? 'fail' : 'ok',
@@ -224,6 +232,7 @@ export async function evaluateDeepHealth(
       realtime,
       leader,
       mail,
+      audit_log: auditLog,
     },
     checkedAt: now.toISOString(),
   };
@@ -277,6 +286,8 @@ export class DeepHealthController {
   /** 56-30. Owns the 1 h handshake cache and the once-per-UTC-day alert (`lastAlertDay`). */
   private readonly originTls: OriginTlsMonitor;
   private readonly mailLoginCheck: () => MailLoginCheck | null;
+  /** V16. The process's lost-audit-row counter (`audit-loss.ts`). */
+  private readonly auditLoss: AuditLossCounter;
 
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
@@ -284,6 +295,7 @@ export class DeepHealthController {
     @Inject(SCHEMA_DRIFT_MONITOR) private readonly schemaDrift: SchemaDriftMonitor,
     @Inject(ModuleRef) moduleRef: ModuleRef,
   ) {
+    this.auditLoss = AUDIT_LOSS;
     // The notifier is a root-module provider; looked up non-strictly so this module needs no
     // new import, and absent (a bare test module) simply means no alert.
     const alerts = (): AlertNotifier | null => {
@@ -363,6 +375,7 @@ export class DeepHealthController {
           growth,
           leader,
           mailCheckOf(mailCheck?.latest() ?? null, mailCheck !== null),
+          this.auditLoss.check(),
         ),
       };
     }

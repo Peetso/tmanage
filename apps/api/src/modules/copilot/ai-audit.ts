@@ -4,6 +4,7 @@ import type { AuditMetadata, AuditResult } from '@tmanage/domain';
 import { withActorChannel } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { AuditEventsRepository } from '../audit/audit-events.repository.js';
+import { AUDIT_LOSS, type AuditLossCounter } from '../../common/observability/audit-loss.js';
 import { MCP_TOOL_CALL_ACTION_NAME, safeAuditValue } from '../mcp/mcp-call-audit.js';
 
 /**
@@ -117,6 +118,7 @@ export class DatabaseAiAudit implements ChatAudit {
   constructor(
     private readonly database: TenantDatabase,
     private readonly events: AuditEventsRepository = new AuditEventsRepository(),
+    private readonly loss: AuditLossCounter = AUDIT_LOSS,
   ) {}
 
   async turn(context: TenantContext, turn: AiTurnAudit): Promise<void> {
@@ -140,6 +142,7 @@ export class DatabaseAiAudit implements ChatAudit {
       });
     } catch (error) {
       this.lost += turn.toolCalls.length + 1;
+      this.loss.record('ai_turn', turn.toolCalls.length + 1);
       this.logger.error(
         JSON.stringify({
           event: 'ai.turn_audit_failed',
