@@ -45,6 +45,21 @@ export const AI_KEY_ENV: Readonly<Record<AiSpendingPool, string>> = {
 
 export const AI_CALL_TIMEOUT_MS = 60_000;
 
+/**
+ * The key for one pool. The customers pool falls back to the in-app copilot's Anthropic key
+ * (`COPILOT_PROVIDER=anthropic` + `COPILOT_API_KEY`), so one key set in hPanel serves both; the
+ * testing pool never falls back, so test traffic can only run on its own key.
+ */
+export function poolKey(
+  env: Readonly<Record<string, string | undefined>>,
+  pool: AiSpendingPool,
+): string {
+  const own = env[AI_KEY_ENV[pool]]?.trim() ?? '';
+  if (own !== '' || pool !== 'customers') return own;
+  const provider = env['COPILOT_PROVIDER']?.trim().toLowerCase();
+  return provider === 'anthropic' ? (env['COPILOT_API_KEY']?.trim() ?? '') : '';
+}
+
 /** One client per pool, built on first use from the environment; `null` without a key. */
 export function envClients(
   env: Readonly<Record<string, string | undefined>> = process.env,
@@ -53,7 +68,7 @@ export function envClients(
   const clients = new Map<AiSpendingPool, AiClient | null>();
   return (pool) => {
     if (!clients.has(pool)) {
-      const key = env[AI_KEY_ENV[pool]]?.trim() ?? '';
+      const key = poolKey(env, pool);
       clients.set(
         pool,
         key === ''
