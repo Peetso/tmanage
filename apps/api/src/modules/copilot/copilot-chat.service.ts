@@ -23,6 +23,8 @@ import { guardAnswer } from './ai-answer-guard.js';
 import { currentValues, runChange, undoPossible } from './ai-change.js';
 import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
+import { packTools } from './packs/index.js';
+import type { ChatConversations, ChatHistoryMessage } from './ai-conversations.service.js';
 import {
   AI_CARD_TTL_MS,
   MAX_CARD_ITEMS,
@@ -35,7 +37,7 @@ import {
 } from './ai-preview.js';
 import { AI_UNDO_WINDOW_MS, type AiUndoEntry } from './ai-undo.js';
 import { isPricedModel } from './ai-price-table.js';
-import type { AiResponse } from './ai-response.js';
+import { historyReplay, type AiResponse } from './ai-response.js';
 import {
   activityOf,
   isAiDomain,
@@ -220,6 +222,8 @@ export interface CopilotChatDeps {
    */
   readonly cardKey?: string;
   readonly freezeApproval?: ChatApprovalFreezer;
+  /** 62-13: the member's conversations (history in, answered turns recorded). */
+  readonly conversations?: ChatConversations;
   readonly now?: () => Date;
 }
 
@@ -227,6 +231,10 @@ export interface ChatTurnInput {
   readonly message: string;
   /** The estimate the member accepted: its tier and domain, sent back unchanged. */
   readonly confirmed: AiRoute | null;
+  /** The help button (62-10): straight to the free help path, no router call. */
+  readonly help?: boolean;
+  /** 62-13: the member's own conversation this turn continues; absent = a new one. */
+  readonly conversationId?: string | null;
 }
 
 export type ChatStop =
@@ -274,6 +282,8 @@ export interface CopilotChatView {
   readonly card: ChatCardView | null;
   /** Changes that ran at once this turn. */
   readonly undo: ChatUndoView | null;
+  /** 62-13: the conversation an answered turn was recorded in (send it back to continue). */
+  readonly conversationId: string | null;
 }
 
 const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
@@ -290,7 +300,10 @@ const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
   chargedCredits: 0,
   card: null,
   undo: null,
+  conversationId: null,
 };
+
+const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The request body, parsed at the boundary (IP-2). */
 export function parseChatBody(body: Readonly<Record<string, unknown>> | null): ChatTurnInput {
@@ -300,8 +313,25 @@ export function parseChatBody(body: Readonly<Record<string, unknown>> | null): C
       { field: 'message', message: `1 to ${CHAT_MESSAGE_MAX_CHARS} characters` },
     ]);
   }
+  const help = body?.['help'] === true;
+  const rawConversation = body?.['conversationId'];
+  if (
+    rawConversation !== undefined &&
+    rawConversation !== null &&
+    (typeof rawConversation !== 'string' || !CONVERSATION_ID.test(rawConversation))
+  ) {
+    throw new ApiError(400, 'validation_failed', 'Send back the conversation you are in.', [
+      { field: 'conversationId', message: 'a conversation id' },
+    ]);
+  }
+  const conversationId = typeof rawConversation === 'string' ? rawConversation.toLowerCase() : null;
   const raw = body?.['confirmed'];
-  if (raw === undefined || raw === null) return { message, confirmed: null };
+  if (raw === undefined || raw === null) return { message, confirmed: null, help, conversationId };
+  if (help) {
+    throw new ApiError(400, 'validation_failed', 'A help question has no estimate.', [
+      { field: 'confirmed', message: 'not with help' },
+    ]);
+  }
   const record = typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const { tier, domain } = record;
   if (
@@ -315,7 +345,7 @@ export function parseChatBody(body: Readonly<Record<string, unknown>> | null): C
       { field: 'confirmed', message: 'a tier that asks first and its domain' },
     ]);
   }
-  return { message, confirmed: { tier, domain } };
+  return { message, confirmed: { tier, domain }, conversationId };
 }
 
 const notFound = (auditCode: string) =>
@@ -392,14 +422,28 @@ export class CopilotChatService {
     input: ChatTurnInput,
   ): Promise<CopilotChatView> {
     const { orgSlug } = scope;
+    const askedAt = this.now();
     // 1. Gates before any spend.
     const standing = await openStanding(context, this.deps.standing);
     const client = this.deps.clientFor(standing.poolClass);
     if (client === null) throw notFound('copilot.chat:no_key');
+    // 62-13: a conversation the turn continues must be the member's own (404 otherwise).
+    const conversationId = input.conversationId ?? null;
+    let history: readonly ChatHistoryMessage[] = [];
+    if (conversationId !== null) {
+      const read =
+        this.deps.conversations === undefined
+          ? null
+          : await this.deps.conversations.history(context, conversationId);
+      if (read === null) throw notFound('copilot.chat:conversation_not_own');
+      history = read;
+    }
 
     // 2. Rules pre-pass: a plain command costs nothing.
     const navigation =
-      input.confirmed === null ? plainCommand(scope.commands, input.message) : null;
+      input.confirmed === null && input.help !== true
+        ? plainCommand(scope.commands, input.message)
+        : null;
     if (navigation) return { ...EMPTY_VIEW, state: 'navigate', navigation };
 
     const allowance = await this.deps.allowance(context);
@@ -407,7 +451,10 @@ export class CopilotChatService {
     // 3. The route: the accepted estimate, or one router call under a low task.
     let route: AiRoute;
     let routing: TurnState | null = null;
-    if (input.confirmed !== null) {
+    if (input.help === true) {
+      // The free-support path: no router, the platform-paid help tier (20 a member a day).
+      route = { domain: 'help', tier: 'help' };
+    } else if (input.confirmed !== null) {
       route = input.confirmed;
     } else {
       const opened = await this.open(context, 'low', 'tasks', allowance);
@@ -450,7 +497,7 @@ export class CopilotChatService {
     }
 
     // 4. The loop.
-    const result = await this.loop(context, orgSlug, turn, route, input.message, standing);
+    const result = await this.loop(context, orgSlug, turn, route, input.message, standing, history);
     const completed = result.stop === null;
     const card = completed ? this.card(context, turn, result.changes) : null;
     const changeState = this.changeState(result.changes, card);
@@ -477,10 +524,22 @@ export class CopilotChatService {
         undo,
       };
     }
+    // 62-13: an answered turn is kept in the member's conversation (the guarded answer they saw).
+    const recordedIn =
+      result.answer === null || this.deps.conversations === undefined
+        ? null
+        : await this.deps.conversations.record(context, {
+            conversationId,
+            message: input.message,
+            answer: result.answer,
+            taskId: turn.task.taskId,
+            askedAt,
+          });
     return {
       ...EMPTY_VIEW,
       state: card === null ? 'answer' : 'preview',
       answer: result.answer,
+      conversationId: recordedIn,
       domain: route.domain,
       tier: route.tier,
       truncated: result.truncated,
@@ -564,14 +623,17 @@ export class CopilotChatService {
     route: AiRoute,
     message: string,
     standing: ChatStanding,
+    history: readonly ChatHistoryMessage[] = [],
   ): Promise<LoopResult> {
     const writeScope = standing.writeScope;
     const changes: TurnChanges = {
       proposals: [],
       ran: [],
       cannotUndo: false,
-      tainted: false,
-      evidence: [message],
+      // 62-13: an earlier answer may carry what an untrusted source said, and its taint is not
+      // kept: a turn with history is tainted from the start (every change needs a card).
+      tainted: history.length > 0,
+      evidence: [...history.map((m) => m.body), message],
     };
     const end = (
       stop: ChatStop | null,
@@ -591,8 +653,17 @@ export class CopilotChatService {
     };
     const tier = turn.task.tier;
     const toolBudget = TOOL_CALLS_PER_TURN[tier];
-    const tools = route.domain === 'help' ? [] : CHAT_TOOLS;
-    const messages: AiMessage[] = [{ role: 'user', content: message }];
+    // The domain's pack, then the meta-tools as the long-tail fallback (their last tool closes
+    // the cached prefix); help has none.
+    const tools = route.domain === 'help' ? [] : [...packTools(route.domain), ...CHAT_TOOLS];
+    const messages: AiMessage[] = [
+      ...history.map((m): AiMessage =>
+        m.role === 'member'
+          ? { role: 'user', content: m.body }
+          : { role: 'assistant', content: historyReplay(m.body) },
+      ),
+      { role: 'user', content: message },
+    ];
     const toolCalls: ChatToolRecord[] = [];
     let currentKey: string | null = null;
     const surface = this.deps.surface({

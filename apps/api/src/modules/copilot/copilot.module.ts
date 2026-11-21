@@ -16,6 +16,11 @@ import { PlatformAiBudgetSettings } from '../platform-admin/settings/ai-budget.j
 import { AiBudgetRepository } from './ai-budget.repository.js';
 import { AiBudgetService } from './ai-budget.service.js';
 import { AiChangeService } from './ai-change.service.js';
+import {
+  AI_CONVERSATIONS_SERVICE,
+  AiConversationsController,
+} from './ai-conversations.controller.js';
+import { AiConversationsService } from './ai-conversations.service.js';
 import { platformCapMicroUsd } from './ai-tiers.js';
 import {
   AI_CHANGE_SERVICE,
@@ -46,6 +51,8 @@ const AI_BUDGET_SERVICE = Symbol.for('tmanage.copilot.AiBudgetService');
  * surface through the in-process API. 62-11 adds {@link AiChangeService} (confirm a preview card,
  * undo a change) over the same budget and surface; cards are signed with a key derived from the
  * session secret, and confirm-class items go through the global pending AI actions service.
+ * 62-13 adds {@link AiConversationsService}: the member's own conversations (the chat's history
+ * and record port) and the owner's retention setting.
  */
 @Module({})
 export class CopilotModule {
@@ -75,12 +82,19 @@ export class CopilotModule {
           },
         },
         {
+          provide: AI_CONVERSATIONS_SERVICE,
+          inject: [TENANT_DATABASE, AUDIT_SERVICE],
+          useFactory: (database: TenantDatabase, audit: AuditService) =>
+            new AiConversationsService({ database, standing: databaseStanding(database), audit }),
+        },
+        {
           provide: COPILOT_CHAT_SERVICE,
           inject: [
             TENANT_DATABASE,
             AI_BUDGET_SERVICE,
             HttpAdapterHost,
             PENDING_AI_ACTIONS_SERVICE,
+            AI_CONVERSATIONS_SERVICE,
             { token: API_CONFIG, optional: true },
           ],
           useFactory: (
@@ -88,6 +102,7 @@ export class CopilotModule {
             wired: { allowance: AiAllowanceService; budget: AiBudgetService },
             host: HttpAdapterHost,
             pending: PendingAiActionsService,
+            conversations: AiConversationsService,
             config: ApiConfig | undefined,
           ) => {
             const cardKey = cardKeyFrom(config?.sessionSecret);
@@ -98,6 +113,7 @@ export class CopilotModule {
               clientFor: envClients(),
               surface: inProcessSurface(() => host.httpAdapter.getInstance<InjectCapable>()),
               freezeApproval: pendingFreezer(pending),
+              conversations,
               ...(cardKey === undefined ? {} : { cardKey }),
             });
           },
@@ -136,7 +152,7 @@ export class CopilotModule {
           },
         },
       ],
-      controllers: [CopilotController, CopilotChatController],
+      controllers: [CopilotController, CopilotChatController, AiConversationsController],
     };
   }
 }

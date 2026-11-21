@@ -1284,6 +1284,12 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'ai_task',
     clause: '§12 62-11 — the member undid the changes the AI made (op ids only)',
   },
+  // ---- 62-13 · AI conversations ----
+  /** The owner changed how long AI conversations are kept. Metadata: days before and after. */
+  'ai_conversation.retention_updated': {
+    objectType: 'organization',
+    clause: '§12 62-13 — the owner changed how long AI conversations are kept (days only)',
+  },
   // ---- 62-27 (B05) · signals engine ----
   'work_signal_settings.updated': {
     objectType: 'organization',
@@ -2125,6 +2131,7 @@ const AUDIT_ACTION_LABELS = {
   'ai_credit_pack.requested': 'Asked for more AI credits',
   'ai_change.confirmed': 'Confirmed changes the AI proposed',
   'ai_change.undone': 'Undid changes the AI made',
+  'ai_conversation.retention_updated': 'Changed how long AI conversations are kept',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

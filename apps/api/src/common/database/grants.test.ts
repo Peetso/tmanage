@@ -229,6 +229,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // ---- LANE-Q 0388 ---- +1: the key rotation re-encrypts `walkthrough_requests.email_enc`.
     // ---- LANE-Q 0389 ---- +2: the campaign sender reads `outreach_campaigns` and claims and
     // settles `outreach_recipients` (`email_suppressions` and `platform_mail_people` already read).
+    // ---- 62-13 0392 ---- +3: the AI conversation purge reads `ai_workspace_settings` (each
+    // workspace's window) and `ai_conversations` and `ai_conversation_messages` where it deletes.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -272,7 +274,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         1 +
         1 +
         1 +
-        2,
+        2 +
+        3,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

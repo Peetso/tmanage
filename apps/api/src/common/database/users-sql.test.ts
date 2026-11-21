@@ -387,6 +387,10 @@ describe('the runtime user is actually least-privilege', () => {
     purgeTables.add('einvoice_chain_checks');
     // ---- 0355 ---- the approval chain walk prunes its own verdicts, likewise.
     purgeTables.add('approval_chain_checks');
+    // ---- 62-13 0392 ---- the AI conversation retention purge (default 30 days); the member's own
+    // chat history, deleted on purpose once the workspace's window has passed.
+    purgeTables.add('ai_conversations');
+    purgeTables.add('ai_conversation_messages');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

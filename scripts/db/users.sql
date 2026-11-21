@@ -2683,6 +2683,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`ai_usage_ledger` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_workspace_settings` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_packs` TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`ai_credit_pack_moves` TO 'tmanage_app'@'%';
+-- 0392 (62-13 AI CONVERSATIONS). A member's conversation is an INSERT, each message an INSERT and
+-- the conversation's `last_message_at` an UPDATE; the member's own delete removes the messages and
+-- then the conversation (DELETE). The owner's retention is the `ai_workspace_settings` upsert above.
+-- SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`ai_conversations` TO 'tmanage_app'@'%';
+GRANT INSERT, DELETE ON `tmanage`.`ai_conversation_messages` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_app'@'%';
 -- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
 -- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
@@ -2722,6 +2728,13 @@ GRANT INSERT, UPDATE ON `tmanage`.`outreach_recipients` TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`outreach_campaigns` TO 'tmanage_worker'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`outreach_recipients` TO 'tmanage_worker'@'%';
 
+-- 0392 (62-13 AI CONVERSATIONS). The worker's `ai-conversation-purge` reads each workspace's
+-- `conversation_retention_days` and deletes conversations (and first their messages) whose last
+-- message is older; the bound is a bound JS Date. No INSERT, no UPDATE.
+GRANT SELECT ON `tmanage`.`ai_workspace_settings` TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_conversations` TO 'tmanage_worker'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_conversation_messages` TO 'tmanage_worker'@'%';
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Erasure user — the company and account erasures, and nothing else
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -2756,6 +2769,8 @@ GRANT SELECT, DELETE ON `tmanage`.`activity_entries` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`activity_projection_cursors` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`admin_export_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`admin_security_alerts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_conversation_messages` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_conversations` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_moves` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_packs` TO 'tmanage_erasure'@'%';

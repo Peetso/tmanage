@@ -354,6 +354,26 @@ const EXEMPT = new Map([
     'No web consumer yet: 62-11 `POST /v1/organizations/:orgSlug/copilot/chat/tasks/:taskId/undo`; the card UI is slice 62-15.',
   ],
   [
+    'AiConversationView',
+    'No web consumer yet: 62-13 a conversation of `AiConversationListView`; the chat panel is slice 62-15.',
+  ],
+  [
+    'AiConversationListView',
+    'No web consumer yet: 62-13 `GET /v1/organizations/:orgSlug/copilot/conversations`; the chat panel is slice 62-15.',
+  ],
+  [
+    'AiConversationMessageView',
+    'No web consumer yet: 62-13 a message of `AiConversationDetailView`; the chat panel is slice 62-15.',
+  ],
+  [
+    'AiConversationDetailView',
+    'No web consumer yet: 62-13 `GET /v1/organizations/:orgSlug/copilot/conversations/:conversationId`; the chat panel is slice 62-15.',
+  ],
+  [
+    'AiConversationRetentionView',
+    'No web consumer yet: 62-13 `PUT /v1/organizations/:orgSlug/copilot/conversation-retention`; the chat panel is slice 62-15.',
+  ],
+  [
     'AiBudgetPoolView',
     'No web consumer yet: 62-08 the pools of `AiBudgetView`; the screen is slice 62-19.',
   ],

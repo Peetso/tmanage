@@ -1410,6 +1410,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // owner's pack requests. No foreign key, so the company erasure may empty them in any order.
   ai_credit_pack_moves: 'organization_id',
   ai_credit_pack_requests: 'organization_id',
+  // 0392 (62-13 AI CONVERSATIONS). Tenant-owned and private to one member: every statement also
+  // names the membership. No foreign key, so the company erasure may empty them in any order.
+  ai_conversations: 'organization_id',
+  ai_conversation_messages: 'organization_id',
   // 0387 (QA-FIX-O H1). Tenant-owned: what happened to each approval-request e-mail of a company's
   // approvals. No foreign key, so the company erasure may empty it in any order.
   approval_email_sends: 'organization_id',

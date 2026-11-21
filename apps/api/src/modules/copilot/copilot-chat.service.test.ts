@@ -10,6 +10,7 @@ import { CHAT_TOOLS, META_TOOL_NAMES, isAiSelfOp, planToolCall } from './ai-chat
 import type { AiReplay, AiResponseBlock, AiStopReason } from './ai-response.js';
 import { parseRoute, routerRequest } from './ai-router.js';
 import { AI_TIER_SPECS, type AiTier } from './ai-tiers.js';
+import type { ChatConversations } from './ai-conversations.service.js';
 import {
   CopilotChatService,
   TOOL_CALLS_PER_TURN,
@@ -81,6 +82,7 @@ function setup(
     standing?: Partial<ChatStanding>;
     refuseReserveAt?: { call: number; reason: AiBudgetRefusal };
     refuseOpen?: AiBudgetRefusal;
+    conversations?: ChatConversations;
   } = {},
 ) {
   const requests: AiRequest[] = [];
@@ -182,12 +184,14 @@ function setup(
       };
     },
     countTokens: async () => 500,
+    ...(options.conversations === undefined ? {} : { conversations: options.conversations }),
   });
   const turn = (
     message: string,
     confirmed: ChatTurnInput['confirmed'] = null,
     ctx = memberContext(),
-  ) => service.chat(ctx, SCOPE, { message, confirmed });
+    extra: Partial<ChatTurnInput> = {},
+  ) => service.chat(ctx, SCOPE, { message, confirmed, ...extra });
   return { turn, requests, opened, finished, settled, released, surfaces, toolRuns };
 }
 
@@ -380,7 +384,12 @@ describe('the tier and the model', () => {
     expect(() =>
       parseChatBody({ message: 'x', confirmed: { tier: 'high', domain: 'help' } }),
     ).toThrow(ApiError);
-    expect(parseChatBody({ message: ' hi ' })).toEqual({ message: 'hi', confirmed: null });
+    expect(parseChatBody({ message: ' hi ' })).toEqual({
+      message: 'hi',
+      confirmed: null,
+      help: false,
+      conversationId: null,
+    });
     expect(() => parseChatBody({ message: '' })).toThrow(ApiError);
   });
 });
@@ -428,8 +437,124 @@ describe('the router', () => {
     expect(env.requests[1]?.tools).toEqual([]);
   });
 
+  it('the help button goes straight to the free help tier: no router call, no tools', async () => {
+    const env = setup([text('Settings are under your name.')]);
+    const view = await env.turn('where are settings?', null, memberContext(), { help: true });
+    expect(view).toMatchObject({ state: 'answer', domain: 'help', tier: 'help' });
+    expect(env.opened.map((o) => o.tier)).toEqual(['help']);
+    expect(env.requests).toHaveLength(1);
+    expect(env.requests[0]?.tools).toEqual([]);
+  });
+
+  it('past the 20 free support questions of the day: stopped calmly, no model call', async () => {
+    const env = setup([], { refuseOpen: 'free_support_used' });
+    const view = await env.turn('where are settings?', null, memberContext(), { help: true });
+    expect(view).toMatchObject({ state: 'stopped', stop: 'free_support_used' });
+    expect(env.requests).toEqual([]);
+  });
+
+  it('a help question carries no estimate', () => {
+    expect(() =>
+      parseChatBody({ message: 'x', help: true, confirmed: { tier: 'high', domain: 'tasks' } }),
+    ).toThrow(ApiError);
+  });
+
+  it('a domain turn offers its pack, then the meta-tools; byte-identical for two workspaces', async () => {
+    const prefixOf = async () => {
+      const env = setup([route('tasks', 'low'), text('Nothing due.')]);
+      await env.turn('what is due?', null, memberContext());
+      const request = env.requests[1]!;
+      return JSON.stringify({ system: request.system, tools: request.tools });
+    };
+    const first = await prefixOf();
+    expect(first).toBe(await prefixOf());
+    const tools = JSON.parse(first).tools as { name: string }[];
+    expect(tools[0]?.name).toBe('home_my_day_list');
+    expect(tools.at(-1)?.name).toBe(META_TOOL_NAMES.checkApproval);
+  });
+
   it('the chat tools are strict and end the cached prefix', () => {
     expect(CHAT_TOOLS.every((t) => t.inputSchema.additionalProperties === false)).toBe(true);
     expect(CHAT_TOOLS.at(-1)?.cache).toBe('1h');
+  });
+});
+
+describe('conversations (62-13)', () => {
+  const OWN = '0190a3e4-0000-7000-8000-000000000001';
+  const OTHER = '0190a3e4-0000-7000-8000-000000000002';
+
+  function store() {
+    const recorded: Parameters<ChatConversations['record']>[1][] = [];
+    const conversations: ChatConversations = {
+      async history(_c, id) {
+        if (id !== OWN) return null;
+        return [
+          { role: 'member', body: 'how many tasks are late?' },
+          { role: 'assistant', body: 'You have 3 late tasks.' },
+        ];
+      },
+      async record(_c, turn) {
+        recorded.push(turn);
+        return turn.conversationId ?? OTHER;
+      },
+    };
+    return { conversations, recorded };
+  }
+
+  it('a turn in the member’s own conversation gets its history; the turn is recorded', async () => {
+    const { conversations, recorded } = store();
+    const env = setup([route('tasks', 'low'), text('Still 3.')], { conversations });
+    const view = await env.turn('and now?', null, memberContext(), { conversationId: OWN });
+    expect(view).toMatchObject({ state: 'answer', conversationId: OWN });
+    const messages = env.requests[1]!.messages;
+    expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
+    expect(messages[0]?.content).toBe('how many tasks are late?');
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({
+      conversationId: OWN,
+      message: 'and now?',
+      answer: 'Still 3.',
+    });
+  });
+
+  it('someone else’s conversation (or a missing one) is 404 before any spend', async () => {
+    const { conversations, recorded } = store();
+    const env = setup([], { conversations });
+    expect(
+      await status(env.turn('and now?', null, memberContext(), { conversationId: OTHER })),
+    ).toBe('404 copilot.chat:conversation_not_own');
+    expect(env.opened).toEqual([]);
+    expect(recorded).toEqual([]);
+  });
+
+  it('a new turn starts a conversation; a stopped turn records nothing', async () => {
+    const { conversations, recorded } = store();
+    const env = setup([route('tasks', 'low'), text('Nothing due.')], { conversations });
+    expect(await env.turn('what is due?')).toMatchObject({ conversationId: OTHER });
+    expect(recorded[0]?.conversationId).toBeNull();
+    const stopped = setup([], { conversations, refuseOpen: 'member_credits_used' });
+    expect(await stopped.turn('what is due?')).toMatchObject({
+      state: 'stopped',
+      conversationId: null,
+    });
+    expect(recorded).toHaveLength(1);
+  });
+
+  it('a figure from an earlier answer is grounded; a turn with history is tainted', async () => {
+    const { conversations } = store();
+    const env = setup([route('tasks', 'low'), text('Earlier I said 3.')], { conversations });
+    const view = await env.turn('what did you say?', null, memberContext(), {
+      conversationId: OWN,
+    });
+    expect(view).toMatchObject({ answer: 'Earlier I said 3.', withheldFigures: 0 });
+    expect(env.finished.at(-1)?.receipt).toMatchObject({ tainted: true });
+  });
+
+  it('the body takes a conversation id only in its own shape', () => {
+    expect(parseChatBody({ message: 'x', conversationId: OWN.toUpperCase() })).toMatchObject({
+      conversationId: OWN,
+    });
+    expect(() => parseChatBody({ message: 'x', conversationId: 'abc' })).toThrow(ApiError);
+    expect(parseChatBody({ message: 'x' })).toMatchObject({ conversationId: null });
   });
 });

@@ -351,3 +351,7 @@ export {
   runScheduledJobLoop,
 } from './jobs/scheduled-jobs.js';
 export type { ScheduledJob, ScheduledJobEnv, ScheduledJobMail } from './jobs/scheduled-jobs.js';
+// 62-13 — the AI conversation retention purge (one of the scheduled jobs), exported for the db suite.
+export { purgeAiConversations } from './jobs/ai-conversation-purge.js';
+export type { AiConversationPurgeStore } from './jobs/ai-conversation-purge.js';
+export { createAiConversationPurgeStore } from './common/database/ai-conversation-purge-store.js';

@@ -30,6 +30,7 @@ import { createRotationStore } from '../common/database/field-cipher-rotation-st
 import { createGrowthRollupStore } from '../common/database/growth-rollup-store.js';
 import { createIpLookupSweepStore } from '../common/database/ip-lookup-sweeper-store.js';
 import { createNotificationDigestStore } from '../common/database/notification-digest-store.js';
+import { createAiConversationPurgeStore } from '../common/database/ai-conversation-purge-store.js';
 import { createSecurityReportPurgeStore } from '../common/database/security-report-purge-store.js';
 import { createSecuritySignalStore } from '../common/database/security-signal-store.js';
 import { createTimerAutostopStore } from '../common/database/timer-autostop-store.js';
@@ -71,6 +72,10 @@ import {
   purgeSecurityReports,
 } from './security-report-purge.js';
 import { AUTOSTOP_INTERVAL_MS, sweepForgottenTimers } from './timer-autostop.js';
+import {
+  AI_CONVERSATION_PURGE_INTERVAL_MS,
+  purgeAiConversations,
+} from './ai-conversation-purge.js';
 
 /** One recurring job: a bounded pass, its cadence and the lock it runs under. */
 export interface ScheduledJob {
@@ -102,6 +107,7 @@ export const SCHEDULED_JOB_NAMES = [
   'security-detector',
   'key-rotation',
   'security-report-purge',
+  'ai-conversation-purge',
   'ip-lookup-sweep',
   'notification-digest',
   'growth-rollup',
@@ -142,6 +148,7 @@ export function createScheduledJobs(
   const timers = createTimerAutostopStore(database);
   const signals = createSecuritySignalStore(database);
   const reports = createSecurityReportPurgeStore(database);
+  const conversations = createAiConversationPurgeStore(database);
   const ipLookups = createIpLookupSweepStore(database);
   const digests = createNotificationDigestStore(database);
   const digestMailer = new DigestMailer(mail.notice('digest'), env.WEB_PUBLIC_URL);
@@ -199,6 +206,15 @@ export function createScheduledJobs(
       run: async () => {
         const r = await purgeSecurityReports({ store: reports });
         return r.deleted > 0 ? `${String(r.deleted)} row(s) removed` : null;
+      },
+    },
+    {
+      // 62-13: AI conversations past their workspace's retention (default 30 days).
+      name: 'ai-conversation-purge',
+      intervalMs: AI_CONVERSATION_PURGE_INTERVAL_MS,
+      run: async () => {
+        const r = await purgeAiConversations({ store: conversations });
+        return r.deleted > 0 ? `${String(r.deleted)} conversation(s) removed` : null;
       },
     },
     {

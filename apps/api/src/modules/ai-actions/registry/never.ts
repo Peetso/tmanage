@@ -1356,6 +1356,23 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/copilot/chat/tasks/:taskId/undo',
     reason: 'ai_chat',
   },
+  // 62-13. The member's own AI conversations and the owner's retention: never the AI itself.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/copilot/conversations', reason: 'ai_chat' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/copilot/conversations/:conversationId',
+    reason: 'ai_chat',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/copilot/conversations/:conversationId',
+    reason: 'ai_chat',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/copilot/conversation-retention',
+    reason: 'ai_chat',
+  },
   { method: 'GET', path: '/v1/platform/ai/test-list/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/ai/test-list/:organizationId', reason: 'platform_admin' },
   {

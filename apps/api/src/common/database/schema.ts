@@ -15104,6 +15104,10 @@ export const aiWorkspaceSettings = mysqlTable(
     memberSharePercent: tinyint('member_share_percent', { unsigned: true }).notNull().default(50),
     testListAt: datetime('test_list_at', { mode: 'date', fsp: 3 }),
     poolClass: mysqlEnum('pool_class', AI_WORKSPACE_POOL_CLASSES).notNull().default('customers'),
+    // 0392 (62-13): days a conversation is kept after its last message.
+    conversationRetentionDays: smallint('conversation_retention_days', { unsigned: true })
+      .notNull()
+      .default(30),
     updatedByMembershipId: char('updated_by_membership_id', { length: 36 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -15197,6 +15201,60 @@ export const aiCreditPackRequests = mysqlTable(
   ],
 );
 
+export const AI_CONVERSATION_ROLES = ['member', 'assistant'] as const;
+
+/**
+ * 0392 (62-13). One conversation of one member with the in-app AI; private to that member. TENANT;
+ * api SELECT, INSERT, UPDATE, DELETE; worker SELECT, DELETE (retention purge).
+ */
+export const aiConversations = mysqlTable(
+  'ai_conversations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 120 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    lastMessageAt: datetime('last_message_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_conversations_org_id').on(table.organizationId, table.id),
+    index('ix_ai_conversations_member').on(
+      table.organizationId,
+      table.membershipId,
+      table.lastMessageAt,
+    ),
+    index('ix_ai_conversations_last').on(table.lastMessageAt, table.organizationId),
+  ],
+);
+
+/**
+ * 0392 (62-13). A message of a conversation: the member's text or the assistant's guarded answer.
+ * The only place AI question and answer text is kept. TENANT; api SELECT, INSERT, DELETE; worker
+ * SELECT, DELETE.
+ */
+export const aiConversationMessages = mysqlTable(
+  'ai_conversation_messages',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    conversationId: char('conversation_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    role: mysqlEnum('role', AI_CONVERSATION_ROLES).notNull(),
+    body: mediumtext('body').notNull(),
+    taskId: char('task_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_conversation_messages_org_id').on(table.organizationId, table.id),
+    index('ix_ai_conversation_messages_conv').on(
+      table.organizationId,
+      table.conversationId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export type AiBudgetPoolRow = typeof aiBudgetPools.$inferSelect;
 export type AiWorkspacePeriodRow = typeof aiWorkspacePeriods.$inferSelect;
 export type AiMemberPeriodRow = typeof aiMemberPeriods.$inferSelect;
@@ -15215,6 +15273,8 @@ Object.assign(TABLES, {
   ai_credit_packs: aiCreditPacks,
   ai_credit_pack_moves: aiCreditPackMoves,
   ai_credit_pack_requests: aiCreditPackRequests,
+  ai_conversations: aiConversations,
+  ai_conversation_messages: aiConversationMessages,
 });
 
 // ---- DC-3 / RT-3 · lane K · leader lease ----

@@ -44,6 +44,15 @@ export type AiResponseBlock =
  */
 export type AiReplay = readonly JsonObject[] & { readonly __aiReplay: true };
 
+/**
+ * 62-13: an earlier answer of the member's conversation, sent back as plain text. It is the
+ * guarded answer the member saw, not the raw model output: thinking from an earlier turn is never
+ * replayed (the API ignores it on a new user turn anyway).
+ */
+export function historyReplay(text: string): AiReplay {
+  return [{ type: 'text', text }] as unknown as AiReplay;
+}
+
 export interface AiResponse {
   readonly id: string;
   readonly model: string;
