@@ -20936,6 +20936,7 @@
   "AuditActionLabel.ai_change.confirmed": "Confirmed changes the AI proposed",
   "AuditActionLabel.ai_change.undone": "Undid changes the AI made",
   "AuditActionLabel.ai_conversation.retention_updated": "Changed how long AI conversations are kept",
+  "AuditActionLabel.ai.turn_completed": "The AI assistant answered a request",
   "Overview.signal.projects_at_riskOne": "One task is late or at risk",
   "Overview.signal.projects_at_riskMany": "{count} tasks are late or at risk",
   "Overview.signal.projects_at_riskMeta": "Past due, or due within {threshold} days without time to finish",

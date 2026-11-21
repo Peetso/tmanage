@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -16,6 +16,13 @@ import { PlatformAiBudgetSettings } from '../platform-admin/settings/ai-budget.j
 import { AiBudgetRepository } from './ai-budget.repository.js';
 import { AiBudgetService } from './ai-budget.service.js';
 import { AiChangeService } from './ai-change.service.js';
+import { DatabaseAiAudit } from './ai-audit.js';
+import type { DurableRateLimiter } from '../rate-limits/durable-rate-limiter.js';
+import { DURABLE_RATE_LIMITER } from '../rate-limits/durable-throttle.guard.js';
+import {
+  AI_CHAT_MEMBER_POLICY,
+  AI_CHAT_WORKSPACE_POLICY,
+} from '../rate-limits/throttle-policies.js';
 import {
   AI_CONVERSATIONS_SERVICE,
   AiConversationsController,
@@ -96,6 +103,7 @@ export class CopilotModule {
             PENDING_AI_ACTIONS_SERVICE,
             AI_CONVERSATIONS_SERVICE,
             { token: API_CONFIG, optional: true },
+            { token: DURABLE_RATE_LIMITER, optional: true },
           ],
           useFactory: (
             database: TenantDatabase,
@@ -104,6 +112,7 @@ export class CopilotModule {
             pending: PendingAiActionsService,
             conversations: AiConversationsService,
             config: ApiConfig | undefined,
+            limiter: DurableRateLimiter | undefined,
           ) => {
             const cardKey = cardKeyFrom(config?.sessionSecret);
             return new CopilotChatService({
@@ -114,6 +123,26 @@ export class CopilotModule {
               surface: inProcessSurface(() => host.httpAdapter.getInstance<InjectCapable>()),
               freezeApproval: pendingFreezer(pending),
               conversations,
+              audit: new DatabaseAiAudit(database),
+              ...(limiter === undefined
+                ? {}
+                : {
+                    limits: async (context: TenantContext) => {
+                      const decision = await limiter.checkAll([
+                        { policy: AI_CHAT_MEMBER_POLICY, subject: { token: context.membershipId } },
+                        {
+                          policy: AI_CHAT_WORKSPACE_POLICY,
+                          subject: { token: context.organizationId },
+                        },
+                      ]);
+                      return decision.admitted
+                        ? { admitted: true as const }
+                        : {
+                            admitted: false as const,
+                            retryAfterSeconds: decision.retryAfterSeconds,
+                          };
+                    },
+                  }),
               ...(cardKey === undefined ? {} : { cardKey }),
             });
           },

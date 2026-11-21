@@ -20730,6 +20730,7 @@
   "AuditActionLabel.ai_change.confirmed": "A confirmé les modifications proposées par l'IA",
   "AuditActionLabel.ai_change.undone": "A annulé les modifications faites par l'IA",
   "AuditActionLabel.ai_conversation.retention_updated": "A modifié la durée de conservation des conversations avec l'IA",
+  "AuditActionLabel.ai.turn_completed": "L'assistant IA a répondu à une demande",
   "Overview.signal.projects_at_riskOne": "Une tâche est en retard ou à risque",
   "Overview.signal.projects_at_riskMany": "{count} tâches sont en retard ou à risque",
   "Overview.signal.projects_at_riskMeta": "En retard, ou échéance sous {threshold} jours sans assez de temps",

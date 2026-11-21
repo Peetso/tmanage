@@ -1290,6 +1290,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 62-13 — the owner changed how long AI conversations are kept (days only)',
   },
+  // ---- 62-14 · AI audit rows ----
+  /**
+   * One in-app AI task closed. Metadata: model, tier, domain, outcome, model calls, tokens,
+   * credits, tool-call count — never the question or the answer.
+   */
+  'ai.turn_completed': {
+    objectType: 'ai_task',
+    clause: '§12 62-14 — the in-app AI finished a turn (numbers and classifications only)',
+  },
   // ---- 62-27 (B05) · signals engine ----
   'work_signal_settings.updated': {
     objectType: 'organization',
@@ -2132,6 +2141,7 @@ const AUDIT_ACTION_LABELS = {
   'ai_change.confirmed': 'Confirmed changes the AI proposed',
   'ai_change.undone': 'Undid changes the AI made',
   'ai_conversation.retention_updated': 'Changed how long AI conversations are kept',
+  'ai.turn_completed': 'The AI assistant answered a request',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

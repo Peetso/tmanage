@@ -42,6 +42,12 @@ export interface ThrottleLimits {
   readonly perMinute?: number;
   /** Requests admitted per key per aligned hour. Omit for no hour window. */
   readonly perHour?: number;
+  /**
+   * 62-14: requests admitted per key per aligned UTC day. Omit for no day window. The day window
+   * and the daily pepper both turn at UTC midnight, so a day bucket is never split by a re-key;
+   * buckets are kept 26 h (`BUCKET_RETAIN_MS`), longer than the window.
+   */
+  readonly perDay?: number;
   /** What the budget is charged to. `ip+link` charges both, all or nothing. */
   readonly key: ThrottleKeyKind;
   /** The route parameter holding the link token for `link` / `ip+link` keys. Default `token`. */
@@ -103,6 +109,7 @@ export type ThrottleDecision =
 
 export const MINUTE_MS = 60_000;
 export const HOUR_MS = 60 * MINUTE_MS;
+export const DAY_MS = 24 * HOUR_MS;
 /** `bucket_key` is VARCHAR(190); names are bounded so a key always fits. */
 const POLICY_NAME = /^[a-z][a-z0-9_]{0,47}$/u;
 /** Retry-After sent when the store is down and the policy fails closed. */
@@ -112,10 +119,14 @@ export function assertValidPolicy(policy: ThrottlePolicy): void {
   if (!POLICY_NAME.test(policy.name)) {
     throw new Error(`throttle policy name '${policy.name}' must match ${POLICY_NAME.source}`);
   }
-  if (policy.perMinute === undefined && policy.perHour === undefined) {
-    throw new Error(`throttle policy '${policy.name}' sets neither perMinute nor perHour`);
+  if (
+    policy.perMinute === undefined &&
+    policy.perHour === undefined &&
+    policy.perDay === undefined
+  ) {
+    throw new Error(`throttle policy '${policy.name}' sets no window`);
   }
-  for (const limit of [policy.perMinute, policy.perHour]) {
+  for (const limit of [policy.perMinute, policy.perHour, policy.perDay]) {
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
       throw new Error(
         `throttle policy '${policy.name}' has a limit that is not a positive integer`,
@@ -160,6 +171,7 @@ export function bucketsFor(
   if (policy.perMinute !== undefined)
     windows.push({ label: 'm', ms: MINUTE_MS, max: policy.perMinute });
   if (policy.perHour !== undefined) windows.push({ label: 'h', ms: HOUR_MS, max: policy.perHour });
+  if (policy.perDay !== undefined) windows.push({ label: 'd', ms: DAY_MS, max: policy.perDay });
 
   const charges: BucketCharge[] = [];
   for (const kind of kinds) {
@@ -305,10 +317,25 @@ export class DurableRateLimiter {
   }
 
   async check(policy: ThrottlePolicy, subject: ThrottleSubject): Promise<ThrottleDecision> {
+    return this.checkAll([{ policy, subject }]);
+  }
+
+  /**
+   * 62-14: several budgets charged as one unit (a member's and their workspace's): every bucket of
+   * every policy is admitted and charged, or none is — a request one budget refuses spends none of
+   * the others. The first policy's store-error rule decides an outage (`closed` unless it says
+   * `open`); give the strictest policy first.
+   */
+  async checkAll(
+    budgets: readonly { readonly policy: ThrottlePolicy; readonly subject: ThrottleSubject }[],
+  ): Promise<ThrottleDecision> {
     const at = this.now();
-    const charges = bucketsFor(policy, subject, at, dailyPepper(this.options.secret, at)).map(
-      (charge) => ({ ...charge, max: Math.max(1, Math.floor(charge.max * this.limitScale)) }),
-    );
+    const pepper = dailyPepper(this.options.secret, at);
+    const charges = budgets
+      .flatMap(({ policy: each, subject }) => bucketsFor(each, subject, at, pepper))
+      .map((charge) => ({ ...charge, max: Math.max(1, Math.floor(charge.max * this.limitScale)) }));
+    const policy = budgets[0]?.policy;
+    if (policy === undefined) return { admitted: true, degraded: false };
     let result: BucketChargeResult;
     let degraded = false;
     try {

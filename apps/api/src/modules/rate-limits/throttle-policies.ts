@@ -60,6 +60,29 @@ export const INBOUND_WEBHOOK_LIMITS: ThrottleLimits = {
   onStoreError: 'open',
 };
 
+/**
+ * 62-14 (plan 62 §7 abuse limits) — the in-app AI's chat turns, charged before any credit is held
+ * (a refused turn opens no task, so it leaves no hold): a member 10 a minute and 200 a UTC day, a
+ * workspace 60 a minute, all or nothing (`DurableRateLimiter.checkAll`). Keyed `token` with the
+ * membership id / organization id as the value (hashed with the daily pepper like every key).
+ * Fail closed: an outage of the bucket store stops AI spend, never ordinary work. The other §7
+ * limits are counted by the budget itself: 20 free support questions and 5 undo refunds a member
+ * a day (`ai-budget.service.ts`).
+ */
+export const AI_CHAT_MEMBER_POLICY: ThrottlePolicy = {
+  name: 'ai_chat_member',
+  perMinute: 10,
+  perDay: 200,
+  key: 'token',
+  onStoreError: 'closed',
+};
+export const AI_CHAT_WORKSPACE_POLICY: ThrottlePolicy = {
+  name: 'ai_chat_workspace',
+  perMinute: 60,
+  key: 'token',
+  onStoreError: 'closed',
+};
+
 const writeDoor = (name: string, perMinute: number, perHour: number): ThrottlePolicy => ({
   name,
   perMinute,

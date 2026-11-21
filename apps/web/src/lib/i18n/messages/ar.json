@@ -20936,6 +20936,7 @@
   "AuditActionLabel.ai_change.confirmed": "أكّد التغييرات التي اقترحها الذكاء الاصطناعي",
   "AuditActionLabel.ai_change.undone": "تراجع عن التغييرات التي أجراها الذكاء الاصطناعي",
   "AuditActionLabel.ai_conversation.retention_updated": "غيّر مدة الاحتفاظ بمحادثات الذكاء الاصطناعي",
+  "AuditActionLabel.ai.turn_completed": "أجاب مساعد الذكاء الاصطناعي عن طلب",
   "Overview.signal.projects_at_riskOne": "مهمة واحدة متأخرة أو معرّضة للتأخير",
   "Overview.signal.projects_at_riskMany": "{count} من المهام متأخرة أو معرّضة للتأخير",
   "Overview.signal.projects_at_riskMeta": "تجاوزت موعدها، أو اقترب موعدها والوقت لا يكفي",

@@ -20730,6 +20730,7 @@
   "AuditActionLabel.ai_change.confirmed": "Von der KI vorgeschlagene Änderungen bestätigt",
   "AuditActionLabel.ai_change.undone": "Von der KI vorgenommene Änderungen rückgängig gemacht",
   "AuditActionLabel.ai_conversation.retention_updated": "Aufbewahrungsdauer der KI-Unterhaltungen geändert",
+  "AuditActionLabel.ai.turn_completed": "Der KI-Assistent hat eine Anfrage beantwortet",
   "Overview.signal.projects_at_riskOne": "Eine Aufgabe ist verspätet oder gefährdet",
   "Overview.signal.projects_at_riskMany": "{count} Aufgaben sind verspätet oder gefährdet",
   "Overview.signal.projects_at_riskMeta": "Überfällig oder in {threshold} Tagen fällig, ohne genug Zeit",

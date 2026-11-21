@@ -20730,6 +20730,7 @@
   "AuditActionLabel.ai_change.confirmed": "确认了 AI 提议的更改",
   "AuditActionLabel.ai_change.undone": "撤销了 AI 所做的更改",
   "AuditActionLabel.ai_conversation.retention_updated": "更改了 AI 对话的保留时长",
+  "AuditActionLabel.ai.turn_completed": "AI 助手回复了一个请求",
   "Overview.signal.projects_at_riskOne": "1 项任务已逾期或有风险",
   "Overview.signal.projects_at_riskMany": "{count} 项任务已逾期或有风险",
   "Overview.signal.projects_at_riskMeta": "已逾期，或 {threshold} 天内到期且时间不够",

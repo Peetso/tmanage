@@ -25,6 +25,7 @@ import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
 import { packTools } from './packs/index.js';
 import type { ChatConversations, ChatHistoryMessage } from './ai-conversations.service.js';
+import type { AiToolCallAudit, ChatAudit } from './ai-audit.js';
 import {
   AI_CARD_TTL_MS,
   MAX_CARD_ITEMS,
@@ -224,6 +225,13 @@ export interface CopilotChatDeps {
   readonly freezeApproval?: ChatApprovalFreezer;
   /** 62-13: the member's conversations (history in, answered turns recorded). */
   readonly conversations?: ChatConversations;
+  /**
+   * 62-14: the abuse limits (a member 10 a minute and 200 a day, a workspace 60 a minute), asked
+   * before any task is opened so a refused turn leaves no hold. Absent = not limited (unit tests).
+   */
+  readonly limits?: (context: TenantContext) => Promise<ChatLimitDecision>;
+  /** 62-14: one audit row per tool call and per turn, no text. */
+  readonly audit?: ChatAudit;
   readonly now?: () => Date;
 }
 
@@ -238,7 +246,16 @@ export interface ChatTurnInput {
 }
 
 export type ChatStop =
-  AiBudgetRefusal | 'tool_limit' | 'provider_error' | 'model_refused' | 'not_understood';
+  | AiBudgetRefusal
+  | 'tool_limit'
+  | 'provider_error'
+  | 'model_refused'
+  | 'not_understood'
+  | 'rate_limited';
+
+/** 62-14: what the abuse limits said about one turn. */
+export type ChatLimitDecision =
+  { readonly admitted: true } | { readonly admitted: false; readonly retryAfterSeconds: number };
 
 export interface ChatToolRecord {
   readonly opId: string | null;
@@ -284,6 +301,8 @@ export interface CopilotChatView {
   readonly undo: ChatUndoView | null;
   /** 62-13: the conversation an answered turn was recorded in (send it back to continue). */
   readonly conversationId: string | null;
+  /** 62-14: on `rate_limited`, the seconds until the member can ask again. */
+  readonly retryAfterSeconds: number | null;
 }
 
 const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
@@ -301,6 +320,7 @@ const EMPTY_VIEW: Omit<CopilotChatView, 'state'> = {
   card: null,
   undo: null,
   conversationId: null,
+  retryAfterSeconds: null,
 };
 
 const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -383,7 +403,21 @@ interface TurnState {
   readonly task: OpenedTask;
   readonly client: AiClient;
   calls: number;
+  /** 62-14: the tokens the provider reported, for the turn's audit row. */
+  inputTokens: number;
+  outputTokens: number;
+  /** 62-14: every tool call of the turn, redacted, for its audit rows. */
+  readonly audited: AiToolCallAudit[];
 }
+
+const newTurn = (task: OpenedTask, client: AiClient): TurnState => ({
+  task,
+  client,
+  calls: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  audited: [],
+});
 
 /** What the changes of one turn left: card items to confirm and the changes that ran. */
 interface TurnChanges {
@@ -446,6 +480,17 @@ export class CopilotChatService {
         : null;
     if (navigation) return { ...EMPTY_VIEW, state: 'navigate', navigation };
 
+    // 62-14: the abuse limits, before any task is opened (a refused turn holds nothing).
+    if (this.deps.limits !== undefined) {
+      const limit = await this.deps.limits(context);
+      if (!limit.admitted) {
+        return {
+          ...this.stopped(null, null, 'rate_limited'),
+          retryAfterSeconds: limit.retryAfterSeconds,
+        };
+      }
+    }
+
     const allowance = await this.deps.allowance(context);
 
     // 3. The route: the accepted estimate, or one router call under a low task.
@@ -459,7 +504,7 @@ export class CopilotChatService {
     } else {
       const opened = await this.open(context, 'low', 'tasks', allowance);
       if (!opened.ok) return this.stopped(null, null, opened.reason);
-      routing = { task: opened.value, client, calls: 0 };
+      routing = newTurn(opened.value, client);
       const routed = await this.callModel(context, routing, routerRequest(input.message));
       const parsed = routed.ok ? parseRoute(routed.response) : null;
       if (parsed === null) {
@@ -493,7 +538,7 @@ export class CopilotChatService {
         routingCharged = await this.finish(context, routing, 'completed', { route });
       const opened = await this.open(context, route.tier, activityOf(route.domain), allowance);
       if (!opened.ok) return this.stopped(route, null, opened.reason, routingCharged);
-      turn = { task: opened.value, client, calls: 0 };
+      turn = newTurn(opened.value, client);
     }
 
     // 4. The loop.
@@ -704,6 +749,15 @@ export class CopilotChatService {
       }
       const results: AiUserBlock[] = [];
       for (const use of uses) {
+        const startedAt = Date.now();
+        const audit = (record: ChatToolRecord) =>
+          turn.audited.push({
+            tool: use.name,
+            opId: record.opId,
+            outcome: record.outcome,
+            argsSha256: createHash('sha256').update(JSON.stringify(use.input)).digest('hex'),
+            latencyMs: Date.now() - startedAt,
+          });
         const plan = planToolCall(use.name, use.input);
         if (plan.kind === 'change') {
           currentKey = idempotencyKeyOf(use.id, plan.rawArgs);
@@ -714,6 +768,7 @@ export class CopilotChatService {
             currentKey = null;
           }
           toolCalls.push({ opId: plan.opId, outcome: done.outcome });
+          audit(toolCalls.at(-1)!);
           results.push({
             type: 'tool_result',
             toolUseId: use.id,
@@ -724,6 +779,7 @@ export class CopilotChatService {
         }
         if (plan.kind === 'refuse') {
           toolCalls.push({ opId: plan.opId, outcome: 'refused' });
+          audit(toolCalls.at(-1)!);
           results.push({
             type: 'tool_result',
             toolUseId: use.id,
@@ -740,6 +796,7 @@ export class CopilotChatService {
           currentKey = null;
         }
         toolCalls.push({ opId: plan.opId, outcome: ran.isError === true ? 'error' : 'ok' });
+        audit(toolCalls.at(-1)!);
         const resultText = toolResultText(ran);
         changes.evidence.push(resultText);
         // An approval's outcome or a read of other people's text: marked as data, and taints.
@@ -857,6 +914,12 @@ export class CopilotChatService {
     turn.calls += 1;
     try {
       const response = await turn.client.call({ ...request, model });
+      turn.inputTokens +=
+        response.usage.inputTokens +
+        response.usage.cacheWrite5mTokens +
+        response.usage.cacheWrite1hTokens +
+        response.usage.cacheReadTokens;
+      turn.outputTokens += response.usage.outputTokens;
       must(
         await this.deps.budget.settleCall(context, {
           callId,
@@ -918,7 +981,29 @@ export class CopilotChatService {
       receipt,
       changeState === undefined ? undefined : { ...changeState },
     );
-    return finished.ok ? finished.value.chargedCredits : 0;
+    const charged = finished.ok ? finished.value.chargedCredits : 0;
+    // 62-14: the turn's audit rows (one per tool call, one for the turn), no text.
+    if (this.deps.audit !== undefined) {
+      const route = details['route'] as AiRoute | undefined;
+      const stop = details['stop'];
+      await this.deps.audit.turn(context, {
+        taskId: turn.task.taskId,
+        model: turn.task.model,
+        tier: turn.task.tier,
+        domain: route?.domain ?? null,
+        outcome,
+        stop: typeof stop === 'string' ? stop : null,
+        modelCalls: turn.calls,
+        inputTokens: turn.inputTokens,
+        outputTokens: turn.outputTokens,
+        chargedCredits: charged,
+        tainted: details['tainted'] === true,
+        withheldFigures:
+          typeof details['withheldFigures'] === 'number' ? details['withheldFigures'] : 0,
+        toolCalls: turn.audited,
+      });
+    }
+    return charged;
   }
 
   private stopped(

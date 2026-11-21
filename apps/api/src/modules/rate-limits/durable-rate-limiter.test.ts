@@ -30,6 +30,36 @@ function limiter(store: BucketStore = createMemoryBucketStore()) {
 }
 
 describe('DurableRateLimiter (56-05)', () => {
+  it('62-14: a day window holds across hours and turns at UTC midnight', async () => {
+    const { admits, advance } = limiter();
+    const p: ThrottlePolicy = { name: 'ai_chat_member', perDay: 2, key: 'token' };
+    expect(await admits(p, { token: 'm1' })).toBe(true);
+    advance(3 * 60 * 60 * 1000);
+    expect(await admits(p, { token: 'm1' })).toBe(true);
+    expect(await admits(p, { token: 'm1' })).toBe(false);
+    expect(await admits(p, { token: 'm2' })).toBe(true);
+    advance(14 * 60 * 60 * 1000); // past 00:00 UTC
+    expect(await admits(p, { token: 'm1' })).toBe(true);
+  });
+
+  it('62-14: checkAll charges every budget or none (a refused turn spends nothing)', async () => {
+    const { instance } = limiter();
+    const member: ThrottlePolicy = { name: 'ai_chat_member', perMinute: 5, key: 'token' };
+    const workspace: ThrottlePolicy = { name: 'ai_chat_workspace', perMinute: 1, key: 'token' };
+    const both = (m: string) =>
+      instance.checkAll([
+        { policy: member, subject: { token: m } },
+        { policy: workspace, subject: { token: 'org' } },
+      ]);
+    expect((await both('m1')).admitted).toBe(true);
+    // The workspace minute is spent: m2 is refused and its own member budget is not charged.
+    expect((await both('m2')).admitted).toBe(false);
+    const alone = await instance.check(member, { token: 'm2' });
+    expect(alone.admitted).toBe(true);
+    for (let i = 0; i < 4; i += 1) await instance.check(member, { token: 'm2' });
+    expect((await instance.check(member, { token: 'm2' })).admitted).toBe(false);
+  });
+
   it('admits up to the minute limit, refuses the next with Retry-After, resets on the next window', async () => {
     const { instance, admits, advance } = limiter();
     const p = policy({ perHour: 100 });

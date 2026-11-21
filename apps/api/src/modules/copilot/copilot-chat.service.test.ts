@@ -11,6 +11,8 @@ import type { AiReplay, AiResponseBlock, AiStopReason } from './ai-response.js';
 import { parseRoute, routerRequest } from './ai-router.js';
 import { AI_TIER_SPECS, type AiTier } from './ai-tiers.js';
 import type { ChatConversations } from './ai-conversations.service.js';
+import type { AiTurnAudit, ChatAudit } from './ai-audit.js';
+import type { ChatLimitDecision } from './copilot-chat.service.js';
 import {
   CopilotChatService,
   TOOL_CALLS_PER_TURN,
@@ -83,8 +85,15 @@ function setup(
     refuseReserveAt?: { call: number; reason: AiBudgetRefusal };
     refuseOpen?: AiBudgetRefusal;
     conversations?: ChatConversations;
+    limits?: (context: TenantContext) => Promise<ChatLimitDecision>;
   } = {},
 ) {
+  const audits: AiTurnAudit[] = [];
+  const audit: ChatAudit = {
+    async turn(_c, turn) {
+      audits.push(turn);
+    },
+  };
   const requests: AiRequest[] = [];
   const client: AiClient = {
     async call(request) {
@@ -185,6 +194,8 @@ function setup(
     },
     countTokens: async () => 500,
     ...(options.conversations === undefined ? {} : { conversations: options.conversations }),
+    ...(options.limits === undefined ? {} : { limits: options.limits }),
+    audit,
   });
   const turn = (
     message: string,
@@ -192,7 +203,7 @@ function setup(
     ctx = memberContext(),
     extra: Partial<ChatTurnInput> = {},
   ) => service.chat(ctx, SCOPE, { message, confirmed, ...extra });
-  return { turn, requests, opened, finished, settled, released, surfaces, toolRuns };
+  return { turn, requests, opened, finished, settled, released, surfaces, toolRuns, audits };
 }
 
 async function status(work: Promise<unknown>): Promise<string> {
@@ -556,5 +567,54 @@ describe('conversations (62-13)', () => {
     });
     expect(() => parseChatBody({ message: 'x', conversationId: 'abc' })).toThrow(ApiError);
     expect(parseChatBody({ message: 'x' })).toMatchObject({ conversationId: null });
+  });
+});
+
+describe('abuse limits and audit rows (62-14)', () => {
+  it('a refused turn opens no task, holds nothing and calls no model', async () => {
+    const asked: string[] = [];
+    const env = setup([], {
+      limits: async (context) => {
+        asked.push(context.membershipId);
+        return { admitted: false, retryAfterSeconds: 42 };
+      },
+    });
+    const view = await env.turn('what is due?');
+    expect(view).toMatchObject({ state: 'stopped', stop: 'rate_limited', retryAfterSeconds: 42 });
+    expect(asked).toHaveLength(1);
+    expect(env.opened).toEqual([]);
+    expect(env.requests).toEqual([]);
+    expect(env.audits).toEqual([]);
+  });
+
+  it('a plain command is not counted against the limit', async () => {
+    let asked = 0;
+    const env = setup([], { limits: async () => ((asked += 1), { admitted: true }) });
+    await env.turn('Open calendar');
+    expect(asked).toBe(0);
+  });
+
+  it('one audit row per tool call and one per task; no question, answer or argument text', async () => {
+    const env = setup([
+      route('tasks', 'low'),
+      runAction('t1', 'work_items.list', { projectId: 'secret-project-name' }),
+      text('You have one task called Homepage.'),
+    ]);
+    await env.turn('list my secret tasks');
+    // A low-tier turn runs on the router's own task: one task, one turn row.
+    expect(env.audits).toHaveLength(1);
+    const last = env.audits.at(-1)!;
+    expect(last.toolCalls).toHaveLength(1);
+    expect(last.toolCalls[0]).toMatchObject({
+      tool: META_TOOL_NAMES.run,
+      opId: 'work_items.list',
+      outcome: 'ok',
+    });
+    expect(last.toolCalls[0]?.argsSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(last).toMatchObject({ outcome: 'completed', domain: 'tasks', modelCalls: 3 }); // router + 2
+    const rows = JSON.stringify(env.audits);
+    for (const secret of ['secret-project-name', 'list my secret tasks', 'Homepage']) {
+      expect(rows).not.toContain(secret);
+    }
   });
 });
