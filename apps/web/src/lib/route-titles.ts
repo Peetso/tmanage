@@ -120,6 +120,9 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Webhook deliveries',
     key: 'RouteTitle.adminWebhookDeliveries',
   },
+  // Plan 62 (Figma G11): Control Center › AI › Business Memory and Usage.
+  '/[orgSlug]/admin/ai/memory': { en: 'Business Memory', key: 'BusinessMemory.title' },
+  '/[orgSlug]/admin/ai/usage': { en: 'AI usage', key: 'AiUsage.routeTitle' },
   '/[orgSlug]/admin/feature-flags': { en: 'Feature flags', key: 'RouteTitle.adminFeatureFlags' },
   '/[orgSlug]/admin/file-safety': { en: 'Blocked files', key: 'BlockedFiles.title' },
   '/[orgSlug]/admin/incidents': { en: 'Incidents', key: 'RouteTitle.adminIncidents' },

@@ -22,6 +22,8 @@ const USER = 'user-0000-0000-0000-0000-0000000000001';
 const DELEGATOR = 'membership-0000-0000-0000-00000000001';
 const DELEGATE = 'membership-0000-0000-0000-00000000002';
 const FOREIGN = 'membership-0000-0000-0000-00000000009';
+/** 60-04: an AI employee's membership of this tenant (kind `ai`). */
+const AI_MEMBER = 'membership-0000-0000-0000-00000000003';
 
 function principal(): Principal {
   return {
@@ -52,7 +54,14 @@ function controllerWith(): {
 
   const repo = {
     findMembership: async (_r: unknown, _c: TenantContext, id: string) =>
-      id === DELEGATE ? ({ id, organizationId: ORG, status: 'active' } as MembershipRow) : null,
+      id === DELEGATE || id === AI_MEMBER
+        ? ({
+            id,
+            organizationId: ORG,
+            status: 'active',
+            kind: id === AI_MEMBER ? 'ai' : 'human',
+          } as MembershipRow)
+        : null,
     insert: async (
       _r: unknown,
       _c: TenantContext,
@@ -102,6 +111,14 @@ describe('ApprovalDelegationController.create', () => {
     await expect(
       controller.create(context, principal(), { delegateMembershipId: FOREIGN, ...WINDOW }),
     ).rejects.toMatchObject({ status: 404 } satisfies Partial<ApiError>);
+    expect(store).toHaveLength(0);
+  });
+
+  it('60-04: is 404 with nothing written when the delegate is an AI employee', async () => {
+    const { controller, store } = controllerWith();
+    await expect(
+      controller.create(context, principal(), { delegateMembershipId: AI_MEMBER, ...WINDOW }),
+    ).rejects.toMatchObject({ status: 404, auditCode: 'delegate_ai_employee' });
     expect(store).toHaveLength(0);
   });
 

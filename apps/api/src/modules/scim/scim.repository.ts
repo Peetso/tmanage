@@ -71,6 +71,9 @@ function visible(context: TenantContext): SQL[] {
     eq(memberships.organizationId, context.organizationId),
     ne(memberships.role, PLATFORM_SUPPORT_ROLE),
     ne(memberships.status, 'offboarded'),
+    // 60-04 door (plan 60 v2 §4.1): provisioning never sees, changes or removes an AI employee;
+    // their lifecycle is the AI-employee screens' alone.
+    eq(memberships.kind, 'human'),
   ];
 }
 
@@ -341,6 +344,7 @@ export class ScimRepository {
           eq(memberTeams.teamId, teamId),
           ne(memberships.role, PLATFORM_SUPPORT_ROLE),
           ne(memberships.status, 'offboarded'),
+          eq(memberships.kind, 'human'),
         ),
       )
       .orderBy(asc(memberships.id));

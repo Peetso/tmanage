@@ -2,6 +2,7 @@ import {
   authorize,
   CLIENT_ROLES,
   hasCapability,
+  isAiEmployeeEmail,
   isClientRole,
   isInternalRole,
   mayGrantCapability,
@@ -414,6 +415,17 @@ export class InvitationsService {
     this.requireInviteCapability(principal, context, 'invitation.issue', clientOrganizationId);
 
     const email = input.email.trim().toLowerCase();
+    // 60-04 door (plan 60 v2 §4.1): an AI employee's address is never invited, so no AI user can
+    // gain a second membership or a client membership through an invitation.
+    if (isAiEmployeeEmail(email)) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        INVITE_ADDRESS_REFUSED_MESSAGE,
+        [{ field: 'email', message: 'address_not_invitable' }],
+        'invitation.ai_employee_address',
+      );
+    }
     const customRole = isCustomRoleCandidate(input.role, clientOrganizationId);
     if (!customRole) {
       this.requireRoleMatchesDestination(input.role, clientOrganizationId, 'invitation.issue');

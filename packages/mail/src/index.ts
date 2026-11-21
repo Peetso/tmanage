@@ -97,7 +97,7 @@ export type {
 export { MAIL_PERSON_TOPICS, isMailPersonTopic, regionForTimezone } from './person-region.js';
 export type { MailPersonRegion } from './person-region.js';
 export type { MailPerson, SenderDirectory, SenderResolverOptions } from './sender-resolver.js';
-export { SmtpMailer } from './smtp-mailer.js';
+export { SmtpMailer, isReservedInvalidAddress } from './smtp-mailer.js';
 export type { SmtpMailerOptions } from './smtp-mailer.js';
 // 51-11 — deliverability: one-click unsubscribe, the notification transport, the host ceiling.
 export {

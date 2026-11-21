@@ -25,6 +25,7 @@ import type { WorkspacePlanView } from '../../lib/api/plan-versions';
 import { useShellCapability } from '../shell/use-shell-capability';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { AiCreditsBlock } from '../ai-admin/AiCreditsBlock';
 import '../../styles/screens/plan-usage.css';
 
 export interface PlanUsageScreenProps {
@@ -84,6 +85,12 @@ export function PlanUsageScreen({
       allowance={usage.data?.storage ?? null}
     />
   ) : null;
+  // Plan 62 (Figma G14 772:46242): the AI credits block, drawn only where TManage AI is on.
+  const aiCredits = (
+    <section className="tm-pu-card">
+      <AiCreditsBlock organizationSlug={organizationSlug} client={api} placement="plan" />
+    </section>
+  );
   const betaHeading = useBetaBillingHeading(organizationSlug, organizationName);
 
   const closeDialog = useCallback(
@@ -132,6 +139,7 @@ export function PlanUsageScreen({
           <>
             <BetaBillingPanel internalPeople={usage.data.people.used} />
             {storageCard}
+            {aiCredits}
             <section className="tm-pu-card" aria-label={ts('planStorage.runsLabel')}>
               <AutomationRunsCounter runs={usage.data.automationRuns} locale={locale} tr={ts} />
             </section>
@@ -149,6 +157,7 @@ export function PlanUsageScreen({
             onChangePlan={() => setChangeTarget(changeTargetFor(usage.data))}
           />
         ) : null}
+        {usage.isSuccess && !beta ? aiCredits : null}
       </div>
 
       {changeTarget !== null && usage.isSuccess && !beta ? (

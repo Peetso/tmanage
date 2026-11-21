@@ -1,4 +1,5 @@
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import {
   expireCookie,
   hashRefreshToken,
@@ -120,7 +121,9 @@ export type SessionRejection =
   | 'session_revoked'
   | 'session_expired'
   // ---- platform-admin v2 · PA-06 ---- a platform admin disabled the account (0247).
-  | 'account_disabled';
+  | 'account_disabled'
+  // 60-04: the account is an AI employee's credential-less user; it never holds a session.
+  | 'ai_employee';
 
 export type RefreshRejection =
   | 'no_cookie'
@@ -135,6 +138,17 @@ export type RefreshRejection =
 
 const AUTHENTICATION_REFUSAL = 'The request carries no valid session';
 const REFRESH_REFUSAL = 'The refresh token was not accepted';
+
+/**
+ * 60-04 (plan 60 v2 §4.1, security test 1): the refusal when a session was about to start for an
+ * AI employee's user. No credential can authenticate that account today (no password, no factor, a `.invalid`
+ * address), so reaching this is a defect upstream; the one session writer refuses it for every
+ * door at once (password, passkey, e-mail code, SSO, Google, Microsoft, portal, invitation,
+ * setup, sign-up).
+ */
+export function aiEmployeeSessionRefused(): ApiError {
+  return new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'ai_employee:sign_in');
+}
 
 export class SessionNotAuthenticatedError extends Error {
   constructor(readonly code: SessionRejection) {
@@ -284,10 +298,14 @@ export class SessionService {
       {
         correlationId: input.correlationId,
         tables: input.linkSignInEvent
-          ? [...IDENTITY_TABLES, 'authentication_events']
-          : [...IDENTITY_TABLES],
+          ? [...IDENTITY_TABLES, 'users', 'authentication_events']
+          : [...IDENTITY_TABLES, 'users'],
       },
       async (tx) => {
+        // 60-04 door: never a session for an AI employee's user, whichever sign-in led here.
+        if ((await this.sessions.findStanding(tx, input.userId))?.aiEmployee === true) {
+          throw aiEmployeeSessionRefused();
+        }
         const created = await this.sessions.create(tx, {
           userId: input.userId,
           refreshTokenHash: refresh.hash,
@@ -346,6 +364,8 @@ export class SessionService {
     // ---- platform-admin v2 · PA-06 ---- A disabled account is refused like any dead session:
     // the same 401, the cause on `auditCode` only.
     if (standing?.disabledAt) throw new SessionNotAuthenticatedError('account_disabled');
+    // 60-04: an AI employee's user never holds a live session (defence in depth behind `start`).
+    if (standing?.aiEmployee === true) throw new SessionNotAuthenticatedError('ai_employee');
 
     // `ip_first`/`ip_last` (0247): written only when the address moved, so an ordinary request
     // costs no write. Best-effort: an address stamp never refuses a live session.

@@ -104,6 +104,10 @@ export class ApprovalDelegationService {
           'delegate_not_an_active_member',
         );
       }
+      // 60-04 door (plan 60 v2 §4.1): an AI employee never becomes an approver by delegation.
+      if (delegate.kind !== 'human') {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'delegate_ai_employee');
+      }
 
       const row = await this.delegations.insert(tx, context, {
         delegatorMembershipId,

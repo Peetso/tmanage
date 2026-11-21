@@ -50,6 +50,8 @@ export type ControlCenterSection =
   | 'automations'
   | 'integrations'
   | 'connected-apps'
+  // Plan 62 (Figma G11 771:45216): TManage AI's Usage and Business Memory tabs, for AI managers.
+  | 'ai'
   | 'storage'
   | 'modules'
   | 'security'
@@ -331,6 +333,14 @@ const GROUPS: readonly SectionGroup[] = [
         href: '/settings/connected-apps',
         capability: 'work.read',
       },
+      // Plan 62 (Figma G11 771:45257 "Nav · AI"): after Connected apps, for people who manage AI.
+      {
+        id: 'ai',
+        labelKey: ccKey('ControlCenter.ai'),
+        fallback: 'AI',
+        href: '/admin/ai/memory',
+        capability: 'ai.manage',
+      },
     ],
   },
   {
@@ -428,6 +438,7 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   automations: 'zap',
   integrations: 'puzzle',
   'connected-apps': 'plug',
+  ai: 'zap',
   security: 'shield',
   incidents: 'alert',
   audit: 'listChecks',

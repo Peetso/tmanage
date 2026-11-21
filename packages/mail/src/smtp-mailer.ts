@@ -54,6 +54,22 @@ export interface SmtpMailerOptions extends MailFromOptions {
   readonly pooled?: boolean | undefined;
 }
 
+/**
+ * Whether a recipient is under the reserved `.invalid` top-level domain (RFC 6761 §6.4), which
+ * never resolves: AI employees' users (`ai-<uuid>@ai-employee.invalid`, plan 60 v2). Any case,
+ * a trailing dot tolerated.
+ */
+export function isReservedInvalidAddress(address: string): boolean {
+  const at = address.lastIndexOf('@');
+  if (at < 0) return false;
+  const domain = address
+    .slice(at + 1)
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/u, '');
+  return domain === 'invalid' || domain.endsWith('.invalid');
+}
+
 export class SmtpMailer implements ReceiptMailer {
   private readonly transport: Transporter;
   private readonly from: string;
@@ -123,6 +139,9 @@ export class SmtpMailer implements ReceiptMailer {
 
   /** 56-31: `send`, plus the server's message id for DSN matching (56-26). */
   async submit(message: MailMessage): Promise<MailReceipt> {
+    // 60-04: an address under the reserved `.invalid` top-level domain (RFC 6761 §6.4; AI
+    // employees' credential-less users live there) can never be delivered; nothing is submitted.
+    if (isReservedInvalidAddress(message.to)) return { delivery: 'none', messageId: null };
     const messageId =
       this.bounceKey === undefined || message.organizationId === undefined
         ? null

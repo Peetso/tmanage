@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gt, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import type { RowDataPacket } from 'mysql2';
-import { uuidv7 } from '@tmanage/domain';
+import { isAiEmployeeEmail, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { authenticationEvents, organizations, publicLinks } from '../../common/database/schema.js';
 import { createServiceContext } from '../../common/database/tenant-context.js';
@@ -150,6 +150,8 @@ export class PortalSignInRepository implements PortalSignInStore {
     correlationId: string,
   ): Promise<EligibleClient | null> {
     if (match.email === '') return null;
+    // 60-04 door (plan 60 v2 §4.1): the client portal never signs in an AI employee's user.
+    if (isAiEmployeeEmail(match.email.toLowerCase())) return null;
     return this.database.bootstrapRead(
       {
         correlationId,

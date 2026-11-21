@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { customRoleKey, OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { OffboardingService } from './offboarding.service.js';
+import type { AiEmployeeSponsorHook } from './offboarding.service.js';
 import type { MembershipsRepository } from './memberships.repository.js';
 import type { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
@@ -62,6 +63,7 @@ function membershipRow(overrides: Partial<MembershipRow> = {}): MembershipRow {
     organizationId: ORG,
     userId: TARGET_USER,
     role: 'member',
+    kind: 'human',
     status: 'active',
     version: 1,
     hasOrgWideScope: false,
@@ -96,6 +98,7 @@ function serviceWith(
     readonly otherAdmins?: number;
     readonly otherOwners?: number;
     readonly storageHolds?: StorageHoldsHook;
+    readonly aiEmployees?: AiEmployeeSponsorHook;
   } = {},
 ): {
   service: OffboardingService;
@@ -204,6 +207,7 @@ function serviceWith(
       invitations,
       customRoles,
       options.storageHolds ?? null,
+      options.aiEmployees ?? null,
     ),
     transitions,
     audits,
@@ -307,6 +311,30 @@ describe('OffboardingService', () => {
     });
     expect(projectRemovals).toHaveLength(0);
     expect(workClears).toHaveLength(0);
+  });
+
+  it('60-04: refuses an AI member with 409 and no write (Retire is its only way out)', async () => {
+    const { service, transitions, audits, projectRemovals } = serviceWith(
+      membershipRow({ kind: 'ai' }),
+    );
+    await expect(service.offboard(context, owner(), TARGET_USER)).rejects.toMatchObject({
+      status: 409,
+      auditCode: 'offboard_ai_employee',
+    });
+    expect(transitions).toHaveLength(0);
+    expect(audits).toHaveLength(0);
+    expect(projectRemovals).toHaveLength(0);
+  });
+
+  it('60-04: pauses the AI employees the leaver sponsors, counted on the one audit row', async () => {
+    const pauseForSponsor = vi.fn(async (..._args: unknown[]) => 2);
+    const { service, audits } = serviceWith(membershipRow(), {
+      aiEmployees: { pauseForSponsor },
+    });
+    await service.offboard(context, owner(), TARGET_USER);
+    expect(pauseForSponsor).toHaveBeenCalledTimes(1);
+    expect(pauseForSponsor.mock.calls[0]?.[2]).toBe(TARGET_MEMBERSHIP);
+    expect(audits[0]?.metadata).toMatchObject({ ai_employees_paused: 2 });
   });
 
   it('returns 404 with no write for an unknown or cross-tenant membership id (Known trap)', async () => {

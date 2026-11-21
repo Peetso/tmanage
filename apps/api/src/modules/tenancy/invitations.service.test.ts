@@ -424,6 +424,19 @@ describe('A1: "Add to projects" and "Personal note" on an invitation', () => {
     expect(issue).not.toHaveBeenCalled();
   });
 
+  it("60-04: never invites an AI employee's address (422), no row, no mail", async () => {
+    const { service, issue } = harness();
+    const error = await refusal(
+      service.issue(context, owner, {
+        email: 'AI-0190a000-0000-7000-8000-000000000001@AI-Employee.Invalid',
+        role: 'member',
+      }),
+    );
+    expect(error.status).toBe(422);
+    expect(error.auditCode).toBe('invitation.ai_employee_address');
+    expect(issue).not.toHaveBeenCalled();
+  });
+
   it('refuses a project that is not live in this tenant (400), without a write', async () => {
     const { service, issue } = harness({ liveProjectIds: [P1] });
 

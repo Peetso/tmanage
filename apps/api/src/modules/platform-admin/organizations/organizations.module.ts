@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiEmployeesRepository } from '../../ai-employees/ai-employees.repository.js';
 import { StorageHoldsHook } from '../../storage-root/storage-holds.js';
 import { uuidv7 } from '@tmanage/domain';
 import type { DynamicModule, Provider } from '@nestjs/common';
@@ -147,6 +148,7 @@ export class PlatformOrganizationsModule {
             undefined,
             undefined,
             new StorageHoldsHook(),
+            new AiEmployeesRepository(),
           ),
           audit,
         );

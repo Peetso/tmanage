@@ -1,3 +1,4 @@
+import { isAiEmployeeEmail } from '@tmanage/domain';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { createTwoPhaseFixedWindowLimiter } from '../../common/http/rate-limiter.js';
@@ -162,6 +163,9 @@ export class PasswordResetService {
     if (!EMAIL_SHAPE.test(email) || email.length > 254) {
       return { delivery: Promise.resolve('none') };
     }
+    // 60-04 door: an AI employee's address (`*@ai-employee.invalid`) never gets a reset link. The
+    // answer is the one an unknown address gets, so the door reveals nothing.
+    if (isAiEmployeeEmail(email)) return { delivery: Promise.resolve('none') };
     // NV11: the per-recipient bound, before any read, so it costs nothing and reveals nothing.
     if (!this.mailBudget.admitRecipient(email)) return { delivery: Promise.resolve('none') };
 

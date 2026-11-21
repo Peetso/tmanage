@@ -244,6 +244,37 @@ export class AiEmployeesRepository {
     return result[0].affectedRows === 1;
   }
 
+  /**
+   * 60-04 offboarding rule (plan 60 v2 §4.5): when a person leaves, every active AI employee they
+   * sponsor is paused with reason `sponsor_left`, in the offboarding transaction. A paused one
+   * stays paused (its first reason stands); resuming needs a new, active sponsor. Returns how many
+   * were paused, for the offboarding audit row.
+   */
+  async pauseForSponsor(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    sponsorMembershipId: string,
+    at: Date,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .update(aiEmployees)
+      .set({
+        status: 'paused',
+        pausedReason: 'sponsor_left',
+        pausedAt: at,
+        version: sql`${aiEmployees.version} + 1`,
+        updatedAt: at,
+      })
+      .where(
+        and(
+          eq(aiEmployees.organizationId, context.organizationId),
+          eq(aiEmployees.sponsorMembershipId, sponsorMembershipId),
+          eq(aiEmployees.status, 'active'),
+        ),
+      );
+    return result[0].affectedRows;
+  }
+
   private async select(
     runner: TenantQueryRunner,
     context: TenantContext,

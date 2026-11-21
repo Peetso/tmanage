@@ -1,4 +1,4 @@
-import { uuidv7 } from '@tmanage/domain';
+import { isAiEmployeeEmail, uuidv7 } from '@tmanage/domain';
 import type { RowDataPacket } from 'mysql2';
 import { createServiceContext } from '../../../common/database/tenant-context.js';
 import type {
@@ -496,6 +496,9 @@ export class PlatformOrganizationsRepository {
     email: string,
     correlationId: string,
   ): Promise<{ readonly id: string; readonly email: string; readonly displayName: string } | null> {
+    // 60-04 door: the platform never adds an AI employee's user to a company (as a member or an
+    // owner); to the platform screens that address has no account.
+    if (isAiEmployeeEmail(email.trim().toLowerCase())) return null;
     return this.database.identityRead({ correlationId, tables: ['users'] }, async (db) => {
       const rows = await db.query<Row[]>(ORG_SQL.userByEmail, [email]);
       const row = rows[0];

@@ -1,4 +1,4 @@
-import { uuidv7 } from '@tmanage/domain';
+import { isAiEmployeeEmail, uuidv7 } from '@tmanage/domain';
 import type { StorageHoldsHook } from '../storage-root/storage-holds.js';
 import type { Principal } from '@tmanage/domain';
 import {
@@ -301,6 +301,11 @@ export class ScimService {
       this.connections.find(runner, context),
     );
     if (!connection) throw scimUnauthorized();
+    // 60-04 door: an AI employee's address is never provisioned (it would attach the AI user to
+    // this company as a person).
+    if (isAiEmployeeEmail(input.email)) {
+      throw new ScimError(400, 'userName must be in a company sign-in domain.', 'invalidValue');
+    }
     const domain = emailDomain(input.email);
     if (domain === null || !parseDomainList(connection.allowedDomains).includes(domain)) {
       throw new ScimError(400, 'userName must be in a company sign-in domain.', 'invalidValue');

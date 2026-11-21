@@ -1,4 +1,5 @@
 import {
+  isAiEmployeeEmail,
   isPlatformPreset,
   normalizePlatformPermissions,
   platformPermissionsFor,
@@ -248,6 +249,8 @@ export class PlatformAdminsRepository {
   }
 
   async findUserByEmail(email: string, correlationId: string): Promise<PlatformUserRow | null> {
+    // 60-04 door: an AI employee's user is never made a platform admin.
+    if (isAiEmployeeEmail(email.trim().toLowerCase())) return null;
     return this.users(correlationId, ADMINS_SQL.userByEmail, [email.trim().toLowerCase()]);
   }
 

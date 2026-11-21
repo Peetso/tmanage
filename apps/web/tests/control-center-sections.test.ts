@@ -41,6 +41,8 @@ describe('controlCenterSectionsFor', () => {
         ['automations', '/automations'],
         ['integrations', '/automations/apps'],
         ['connected-apps', '/settings/connected-apps'],
+        // Plan 62 (Figma G11): TManage AI, for people who manage AI (`ai.manage`).
+        ['ai', '/admin/ai/memory'],
       ],
       [
         ['security', '/admin/security'],

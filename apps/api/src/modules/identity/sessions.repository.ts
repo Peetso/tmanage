@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
-import { uuidv7 } from '@tmanage/domain';
+import { isAiEmployeeEmail, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   authenticationEvents,
@@ -69,6 +69,12 @@ export interface RotateSessionInput {
 export interface AccountStanding {
   readonly disabledAt: Date | null;
   readonly twoStepRequiredAt: Date | null;
+  /**
+   * 60-04 (plan 60 v2 §4.1 doors): the account is an AI employee's credential-less user
+   * (`ai-<uuid>@ai-employee.invalid`). Such an account never holds a session. Set by
+   * {@link SessionsRepository.findStanding}; absent means a person.
+   */
+  readonly aiEmployee?: boolean;
 }
 
 /** `sessions.ip_*` hold `VARCHAR(45)` — an IPv6 text form at most. Longer input is not an address. */
@@ -431,11 +437,21 @@ export class SessionsRepository {
   /** The account's standing (disabled, two-step required). `null` for an unknown user. */
   async findStanding(runner: IdentityQueryRunner, userId: string): Promise<AccountStanding | null> {
     const rows = await tenantDrizzle(runner)
-      .select({ disabledAt: users.disabledAt, twoStepRequiredAt: users.twoStepRequiredAt })
+      .select({
+        disabledAt: users.disabledAt,
+        twoStepRequiredAt: users.twoStepRequiredAt,
+        email: users.email,
+      })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
-    return rows[0] ?? null;
+    const row = rows[0];
+    if (row === undefined) return null;
+    return {
+      disabledAt: row.disabledAt,
+      twoStepRequiredAt: row.twoStepRequiredAt,
+      aiEmployee: isAiEmployeeEmail(row.email),
+    };
   }
 
   /** AUTHSTATE: who the session belongs to, for "You're signed in as …". `null` for none. */

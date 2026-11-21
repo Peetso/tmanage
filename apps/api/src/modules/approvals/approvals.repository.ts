@@ -469,6 +469,8 @@ export class ApprovalsRepository {
         and(
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.status, 'active'),
+          // 60-04 door: an AI employee is never an internal reviewer (approver) of work.
+          eq(memberships.kind, 'human'),
           inArray(memberships.userId, [...userIds]),
         ),
       );

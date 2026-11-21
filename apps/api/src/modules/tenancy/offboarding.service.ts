@@ -8,7 +8,11 @@ import {
 } from '@tmanage/domain';
 import type { InternalRole, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import type { MembershipRow } from '../../common/database/schema.js';
 import type { MembershipsRepository } from './memberships.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
@@ -129,6 +133,16 @@ function toOffboardedView(row: MembershipRow, holds: readonly StorageHold[]): Of
   };
 }
 
+/** 60-04: the one write offboarding needs from the AI-employee table (same bounded context). */
+export interface AiEmployeeSponsorHook {
+  pauseForSponsor(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    sponsorMembershipId: string,
+    at: Date,
+  ): Promise<number>;
+}
+
 export class OffboardingService {
   constructor(
     private readonly database: TenantDatabase,
@@ -149,6 +163,12 @@ export class OffboardingService {
     private readonly customRoles: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
     /** 51-17. The company storage this member holds; null (tests) reads none. */
     private readonly storageHolds: StorageHoldsHook | null = null,
+    /**
+     * 60-04 (plan 60 v2 §4.5): pauses the AI employees this member sponsors (`sponsor_left`) in the
+     * offboarding transaction. Null (tests) pauses none.
+     */
+    private readonly aiEmployees: AiEmployeeSponsorHook | null = null,
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   /**
@@ -265,6 +285,12 @@ export class OffboardingService {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'offboard_self');
     }
 
+    // Guard 1a — 60-04: an AI employee leaves through its own lifecycle (Retire), which offboards
+    // the membership and closes the companion row together; never through People.
+    if (membership.kind !== 'human') {
+      throw new ApiError(409, 'conflict', MESSAGES.conflict, undefined, 'offboard_ai_employee');
+    }
+
     // Guard 1b — only an owner may offboard an owner (CQ-06). The organization admin holds
     // `member.offboard` and `org.manage`; without this an admin could remove every owner.
     if (
@@ -339,6 +365,9 @@ export class OffboardingService {
         row.userId,
       );
 
+      const aiEmployeesPaused =
+        (await this.aiEmployees?.pauseForSponsor(tx, context, row.id, this.now())) ?? 0;
+
       await this.audit.record(tx, context, {
         action: 'membership.offboarded',
         result: 'allowed',
@@ -350,6 +379,7 @@ export class OffboardingService {
           project_memberships_removed: projectMembershipsRemoved,
           owned_work_items_cleared: ownedWorkItemsCleared,
           invitations_revoked: invitationsRevoked,
+          ai_employees_paused: aiEmployeesPaused,
         },
       });
       // 51-17: storage this member connected keeps working on their token; the owners are told

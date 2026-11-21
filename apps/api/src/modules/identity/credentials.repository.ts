@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
-import { uuidv7 } from '@tmanage/domain';
+import { isAiEmployeeEmail, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   authenticationEvents,
@@ -323,6 +323,14 @@ export class CredentialChangeNoticeRequiredError extends Error {
 // Passwords
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** 60-04: a credential was about to be written for an AI employee's user (a defect upstream). */
+export class AiEmployeeCredentialRefusedError extends Error {
+  constructor(readonly userId: string) {
+    super('An AI employee has no password.');
+    this.name = 'AiEmployeeCredentialRefusedError';
+  }
+}
+
 export class CredentialsRepository {
   /**
    * The cipher is injected rather than built here, and it has no default.
@@ -374,6 +382,16 @@ export class CredentialsRepository {
     userId: string,
     passwordHash: string,
   ): Promise<void> {
+    // 60-04 door (plan 60 v2 §4.1): an AI employee's user never gets a password, by any path
+    // (set, change, reset). The one password writer refuses it, so no route can forget it.
+    const owner = await tenantDrizzle(runner)
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (owner[0] !== undefined && isAiEmployeeEmail(owner[0].email)) {
+      throw new AiEmployeeCredentialRefusedError(userId);
+    }
     await tenantDrizzle(runner)
       .insert(userPasswords)
       .values({

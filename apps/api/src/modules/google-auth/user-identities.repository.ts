@@ -1,4 +1,4 @@
-import { uuidv7 } from '@tmanage/domain';
+import { isAiEmployeeEmail, uuidv7 } from '@tmanage/domain';
 import { and, eq, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { userIdentities, users } from '../../common/database/schema.js';
@@ -46,6 +46,9 @@ export class UserIdentitiesRepository {
     runner: IdentityQueryRunner,
     email: string,
   ): Promise<{ readonly userId: string; readonly emailVerifiedAt: Date | null } | null> {
+    // 60-04 door (plan 60 v2 §4.1): Google, Microsoft and company sign-in (SSO, SCIM's account
+    // lookup) never find an AI employee's user by address: it is "no account" to every provider.
+    if (isAiEmployeeEmail(email.trim().toLowerCase())) return null;
     const rows = await tenantDrizzle(runner)
       .select({ userId: users.id, emailVerifiedAt: users.emailVerifiedAt })
       .from(users)

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiEmployeesRepository } from '../ai-employees/ai-employees.repository.js';
 import { StorageHoldsHook } from '../storage-root/storage-holds.js';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
@@ -130,6 +131,7 @@ export class TenancyModule {
           undefined,
           undefined,
           new StorageHoldsHook(),
+          new AiEmployeesRepository(),
         ),
     };
 

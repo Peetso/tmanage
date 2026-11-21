@@ -26,6 +26,12 @@ export interface AiText {
   readonly t: (key: AiTextKey, values?: Readonly<Record<string, string | number>>) => string;
   /** "1 credit", "40 credits" in the locale's plural form and digits. */
   readonly credits: (count: number) => string;
+  /** Any `{base}.one/.other/...` phrase of these screens, `{count}` in the locale's digits. */
+  readonly plural: (
+    base: string,
+    count: number,
+    english: { readonly one: string; readonly other: string },
+  ) => string;
   readonly number: (value: number) => string;
   readonly time: (iso: string) => string;
   readonly day: (iso: string) => string;
@@ -49,6 +55,8 @@ export function useAiText(): AiText {
           { one: '{count} credit', other: '{count} credits' },
           format.number(count),
         ),
+      plural: (base, count, english) =>
+        pluralPhrase(tOr, locale, base, count, english, format.number(count)),
       number: (value) => format.number(value),
       time: (iso) => format.time(iso),
       day: (iso) => format.day(iso, { day: 'numeric', month: 'short' }),
