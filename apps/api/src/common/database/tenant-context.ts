@@ -885,7 +885,48 @@ export class TenantDatabase {
     }
   }
 
+  /**
+   * 60-03 (plan 60 v2 §4.1). Hire an AI employee atomically: its credential-less `users` row
+   * (identity runner declared over `users` only, so no password, factor or session table is
+   * reachable) and its membership and companion row (a tenant runner for the hiring context), on
+   * ONE connection inside ONE transaction. A failure part way leaves no user without its
+   * membership and no membership without its companion row.
+   */
+  async aiEmployeeHireTransaction<T>(
+    context: TenantContext,
+    work: (scope: AiEmployeeHireScope) => Promise<T>,
+  ): Promise<T> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      try {
+        const result = await work({
+          identity: makeIdentityRunner(connection, this.options, {
+            correlationId: context.correlationId,
+            tables: ['users'],
+          }),
+          tenant: makeRunner(connection, context, this.options),
+        });
+        await connection.commit();
+        return result;
+      } catch (error) {
+        await connection.rollback();
+        throw unwrapQueryError(error);
+      }
+    } finally {
+      connection.release();
+    }
+  }
+
   async end(): Promise<void> {
     await this.pool.end();
   }
+}
+
+/** 60-03. The two runners an AI-employee hire needs, on one connection in one transaction. */
+export interface AiEmployeeHireScope {
+  /** Identity runner declared over `users` only. */
+  readonly identity: IdentityQueryRunner;
+  /** The tenant runner of the hiring context. */
+  readonly tenant: TenantQueryRunner;
 }

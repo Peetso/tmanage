@@ -1394,6 +1394,39 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/business-memory/facts/:factId/retire',
     reason: 'business_memory_decision',
   },
+  // 60-03: AI employees, people only.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/ai-employees/', reason: 'ai_employee_admin' },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId',
+    reason: 'ai_employee_admin',
+  },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/ai-employees/', reason: 'ai_employee_admin' },
+  {
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/pause',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/resume',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/sponsor',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/retire',
+    reason: 'ai_employee_admin',
+  },
   { method: 'GET', path: '/v1/platform/ai/test-list/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/ai/test-list/:organizationId', reason: 'platform_admin' },
   {

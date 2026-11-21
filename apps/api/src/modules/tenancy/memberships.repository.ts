@@ -384,6 +384,40 @@ export class MembershipsRepository {
     return this.requireById(runner, context, input.id);
   }
 
+  /**
+   * 60-03 (plan 60 v2 §4.1). The membership of a newly hired AI employee: kind `ai`, created
+   * `active` (there is nobody to accept an invitation; the hiring person is the grant), never
+   * org-wide (§4.6: "`ai` memberships always have `has_org_wide_scope = 0`"), no workspace scope.
+   * The role was already decided by `aiRoleDecision` and the role-grant ceiling; this method only
+   * writes. The second place a membership is born active (after {@link createFounder}), and the
+   * only one that writes kind `ai`.
+   */
+  async createAiMember(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: {
+      readonly id: string;
+      readonly userId: string;
+      readonly role: string;
+      readonly at: Date;
+    },
+  ): Promise<MembershipRow> {
+    await tenantDrizzle(runner).insert(memberships).values({
+      id: input.id,
+      organizationId: context.organizationId,
+      userId: input.userId,
+      role: input.role,
+      kind: 'ai',
+      status: 'active',
+      hasOrgWideScope: false,
+      workspaceScopeId: null,
+      version: 1,
+      createdAt: input.at,
+      updatedAt: input.at,
+    });
+    return this.requireById(runner, context, input.id);
+  }
+
   async invite(
     runner: TenantQueryRunner,
     context: TenantContext,
@@ -444,6 +478,9 @@ export class MembershipsRepository {
     // widen or narrow it), null clears it, an id sets it. Never defaulted from the role name.
     if (workspaceScopeId !== undefined) changes['workspaceScopeId'] = workspaceScopeId;
 
+    // 60-04 interim door (plan 60 v2 §5 test 1): the role of an AI member (`kind = 'ai'`) is never
+    // changed here, by any caller (member admin, platform admin, owner transfer). Fail closed in
+    // the write itself, so no route can forget it; an AI member reads as not found.
     const result = await tenantDrizzle(runner)
       .update(memberships)
       .set(changes)
@@ -452,12 +489,13 @@ export class MembershipsRepository {
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.id, membershipId),
           eq(memberships.version, expectedVersion),
+          eq(memberships.kind, 'human'),
         ),
       );
 
     if (result[0].affectedRows === 0) {
       const current = await this.findById(runner, context, membershipId);
-      if (!current) throw new MembershipNotFoundError(membershipId);
+      if (!current || current.kind !== 'human') throw new MembershipNotFoundError(membershipId);
       throw new MembershipVersionConflictError(membershipId, current.version);
     }
 

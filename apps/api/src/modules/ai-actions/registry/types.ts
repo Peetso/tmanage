@@ -143,6 +143,10 @@ export const NEVER_REASONS = [
   // 62-26. Approving, editing, confirming or retiring a Business Memory fact: the person's yes is
   // the safeguard that keeps the AI from remembering on its own (plan 62 §4.6).
   'business_memory_decision',
+  // 60-03. Hiring, changing, pausing, resuming, re-sponsoring or retiring an AI employee: a person's
+  // decision about who works in the company. No AI principal, an AI employee least of all, may
+  // drive it (plan 60 v2 §5 test 6, "self-change").
+  'ai_employee_admin',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

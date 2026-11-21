@@ -1,0 +1,331 @@
+import {
+  parseAiEmployeePauseReason,
+  parseAiEmployeeStatus,
+  parseMembershipKind,
+  type AiEmployeePauseReason,
+  type AiEmployeeStatus,
+  type MembershipKind,
+} from '@tmanage/domain';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { aiEmployees, memberships, organizations, users } from '../../common/database/schema.js';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+
+/**
+ * 60-03 (0399) — `ai_employees`, read beside the membership and user rows of the same bounded
+ * context (Tenancy & People, VIEWS §4). Bound SQL only (DA-3); the organization comes from the
+ * verified context on every tenant table of every statement (DA-12); times are bound by the
+ * service (DA-10). Edits are conditional on `version` (DA-1, lost update).
+ */
+
+/** One AI employee as the service reads it: the companion row with its member and sponsor. */
+export interface AiEmployeeRecord {
+  readonly id: string;
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly displayName: string;
+  readonly role: string;
+  readonly membershipStatus: string;
+  readonly sponsorMembershipId: string;
+  readonly sponsorDisplayName: string | null;
+  readonly createdByMembershipId: string;
+  readonly jobTitle: string;
+  readonly departmentKey: string | null;
+  readonly vendorLabel: string | null;
+  readonly modelLabel: string | null;
+  readonly status: AiEmployeeStatus;
+  readonly pausedReason: AiEmployeePauseReason | null;
+  readonly pausedAt: Date | null;
+  readonly retiredAt: Date | null;
+  readonly timezone: string;
+  readonly workingHoursJson: string | null;
+  readonly limitsJson: string | null;
+  readonly discloseToClients: boolean;
+  readonly version: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+/** A membership of this workspace as a sponsor check needs it. */
+export interface MemberFacts {
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly role: string;
+  readonly status: string;
+  /** `null` when the stored kind cannot be read (refused everywhere). */
+  readonly kind: MembershipKind | null;
+}
+
+export interface NewAiEmployee {
+  readonly id: string;
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly sponsorMembershipId: string;
+  readonly createdByMembershipId: string;
+  readonly jobTitle: string;
+  readonly departmentKey: string | null;
+  readonly vendorLabel: string | null;
+  readonly modelLabel: string | null;
+  readonly timezone: string;
+  readonly workingHoursJson: string | null;
+  readonly limitsJson: string;
+  readonly discloseToClients: boolean;
+  readonly at: Date;
+}
+
+/** The columns an edit may set. Absent = unchanged. */
+export interface AiEmployeeChange {
+  readonly jobTitle?: string;
+  readonly departmentKey?: string | null;
+  readonly vendorLabel?: string | null;
+  readonly modelLabel?: string | null;
+  readonly timezone?: string;
+  readonly workingHoursJson?: string | null;
+  readonly limitsJson?: string;
+  readonly discloseToClients?: boolean;
+  readonly sponsorMembershipId?: string;
+  readonly status?: AiEmployeeStatus;
+  readonly pausedReason?: AiEmployeePauseReason | null;
+  readonly pausedAt?: Date | null;
+  readonly retiredAt?: Date;
+  readonly retiredByMembershipId?: string;
+}
+
+export class AiEmployeesRepository {
+  /**
+   * DA-1 (write skew on "at most N AI employees" and "one live name"): every hire takes the
+   * organization row `FOR UPDATE` first, so two hires in one workspace run one after the other
+   * and the count and the name check each see the other's row. One lock, always taken first.
+   */
+  async lockOrganization(runner: TenantQueryRunner, context: TenantContext): Promise<void> {
+    await tenantDrizzle(runner)
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.id, context.organizationId))
+      .for('update');
+  }
+
+  /** AI employees that are not retired (the beta cap counts these). */
+  async countLive(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ n: sql<number>`count(*)` })
+      .from(aiEmployees)
+      .where(
+        and(
+          eq(aiEmployees.organizationId, context.organizationId),
+          ne(aiEmployees.status, 'retired'),
+        ),
+      );
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  /** Is this display name already used by an AI employee that is not retired (any case)? */
+  async liveNameTaken(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    displayName: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: aiEmployees.id })
+      .from(aiEmployees)
+      .innerJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, aiEmployees.organizationId),
+          eq(memberships.id, aiEmployees.membershipId),
+        ),
+      )
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          eq(aiEmployees.organizationId, context.organizationId),
+          eq(memberships.organizationId, context.organizationId),
+          ne(aiEmployees.status, 'retired'),
+          sql`lower(${users.displayName}) = lower(${displayName})`,
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  async findMember(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+  ): Promise<MemberFacts | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        membershipId: memberships.id,
+        userId: memberships.userId,
+        role: memberships.role,
+        status: memberships.status,
+        kind: memberships.kind,
+      })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.id, membershipId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (row === undefined) return null;
+    return { ...row, kind: parseMembershipKind(row.kind) };
+  }
+
+  async insert(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    row: NewAiEmployee,
+  ): Promise<void> {
+    await tenantDrizzle(runner).insert(aiEmployees).values({
+      id: row.id,
+      organizationId: context.organizationId,
+      membershipId: row.membershipId,
+      userId: row.userId,
+      sponsorMembershipId: row.sponsorMembershipId,
+      createdByMembershipId: row.createdByMembershipId,
+      jobTitle: row.jobTitle,
+      departmentKey: row.departmentKey,
+      vendorLabel: row.vendorLabel,
+      modelLabel: row.modelLabel,
+      status: 'active',
+      pausedReason: null,
+      pausedAt: null,
+      retiredAt: null,
+      retiredByMembershipId: null,
+      allowedTaskTypesJson: null,
+      timezone: row.timezone,
+      workingHoursJson: row.workingHoursJson,
+      limitsJson: row.limitsJson,
+      discloseToClients: row.discloseToClients,
+      version: 1,
+      createdAt: row.at,
+      updatedAt: row.at,
+    });
+  }
+
+  async list(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly AiEmployeeRecord[]> {
+    return this.select(runner, context, null);
+  }
+
+  async findById(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+  ): Promise<AiEmployeeRecord | null> {
+    const rows = await this.select(runner, context, id);
+    return rows[0] ?? null;
+  }
+
+  /** A conditional edit: `true` when the row at `expectedVersion` was changed, else `false`. */
+  async update(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+    expectedVersion: number,
+    change: AiEmployeeChange,
+    at: Date,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(aiEmployees)
+      .set({ ...change, version: sql`${aiEmployees.version} + 1`, updatedAt: at })
+      .where(
+        and(
+          eq(aiEmployees.organizationId, context.organizationId),
+          eq(aiEmployees.id, id),
+          eq(aiEmployees.version, expectedVersion),
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
+  private async select(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string | null,
+  ): Promise<readonly AiEmployeeRecord[]> {
+    const predicates = [
+      eq(aiEmployees.organizationId, context.organizationId),
+      eq(memberships.organizationId, context.organizationId),
+    ];
+    if (id !== null) predicates.push(eq(aiEmployees.id, id));
+    const rows = await tenantDrizzle(runner)
+      .select({
+        id: aiEmployees.id,
+        membershipId: aiEmployees.membershipId,
+        userId: aiEmployees.userId,
+        displayName: users.displayName,
+        role: memberships.role,
+        membershipStatus: memberships.status,
+        sponsorMembershipId: aiEmployees.sponsorMembershipId,
+        createdByMembershipId: aiEmployees.createdByMembershipId,
+        jobTitle: aiEmployees.jobTitle,
+        departmentKey: aiEmployees.departmentKey,
+        vendorLabel: aiEmployees.vendorLabel,
+        modelLabel: aiEmployees.modelLabel,
+        status: aiEmployees.status,
+        pausedReason: aiEmployees.pausedReason,
+        pausedAt: aiEmployees.pausedAt,
+        retiredAt: aiEmployees.retiredAt,
+        timezone: aiEmployees.timezone,
+        workingHoursJson: aiEmployees.workingHoursJson,
+        limitsJson: aiEmployees.limitsJson,
+        discloseToClients: aiEmployees.discloseToClients,
+        version: aiEmployees.version,
+        createdAt: aiEmployees.createdAt,
+        updatedAt: aiEmployees.updatedAt,
+      })
+      .from(aiEmployees)
+      .innerJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, aiEmployees.organizationId),
+          eq(memberships.id, aiEmployees.membershipId),
+        ),
+      )
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(and(...predicates))
+      .orderBy(asc(aiEmployees.createdAt), asc(aiEmployees.id));
+    const sponsors = await this.displayNames(runner, context, [
+      ...new Set(rows.map((row) => row.sponsorMembershipId)),
+    ]);
+    const out: AiEmployeeRecord[] = [];
+    for (const row of rows) {
+      const status = parseAiEmployeeStatus(row.status);
+      // A row whose status cannot be read is a defect, not "active": it is left out (deny).
+      if (status === null) continue;
+      out.push({
+        ...row,
+        status,
+        pausedReason: parseAiEmployeePauseReason(row.pausedReason),
+        sponsorDisplayName: sponsors.get(row.sponsorMembershipId) ?? null,
+      });
+    }
+    return out;
+  }
+
+  /** The display name of each membership id of this workspace (a second read, no alias joins). */
+  private async displayNames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>> {
+    if (membershipIds.length === 0) return new Map();
+    const rows = await tenantDrizzle(runner)
+      .select({ membershipId: memberships.id, displayName: users.displayName })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          inArray(memberships.id, [...membershipIds]),
+        ),
+      );
+    return new Map(rows.map((row) => [row.membershipId, row.displayName] as const));
+  }
+}

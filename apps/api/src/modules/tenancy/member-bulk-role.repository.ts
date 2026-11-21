@@ -71,6 +71,8 @@ export class MemberBulkRoleRepository {
         and(
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.id, membershipId),
+          // 60-04 interim door: an AI member's role is never changed in bulk (reads as not found).
+          eq(memberships.kind, 'human'),
           options.keepOwners ? ne(memberships.role, 'owner') : undefined,
         ),
       );

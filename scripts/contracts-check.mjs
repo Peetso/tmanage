@@ -69,6 +69,18 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
+    'AiEmployeeListView',
+    'No web consumer yet: 60-03 AI employees routes (…/ai-employees); the People list, hire wizard and profile screens (S1–S6) are designed in Figma first and built in 60-07.',
+  ],
+  [
+    'AiEmployeeView',
+    'No web consumer yet: 60-03 AI employee profile and edit routes; the profile screen (S6) is designed in Figma first and built in 60-07.',
+  ],
+  [
+    'WorkingWindowView',
+    'No web consumer yet: part of AiEmployeeView (60-03); the hours editor is screen S21 (60-38).',
+  ],
+  [
     'BriefingSignalView',
     'No web consumer yet: 62-28 GET …/home/briefing/signals/:signalId is read by the AI chat tool explain_signal; the Explain button on the briefing card sends a chat turn, it does not read this route.',
   ],
