@@ -15291,6 +15291,51 @@ export const aiFileTexts = mysqlTable(
 
 export type AiFileTextRow = typeof aiFileTexts.$inferSelect;
 
+/**
+ * 62-24 (0394). A MariaDB `VECTOR(512)`. Written and read through `VEC_FromText` / `VEC_ToText`
+ * in `copilot/knowledge/knowledge.repository.ts` only, never as a plain column value.
+ */
+const vector512 = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'vector(512)';
+  },
+});
+
+/**
+ * 62-24 (0394). One passage of one file asset's extracted text, with the asset's project and
+ * audience (filter before rank) and its embedding. `0394_ai_file_chunks.sql`.
+ */
+export const aiFileChunks = mysqlTable(
+  'ai_file_chunks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    contentHash: varchar('content_hash', { length: 128 }).notNull(),
+    chunkNo: smallint('chunk_no', { unsigned: true }).notNull(),
+    pageNo: smallint('page_no', { unsigned: true }),
+    audience: mysqlEnum('audience', WORK_ITEM_AUDIENCE).notNull().default('internal'),
+    body: text('body').notNull(),
+    embedding: vector512('embedding'),
+    embeddingModel: varchar('embedding_model', { length: 48 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_file_chunks_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_file_chunks_asset_no').on(
+      table.organizationId,
+      table.fileAssetId,
+      table.chunkNo,
+    ),
+    index('ix_ai_file_chunks_scope').on(table.organizationId, table.projectId),
+    index('ix_ai_file_chunks_hash').on(table.organizationId, table.contentHash, table.chunkNo),
+  ],
+);
+
+export type AiFileChunkRow = typeof aiFileChunks.$inferSelect;
+
 export type AiBudgetPoolRow = typeof aiBudgetPools.$inferSelect;
 export type AiWorkspacePeriodRow = typeof aiWorkspacePeriods.$inferSelect;
 export type AiMemberPeriodRow = typeof aiMemberPeriods.$inferSelect;
@@ -15312,6 +15357,7 @@ Object.assign(TABLES, {
   ai_conversations: aiConversations,
   ai_conversation_messages: aiConversationMessages,
   ai_file_texts: aiFileTexts,
+  ai_file_chunks: aiFileChunks,
 });
 
 // ---- DC-3 / RT-3 · lane K · leader lease ----

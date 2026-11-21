@@ -35,6 +35,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { resolveScanSource } from './file-safety.js';
+import { deleteFileChunks } from './file-texts.repository.js';
 import type { EngineVersion } from '../../common/scan/malware-scanner.js';
 
 /**
@@ -245,7 +246,10 @@ export class FileAssetsRepository {
           isNull(fileAssets.deletedAt),
         ),
       );
-    return result[0].affectedRows > 0;
+    const deleted = result[0].affectedRows > 0;
+    // 62-24 purge hook: the file's AI passages go in this transaction (a restore re-indexes).
+    if (deleted) await deleteFileChunks(runner, context, fileAssetId);
+    return deleted;
   }
 
   /**
@@ -345,6 +349,9 @@ export class FileAssetsRepository {
     if (result[0].affectedRows === 0) {
       throw new FileAssetTransitionError(from, to, 'the file changed state concurrently');
     }
+    // 62-24 dirty hook: a file leaving `ready` (a re-check found malware) loses its AI passages
+    // in the same transaction; the retrieval re-check refuses it meanwhile anyway.
+    if (from === 'ready' && to !== 'ready') await deleteFileChunks(runner, context, fileAssetId);
     return this.requireById(runner, context, fileAssetId);
   }
 

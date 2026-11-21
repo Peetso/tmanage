@@ -2693,6 +2693,10 @@ GRANT INSERT, DELETE ON `tmanage`.`ai_conversation_messages` TO 'tmanage_app'@'%
 -- and concludes it (UPDATE), and deletes a row whose hash no live version holds any more (DELETE).
 -- SELECT rides the database-wide read. The worker touches none of it.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`ai_file_texts` TO 'tmanage_app'@'%';
+-- 0394 (62-24 AI FILE CHUNKS). The knowledge index job writes a file's passages (INSERT), fills in
+-- their embedding and re-copies the file's project and audience (UPDATE), and deletes them when the
+-- file is deleted or purged, in that transaction (DELETE). SELECT rides the database-wide read.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_app'@'%';
 -- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
 -- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
@@ -2778,6 +2782,7 @@ GRANT SELECT, DELETE ON `tmanage`.`ai_conversations` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_moves` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_packs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_texts` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_member_periods` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_tasks` TO 'tmanage_erasure'@'%';

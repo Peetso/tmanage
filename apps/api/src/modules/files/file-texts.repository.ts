@@ -13,7 +13,12 @@ import {
 } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { aiFileTexts, fileAssets, fileVersions } from '../../common/database/schema.js';
+import {
+  aiFileChunks,
+  aiFileTexts,
+  fileAssets,
+  fileVersions,
+} from '../../common/database/schema.js';
 import type { AiFileTextRow } from '../../common/database/schema.js';
 import type {
   BootstrapQueryRunner,
@@ -334,4 +339,24 @@ export class FileTextsRepository {
     );
     return affected(result);
   }
+}
+
+/**
+ * 62-24 — the files part's hook on the AI passages of one file (`ai_file_chunks`, a derivative of
+ * the file like its previews): deleted in the caller's transaction when the file is deleted or
+ * leaves `ready`. The knowledge index job rebuilds them for a restored or re-cleared file.
+ */
+export async function deleteFileChunks(
+  runner: TenantQueryRunner,
+  context: TenantContext,
+  fileAssetId: string,
+): Promise<void> {
+  await tenantDrizzle(runner)
+    .delete(aiFileChunks)
+    .where(
+      and(
+        eq(aiFileChunks.organizationId, context.organizationId),
+        eq(aiFileChunks.fileAssetId, fileAssetId),
+      ),
+    );
 }

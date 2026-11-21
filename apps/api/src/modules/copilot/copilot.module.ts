@@ -44,6 +44,12 @@ import {
 } from './copilot-chat.adapters.js';
 import { CopilotChatService } from './copilot-chat.service.js';
 import { CopilotController } from './copilot.controller.js';
+import {
+  KNOWLEDGE_INDEX_JOB,
+  KnowledgeIndexJob,
+  knowledgeIndexEnabled,
+} from './knowledge/knowledge-index-job.js';
+import { KnowledgeRepository } from './knowledge/knowledge.repository.js';
 
 /** The budget the chat runs on and the confirm/undo refunds through (one per module). */
 const AI_BUDGET_SERVICE = Symbol.for('tmanage.copilot.AiBudgetService');
@@ -67,6 +73,19 @@ export class CopilotModule {
     return {
       module: CopilotModule,
       providers: [
+        // 62-24: passages for every ready file text, in-process (off unless background work runs
+        // here). No embedding provider is wired (no Voyage key): keyword retrieval only.
+        {
+          provide: KNOWLEDGE_INDEX_JOB,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new KnowledgeIndexJob(
+              database,
+              new KnowledgeRepository(),
+              null,
+              knowledgeIndexEnabled(),
+            ),
+        },
         {
           provide: AI_BUDGET_SERVICE,
           inject: [TENANT_DATABASE, AUDIT_SERVICE],
