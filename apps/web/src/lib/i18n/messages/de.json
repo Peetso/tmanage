@@ -20725,6 +20725,7 @@
   "activity.subject.quote.declined": "{actor} hat das Angebot {subject} abgelehnt",
   "activity.subject.quote.converted": "{actor} hat aus dem Angebot {subject} ein Projekt gemacht",
   "FeatureFlags.businessBriefing": "Geschäftsbriefing",
+  "FeatureFlags.aiDigestWording": "KI-Formulierung der Wochenübersicht",
   "AuditActionLabel.work_signal_settings.updated": "Hat die Warnregeln geändert",
   "AuditActionLabel.ai_credit_pack.requested": "Hat mehr KI-Guthaben angefordert",
   "AuditActionLabel.ai_change.confirmed": "Von der KI vorgeschlagene Änderungen bestätigt",

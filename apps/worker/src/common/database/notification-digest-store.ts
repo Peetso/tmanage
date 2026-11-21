@@ -1,4 +1,15 @@
-import { MATRIX_KINDS, belongsInDigest, matrixKindOf } from '@tmanage/domain';
+import { createHash } from 'node:crypto';
+import {
+  DIGEST_WORDING_MAX_AGE_MS,
+  DIGEST_WORDING_MIN_LINES,
+  MATRIX_KINDS,
+  belongsInDigest,
+  checkDigestWording,
+  digestLinesKey,
+  digestSectionLines,
+  matrixKindOf,
+  renderDigestWording,
+} from '@tmanage/domain';
 import type { NotificationMatrixCell, NaturalNotificationKind } from '@tmanage/domain';
 import {
   DIGEST_SENT_TYPE,
@@ -11,7 +22,7 @@ import { BUSINESS_BRIEFING_FLAG } from '../../jobs/signals-sweeper.js';
 import type { DigestBriefingSection } from '../../notifications/briefing-mail.js';
 import type { DigestEmailFacts } from '../../notifications/digest-mailer.js';
 import { readBriefing } from './briefing-store.js';
-import { isFlagOn } from './feature-flag-store.js';
+import { isFlagOn, type WorkerFlag } from './feature-flag-store.js';
 import { findMemberMatrixCell } from './notification-matrix-store.js';
 import { findUsageMailRecipient, insertNotification } from './notifications-store.js';
 import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
@@ -201,10 +212,56 @@ async function briefingSectionFor(
   );
   if (briefing === null || briefing.audience === 'none' || briefing.asOf === null) return null;
   if (briefing.groups.length === 0) return null;
+  const wording =
+    window.cadence === 'weekly' && briefing.audience === 'company'
+      ? await readyWording(
+          tx,
+          recipient.organizationId,
+          digestSectionLines(briefing.groups),
+          window.at,
+        )
+      : null;
   return {
     audience: briefing.audience,
     asOf: briefing.asOf,
     timezone: recipient.timezone,
     groups: briefing.groups,
+    ...(wording === null ? {} : { wording }),
   };
+}
+
+/** 62-28: the optional AI wording of the weekly digest (`ai_digest_wording`, default off). */
+export const AI_DIGEST_WORDING_FLAG: WorkerFlag = { key: 'ai_digest_wording', codeDefault: false };
+
+export const DIGEST_WORDING_SQL = `SELECT body, created_at FROM ai_digest_wordings
+ WHERE organization_id = ? AND lines_sha256 = ? AND status = 'ready'
+ LIMIT 1`;
+
+/**
+ * 62-28: a ready AI wording made for exactly this reader's section (the same signals in the same
+ * order), young enough, and passing the same check again; otherwise null and the mail is the plain
+ * template. A database read only: no model is reachable from the digest.
+ */
+async function readyWording(
+  tx: WorkerTransaction,
+  organizationId: string,
+  lines: Parameters<typeof checkDigestWording>[1],
+  at: Date,
+): Promise<string | null> {
+  if (lines.length < DIGEST_WORDING_MIN_LINES) return null;
+  if (!(await isFlagOn(tx, AI_DIGEST_WORDING_FLAG, organizationId))) return null;
+  const sha = createHash('sha256').update(digestLinesKey(lines)).digest('hex');
+  const row = (
+    await tx.query<readonly { readonly body: unknown; readonly created_at: unknown }[]>(
+      DIGEST_WORDING_SQL,
+      [organizationId, sha],
+    )
+  )[0];
+  if (row === undefined || typeof row.body !== 'string') return null;
+  const made = row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at));
+  if (Number.isNaN(made.getTime()) || at.getTime() - made.getTime() > DIGEST_WORDING_MAX_AGE_MS) {
+    return null;
+  }
+  const check = checkDigestWording(row.body, lines);
+  return check.ok ? renderDigestWording(check.text, lines) : null;
 }

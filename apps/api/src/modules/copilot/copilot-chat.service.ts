@@ -8,6 +8,7 @@ import {
   type AiClient,
   type AiMessage,
   type AiRequest,
+  type AiToolDefinition,
   type AiUserBlock,
 } from './ai-client.js';
 import type { AiUsage } from './ai-cost.js';
@@ -24,6 +25,14 @@ import { currentValues, runChange, undoPossible } from './ai-change.js';
 import type { AiChangeState } from './ai-change.repository.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, planToolCall } from './ai-chat-tools.js';
 import { packTools } from './packs/index.js';
+import {
+  EXPLAIN_DEFAULT_MESSAGE,
+  EXPLAIN_DOMAIN,
+  EXPLAIN_SIGNAL_TOOL_DEFINITION,
+  explainMessage,
+  parseExplain,
+  type ExplainRequest,
+} from './packs/signals.js';
 import {
   RECALL_MEMORY_TOOL,
   RECALL_MEMORY_TOOL_DEFINITION,
@@ -266,6 +275,8 @@ export interface ChatTurnInput {
   readonly help?: boolean;
   /** 62-13: the member's own conversation this turn continues; absent = a new one. */
   readonly conversationId?: string | null;
+  /** 62-28: "Explain this alert": a Low turn with no router call and the `explain_signal` tool. */
+  readonly explain?: ExplainRequest | null;
 }
 
 export type ChatStop =
@@ -350,6 +361,45 @@ const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 
 /** The request body, parsed at the boundary (IP-2). */
 export function parseChatBody(body: Readonly<Record<string, unknown>> | null): ChatTurnInput {
+  const explain = parseExplain(body?.['explain']);
+  if (explain === undefined) {
+    throw new ApiError(400, 'validation_failed', 'Send the alert to explain.', [
+      { field: 'explain', message: 'an alert id and its group' },
+    ]);
+  }
+  if (explain !== null) {
+    // 62-28: the button's turn. Its own words are optional; never with help or an estimate.
+    if (
+      body?.['help'] === true ||
+      (body?.['confirmed'] !== undefined && body['confirmed'] !== null)
+    ) {
+      throw new ApiError(400, 'validation_failed', 'An alert is explained on its own.', [
+        { field: 'explain', message: 'not with help or an estimate' },
+      ]);
+    }
+    const raw = typeof body?.['message'] === 'string' ? body['message'].trim() : '';
+    if (raw.length > CHAT_MESSAGE_MAX_CHARS) {
+      throw new ApiError(400, 'validation_failed', 'Type a message.', [
+        { field: 'message', message: `1 to ${CHAT_MESSAGE_MAX_CHARS} characters` },
+      ]);
+    }
+    const conversation = body?.['conversationId'];
+    if (
+      conversation !== undefined &&
+      conversation !== null &&
+      (typeof conversation !== 'string' || !CONVERSATION_ID.test(conversation))
+    ) {
+      throw new ApiError(400, 'validation_failed', 'Send back the conversation you are in.', [
+        { field: 'conversationId', message: 'a conversation id' },
+      ]);
+    }
+    return {
+      message: raw === '' ? EXPLAIN_DEFAULT_MESSAGE : raw,
+      confirmed: null,
+      conversationId: typeof conversation === 'string' ? conversation.toLowerCase() : null,
+      explain,
+    };
+  }
   const message = typeof body?.['message'] === 'string' ? body['message'].trim() : '';
   if (message.length === 0 || message.length > CHAT_MESSAGE_MAX_CHARS) {
     throw new ApiError(400, 'validation_failed', 'Type a message.', [
@@ -499,7 +549,7 @@ export class CopilotChatService {
 
     // 2. Rules pre-pass: a plain command costs nothing.
     const navigation =
-      input.confirmed === null && input.help !== true
+      input.confirmed === null && input.help !== true && (input.explain ?? null) === null
         ? plainCommand(scope.commands, input.message)
         : null;
     if (navigation) return { ...EMPTY_VIEW, state: 'navigate', navigation };
@@ -520,9 +570,13 @@ export class CopilotChatService {
     // 3. The route: the accepted estimate, or one router call under a low task.
     let route: AiRoute;
     let routing: TurnState | null = null;
+    const explain = input.explain ?? null;
     if (input.help === true) {
       // The free-support path: no router, the platform-paid help tier (20 a member a day).
       route = { domain: 'help', tier: 'help' };
+    } else if (explain !== null) {
+      // 62-28: "Explain this alert" is always Low, no router call; the group picks the read pack.
+      route = { domain: EXPLAIN_DOMAIN[explain.group], tier: 'low' };
     } else if (input.confirmed !== null) {
       route = input.confirmed;
     } else {
@@ -566,7 +620,16 @@ export class CopilotChatService {
     }
 
     // 4. The loop.
-    const result = await this.loop(context, orgSlug, turn, route, input.message, standing, history);
+    const result = await this.loop(
+      context,
+      orgSlug,
+      turn,
+      route,
+      explain === null ? input.message : explainMessage(input.message, explain),
+      standing,
+      history,
+      explain === null ? [] : [EXPLAIN_SIGNAL_TOOL_DEFINITION],
+    );
     const completed = result.stop === null;
     const card = completed ? this.card(context, turn, result.changes) : null;
     const changeState = this.changeState(result.changes, card);
@@ -694,6 +757,8 @@ export class CopilotChatService {
     message: string,
     standing: ChatStanding,
     history: readonly ChatHistoryMessage[] = [],
+    /** 62-28: a turn's own tools (the explain button), before the meta-tools. */
+    turnTools: readonly AiToolDefinition[] = [],
   ): Promise<LoopResult> {
     const writeScope = standing.writeScope;
     const changes: TurnChanges = {
@@ -738,6 +803,7 @@ export class CopilotChatService {
             KNOWLEDGE_TOOL,
             FILE_PASSAGES_TOOL,
             RECALL_MEMORY_TOOL_DEFINITION,
+            ...turnTools,
             ...CHAT_TOOLS,
           ];
     const messages: AiMessage[] = [

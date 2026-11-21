@@ -58,6 +58,14 @@ import {
 } from './memory/business-memory.controller.js';
 import { BusinessMemoryRepository } from './memory/business-memory.repository.js';
 import { BusinessMemoryService } from './memory/business-memory.service.js';
+import {
+  DIGEST_WORDING_JOB,
+  DigestWordingJob,
+  digestWordingEnabled,
+} from './digest/digest-wording-job.js';
+import { DigestWordingRepository } from './digest/digest-wording.repository.js';
+import { HomeBriefingRepository } from '../home/home-briefing.repository.js';
+import { readResolvedFlags } from '../admin/feature-gate.js';
 
 /** The budget the chat runs on and the confirm/undo refunds through (one per module). */
 const AI_BUDGET_SERVICE = Symbol.for('tmanage.copilot.AiBudgetService');
@@ -105,6 +113,24 @@ export class CopilotModule {
               new KnowledgeRepository(),
               new MariaDbVectorStore(),
               null,
+            ),
+        },
+        // 62-28: the optional AI wording of the weekly digest. No batch client exists (no API key),
+        // so the job never starts and every digest is the plain template.
+        {
+          provide: DIGEST_WORDING_JOB,
+          inject: [TENANT_DATABASE, AI_BUDGET_SERVICE],
+          useFactory: (database: TenantDatabase, ai: { budget: AiBudgetService }) =>
+            new DigestWordingJob(
+              {
+                database,
+                repository: new DigestWordingRepository(),
+                briefing: new HomeBriefingRepository(),
+                budget: ai.budget,
+                batch: null,
+                flags: (context) => readResolvedFlags(database, context),
+              },
+              digestWordingEnabled(),
             ),
         },
         // 62-26: Business Memory (approved facts the AI may recall; a person approves).

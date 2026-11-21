@@ -231,6 +231,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // settles `outreach_recipients` (`email_suppressions` and `platform_mail_people` already read).
     // ---- 62-13 0392 ---- +3: the AI conversation purge reads `ai_workspace_settings` (each
     // workspace's window) and `ai_conversations` and `ai_conversation_messages` where it deletes.
+    // ---- 62-28 0396 ---- +1: the weekly digest reads a ready `ai_digest_wordings` row for the
+    // reader's exact section (a read only; the API job writes it).
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -275,7 +277,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         1 +
         1 +
         2 +
-        3,
+        3 +
+        1,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

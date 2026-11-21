@@ -20727,6 +20727,7 @@
   "activity.subject.quote.declined": "{actor} rechazó el presupuesto {subject}",
   "activity.subject.quote.converted": "{actor} convirtió el presupuesto {subject} en proyecto",
   "FeatureFlags.businessBriefing": "Resumen del negocio",
+  "FeatureFlags.aiDigestWording": "Redacción con IA del resumen semanal",
   "AuditActionLabel.work_signal_settings.updated": "Cambió las reglas de alerta",
   "AuditActionLabel.ai_credit_pack.requested": "Solicitó más créditos de IA",
   "AuditActionLabel.ai_change.confirmed": "Confirmó los cambios propuestos por la IA",

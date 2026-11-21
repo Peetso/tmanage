@@ -69,6 +69,10 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
+    'BriefingSignalView',
+    'No web consumer yet: 62-28 GET …/home/briefing/signals/:signalId is read by the AI chat tool explain_signal; the Explain button on the briefing card sends a chat turn, it does not read this route.',
+  ],
+  [
     'BusinessFactListView',
     'No web consumer yet: 62-26 Business Memory routes (…/business-memory/facts, …/recall) are read by the AI chat tool recall_business_memory; the Settings → Business Memory screen is the 62-26 front-end follow-up.',
   ],

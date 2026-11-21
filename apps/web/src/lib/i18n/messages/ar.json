@@ -20931,6 +20931,7 @@
   "activity.subject.quote.declined": "‏{actor} رفض عرض السعر {subject}",
   "activity.subject.quote.converted": "‏{actor} حوّل عرض السعر {subject} إلى مشروع",
   "FeatureFlags.businessBriefing": "موجز العمل",
+  "FeatureFlags.aiDigestWording": "صياغة الملخص الأسبوعي بالذكاء الاصطناعي",
   "AuditActionLabel.work_signal_settings.updated": "غيّر قواعد التنبيه",
   "AuditActionLabel.ai_credit_pack.requested": "طلب رصيدًا إضافيًا للذكاء الاصطناعي",
   "AuditActionLabel.ai_change.confirmed": "أكّد التغييرات التي اقترحها الذكاء الاصطناعي",

@@ -136,6 +136,22 @@ export const homeDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Get home business briefing', args: {} }],
   }),
   det({
+    id: 'home.briefing.signals.get',
+    title: 'Get one alert',
+    description:
+      'One open alert of the hourly check: its rule, the figures it measured against the ' +
+      "threshold, the reason in words, the record it is about and that record's link. Use it to " +
+      'explain an alert; never guess figures it does not give.',
+    input: pathOnly('signalId'),
+    redact: 'billing',
+    examples: [
+      {
+        summary: 'Explain this alert',
+        args: { signalId: '0190a000-0000-7000-8000-000000000001' },
+      },
+    ],
+  }),
+  det({
     id: 'home.summary.list',
     title: 'List home summary',
     description: 'List home summary.',

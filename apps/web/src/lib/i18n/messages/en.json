@@ -20931,6 +20931,7 @@
   "activity.subject.quote.declined": "{actor} declined quote {subject}",
   "activity.subject.quote.converted": "{actor} turned quote {subject} into a project",
   "FeatureFlags.businessBriefing": "Business briefing",
+  "FeatureFlags.aiDigestWording": "AI wording of the weekly digest",
   "AuditActionLabel.work_signal_settings.updated": "Changed the alert rules",
   "AuditActionLabel.ai_credit_pack.requested": "Asked for more AI credits",
   "AuditActionLabel.ai_change.confirmed": "Confirmed changes the AI proposed",

@@ -1421,6 +1421,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // clients, projects, people, processes and company. No foreign key, so the company erasure may
   // empty it in any order.
   business_facts: 'organization_id',
+  // 0396 (62-28 AI DIGEST WORDINGS). Tenant-owned: the optional AI wording of a workspace's weekly
+  // digest briefing. No foreign key, so the company erasure may empty it in any order.
+  ai_digest_wordings: 'organization_id',
   // 0394 (62-24 AI FILE CHUNKS). Tenant-owned passages of one file asset, with its project and
   // audience; deleted with the file. No foreign key, so the company erasure may empty it in any order.
   ai_file_chunks: 'organization_id',

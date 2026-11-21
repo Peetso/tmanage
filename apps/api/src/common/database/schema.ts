@@ -15393,6 +15393,39 @@ export const businessFacts = mysqlTable(
 
 export type BusinessFactRow = typeof businessFacts.$inferSelect;
 
+/**
+ * 62-28 (0396). The optional AI wording of a workspace's weekly digest briefing, one per shown set
+ * of signals (`lines_sha256`). Written by the API's digest wording job, read by the worker's digest.
+ */
+export const AI_DIGEST_WORDING_STATUSES = ['submitted', 'ready', 'rejected', 'failed'] as const;
+
+export const aiDigestWordings = mysqlTable(
+  'ai_digest_wordings',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    linesSha256: char('lines_sha256', { length: 64 }).notNull(),
+    lineCount: smallint('line_count', { unsigned: true }).notNull(),
+    status: mysqlEnum('status', AI_DIGEST_WORDING_STATUSES).notNull(),
+    batchId: varchar('batch_id', { length: 128 }),
+    customId: varchar('custom_id', { length: 64 }),
+    taskId: char('task_id', { length: 36 }),
+    callId: char('call_id', { length: 36 }),
+    model: varchar('model', { length: 64 }),
+    body: text('body'),
+    reasonCode: varchar('reason_code', { length: 32 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_ai_digest_wordings_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_ai_digest_wordings_lines').on(table.organizationId, table.linesSha256),
+    index('ix_ai_digest_wordings_status').on(table.status, table.createdAt, table.organizationId),
+  ],
+);
+
+export type AiDigestWordingRow = typeof aiDigestWordings.$inferSelect;
+
 export type AiBudgetPoolRow = typeof aiBudgetPools.$inferSelect;
 export type AiWorkspacePeriodRow = typeof aiWorkspacePeriods.$inferSelect;
 export type AiMemberPeriodRow = typeof aiMemberPeriods.$inferSelect;
@@ -15416,6 +15449,7 @@ Object.assign(TABLES, {
   ai_file_texts: aiFileTexts,
   ai_file_chunks: aiFileChunks,
   business_facts: businessFacts,
+  ai_digest_wordings: aiDigestWordings,
 });
 
 // ---- DC-3 / RT-3 · lane K · leader lease ----

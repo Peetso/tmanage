@@ -113,7 +113,9 @@ export type PlatformFlagKey =
   | 'approval_links'
   | 'public_forms'
   // Plan 62 (62-27, 62-A1a/b): the signals engine, owner alert settings and the Home briefing.
-  | 'business_briefing';
+  | 'business_briefing'
+  // 62-28: the optional AI wording of the weekly digest.
+  | 'ai_digest_wording';
 export type PlatformFlagRollout = 'everyone' | 'allowlist' | 'percentage';
 
 export interface PlatformFlagView {

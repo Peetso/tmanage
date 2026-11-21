@@ -20725,6 +20725,7 @@
   "activity.subject.quote.declined": "{actor} a refusé le devis {subject}",
   "activity.subject.quote.converted": "{actor} a transformé le devis {subject} en projet",
   "FeatureFlags.businessBriefing": "Briefing d’activité",
+  "FeatureFlags.aiDigestWording": "Rédaction par l’IA du récapitulatif hebdomadaire",
   "AuditActionLabel.work_signal_settings.updated": "A modifié les règles d’alerte",
   "AuditActionLabel.ai_credit_pack.requested": "A demandé plus de crédits d’IA",
   "AuditActionLabel.ai_change.confirmed": "A confirmé les modifications proposées par l'IA",

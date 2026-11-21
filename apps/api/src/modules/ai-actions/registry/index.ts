@@ -2455,6 +2455,16 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // 62-28: one open alert with its figures and reason, for "Explain this alert" (same per-signal
+  // rule as the card).
+  {
+    id: 'home.briefing.signals.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/home/briefing/signals/:signalId',
+    capability: 'approval.read',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'home.summary.list',
     method: 'GET',

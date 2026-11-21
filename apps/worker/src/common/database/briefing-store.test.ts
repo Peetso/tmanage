@@ -2,15 +2,19 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   assembleBriefing,
+  digestLinesKey,
+  digestSectionLines,
+  renderDigestWording,
   briefingSubjectKey,
   briefingViewerBase,
   capabilitiesFor,
 } from '@tmanage/domain';
 import type { BriefingSource, BriefingSubject, OpenSignal } from '@tmanage/domain';
 import { BRIEFING_SQL, findBriefingViewer, readBriefing } from './briefing-store.js';
-import { createNotificationDigestStore } from './notification-digest-store.js';
+import { DIGEST_WORDING_SQL, createNotificationDigestStore } from './notification-digest-store.js';
 import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
 import type { DigestRecipient, DigestWindow } from '../../jobs/notification-digest.js';
 import { composeDigestEmail } from '../../notifications/digest-mailer.js';
@@ -97,6 +101,10 @@ interface FakeOptions {
   readonly flagOn?: boolean;
   readonly unread?: readonly string[];
   readonly overrides?: readonly { capability: string; effect: string }[];
+  /** 62-28: flags answered off by key (all others on unless `flagOn` is false). */
+  readonly flagsOff?: readonly string[];
+  /** 62-28: the ready wording row, answered only for this exact section key. */
+  readonly wording?: { readonly sha: string; readonly body: string; readonly created_at: Date };
 }
 
 /** A transaction answering each statement by what it reads; every call is recorded. */
@@ -133,7 +141,13 @@ function fakeTx(options: FakeOptions = {}) {
         return answer(SUBJECT_ROWS['memberships'] ?? []);
       }
       if (sql.includes('FROM org_feature_flags ff')) {
-        return answer(options.flagOn === false ? [] : [{ enabled: 1 }]);
+        const off =
+          options.flagOn === false || (options.flagsOff ?? []).includes(String(params[1]));
+        return answer(off ? [] : [{ enabled: 1 }]);
+      }
+      if (sql === DIGEST_WORDING_SQL) {
+        const w = options.wording;
+        return answer(w !== undefined && params[1] === w.sha ? [w] : []);
       }
       if (sql.includes('FROM users u')) {
         return answer([
@@ -402,5 +416,100 @@ describe('digest store: the briefing section (62-A1c)', () => {
     expect(text).toContain('What needs you on your projects.');
     expect(text).not.toContain('INV-0038');
     expect(text).not.toContain('Money to collect');
+  });
+});
+
+describe('digest store: the optional AI wording (62-28)', () => {
+  const database = (tx: WorkerTransaction) =>
+    ({
+      read: (work: (t: WorkerTransaction) => Promise<unknown>) => work(tx),
+      transaction: (work: (t: WorkerTransaction) => Promise<unknown>) => work(tx),
+    }) as unknown as WorkerDatabase;
+  const owner: DigestRecipient = {
+    organizationId: ORG,
+    membershipId: 'm-owner',
+    userId: 'u-m-owner',
+    cadence: 'weekly',
+    sendHour: 8,
+    dayOfWeek: 1,
+    timezone: 'Africa/Cairo',
+    businessBriefing: true,
+  };
+  const weekly: DigestWindow = {
+    since: new Date('2026-11-12T06:10:00.000Z'),
+    key: 'digest:weekly:2026-W47',
+    cadence: 'weekly',
+    at: NOW,
+  };
+  const links = (path: string) => `https://app.example${path}`;
+
+  /** The owner's section as the Home card builds it: the key the API job stored the wording under. */
+  async function ownerSection() {
+    const lines = digestSectionLines((await cardFor('owner', 'm-owner', [])).groups);
+    const sha = createHash('sha256').update(digestLinesKey(lines)).digest('hex');
+    const body = `${lines.map((_l, i) => `[${String(i + 1)}]`).join(', ')} need attention: 12 days, 115% and 16 days.`;
+    return { lines, sha, body };
+  }
+
+  async function mailText(options: FakeOptions, window: DigestWindow = weekly, who = owner) {
+    const { tx, calls } = fakeTx(options);
+    const facts = await createNotificationDigestStore(database(tx)).collectAndClaim(
+      who,
+      window,
+      links,
+    );
+    return { text: composeDigestEmail(facts!).text, calls };
+  }
+
+  it('a ready wording for exactly this section sits above the unchanged list', async () => {
+    const { lines, sha, body } = await ownerSection();
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    const plain = (await mailText({})).text;
+    const { text } = await mailText({ wording: { sha, body, created_at: SWEPT } });
+    expect(text).toContain(renderDigestWording(body, lines));
+    for (const listed of [
+      'INV-0038 · Cedar Foods',
+      'Footer redesign · Souq website',
+      'Omar Adel',
+    ]) {
+      expect(text).toContain(listed);
+    }
+    expect(
+      text.replace(
+        `${renderDigestWording(body, lines)}
+
+`,
+        '',
+      ),
+    ).toBe(plain);
+  });
+
+  it('the template only: flag off, daily mail, another section, too old, or a failing body', async () => {
+    const { lines, sha, body } = await ownerSection();
+    const rendered = renderDigestWording(body, lines);
+    const ready = { sha, body, created_at: SWEPT };
+    const old = new Date(NOW.getTime() - 9 * 24 * 60 * 60 * 1000);
+    const cases: [FakeOptions, DigestWindow][] = [
+      [{ wording: ready, flagsOff: ['ai_digest_wording'] }, weekly],
+      [{ wording: ready }, { ...weekly, cadence: 'daily', key: 'digest:daily:2026-11-19' }],
+      [{ wording: { ...ready, sha: 'f'.repeat(64) } }, weekly],
+      [{ wording: { ...ready, created_at: old } }, weekly],
+      [{ wording: { ...ready, body: body.replace('16 days', '40 days') } }, weekly],
+      [{ wording: { ...ready, body: body.replace('[1], ', '') } }, weekly],
+    ];
+    for (const [options, window] of cases) {
+      const { text } = await mailText(options, window);
+      expect(text).not.toContain(rendered);
+      expect(text).toContain('INV-0038 · Cedar Foods');
+    }
+  });
+
+  it('flag off: the wording table is never read', async () => {
+    const { sha, body } = await ownerSection();
+    const { calls } = await mailText({
+      wording: { sha, body, created_at: SWEPT },
+      flagsOff: ['ai_digest_wording'],
+    });
+    expect(calls.some((c) => c.sql === DIGEST_WORDING_SQL)).toBe(false);
   });
 });

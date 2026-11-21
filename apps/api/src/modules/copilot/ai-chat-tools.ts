@@ -5,6 +5,7 @@ import type { JsonObject } from './ai-response.js';
 import { dropNulls } from './packs/pack-schema.js';
 import { packOpFor } from './packs/index.js';
 import { RECALL_MEMORY_OP, RECALL_MEMORY_TOOL, recallArgs } from './packs/business-memory.js';
+import { EXPLAIN_SIGNAL_OP, EXPLAIN_SIGNAL_TOOL, explainArgs } from './packs/signals.js';
 import {
   SEARCH_FILE_PASSAGES_OP,
   SEARCH_FILE_PASSAGES_TOOL,
@@ -137,6 +138,17 @@ export function planToolCall(name: string, input: JsonObject): ChatToolPlan {
         catalogTool: META_TOOL_NAMES.run,
         args: { action_id: SEARCH_KNOWLEDGE_OP, args },
         opId: SEARCH_KNOWLEDGE_OP,
+      };
+    }
+    case EXPLAIN_SIGNAL_TOOL: {
+      // 62-28: one alert as the member may see it (the card's per-signal rule in the route).
+      const args = explainArgs(input);
+      if (args === null) return refuse(EXPLAIN_SIGNAL_OP, 'Use the alert id from the message.');
+      return {
+        kind: 'run',
+        catalogTool: META_TOOL_NAMES.run,
+        args: { action_id: EXPLAIN_SIGNAL_OP, args },
+        opId: EXPLAIN_SIGNAL_OP,
       };
     }
     case RECALL_MEMORY_TOOL: {

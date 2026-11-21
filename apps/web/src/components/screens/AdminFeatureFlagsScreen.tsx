@@ -73,6 +73,7 @@ export function AdminFeatureFlagsScreen({
     approval_links: t(PLAN_52_FLAG_LABELS.approval_links),
     public_forms: t(PLAN_52_FLAG_LABELS.public_forms),
     business_briefing: tOr('FeatureFlags.businessBriefing', 'Business briefing'),
+    ai_digest_wording: tOr('FeatureFlags.aiDigestWording', 'AI wording of the weekly digest'),
   };
 
   /** A short "when last changed" note, or the module's default for a flag never set. */

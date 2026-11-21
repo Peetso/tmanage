@@ -55,6 +55,9 @@ export const OPTIONAL_MODULE_FLAGS = [
   // Plan 62 (62-27, 62-A1a/b): the signals engine, owner alert settings and the Home briefing.
   // Default off; the platform owner turns it on per organization (the worker sweep reads it too).
   'business_briefing',
+  // 62-28: the optional AI wording of the weekly digest's briefing (Batch, platform-paid). Default
+  // off; only where the AI is on for the workspace. Off = the plain template, at zero cost.
+  'ai_digest_wording',
 ] as const;
 
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
@@ -90,6 +93,7 @@ export const DEFAULT_MODULE_ENABLED: Record<OptionalModuleFlag, boolean> = {
   approval_links: true,
   public_forms: true,
   business_briefing: false,
+  ai_digest_wording: false,
 };
 
 const KNOWN_FLAGS: ReadonlySet<string> = new Set(OPTIONAL_MODULE_FLAGS);

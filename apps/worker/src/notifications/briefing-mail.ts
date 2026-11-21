@@ -31,6 +31,11 @@ export interface DigestBriefingSection {
   readonly groups: readonly DigestBriefingGroup[];
   /** Absolute link of Home, where the card is. */
   readonly homeLink: string;
+  /**
+   * 62-28: the checked AI wording of exactly these lines (English, weekly, company-wide), shown
+   * above the unchanged list; absent = the plain template only.
+   */
+  readonly wording?: string;
 }
 
 type Language = 'en' | 'ar';
@@ -301,5 +306,14 @@ export function briefingSectionParagraphs(
         : []),
     ].join('\n'),
   );
-  return [heading, lead, ...groups, `${mark}${fill(words.open, { link: section.homeLink })}`];
+  // 62-28: the AI wording is English; an Arabic mail keeps the template.
+  const wording =
+    section.wording !== undefined && language === 'en' ? [oneLine(section.wording)] : [];
+  return [
+    heading,
+    lead,
+    ...wording,
+    ...groups,
+    `${mark}${fill(words.open, { link: section.homeLink })}`,
+  ];
 }

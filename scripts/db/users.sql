@@ -2648,6 +2648,9 @@ GRANT SELECT ON `tmanage`.`project_milestones` TO 'tmanage_worker'@'%';
 -- membership tables granted above, and writes `notifications` (granted above). No DELETE.
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`work_signals` TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`work_signal_sweeps` TO 'tmanage_worker'@'%';
+-- 0396 (62-28). The digest reads a ready AI wording of the reader's exact briefing section; it
+-- never writes one.
+GRANT SELECT ON `tmanage`.`ai_digest_wordings` TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`work_signal_settings` TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`work_item_estimates` TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`person_capacity` TO 'tmanage_worker'@'%';
@@ -2702,6 +2705,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_app'@'%';
 -- facts stay as the record; the company and account erasures delete through tmanage_erasure.
 -- SELECT rides the database-wide read.
 GRANT INSERT, UPDATE ON `tmanage`.`business_facts` TO 'tmanage_app'@'%';
+-- 0396 (62-28 AI DIGEST WORDINGS). The API's digest wording job records a submitted request
+-- (INSERT) and its checked answer or failure (UPDATE). Rows are never deleted on the app path; a
+-- wording is used only while young and only for the exact section it was made for. SELECT rides
+-- the database-wide read.
+GRANT INSERT, UPDATE ON `tmanage`.`ai_digest_wordings` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_app'@'%';
 -- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
 -- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
@@ -2787,6 +2795,7 @@ GRANT SELECT, DELETE ON `tmanage`.`ai_conversations` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_moves` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_packs` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_digest_wordings` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_texts` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_member_periods` TO 'tmanage_erasure'@'%';

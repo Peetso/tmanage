@@ -71,4 +71,31 @@ describe('briefing mail words', () => {
       'مهام متأخرة أو معرّضة للتأخير (1)',
     );
   });
+
+  it('62-28: a checked wording sits above the unchanged list, in English only', () => {
+    const section = {
+      audience: 'company' as const,
+      asOf: new Date('2026-11-19T08:00:00.000Z'),
+      timezone: 'UTC',
+      homeLink: 'https://app.example.test/northstar',
+      groups: [
+        {
+          group: 'projects_at_risk' as const,
+          count: 1,
+          lines: [line({})],
+          more: 0,
+          path: '/projects/portfolio',
+          link: 'https://app.example.test/northstar/projects/portfolio',
+        },
+      ],
+    };
+    const plain = briefingSectionParagraphs(section, 'en');
+    const worded = { ...section, wording: 'Launch kit is 2 days past due.' };
+    const en = briefingSectionParagraphs(worded, 'en');
+    expect(en[2]).toBe('Launch kit is 2 days past due.');
+    expect([...en.slice(0, 2), ...en.slice(3)]).toEqual(plain);
+    expect(briefingSectionParagraphs(worded, 'ar')).toEqual(
+      briefingSectionParagraphs(section, 'ar'),
+    );
+  });
 });

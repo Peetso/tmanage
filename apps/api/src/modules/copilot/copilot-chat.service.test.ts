@@ -767,3 +767,68 @@ describe('Business Memory in the chat (62-26)', () => {
     expect(env.toolRuns).toHaveLength(0);
   });
 });
+
+describe('Explain this alert (62-28)', () => {
+  const SIGNAL = '0190a000-0000-7000-8000-0000000000e1';
+
+  it('parses the button: alert id and group, optional words, never with help or an estimate', () => {
+    expect(
+      parseChatBody({ explain: { signalId: SIGNAL.toUpperCase(), group: 'money_to_collect' } }),
+    ).toMatchObject({
+      message: 'Explain this alert.',
+      confirmed: null,
+      explain: { signalId: SIGNAL, group: 'money_to_collect' },
+    });
+    for (const body of [
+      { explain: { signalId: 'nope', group: 'stale_work' } },
+      { explain: { signalId: SIGNAL, group: 'everything' } },
+      { explain: { signalId: SIGNAL, group: 'stale_work', extra: 1 } },
+      { explain: { signalId: SIGNAL, group: 'stale_work' }, help: true },
+      {
+        explain: { signalId: SIGNAL, group: 'stale_work' },
+        confirmed: { tier: 'high', domain: 'tasks' },
+      },
+    ]) {
+      expect(() => parseChatBody(body)).toThrow(ApiError);
+    }
+  });
+
+  it('one Low turn, no router call: explain_signal reads the alert as the member', async () => {
+    const env = setup(
+      [
+        toolUse('e1', 'explain_signal', { signalId: SIGNAL }),
+        text('Invoice INV-7 is 12 days overdue; collecting it clears the alert.'),
+      ],
+      {
+        toolData: {
+          signalId: SIGNAL,
+          rule: 'overdue_invoice',
+          measure: 12,
+          threshold: 7,
+          reason: { key: 'overdue', figures: { days: 12 } },
+          title: 'INV-7',
+          path: '/finance/invoices/x',
+        },
+      },
+    );
+    await env.turn('', null, undefined, {
+      message: 'Explain this alert.',
+      explain: { signalId: SIGNAL, group: 'money_to_collect' },
+    });
+    // No router request: the first model call is the turn itself, on the Low tier.
+    expect(env.opened.map((o) => o.tier)).toEqual(['low']);
+    const first = env.requests[0]!;
+    expect(first.tools.map((t) => t.name)).toContain('explain_signal');
+    expect(JSON.stringify(first.messages)).toContain(`Alert id: ${SIGNAL}`);
+    expect(env.toolRuns[0]).toMatchObject({
+      name: META_TOOL_NAMES.run,
+      args: { action_id: 'home.briefing.signals.get', args: { signalId: SIGNAL } },
+    });
+  });
+
+  it('an ordinary turn is not offered explain_signal', async () => {
+    const env = setup([route('tasks', 'low'), text('ok')]);
+    await env.turn('what is due?');
+    expect(env.requests[1]!.tools.map((t) => t.name)).not.toContain('explain_signal');
+  });
+});

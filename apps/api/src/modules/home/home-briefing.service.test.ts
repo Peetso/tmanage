@@ -276,3 +276,95 @@ describe('HomeBriefingRepository', () => {
     for (const call of calls) expect(call.sql).not.toMatch(/NOW\(|CURRENT_TIMESTAMP/i);
   });
 });
+
+describe('one alert for "Explain this" (62-28)', () => {
+  const STALE = '0190a000-0000-7000-8000-0000000000f1';
+  const MONEY = '0190a000-0000-7000-8000-0000000000f2';
+  const GONE = '0190a000-0000-7000-8000-0000000000f3';
+  const open: readonly OpenSignal[] = [
+    { ...signal('w1', 'stale_task', 'work_item', 'p1'), signalId: STALE },
+    { ...signal('i1', 'overdue_invoice', 'client_invoice', 'p1'), signalId: MONEY },
+    { ...signal('w-gone', 'stale_task', 'work_item', 'p1'), signalId: GONE },
+  ];
+  const service = (sweptAt: Date | null = SWEPT) =>
+    new HomeBriefingService(
+      {
+        read: async <T>(_c: TenantContext, work: (r: unknown) => Promise<T>) => work({}),
+      } as unknown as TenantDatabase,
+      {
+        lastSweep: async () => sweptAt,
+        openSignals: async () => open,
+        team: async () => new Set<string>(),
+        subjects: async (_r: unknown, _c: unknown, signals: readonly OpenSignal[]) =>
+          new Map(
+            signals
+              .filter((s) => s.subjectId !== 'w-gone')
+              .map((s) => [
+                briefingSubjectKey(s.subjectType, s.subjectId),
+                { ...SUBJECT, amount: { minor: 5_000, currency: 'USD' } },
+              ]),
+          ),
+      } as unknown as HomeBriefingRepository,
+    );
+  const status = async (promise: Promise<unknown>) =>
+    promise.then(
+      () => 'ok',
+      (error: ApiError) => error.status,
+    );
+
+  it('gives the figures, the reason and the link of a visible alert', async () => {
+    const view = await service().signalOf(
+      contextOf('owner'),
+      principal('owner'),
+      MONEY.toUpperCase(),
+    );
+    expect(view).toMatchObject({
+      signalId: MONEY,
+      rule: 'overdue_invoice',
+      group: 'money_to_collect',
+      money: true,
+      measure: 9,
+      threshold: 7,
+      unit: 'days_overdue',
+      reason: {
+        key: 'overdueAmount',
+        figures: { days: 9 },
+        amount: { minor: 5_000, currency: 'USD' },
+      },
+      path: '/finance/invoices/i1',
+      asOf: SWEPT.toISOString(),
+    });
+  });
+
+  it('404 for a money alert without finance, a project not led, a gone record, a guest or a client', async () => {
+    const lead = principal('member', { projectIds: ['p1'] });
+    const leadContext = {
+      ...contextOf('member'),
+      capabilities: [...capabilitiesFor('member'), 'project.manage'],
+    } as TenantContext;
+    expect(await status(service().signalOf(leadContext, lead, STALE))).toBe('ok');
+    expect(await status(service().signalOf(leadContext, lead, MONEY))).toBe(404);
+    expect(
+      await status(
+        service().signalOf(leadContext, principal('member', { projectIds: ['p9'] }), STALE),
+      ),
+    ).toBe(404);
+    expect(await status(service().signalOf(contextOf('owner'), principal('owner'), GONE))).toBe(
+      404,
+    );
+    expect(await status(service().signalOf(contextOf('owner'), principal('owner'), 'sig-1'))).toBe(
+      404,
+    );
+    expect(
+      await status(service(null).signalOf(contextOf('owner'), principal('owner'), STALE)),
+    ).toBe(404);
+    expect(await status(service().signalOf(contextOf('guest'), principal('guest'), STALE))).toBe(
+      404,
+    );
+    expect(
+      await status(
+        service().signalOf(contextOf('owner'), principal('owner', { kind: 'client' }), STALE),
+      ),
+    ).toBe(404);
+  });
+});
