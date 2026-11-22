@@ -7,6 +7,7 @@ import { DatabaseAuthenticationEventRecorder } from '../../../common/http/authen
 import { CredentialsRepository } from '../credentials.repository.js';
 import { createSeedCipher } from '../seed-cipher.js';
 import { GeoModule, IP_INTELLIGENCE } from '../geo/geo.module.js';
+import { platformAdminCore } from '../../platform-admin/platform-admin-core.module.js';
 import type { IpIntelligenceService } from '../geo/ip-intelligence.service.js';
 import { PlatformNetworkAccessController } from './network-access.controller.js';
 import { NetworkAccessRepository } from './network-access.repository.js';
@@ -26,7 +27,9 @@ export class NetworkAccessModule {
   static register(): DynamicModule {
     return {
       module: NetworkAccessModule,
-      imports: [GeoModule],
+      // The platform routes sit behind PlatformAdminGuard, whose lookup, allowlist and audit
+      // providers live in the shared platform-admin core (one module object for every area).
+      imports: [GeoModule, platformAdminCore()],
       controllers: [PlatformNetworkAccessController],
       providers: [
         {
