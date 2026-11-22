@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { Button } from '@tmanage/ui';
+import { Button, Tooltip, MOTION_DELAY_TOOLTIP_MS } from '@tmanage/ui';
+import { NavIcon } from '../icons/phone';
 import { useHelpContextArticle } from '../help/HelpContextLink';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import './support.css';
@@ -23,9 +24,12 @@ export function getHelpHref(organizationSlug: string, from: string | null): stri
 export function SupportLauncher({
   organizationSlug,
   pathname,
+  variant = 'button',
 }: {
   readonly organizationSlug: string;
   readonly pathname?: string;
+  /** `icon`: the "?" icon button of the dashboard title row (Figma 795:931), named in a tooltip. */
+  readonly variant?: 'button' | 'icon';
 }) {
   const tOr = useTOr();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -46,17 +50,37 @@ export function SupportLauncher({
 
   return (
     <div className="tm-support-launcher">
-      <Button
-        tone="outline"
-        size="default"
-        className="tm-support-launcher__trigger"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        aria-controls={menuId}
-        onClick={() => setMenuOpen((open) => !open)}
-      >
-        {tOr('Support.menuLabel', 'Help')}
-      </Button>
+      {variant === 'icon' ? (
+        <Tooltip
+          content={tOr('MyDay.info.help', 'Help, shortcuts and the tour.')}
+          delayMs={MOTION_DELAY_TOOLTIP_MS}
+          placement="bottom"
+        >
+          <button
+            type="button"
+            className="tm-title-icon tm-support-launcher__trigger"
+            aria-label={tOr('Support.menuLabel', 'Help')}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-controls={menuId}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <NavIcon name="help" size={20} />
+          </button>
+        </Tooltip>
+      ) : (
+        <Button
+          tone="outline"
+          size="default"
+          className="tm-support-launcher__trigger"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-controls={menuId}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          {tOr('Support.menuLabel', 'Help')}
+        </Button>
+      )}
       {menuOpen ? (
         <ul id={menuId} role="menu" className="tm-support-menu">
           {/* FIX3 item 10: the guide for this screen (the old "?" beside the title) is the menu's

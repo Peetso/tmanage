@@ -40,6 +40,12 @@ const WIDGET_LABELS: Readonly<
     key: 'HomeWidgetPrefsScreen.widgetBusinessBriefing',
     english: 'Business briefing',
   },
+  next: { key: 'MyDay.w.next', english: 'Next' },
+  byProject: { key: 'MyDay.w.byProject', english: 'By project' },
+  timer: { key: 'MyDay.w.timer', english: 'Timer' },
+  gettingStarted: { key: 'MyDay.w.gettingStarted', english: 'Getting started' },
+  quickQuestion: { key: 'MyDay.w.quickQuestion', english: 'Quick question' },
+  recent: { key: 'MyDay.w.recent', english: 'Recent' },
 };
 
 /**

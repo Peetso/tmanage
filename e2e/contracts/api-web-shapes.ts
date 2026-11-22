@@ -2678,8 +2678,8 @@ type _homeSummary = Assert<Exact<ApiHomeSummaryView, WebHomeSummary>>;
 
 /**
  * HOME-01 Focus/Pulse summary (x143). `GET .../home/pulse` — the acting user's four headline counts
- * (open work, due today, waiting on you, meetings today), each gated per row by the API. The
- * `HomeHeroSection` reads exactly this response, so the pair is Exact.
+ * (open work, due today, waiting on you, meetings today), each gated per row by the API. No screen
+ * reads it since My Day v3.1 (its counts come from the one ranked read, C4); the pair stays Exact.
  */
 type _homePulse = Assert<Exact<ApiHomePulseView, WebHomePulse>>;
 

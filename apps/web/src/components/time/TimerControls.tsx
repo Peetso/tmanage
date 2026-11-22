@@ -77,7 +77,7 @@ function TimerDialog({
  * Stop the running timer: shows the minutes that will be saved (rounded up to the company's step,
  * and says so) and an editable note.
  */
-function StopTimerDialog({
+export function StopTimerDialog({
   api,
   organizationSlug,
   initialNote,
@@ -428,10 +428,16 @@ export function WorkItemTimerButton({
 export interface RunningTimerPillProps {
   organizationSlug: string;
   client?: ApiClient;
+  /** `capsule`: My Day's title-row capsule, "● Timer 00:42", which opens the timed item. */
+  variant?: 'pill' | 'capsule';
 }
 
 /** The shell's pill while a timer runs: elapsed time, a link to the item, and Stop. */
-export function RunningTimerPill({ organizationSlug, client }: RunningTimerPillProps) {
+export function RunningTimerPill({
+  organizationSlug,
+  client,
+  variant = 'pill',
+}: RunningTimerPillProps) {
   const api = client ?? browserApiClient();
   const tr = useTOr();
   const { timer, elapsedSeconds, roundingMinutes } = useRunningTimer(api, organizationSlug);
@@ -449,6 +455,21 @@ export function RunningTimerPill({ organizationSlug, client }: RunningTimerPillP
   }
   const elapsed = formatElapsed(elapsedSeconds);
   const label = tr('Timer.running', 'Timer running');
+  if (variant === 'capsule') {
+    // My Day v3.1 W0: a neutral outline capsule with the red dot, never a lime fill (C2, F10).
+    // It opens the timed item; Stop is in the Timer widget below.
+    const face = elapsed.slice(0, 5);
+    const text = tr('MyDay.timerCapsule', 'Timer {time}').replace('{time}', face);
+    const href = timer.workItemId
+      ? `/${organizationSlug}/work/${encodeURIComponent(timer.workItemId)}`
+      : `/${organizationSlug}/finance/timesheets`;
+    return (
+      <Link className="tm-timer-capsule" href={href}>
+        <span className="tm-timer-dot" aria-hidden="true" />
+        {text}
+      </Link>
+    );
+  }
   return (
     <>
       <span className="tm-timer-pill" role="group" aria-label={label}>

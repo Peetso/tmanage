@@ -9154,6 +9154,15 @@ export const HOME_WIDGET_IDS = [
   'savedContext',
   // 62-A1b (B11): the business briefing card on Home.
   'businessBriefing',
+  // My Day v3.1 (2026-11-22): the widgets the v3 page added. The ids above stay for the widget
+  // that took their place (pulse → Today, myDay → Due & at risk, summary → At a glance,
+  // savedContext → Saved, pins → Pinned), so a layout saved before v3 keeps its meaning.
+  'next',
+  'byProject',
+  'timer',
+  'gettingStarted',
+  'quickQuestion',
+  'recent',
 ] as const;
 export type HomeWidgetId = (typeof HOME_WIDGET_IDS)[number];
 

@@ -248,6 +248,31 @@ const PATHS = {
   ],
   // Icon/chevron-down: a chip that opens a menu (FIGMA-D review fix 4).
   chevronDown: ['m6 9 6 6 6-6'],
+  // My Day v3.1 (Figma 822:65257): Lucide layers, grip-vertical, pencil, audio-waveform,
+  // arrow-up, arrow-down and x, for the Waiting rows, Edit widgets and the title row.
+  layers: [
+    'M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z',
+    'M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12',
+    'M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17',
+  ],
+  grip: [
+    'M9 6.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1z',
+    'M9 12.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1z',
+    'M9 18.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1z',
+    'M15 6.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1z',
+    'M15 12.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1z',
+    'M15 18.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1z',
+  ],
+  pencil: [
+    'M21.17 6.81a1 1 0 0 0-3.98-3.98L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z',
+    'm15 5 4 4',
+  ],
+  waveform: [
+    'M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2',
+  ],
+  arrowUp: ['m5 12 7-7 7 7', 'M12 19V5'],
+  arrowDown: ['M12 5v14', 'm19 12-7 7-7-7'],
+  close: ['M18 6 6 18', 'm6 6 12 12'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PhoneIconName = keyof typeof PATHS;

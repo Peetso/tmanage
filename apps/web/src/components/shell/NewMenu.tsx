@@ -23,6 +23,8 @@ export interface NewMenuProps {
   /** Test seams: an explicit client and where a link goes. */
   client?: ApiClient;
   navigate?: (path: string) => void;
+  /** `outline`: the quiet "+ New" of the dashboard title row (Figma 795:931); `ink` elsewhere. */
+  variant?: 'ink' | 'outline';
 }
 
 function assign(path: string): void {
@@ -39,7 +41,12 @@ function assign(path: string): void {
  * A WAI-ARIA menu button: Enter / Space / ArrowDown open it on the first item, ArrowUp on the last;
  * arrows, Home and End move; Escape closes and returns focus to the button; Tab closes.
  */
-export function NewMenu({ organizationSlug, client, navigate = assign }: NewMenuProps) {
+export function NewMenu({
+  organizationSlug,
+  client,
+  navigate = assign,
+  variant = 'ink',
+}: NewMenuProps) {
   const tOr = useTOr();
   const locale = useActiveLocale();
   const queryClient = useContext(QueryClientContext);
@@ -152,7 +159,9 @@ export function NewMenu({ organizationSlug, client, navigate = assign }: NewMenu
       <button
         ref={buttonRef}
         type="button"
-        className="tm-button tm-button--ink tm-new-menu__button"
+        className={`tm-button tm-new-menu__button ${
+          variant === 'outline' ? 'tm-button--outline tm-button--compact' : 'tm-button--ink'
+        }`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

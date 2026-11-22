@@ -17,7 +17,7 @@ import {
 } from '../../lib/api/getting-started';
 import { useTOr } from '../../lib/i18n/use-t-or';
 
-const STEP_LABEL: Readonly<Record<ChecklistStep, readonly [string, string]>> = {
+export const STEP_LABEL: Readonly<Record<ChecklistStep, readonly [string, string]>> = {
   invite_teammate: ['GettingStarted.step.inviteTeammate', 'Invite a teammate'],
   create_project: ['GettingStarted.step.createProject', 'Create a project'],
   add_client: ['GettingStarted.step.addClient', 'Add a client'],

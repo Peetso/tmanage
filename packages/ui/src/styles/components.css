@@ -692,7 +692,7 @@
   text-align: start;
   text-transform: none;
   letter-spacing: normal;
-  box-shadow: var(--shadow-pop, 0 6px 20px rgb(0 0 0 / 18%));
+  box-shadow: var(--tm-overlay-shadow);
 }
 
 /*
@@ -2130,4 +2130,74 @@ a.tm-chip {
   .tm-switch::before {
     transition: none;
   }
+}
+
+/* ── Info button and info popover (My Day v3 spec §4 (a), Figma Info button 810:24) ───── */
+
+.tm-info {
+  display: inline-flex;
+  flex: none;
+}
+
+/* The circled "i": a 16 px glyph in a 24 × 24 target (WCAG 2.5.8), secondary ink. */
+.tm-info-button {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  cursor: pointer;
+}
+
+.tm-info-button:hover,
+.tm-info-button[aria-expanded='true'] {
+  background: var(--paper-150);
+  color: var(--ink-950);
+}
+
+.tm-info-button[aria-expanded='true'] {
+  box-shadow: inset 0 0 0 var(--b-quiet) var(--line-700);
+}
+
+.tm-info-button__glyph {
+  display: block;
+}
+
+.tm-info-popover {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 60;
+  inline-size: 280px;
+  max-inline-size: calc(100vw - var(--s8));
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  box-shadow: var(--tm-overlay-shadow);
+  text-align: start;
+}
+
+.tm-info-popover[hidden] {
+  display: none;
+}
+
+.tm-info-popover__title {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 600;
+}
+
+.tm-info-popover__body {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-650);
 }

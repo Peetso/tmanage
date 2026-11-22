@@ -80,10 +80,16 @@ export function CoachMarkTour({
   organizationSlug,
   tour,
   client,
+  onDemand,
 }: {
   readonly organizationSlug: string;
   readonly tour: TourId;
   readonly client?: ApiClient;
+  /**
+   * The person started the tour (My Day's "Take the tour"): it opens whatever was saved before,
+   * saves nothing when it ends, and calls this when it closes.
+   */
+  readonly onDemand?: () => void;
 }) {
   const tOr = useTOr();
   const api = client ?? browserApiClient();
@@ -113,7 +119,10 @@ export function CoachMarkTour({
   const titleId = useId();
   const bodyId = useId();
   const steps = COACH_MARK_STEPS[tour];
-  const open = !closed && ended === null && !offHere && shouldShowTour(state.data, tour);
+  const open =
+    onDemand !== undefined
+      ? !closed
+      : !closed && ended === null && !offHere && shouldShowTour(state.data, tour);
   // FIX3 item 4 (T2): a step whose target is not drawn yet (the board still loading) is anchored
   // as soon as it appears, instead of staying a centred dialog.
   const [drawn, setDrawn] = useState(0);
@@ -164,6 +173,10 @@ export function CoachMarkTour({
 
   const finish = (outcome: CoachMarkOutcome) => {
     setClosed(true);
+    if (onDemand !== undefined) {
+      onDemand();
+      return;
+    }
     setEnded(outcome);
     resent.current = true;
     rememberTourOutcome(organizationSlug, tour, outcome, neverAgain);

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@tmanage/ui';
+import { Button, Tooltip, MOTION_DELAY_TOOLTIP_MS } from '@tmanage/ui';
+import { NavIcon } from '../icons/phone';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getConnectedApps } from '../../lib/api/connected-apps';
 import { connectorAddress, deploymentAddress } from '../../lib/ai-connector-address';
@@ -78,7 +79,14 @@ function openBeside(site: AssistantSite): void {
  * "Let AI do the job" — the one control the app's top bar carries for the AI side panel (Figma
  * section 400:5399). Reads the person's Connected apps only once pressed.
  */
-export function AiPanelLauncher({ organizationSlug }: { readonly organizationSlug: string }) {
+export function AiPanelLauncher({
+  organizationSlug,
+  variant = 'button',
+}: {
+  readonly organizationSlug: string;
+  /** `icon`: the AI icon button of the dashboard title row (Figma 795:931), named in a tooltip. */
+  readonly variant?: 'button' | 'icon';
+}) {
   const t = useAiPanelT();
   const locale = useActiveLocale();
   const panel = usePanelState();
@@ -209,21 +217,38 @@ export function AiPanelLauncher({ organizationSlug }: { readonly organizationSlu
   const panelSite = siteByKey(panel.siteKey);
   const panelChoice = choices.find((choice) => choice.site.key === panelSite?.key);
 
+  const expanded =
+    aiOpen ||
+    (popover.kind !== 'none' && !(popover.kind === 'chooser' && popover.from === 'panel'));
+
   return (
     <div className="tm-ai-launcher" ref={anchor}>
-      <Button
-        tone="outline"
-        size="default"
-        aria-haspopup="dialog"
-        aria-expanded={
-          aiOpen ||
-          (popover.kind !== 'none' && !(popover.kind === 'chooser' && popover.from === 'panel'))
-        }
-        loading={pending}
-        onClick={press}
-      >
-        {t('AiPanel.launch')}
-      </Button>
+      {variant === 'icon' ? (
+        <Tooltip content={t('AiPanel.launch')} delayMs={MOTION_DELAY_TOOLTIP_MS} placement="bottom">
+          <button
+            type="button"
+            className="tm-title-icon"
+            aria-label={t('AiPanel.launch')}
+            aria-haspopup="dialog"
+            aria-expanded={expanded}
+            aria-busy={pending || undefined}
+            onClick={press}
+          >
+            <NavIcon name="waveform" size={20} />
+          </button>
+        </Tooltip>
+      ) : (
+        <Button
+          tone="outline"
+          size="default"
+          aria-haspopup="dialog"
+          aria-expanded={expanded}
+          loading={pending}
+          onClick={press}
+        >
+          {t('AiPanel.launch')}
+        </Button>
+      )}
 
       {popover.kind === 'chooser' && popover.from === 'button' ? chooser : null}
       {popover.kind === 'empty' ? (

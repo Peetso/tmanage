@@ -41,9 +41,10 @@ export interface TooltipProps {
    * it when there is no room; `'end'` sits beside it (after it in reading order, so on the left in
    * Arabic) and flips to the other side, then above or below. Either way the bubble is placed in
    * the viewport (`position: fixed`), shifts so it never leaves the screen, and its arrow points at
-   * the trigger, so a scrolling rail or a screen edge never clips it.
+   * the trigger, so a scrolling rail or a screen edge never clips it. `'bottom'` sits below the
+   * trigger and flips above it (a number tile whose label sits under the value).
    */
-  placement?: 'top' | 'end';
+  placement?: 'top' | 'end' | 'bottom';
 }
 
 /**
@@ -61,10 +62,40 @@ export interface TooltipProps {
  * mechanism, not from watching visibility change. Keyboard focus shows it because
  * hover-only affordances exclude keyboards.
  */
-const PLACEMENTS: Record<'top' | 'end', readonly AnchoredSide[]> = {
+const PLACEMENTS: Record<'top' | 'end' | 'bottom', readonly AnchoredSide[]> = {
   top: ['top', 'bottom'],
   end: ['end', 'start', 'bottom', 'top'],
+  bottom: ['bottom', 'top'],
 };
+
+/**
+ * `motion.delay.tooltip`: how long the pointer rests before a tooltip shows (My Day v3 spec §4).
+ * No published source gives a figure (NN/g gives none, the WAI-ARIA APG says "a small delay"), so
+ * 700 ms is a TManage target, kept in this one place so the persona test can tune it. It is not in
+ * the design export's `motion` scale (`tokens.json`, pinned by `tokens.drift.test.ts`), which is
+ * why it lives here and not in `tokens.ts`.
+ */
+export const MOTION_DELAY_TOOLTIP_MS = 700;
+
+/** After a tooltip closes, a neighbour reached within this window shows at once (spec §4 (b)). */
+const WARM_WINDOW_MS = 400;
+/** A mouse event this soon after a touch is the browser's emulation of the tap, not a hover. */
+const TOUCH_EMULATION_MS = 1000;
+
+/**
+ * Shared by every tooltip on the page: how many are open, until when the group stays "warm", and
+ * when the last touch happened. Module state on purpose: the warm-up belongs to the pointer, not
+ * to one trigger.
+ */
+const group = { open: 0, warmUntil: 0, touchedAt: Number.NEGATIVE_INFINITY };
+
+function warm(now: number): boolean {
+  return group.open > 0 || now < group.warmUntil;
+}
+
+function touchedRecently(now: number): boolean {
+  return now - group.touchedAt < TOUCH_EMULATION_MS;
+}
 
 export function Tooltip({
   content,
@@ -106,6 +137,17 @@ export function Tooltip({
   };
   useEffect(() => cancel, []);
 
+  // The warm-up group (spec §4 (b)): count the open tooltips, and keep the group warm a moment
+  // after the last one closes so the next one the pointer reaches shows at once.
+  useEffect(() => {
+    if (!open) return undefined;
+    group.open += 1;
+    return () => {
+      group.open -= 1;
+      group.warmUntil = Date.now() + WARM_WINDOW_MS;
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -130,7 +172,8 @@ export function Tooltip({
     'aria-describedby': [existingDescribedBy, id].filter(Boolean).join(' '),
     onFocus: (event: unknown) => {
       child.props.onFocus?.(event);
-      setOpen(true);
+      // A tap focuses the control too; on touch there is no tooltip (the info sheet is the place).
+      if (!touchedRecently(Date.now())) setOpen(true);
     },
     onBlur: (event: unknown) => {
       child.props.onBlur?.(event);
@@ -145,9 +188,17 @@ export function Tooltip({
     <span
       ref={setWrapper}
       className={className ? `tm-tooltip ${className}` : 'tm-tooltip'}
+      onPointerDown={(event) => {
+        if (event.pointerType === 'touch') group.touchedAt = Date.now();
+      }}
+      onTouchStart={() => {
+        group.touchedAt = Date.now();
+      }}
       onMouseEnter={() => {
         cancel();
-        if (delayMs <= 0) setOpen(true);
+        const now = Date.now();
+        if (touchedRecently(now)) return;
+        if (delayMs <= 0 || warm(now)) setOpen(true);
         else timer.current = setTimeout(() => setOpen(true), delayMs);
       }}
       onMouseLeave={() => {

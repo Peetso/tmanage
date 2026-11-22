@@ -22,6 +22,13 @@ export const HOME_WIDGET_IDS = [
   'savedContext',
   // 62-A1b: the business briefing card (shown only where the company's briefing is on).
   'businessBriefing',
+  // My Day v3.1: the widgets the v3 page added (the ids above keep their v3 successors).
+  'next',
+  'byProject',
+  'timer',
+  'gettingStarted',
+  'quickQuestion',
+  'recent',
 ] as const;
 export type HomeWidgetId = (typeof HOME_WIDGET_IDS)[number];
 

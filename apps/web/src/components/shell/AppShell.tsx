@@ -40,6 +40,7 @@ import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
 import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
 import { NewMenu } from './NewMenu';
+import { TitleRowControls } from './TitleRowControls';
 
 export interface AppShellProps {
   /**
@@ -83,6 +84,13 @@ export interface AppShellProps {
   headerAside?: ReactNode;
   /** The black day capsule above the header (HOME-01 only). Pass a `<DayPulseBar />`. */
   topBar?: ReactNode;
+  /**
+   * `standard` (default) is every screen's header. `titleRow` is the dashboard title row of My Day
+   * v3.1 (Figma `Shell/Title row` 795:931): the title, the summary line under it, and at the end
+   * Search, Help and AI as icon buttons, the running-timer capsule only while a timer runs, and
+   * "+ New" as the one text button. The organization line stays for screen readers only.
+   */
+  header?: 'standard' | 'titleRow';
   /** The contextual sidebar — saved views, channels, admin sections. */
   contextRail?: ReactNode;
   children: ReactNode;
@@ -212,6 +220,7 @@ export function AppShell({
   actionsPlacement = 'end',
   headerAside,
   topBar,
+  header = 'standard',
   contextRail,
   children,
   lens,
@@ -224,6 +233,7 @@ export function AppShell({
   const displayedOrganizationName = useOrganizationName(organizationSlug, organizationName);
   const queryClient = useContext(QueryClientContext);
   const t = useT();
+  const titleRow = header === 'titleRow';
   const shell = (
     <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
       <div className="tm-app">
@@ -304,9 +314,10 @@ export function AppShell({
               className="tm-canvas-header"
               data-title-variant={titleVariant}
               data-actions={actionsPlacement}
+              data-header={titleRow ? 'title-row' : undefined}
             >
               <div className="tm-canvas-header__titles">
-                <p className="tm-canvas-header__context">
+                <p className={`tm-canvas-header__context${titleRow ? ' tm-visually-hidden' : ''}`}>
                   <BetaTag placement="phone" />
                   <span className="tm-canvas-header__org">{displayedOrganizationName}</span>
                   {eyebrow ? (
@@ -319,7 +330,12 @@ export function AppShell({
                 <div className="tm-canvas-header__title-row">
                   <h1 className="tm-canvas-header__title">{title}</h1>
                   {titleMeta ? <span className="tm-canvas-header__meta">{titleMeta}</span> : null}
-                  {actions || queryClient ? (
+                  {titleRow ? (
+                    <div className="tm-canvas-header__actions">
+                      {actions}
+                      <TitleRowControls organizationSlug={organizationSlug} live={!!queryClient} />
+                    </div>
+                  ) : actions || queryClient ? (
                     <div className="tm-canvas-header__actions">
                       {actions}
                       {/* Row 55-05: the global "+ New" menu, filtered by role (needs the query
@@ -349,7 +365,9 @@ export function AppShell({
                     </div>
                   ) : null}
                 </div>
-                {description ? (
+                {description && titleRow ? (
+                  <div className="tm-canvas-header__description">{description}</div>
+                ) : description ? (
                   <p className="tm-canvas-header__description">{description}</p>
                 ) : null}
               </div>

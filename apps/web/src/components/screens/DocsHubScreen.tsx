@@ -7,7 +7,7 @@ import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useShellCapability } from '../shell/use-shell-capability';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
-import { DayScheduleBar } from './MyDayScreen';
+import { DayScheduleBar } from '../shell/DayScheduleBar';
 import '../../styles/screens/docs.css';
 import { AudienceBadge } from '../docs/DocumentAudience';
 import { useCreateBlankDocument } from '../docs/DocsSidebar';

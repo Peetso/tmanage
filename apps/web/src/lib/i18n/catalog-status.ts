@@ -70,7 +70,7 @@ export const PARTIAL_CORE_NAMESPACES: readonly string[] = [
   'PasskeySignIn',
   'AuthRefusal',
   // My Day
-  'MyDayScreen',
+  'MyDay',
   'HomeBriefing',
   // Projects
   'ProjectOverviewScreen',

@@ -24,7 +24,13 @@ export {
   type TimeFieldProps,
   type CalendarDayString,
 } from './DateField.js';
-export { Tooltip, type TooltipProps } from './Tooltip.js';
+export { Tooltip, MOTION_DELAY_TOOLTIP_MS, type TooltipProps } from './Tooltip.js';
+export {
+  InfoButton,
+  InfoPopover,
+  type InfoButtonProps,
+  type InfoPopoverProps,
+} from './InfoButton.js';
 export {
   computeAnchoredPosition,
   toPhysicalSide,
