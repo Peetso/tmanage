@@ -53,6 +53,18 @@ import { unwrapQueryError } from './query-error.js';
  */
 export type ActorChannel = 'ai_assistant';
 
+/**
+ * 60-06 (plan 60 v2 §4.1). Set by the server only, when a credential resolved to an AI employee's
+ * membership and passed the agent gate (`modules/ai-employees/enforcement.ts`); never read off the
+ * request. `undefined` for every person.
+ */
+export interface AiEmployeeContextStamp {
+  readonly aiEmployeeId: string;
+  readonly sponsorMembershipId: string;
+  /** Task-type keys the AI employee may take; empty means none (fail closed). */
+  readonly allowedTaskTypes: readonly string[];
+}
+
 export interface TenantContext {
   readonly organizationId: string;
   readonly userId: string;
@@ -77,6 +89,8 @@ export interface TenantContext {
    * audit append stamps a safe form of it so the activity feed can say "from Claude".
    */
   readonly actorApp?: string;
+  /** 60-06. The AI employee acting, when it is one (see {@link AiEmployeeContextStamp}). */
+  readonly aiEmployee?: AiEmployeeContextStamp;
 }
 
 export type TenantContextInput = {
@@ -136,6 +150,18 @@ export function createTenantContext(input: TenantContextInput): TenantContext {
     // was before AUT-08 and nothing downstream (audit metadata, equality in tests) changes.
     ...(input.actorChannel ? { actorChannel: input.actorChannel } : {}),
     ...(input.actorApp ? { actorApp: input.actorApp } : {}),
+    ...(input.aiEmployee
+      ? {
+          aiEmployee: Object.freeze({
+            aiEmployeeId: requireUuid('aiEmployee.aiEmployeeId', input.aiEmployee.aiEmployeeId),
+            sponsorMembershipId: requireUuid(
+              'aiEmployee.sponsorMembershipId',
+              input.aiEmployee.sponsorMembershipId,
+            ),
+            allowedTaskTypes: Object.freeze([...input.aiEmployee.allowedTaskTypes]),
+          }),
+        }
+      : {}),
   });
 }
 

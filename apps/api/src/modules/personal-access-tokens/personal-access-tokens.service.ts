@@ -12,6 +12,7 @@ import {
   mintPersonalAccessToken,
   parseStoredIpAllowlist,
   parseStoredScopes,
+  isAgentScoped,
 } from './personal-access-token.js';
 import { KNOWN_SCOPES, scopesToString } from '../oauth/scopes.js';
 import { validateIpAllowlist } from '../admin/cidr.js';
@@ -70,6 +71,11 @@ export interface AuthenticatedToken {
   readonly scopes: readonly string[];
   /** R13 s3. Addresses / ranges the token may be used from; empty means any. */
   readonly ipAllowlist: readonly string[];
+  /**
+   * 60-06. The stored scopes name `tmanage:agent`: an AI employee's agent key. Its `scopes` are
+   * empty (the agent scope is not a human scope), so only the agent tool wall decides its routes.
+   */
+  readonly agent: boolean;
 }
 
 export type PersonalAccessTokenRejection = 'malformed' | 'unknown' | 'revoked' | 'expired';
@@ -426,6 +432,7 @@ export class PersonalAccessTokensService {
       userId: row.userId,
       scopes: row.scopes === undefined ? DEFAULT_PAT_SCOPES : parseStoredScopes(row.scopes),
       ipAllowlist: parseStoredIpAllowlist(row.ipAllowlistJson),
+      agent: isAgentScoped(row.scopes),
     };
   }
 

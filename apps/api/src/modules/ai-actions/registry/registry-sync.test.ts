@@ -252,7 +252,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // 62-28: GET home/briefing/signals/:signalId (+1 op, read).
 // 62-29: GET client-invoices/:invoiceId/pull-preview (+1 op, read).
 // 62-25: GET knowledge/files/:fileAssetId (+1 op, read).
-const EXPECTED_ROUTE_COUNT = 1609;
+// 60-06: +1 NEVER (GET agent/me, the agent contract's agent_whoami).
+const EXPECTED_ROUTE_COUNT = 1610;
 // 60-03: +8 NEVER (ai-employees list, get, hire, edit, pause, resume, sponsor, retire).
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.

@@ -76,6 +76,12 @@ export interface RequestState {
      * "Claude on my laptop" rather than "Personal access token" (TESTUX P1 9).
      */
     readonly name?: string;
+    /**
+     * 60-06. The token holds `tmanage:agent`: an AI employee's agent key. Read from the token row
+     * by the authentication guard, never from the request; the tenant guard's agent gate checks
+     * it against the membership.
+     */
+    readonly agent?: boolean;
   };
   /** Set by `TenantContextGuard` (steps 2–3). */
   tenant?: TenantContext;

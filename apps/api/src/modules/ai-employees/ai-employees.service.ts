@@ -23,8 +23,9 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { ApiError } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { aiEmployeesOff } from './ai-employees.switch.js';
 import {
   parseAgentKeyRequest,
   type AgentKeysService,
@@ -160,22 +161,7 @@ export interface AiEmployeesServiceOptions {
   readonly now?: () => Date;
 }
 
-/** The environment variable that turns the AI-employee surface on for this server. */
-export const AI_EMPLOYEES_SWITCH = 'TMANAGE_AI_EMPLOYEES';
-
-/**
- * Whether this server exposes the AI-employee surface: only the exact value `on`. Absent, empty,
- * `off`, `ON` or anything else is off (fail closed). It stays off until 60-04, 60-05, 60-06 and
- * 60-09 (seats and headcount) have shipped; the platform owner then sets it in Hostinger.
- */
-export function aiEmployeesEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
-  return env[AI_EMPLOYEES_SWITCH] === 'on';
-}
-
-/** The refusal while the switch is off: the same 404 as a feature flag that is off (52-24). */
-export function aiEmployeesOff(): ApiError {
-  return new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'feature.ai_employees_off');
-}
+export { AI_EMPLOYEES_SWITCH, aiEmployeesEnabled, aiEmployeesOff } from './ai-employees.switch.js';
 
 const MANAGE: Capability = 'ai_employee.manage';
 const iso = (value: Date | null): string | null => (value === null ? null : value.toISOString());
@@ -210,7 +196,10 @@ function windowsJson(windows: readonly WorkingWindow[] | null): string | null {
   );
 }
 
-function readWindows(stored: string | null, timezone: string): readonly WorkingWindowView[] | null {
+export function readWindows(
+  stored: string | null,
+  timezone: string,
+): readonly WorkingWindowView[] | null {
   if (stored === null) return null;
   let raw: unknown;
   try {

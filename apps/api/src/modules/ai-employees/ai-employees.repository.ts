@@ -8,7 +8,14 @@ import {
 } from '@tmanage/domain';
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { aiEmployees, memberships, organizations, users } from '../../common/database/schema.js';
+import {
+  aiEmployees,
+  aiExcludedProjects,
+  memberships,
+  organizations,
+  projects,
+  users,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -54,6 +61,22 @@ export interface MemberFacts {
   readonly status: string;
   /** `null` when the stored kind cannot be read (refused everywhere). */
   readonly kind: MembershipKind | null;
+}
+
+/**
+ * 60-06: what the agent gate needs about the AI employee behind a credential, read on every agent
+ * call by the one unique key `(organization_id, membership_id)`. No joins: the gate runs on every
+ * bound-token request, and a person's token answers `null` here at the cost of one index probe.
+ */
+export interface AiEmployeeStamp {
+  readonly id: string;
+  readonly membershipId: string;
+  readonly sponsorMembershipId: string;
+  readonly status: AiEmployeeStatus | null;
+  readonly timezone: string;
+  readonly workingHoursJson: string | null;
+  readonly limitsJson: string | null;
+  readonly allowedTaskTypesJson: string | null;
 }
 
 export interface NewAiEmployee {
@@ -355,6 +378,67 @@ export class AiEmployeesRepository {
   }
 
   /** The display name of each membership id of this workspace (a second read, no alias joins). */
+  /** 60-06: the AI employee behind a membership, or `null` (a person's membership). */
+  async findStampByMembership(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+  ): Promise<AiEmployeeStamp | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        id: aiEmployees.id,
+        membershipId: aiEmployees.membershipId,
+        sponsorMembershipId: aiEmployees.sponsorMembershipId,
+        status: aiEmployees.status,
+        timezone: aiEmployees.timezone,
+        workingHoursJson: aiEmployees.workingHoursJson,
+        limitsJson: aiEmployees.limitsJson,
+        allowedTaskTypesJson: aiEmployees.allowedTaskTypesJson,
+      })
+      .from(aiEmployees)
+      .where(
+        and(
+          eq(aiEmployees.organizationId, context.organizationId),
+          eq(aiEmployees.membershipId, membershipId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (row === undefined) return null;
+    return { ...row, status: parseAiEmployeeStatus(row.status) };
+  }
+
+  /** 60-06 (M5, 0402): the projects the workspace keeps away from AI employees. */
+  async excludedProjectIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ projectId: aiExcludedProjects.projectId })
+      .from(aiExcludedProjects)
+      .where(eq(aiExcludedProjects.organizationId, context.organizationId));
+    return rows.map((row) => row.projectId);
+  }
+
+  /** 60-06: id and name of the given projects of this workspace, in name order. */
+  async projectNames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly { id: string; name: string }[]> {
+    if (projectIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.organizationId, context.organizationId),
+          inArray(projects.id, [...projectIds]),
+        ),
+      )
+      .orderBy(asc(projects.name), asc(projects.id));
+  }
+
   private async displayNames(
     runner: TenantQueryRunner,
     context: TenantContext,

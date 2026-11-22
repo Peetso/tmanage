@@ -86,7 +86,11 @@ import {
 import type { MembershipResolver } from '../../../modules/tenancy/membership-resolver.repository.js';
 import type { PrincipalRepository } from '../../../modules/tenancy/principal.repository.js';
 import type { TenantDatabase } from '../../database/tenant-context.js';
-import { withActorChannel } from '../../database/tenant-context.js';
+import { createTenantContext, withActorChannel } from '../../database/tenant-context.js';
+import { AiEmployeesRepository } from '../../../modules/ai-employees/ai-employees.repository.js';
+import { aiEmployeesEnabled } from '../../../modules/ai-employees/ai-employees.switch.js';
+import { AgentEnforcement } from '../../../modules/ai-employees/enforcement.js';
+import type { AgentGate } from '../../../modules/ai-employees/enforcement.js';
 import { bindAuditOrigin, requestOriginOf } from '../request-origin.js';
 import type { SupportSessionStamp } from '../request-origin.js';
 
@@ -128,6 +132,8 @@ import type { SupportSessionStamp } from '../request-origin.js';
 export class TenantContextGuard implements CanActivate {
   /** The production checks, built on first use when Nest constructed this guard. */
   private builtChecks: TenantGuardChecks | undefined;
+  /** 60-06. The agent gate, found or built on first use. */
+  private builtAgentGate: AgentGate | undefined;
 
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
@@ -270,6 +276,31 @@ export class TenantContextGuard implements CanActivate {
     // platform switch stop it on REST exactly as they stop it on `/mcp`.
     if (isBoundTokenScheme(state.authScheme)) await this.enforceAiSwitches(state);
 
+    // 60-06 agent gate: for every bound token, is this an AI employee's membership? A person's
+    // token passes untouched; an AI employee is checked (switch, credential kind, status,
+    // sponsor, hours) and acts with role ∩ AI ceiling ∩ sponsor, never org-wide, without the
+    // projects excluded for AI (`modules/ai-employees/enforcement.ts`).
+    const agent = isBoundTokenScheme(state.authScheme)
+      ? await this.agentGate()?.decide({
+          context: resolved.context,
+          agentCredential: state.personalAccessToken?.agent === true,
+          correlationId: state.correlationId,
+        })
+      : null;
+    if (agent) {
+      resolved = {
+        ...resolved,
+        context: createTenantContext({
+          ...resolved.context,
+          capabilities: agent.capabilities,
+          aiEmployee: agent.stamp,
+        }),
+        overrides: agent.overrides,
+        hasOrgWideScope: false,
+        workspaceScopeId: null,
+      };
+    }
+
     const checks = state.authScheme === 'cookie' ? this.checks() : undefined;
     const loaded = await this.database.read(resolved.context, async (runner) => ({
       principal: await this.principals.load(runner, resolved),
@@ -344,9 +375,33 @@ export class TenantContextGuard implements CanActivate {
     const supportSession = supportSessionFromResolved(resolved);
     SUPPORT_SESSIONS.set(request, supportSession);
     state.tenant = bindAuditOrigin(channelled, { ...requestOriginOf(request), supportSession });
-    state.principal = loaded.principal;
+    state.principal = agent
+      ? {
+          ...loaded.principal,
+          projectIds: loaded.principal.projectIds.filter(
+            (projectId) => !agent.excludedProjectIds.includes(projectId),
+          ),
+        }
+      : loaded.principal;
 
     return true;
+  }
+
+  /**
+   * 60-06. The agent gate, built on first use over the same database, resolver and server switch
+   * the rest of this guard uses. Only a guard constructed by hand without a `ModuleRef` (a unit
+   * test of the membership rules) runs without it; Nest always passes one.
+   */
+  protected agentGate(): AgentGate | undefined {
+    if (this.builtAgentGate !== undefined) return this.builtAgentGate;
+    if (this.moduleRef === undefined) return undefined;
+    this.builtAgentGate = new AgentEnforcement({
+      database: this.database,
+      repository: new AiEmployeesRepository(),
+      resolver: this.resolver,
+      enabled: aiEmployeesEnabled(process.env),
+    });
+    return this.builtAgentGate;
   }
 
   /**

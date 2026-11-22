@@ -9,6 +9,8 @@ import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { AI_EMPLOYEES_SERVICE, AiEmployeesController } from './ai-employees.controller.js';
 import { AiEmployeesRepository } from './ai-employees.repository.js';
 import { AiEmployeesService, aiEmployeesEnabled } from './ai-employees.service.js';
+import { AGENT_WHOAMI_SERVICE, AgentController } from './agent.controller.js';
+import { AgentWhoamiService } from './agent-whoami.js';
 
 /**
  * 60-03 (plan 60 v2) — AI employees, part of the Tenancy & People context (VIEWS §4). Owns
@@ -19,6 +21,10 @@ import { AiEmployeesService, aiEmployeesEnabled } from './ai-employees.service.j
  * Behind the server switch `TMANAGE_AI_EMPLOYEES=on`, off by default: while off every route is
  * the calm 404 `not_found` (`feature.ai_employees_off`). The routes are NEVER in the AI action
  * registry, so they are absent from the MCP catalog and `/openapi/ai.json` in both states.
+ *
+ * 60-06: the agent contract starts here (`agent-whoami.ts`, `GET …/agent/me`). The tool wall and
+ * the agent gate that guard every AI employee's call live in `enforcement.ts`; the guards call
+ * them (`SessionAuthGuard`, `TenantContextGuard`).
  */
 @Module({})
 export class AiEmployeesModule {
@@ -40,8 +46,18 @@ export class AiEmployeesModule {
               enabled: aiEmployeesEnabled(process.env),
             }),
         },
+        {
+          provide: AGENT_WHOAMI_SERVICE,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) =>
+            new AgentWhoamiService({
+              database,
+              repository: new AiEmployeesRepository(),
+              enabled: aiEmployeesEnabled(process.env),
+            }),
+        },
       ],
-      controllers: [AiEmployeesController],
+      controllers: [AiEmployeesController, AgentController],
     };
   }
 }

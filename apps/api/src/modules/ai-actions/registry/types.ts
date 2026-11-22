@@ -147,6 +147,10 @@ export const NEVER_REASONS = [
   // decision about who works in the company. No AI principal, an AI employee least of all, may
   // drive it (plan 60 v2 §5 test 6, "self-change").
   'ai_employee_admin',
+  // 60-06. The agent contract (`/agent/...`): reachable only with an AI employee's agent key
+  // through the tool wall, never through the generic AI registry, the MCP catalog or the AI
+  // OpenAPI document (plan 60 v2 §4.4, security test 2).
+  'agent_contract',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

@@ -86,7 +86,21 @@ describe('PersonalAccessTokensService.authenticate', () => {
       // R13 s3: a pre-0282 row (no scopes column read) keeps read + write, never more.
       scopes: ['tmanage:read', 'tmanage:write'],
       ipAllowlist: [],
+      agent: false,
     });
+  });
+
+  it('60-06: marks an agent key (tmanage:agent) as an agent with no human scope', async () => {
+    const result = await serviceWith(row({ scopes: 'tmanage:agent' })).authenticate(
+      token,
+      CORRELATION,
+    );
+    expect(result).toMatchObject({ scopes: [], agent: true });
+    const person = await serviceWith(row({ scopes: 'tmanage:read tmanage:agentx' })).authenticate(
+      token,
+      CORRELATION,
+    );
+    expect(person).toMatchObject({ scopes: ['tmanage:read'], agent: false });
   });
 
   it('refuses a malformed token without a lookup', async () => {

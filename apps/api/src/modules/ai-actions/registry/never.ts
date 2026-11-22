@@ -1427,6 +1427,8 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/retire',
     reason: 'ai_employee_admin',
   },
+  // 60-06: the agent contract; the tool wall lets only an agent key through.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/agent/me', reason: 'agent_contract' },
   // 60-05: an AI employee's agent keys, people only (an agent never mints its own key).
   {
     method: 'GET',

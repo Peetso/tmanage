@@ -19,6 +19,7 @@ import { readCookie } from '../../../modules/identity/session-token.js';
 import { PersonalAccessTokenNotAuthenticatedError } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
 import type { PersonalAccessTokensService } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
 import { isTwoStepExemptPath, twoStepRequiredError } from './two-step-requirement.guard.js';
+import { agentContractRouteFor, agentToolWall } from '../../../modules/ai-employees/enforcement.js';
 import { hasActiveSecondFactorRow } from '../../../modules/identity/second-factor-presence.repository.js';
 import { TENANT_DATABASE } from '../tokens.js';
 import type { TenantDatabase } from '../../database/tenant-context.js';
@@ -230,6 +231,7 @@ export class SessionAuthGuard implements CanActivate {
             organizationId: authed.organizationId,
             membershipId: authed.membershipId,
             name: authed.name,
+            ...(authed.agent ? { agent: true } : {}),
           };
           this.enforceTokenLimits(request, state, authed);
           return true;
@@ -321,6 +323,7 @@ export class SessionAuthGuard implements CanActivate {
       readonly membershipId: string;
       readonly scopes?: readonly string[];
       readonly ipAllowlist?: readonly string[];
+      readonly agent?: boolean;
     },
   ): void {
     const allowlist = authed.ipAllowlist ?? [];
@@ -338,6 +341,20 @@ export class SessionAuthGuard implements CanActivate {
         undefined,
         'pat_ip_not_allowed',
       );
+    }
+    // 60-06 tool wall: an AI employee's agent key reaches the agent contract routes and nothing
+    // else — no registry op, no other REST route, and (until the agent tools land on the
+    // connector, 60-22) not `/mcp`. Its scopes are empty, so the route-class check below would
+    // refuse it anyway; the wall says why and records it.
+    if (authed.agent === true) {
+      if (
+        isMcpPath(request.url) ||
+        agentContractRouteFor(request.method ?? 'GET', request.url) === null
+      ) {
+        this.recordRefusal(request, state.correlationId, AGENT_TOOL_WALL_REASON);
+        throw agentToolWall();
+      }
+      return;
     }
     const scopes = authed.scopes ?? DEFAULT_PAT_SCOPES;
     if (isMcpPath(request.url)) {
@@ -419,6 +436,8 @@ export const ACCOUNT_DISABLED_REASON = 'account_disabled';
 export const PAT_SCOPE_DENIED_REASON = 'pat.scope_denied';
 /** R13 s3. `authentication_events.reason` for a token used from outside its IP allowlist. */
 export const PAT_IP_DENIED_REASON = 'pat.ip_denied';
+/** 60-06: an agent key asked for a route outside the agent contract. */
+export const AGENT_TOOL_WALL_REASON = 'pat.agent_tool_wall';
 
 /** NV02: at most this many refusal rows per source address per window. */
 export const REFUSAL_ROWS_PER_ADDRESS = 1;

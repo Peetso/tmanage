@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { DEFAULT_SCOPES, KNOWN_SCOPES, requiredScopeFor } from '../oauth/scopes.js';
+import { DEFAULT_SCOPES, KNOWN_SCOPES, SCOPE_AGENT, requiredScopeFor } from '../oauth/scopes.js';
 import { isIpv4, isIpv6 } from '../admin/cidr.js';
 
 /**
@@ -185,6 +185,15 @@ export function parseStoredScopes(stored: string | null | undefined): readonly s
   if (stored === null || stored === undefined) return DEFAULT_PAT_SCOPES;
   const present = new Set(stored.split(/\s+/).filter((s) => s !== ''));
   return KNOWN_SCOPES.filter((scope) => present.has(scope));
+}
+
+/**
+ * 60-06. Whether the stored scopes name `tmanage:agent` (an AI employee's agent key). Exact word
+ * match; a pre-0282 row (no scopes) is a person's token.
+ */
+export function isAgentScoped(stored: string | null | undefined): boolean {
+  if (stored === null || stored === undefined) return false;
+  return stored.split(/\s+/).includes(SCOPE_AGENT);
 }
 
 /** Parse the stored IP allowlist JSON; anything unreadable is treated as a list that admits nobody. */
