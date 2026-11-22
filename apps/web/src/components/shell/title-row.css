@@ -19,6 +19,24 @@
   margin-inline-start: auto;
 }
 
+/*
+ * Phone (the shell's phone layout, below 56.2rem): the title keeps the first line, beside the
+ * phone top bar's bell and avatar orb at the inline end, and the controls take the next line, so
+ * none of them sits under the orb or off the page in either direction.
+ */
+@media (max-width: 56.19rem) {
+  .tm-canvas-header[data-header='title-row'] .tm-canvas-header__title-row {
+    flex-wrap: wrap;
+    row-gap: var(--s3);
+  }
+
+  .tm-canvas-header[data-header='title-row'] .tm-canvas-header__actions {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    margin-inline-start: 0;
+  }
+}
+
 .tm-title-icon {
   display: inline-grid;
   place-items: center;
@@ -58,4 +76,19 @@
 
 .tm-timer-capsule .tm-timer-dot {
   background: var(--danger-600);
+}
+
+/*
+ * The phone top bar keeps 100px at the end of the title row for the bell and avatar orb
+ * (styles/phone/shell.css). They sit on the first line only, so the title keeps that gap and the
+ * controls' own line uses the full width.
+ */
+@media (max-width: 47.99rem) {
+  .tm-app .tm-canvas-header[data-header='title-row'] .tm-canvas-header__title-row {
+    padding-inline-end: 0;
+  }
+
+  .tm-app .tm-canvas-header[data-header='title-row'] .tm-canvas-header__title {
+    padding-inline-end: 100px;
+  }
 }

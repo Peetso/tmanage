@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MyDayScreen } from '../src/components/screens/MyDayScreen';
-import { SCREEN_VIEWPORTS } from '../.storybook/vr-viewport';
+import { PHONE_VIEWPORT, SCREEN_VIEWPORTS } from '../.storybook/vr-viewport';
+import { activeLocale } from '../src/lib/i18n/locale-store';
 import { ARABIC_STORY } from './support/arabic';
 import { MY_DAY_NOW, installMyDayFetch, myDayClient } from './support/my-day-fixtures';
 import type { MyDaySeedOptions } from './support/my-day-fixtures';
@@ -57,4 +58,30 @@ export const BusyArabic: Story = {
 export const NewMember: Story = {
   args: { client: myDayClient({ variant: 'empty' }) },
   parameters: { myDaySeed: { variant: 'empty' } },
+};
+
+/**
+ * The busy day on a 390 px phone (the e2e phone journeys' width). Every row keeps its parts inside
+ * its card, so each "⋯" menu, chip and button stays on the page and can be pressed (live e2e
+ * f0ee7274: in Arabic the Due & at risk "⋯" had run off the card's start edge).
+ */
+export const BusyPhone: Story = {
+  globals: { viewport: { value: PHONE_VIEWPORT } },
+};
+
+/** The same phone day in Arabic, right to left. */
+export const BusyArabicPhone: Story = {
+  ...ARABIC_STORY,
+  globals: { ...ARABIC_STORY.globals, viewport: { value: PHONE_VIEWPORT } },
+  args: { client: myDayClient({ lang: 'ar' }) },
+  parameters: { myDaySeed: { lang: 'ar' } },
+};
+
+/** The phone day in Urdu, the other right-to-left catalogue (longer labels than Arabic). */
+export const BusyUrduPhone: Story = {
+  globals: { direction: 'rtl', viewport: { value: PHONE_VIEWPORT } },
+  beforeEach: () => {
+    activeLocale.set('ur-PK');
+    return () => activeLocale.set('en-US');
+  },
 };

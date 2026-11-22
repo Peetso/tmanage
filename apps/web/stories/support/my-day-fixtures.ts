@@ -511,6 +511,9 @@ export function myDayFetch({ lang = 'en', variant = 'busy' }: MyDaySeedOptions =
         });
       case '/feature-flags':
         return reply({ flags: { time_tracking: true } });
+      // The phone tab bar's Inbox badge (below 56.19rem).
+      case '/inbox':
+        return reply({ items: [], nextCursor: null });
       case '/me':
         return reply({
           membershipId: 'm-1',
