@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
-import { MATRIX, capabilitiesFor } from '@tmanage/domain';
+import { MATRIX, MATRIX_AREAS, capabilitiesFor } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -62,7 +62,7 @@ describe('RolesMatrixController', () => {
     const { controller: c } = controller();
     const view = await c.read(context, principal('org_admin'));
     expect(view.matrix).toBe(MATRIX);
-    expect(view.areas).toHaveLength(19);
+    expect(view.areas).toHaveLength(MATRIX_AREAS.length);
     const ids = view.roles.map((role) => role.id);
     expect(ids).toContain('owner');
     expect(ids).toContain('client_reviewer');
