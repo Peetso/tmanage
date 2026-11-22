@@ -27,6 +27,9 @@ import {
 import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
 import { RequirePlatformPermission } from '../platform-admin/require-platform-permission.decorator.js';
 import { SECURITY_SIGNALS_SERVICE } from './security-signals.service.js';
+import { ATTACK_TRACKS_SERVICE } from './attack-tracks.service.js';
+import type { AttackTracksService, TrackPage } from './attack-tracks.service.js';
+import type { TrackDetail } from './attack-tracks.js';
 import type {
   AlertRuleView,
   SecuritySignalsService,
@@ -126,5 +129,38 @@ export class PlatformSecuritySignalsController {
       { scope, kind, from, cursor, limit },
       platformRequestContext(request),
     );
+  }
+}
+
+/**
+ * SEC-ALERTS item 6 — `GET /v1/platform/security/attack-tracks?from&limit` (every hostile source
+ * as one track) and `GET …/:trackId` (its step-by-step timeline). Platform admins only; the guard
+ * demands a fresh step-up, as on every non-exempt platform route; each read is audited.
+ */
+@Controller('v1/platform/security/attack-tracks')
+@NoTenant()
+@UseGuards(PlatformAdminGuard)
+export class PlatformAttackTracksController {
+  constructor(@Inject(ATTACK_TRACKS_SERVICE) private readonly service: AttackTracksService) {}
+
+  @Get()
+  @RequirePlatformPermission('platform.settings.edit')
+  list(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Query('from') from: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Req() request: object,
+  ): Promise<TrackPage> {
+    return this.service.list(actor, { from, limit }, platformRequestContext(request));
+  }
+
+  @Get(':trackId')
+  @RequirePlatformPermission('platform.settings.edit')
+  get(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('trackId') trackId: string,
+    @Req() request: object,
+  ): Promise<TrackDetail> {
+    return this.service.get(actor, trackId, platformRequestContext(request));
   }
 }

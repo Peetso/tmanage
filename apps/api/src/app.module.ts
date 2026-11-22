@@ -1025,7 +1025,10 @@ export class AppModule {
         // `RateLimitsModule`: 52-21's global assess), mailed to sales@ from sales@.
         OutreachPublicModule.register(),
         // 56-23. `GET …/admin/security/events` — the organization's own security signals.
-        SecuritySignalsModule.register(),
+        // SEC-ALERTS: also the sign-in door's findings job and the attack tracker's hashers.
+        SecuritySignalsModule.register({
+          pepper: options.config.publicLinkPepper ?? options.config.csrfSecret,
+        }),
         // 52-23. Settings → Finance: profile, tax rates, manual FX, readiness under `/finance`;
         // global DOCUMENT_SEQUENCES (gapless numbers) for the issuing modules that follow.
         FinanceModule.register(),
