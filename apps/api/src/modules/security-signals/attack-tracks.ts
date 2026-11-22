@@ -363,6 +363,31 @@ export function trackCounts(
 }
 
 /**
+ * The window's tiles, over every source of the chosen window (not the page, not the search or
+ * chip): `sources` and `gotIn` count sources, `refused` and `throttled` sum their sign-in steps.
+ * `gotIn` is the critical count by definition (critical = got in after failing), so the tiles agree
+ * with `counts` whenever no search is set.
+ */
+export interface TrackWindowTotals {
+  readonly sources: number;
+  readonly gotIn: number;
+  readonly refused: number;
+  readonly throttled: number;
+}
+
+export function windowTotals(tracks: readonly TrackFacts[]): TrackWindowTotals {
+  return tracks.reduce<TrackWindowTotals>(
+    (sum, track) => ({
+      sources: sum.sources + 1,
+      gotIn: sum.gotIn + (track.breached ? 1 : 0),
+      refused: sum.refused + track.refused,
+      throttled: sum.throttled + track.throttled,
+    }),
+    { sources: 0, gotIn: 0, refused: 0, throttled: 0 },
+  );
+}
+
+/**
  * The server-side search (gap 8): an address prefix, a network owner (contains, any case), or an
  * exact account e-mail (resolved to its id by the caller: `accountId`).
  */

@@ -14,6 +14,7 @@ import {
   timeline,
   trackCounts,
   trackRows,
+  windowTotals,
   TRACK_MAX_LOOKBACK_DAYS,
   TRACK_SCAN_MAX,
 } from './attack-tracks.js';
@@ -25,6 +26,7 @@ import type {
   TrackFilter,
   TrackStep,
   TrackSummary,
+  TrackWindowTotals,
 } from './attack-tracks.js';
 import type { AttackTrackStore } from './attack-tracks.repository.js';
 import type { SourceLabelMatcher } from './source-labels.js';
@@ -93,6 +95,11 @@ export interface TrackPage {
   readonly total: number;
   /** Per filter chip, over the sources matching `q` (the chips' own numbers). */
   readonly counts: Readonly<Record<TrackFilter, number>>;
+  /**
+   * The tiles for the whole window (`since`), ignoring `q`, `filter` and the page; same snapshot
+   * (`until`) as the rows, so they do not drift between pages.
+   */
+  readonly windowTotals: TrackWindowTotals;
   /** The next page (same `from`, `q`, `filter`), or null on the last one. */
   readonly nextCursor: string | null;
   /** More than {@link TRACK_SCAN_MAX} sources in the window: totals cover the newest ones. */
@@ -147,6 +154,7 @@ export class AttackTracksService {
       from: query.from.toISOString(),
       total: filtered.length,
       counts: trackCounts(searched),
+      windowTotals: windowTotals(tracks),
       nextCursor:
         end < filtered.length ? encodeTrackCursor({ until: query.until, offset: end }) : null,
       truncated: scanned.length > TRACK_SCAN_MAX,

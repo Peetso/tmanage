@@ -408,6 +408,26 @@ describe('paging, search, chips and totals (gap 8)', () => {
     expect(page.counts.known_tester).toBe(1);
   });
 
+  it('gives the window totals over every source of the window, whatever the page, search or chip', async () => {
+    const { service } = world({ [TESTER]: breachRows(TESTER), ...many() });
+    const actor = actorWith([]);
+    const first = await service.list(actor, {}, context);
+    const second = await service.list(actor, { cursor: first.nextCursor ?? '' }, context);
+    const every = [...first.tracks, ...second.tracks];
+    // The tester: 5 failures + 1 door refusal, 1 throttle, got in once; 30 sources with 1 failure.
+    const expected = { sources: 31, gotIn: 1, refused: 36, throttled: 1 };
+    expect(first.windowTotals).toEqual(expected);
+    expect(second.windowTotals).toEqual(expected);
+    expect(every.reduce((sum, t) => sum + t.refused, 0)).toBe(expected.refused);
+    expect(first.tracks.reduce((sum, t) => sum + t.refused, 0)).toBeLessThan(expected.refused);
+    // Consistent with the chips when no search is set: sources = all, got in = critical.
+    expect(first.windowTotals.sources).toBe(first.counts.all);
+    expect(first.windowTotals.gotIn).toBe(first.counts.critical);
+    const narrowed = await service.list(actor, { q: '203.0.113.7', filter: 'critical' }, context);
+    expect(narrowed.total).toBe(0);
+    expect(narrowed.windowTotals).toEqual(expected);
+  });
+
   it('rejects a bad filter, a forged cursor and a cursor from the future', () => {
     expect(() => parseTrackQuery({ filter: 'everything' }, NOW)).toThrow();
     expect(() => parseTrackQuery({ cursor: 'bm9wZQ' }, NOW)).toThrow();
