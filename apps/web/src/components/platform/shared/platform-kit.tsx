@@ -91,7 +91,7 @@ export function PlatformGate({
   section: PlatformSection | LegacyPlatformSection;
   subsection?: PlatformSubsection;
   crumbs: readonly string[];
-  title: string;
+  title: ReactNode;
   description?: ReactNode;
   /** Header actions, shown once the step-up is live (they lead to platform actions). */
   actions?: (me: PlatformMeView) => ReactNode;

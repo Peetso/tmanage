@@ -23,7 +23,9 @@ export type PlatformSection =
   | 'ai-spend'
   | 'activity'
   | 'settings'
-  | 'team';
+  | 'team'
+  // SEC-TRACKER (Figma 840:1632): the SECURITY group under the platform sections.
+  | 'attack-tracker';
 
 /**
  * Section ids the screens used before v2. Still accepted so a screen an area slice has not yet
@@ -54,6 +56,18 @@ const SECTIONS: readonly { id: PlatformSection; labelKey: MessageKey; href: stri
   { id: 'team', labelKey: 'PlatformShell.team', href: '/platform/team' },
 ];
 
+/**
+ * The SECURITY group (Figma 840:1632, Fable must-fix 10): one item, the Attack tracker. The
+ * Sign-in door is a card on that page, not a page of its own.
+ */
+const SECURITY_PAGES: readonly { id: PlatformSection; labelKey: MessageKey; href: string }[] = [
+  {
+    id: 'attack-tracker',
+    labelKey: 'PlatformShell.attackTracker',
+    href: '/platform/security/attack-tracker',
+  },
+];
+
 const TEAM_PAGES: readonly { id: PlatformSubsection; labelKey: MessageKey; href: string }[] = [
   { id: 'team-admins', labelKey: 'PlatformShell.teamAdmins', href: '/platform/team' },
   { id: 'team-presets', labelKey: 'PlatformShell.teamPresets', href: '/platform/team/presets' },
@@ -71,7 +85,8 @@ export interface PlatformShellProps {
   subsection?: PlatformSubsection;
   /** The breadcrumb after "Platform admin". */
   crumbs: readonly string[];
-  title: string;
+  /** The page title; a screen may put its ⓘ after the words (Attack tracker, Figma 840:1646). */
+  title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   /** The signed-in admin: the step-up pill and the admin card. Absent while `me` loads. */
@@ -188,6 +203,22 @@ export function PlatformShell({
                               : item.id === section
                                 ? { 'aria-current': 'true' as const }
                                 : {})}
+                          >
+                            {t(item.labelKey)}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="tm-cc-sections__label">{t('PlatformShell.securityLabel')}</p>
+                    <ul className="tm-cc-sections__group">
+                      {SECURITY_PAGES.map((item) => (
+                        <li key={item.id}>
+                          <Link
+                            href={item.href}
+                            className="tm-cc-sections__item"
+                            {...(item.id === section ? { 'aria-current': 'page' as const } : {})}
                           >
                             {t(item.labelKey)}
                           </Link>

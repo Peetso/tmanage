@@ -33,6 +33,7 @@ export const APP_NAMESPACES: readonly string[] = [
   'ApprovalRecord',
   'ApprovalStepsView',
   'ApproverLink',
+  'AttackTracker',
   'AttendeePicker',
   'AuditActionLabel',
   'AuditChangeField',

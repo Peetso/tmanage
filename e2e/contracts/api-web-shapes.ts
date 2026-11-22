@@ -5216,3 +5216,61 @@ import type {
 type _aiBlockedMember = Assert<Exact<ApiAiBlockedMemberEntry, WebAiBlockedMemberEntry>>;
 type _aiSettings = Assert<Exact<ApiAiSettingsView, WebAiSettingsView>>;
 type _aiShareChoice = Assert<Exact<ApiAiShareChoice, WebAiShareChoice>>;
+
+/**
+ * SEC-TRACKER (Attack tracker, 2026-11-22): the platform security area, read by
+ * `apps/web/src/lib/api/platform-security.ts`.
+ *
+ * These API types are the internal projections the controllers return as they are, so their
+ * timestamps are `Date` while the body on the wire carries the ISO strings `JSON.stringify`
+ * emits. `Wire<T>` states exactly that conversion (every `Date` becomes `string`, nothing else
+ * moves), so each web shape still pairs Exact against the API type it is serialised from and a
+ * renamed or retyped field fails here as for any other pair.
+ */
+type Wire<T> = T extends Date ? string : T extends object ? { [K in keyof T]: Wire<T[K]> } : T;
+
+import type {
+  TrackAccount as ApiTrackAccount,
+  TrackDetail as ApiTrackDetail,
+  TrackNetwork as ApiTrackNetwork,
+  TrackStep as ApiTrackStep,
+  TrackSummary as ApiTrackSummary,
+} from '../../apps/api/src/modules/security-signals/attack-tracks.js';
+import type { TrackPage as ApiTrackPage } from '../../apps/api/src/modules/security-signals/attack-tracks.service.js';
+import type { SourceLabel as ApiSourceLabel } from '../../apps/api/src/modules/security-signals/source-labels.js';
+import type {
+  AllowlistEntry as ApiAllowlistEntry,
+  BlockEntry as ApiBlockEntry,
+} from '../../apps/api/src/modules/identity/network-access/network-access.repository.js';
+import type {
+  BlockListStatus as ApiBlockListStatus,
+  NetworkAccessView as ApiNetworkAccessView,
+} from '../../apps/api/src/modules/identity/network-access/network-access.service.js';
+import type {
+  AllowlistEntry as WebAllowlistEntry,
+  BlockEntry as WebBlockEntry,
+  BlockListStatus as WebBlockListStatus,
+  NetworkAccessView as WebNetworkAccessView,
+  SourceLabel as WebSourceLabel,
+  TrackAccount as WebTrackAccount,
+  TrackDetail as WebTrackDetail,
+  TrackNetwork as WebTrackNetwork,
+  TrackPage as WebTrackPage,
+  TrackStep as WebTrackStep,
+  TrackSummary as WebTrackSummary,
+} from '../../apps/web/src/lib/api/platform-security';
+/** `GET /v1/platform/security/attack-tracks` — the list page and its rows. */
+type _secTrackPage = Assert<Exact<Wire<ApiTrackPage>, WebTrackPage>>;
+type _secTrackSummary = Assert<Exact<Wire<ApiTrackSummary>, WebTrackSummary>>;
+type _secTrackNetwork = Assert<Exact<Wire<ApiTrackNetwork>, WebTrackNetwork>>;
+/** `GET /v1/platform/security/attack-tracks/:trackId` — one source with its timeline and accounts. */
+type _secTrackDetail = Assert<Exact<Wire<ApiTrackDetail>, WebTrackDetail>>;
+type _secTrackStep = Assert<Exact<Wire<ApiTrackStep>, WebTrackStep>>;
+type _secTrackAccount = Assert<Exact<Wire<ApiTrackAccount>, WebTrackAccount>>;
+/** `POST /v1/platform/security/source-labels` — the known-tester mark. */
+type _secSourceLabel = Assert<Exact<Wire<ApiSourceLabel>, WebSourceLabel>>;
+/** `GET /v1/platform/security/network-access` — the sign-in door, allowlist, blocks and lists. */
+type _secNetworkAccess = Assert<Exact<Wire<ApiNetworkAccessView>, WebNetworkAccessView>>;
+type _secAllowlistEntry = Assert<Exact<Wire<ApiAllowlistEntry>, WebAllowlistEntry>>;
+type _secBlockEntry = Assert<Exact<Wire<ApiBlockEntry>, WebBlockEntry>>;
+type _secBlockListStatus = Assert<Exact<Wire<ApiBlockListStatus>, WebBlockListStatus>>;

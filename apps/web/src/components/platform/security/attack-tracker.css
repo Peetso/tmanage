@@ -1,0 +1,889 @@
+/*
+ * Platform admin › Security › Attack tracker (Figma 833:85442; Fix 1 frames 840:1578 EN light,
+ * 840:906 AR light, 840:2243 EN dark, 840:2909 1024 side sheet, 841:906 / 841:1622 states).
+ *
+ * Tokens only (UX-11): the Figma semantic variables map onto the primitives as the file binds them
+ * (text/primary → --ink-950, text/secondary → --ink-650, background/surface → --paper-0,
+ * surface-sunken → --paper-150 (dark --paper-350), surface-raised → --paper-0 (dark --paper-250),
+ * border/default → --line-300, border/strong → --line-700, border/control → --ink-500,
+ * action/accent → --lime-500, action/accent-subtle → --lime-100, text/danger → --tm-danger-text).
+ * Logical properties only (UX-14), so the Arabic frame is the same rules mirrored.
+ */
+
+.tm-at {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-at-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* The ⓘ sits beside the title at text size, not at the 36 px of the heading. */
+.tm-at-title .tm-info,
+.tm-at-heading .tm-info {
+  font-size: var(--t-ui-sm);
+  line-height: 1;
+}
+
+.tm-at-mono {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-at-secondary {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+/* Figma draws the capsules without the state glyph (Fix 1 frames); the edge and word carry it. */
+.tm-at .tm-state-capsule__glyph,
+.tm-at-dialog .tm-state-capsule__glyph,
+.tm-at-sheet .tm-state-capsule__glyph {
+  display: none;
+}
+
+.tm-at .tm-state-capsule,
+.tm-at-dialog .tm-state-capsule,
+.tm-at-sheet .tm-state-capsule {
+  padding-block: var(--s1);
+  border-width: var(--b-structural);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* "Low": the word in secondary text (must-fix 14: 6.7:1, not 4.2:1). */
+.tm-at-capsule--low {
+  color: var(--ink-650);
+}
+
+/* Blocked: the filled grey capsule. */
+.tm-at-capsule--blocked {
+  border-color: var(--paper-250);
+  background: var(--paper-250);
+  color: var(--ink-650);
+}
+
+/* On the dark card `--paper-250` is the card itself, so the fill steps up to the line tone. */
+[data-theme='dark'] .tm-at-capsule--blocked {
+  border-color: var(--line-300);
+  background: var(--line-300);
+}
+
+/* Known tester: the success edge. */
+.tm-at-capsule--tester {
+  border-color: var(--success-600);
+}
+
+/* ── Header: period chips and refresh ───────────────────────────────────── */
+
+.tm-at-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-at-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  block-size: 32px;
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--ink-500);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-at-chip:hover {
+  background: var(--tm-hover-surface);
+}
+
+.tm-at-chip[aria-pressed='true'] {
+  border-color: var(--lime-500);
+  background: var(--lime-100);
+}
+
+.tm-at-chip__count {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 18px;
+  block-size: 18px;
+  padding-inline: var(--s1);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-at-chip[aria-pressed='true'] .tm-at-chip__count {
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+}
+
+.tm-at-icon-button {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--orb-default);
+  block-size: var(--orb-default);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+.tm-at-icon-button--small {
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+}
+
+.tm-at-icon-button:hover {
+  background: var(--tm-hover-surface);
+}
+
+/* ── Totals ─────────────────────────────────────────────────────────────── */
+
+.tm-at-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s3);
+  margin: 0;
+}
+
+/*
+ * Figma draws the tiles as surface-sunken on a white page. The product canvas is already the
+ * sunken tone (`--paper-150`), so the tiles take the card surface instead and keep the same step
+ * of contrast against what is behind them.
+ */
+.tm-at-tile {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: var(--s1);
+  padding-block: var(--s3);
+  padding-inline: var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+[data-theme='dark'] .tm-at-tile {
+  background: var(--paper-250);
+}
+
+.tm-at-tile dt {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-at-tile dd {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Two independent columns (must-fix 6) ───────────────────────────────── */
+
+.tm-at-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 372px;
+  align-items: start;
+  gap: var(--s4);
+}
+
+.tm-at-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.tm-at-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+[data-theme='dark'] .tm-at-card {
+  background: var(--paper-250);
+}
+
+.tm-at-card--strong {
+  gap: var(--s4);
+  border-color: var(--line-700);
+}
+
+.tm-at-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-at-card__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-at-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-at-heading__end {
+  margin-inline-start: auto;
+}
+
+.tm-at-rule {
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+/* ── Sources ────────────────────────────────────────────────────────────── */
+
+.tm-at-search {
+  display: flex;
+  inline-size: 100%;
+}
+
+.tm-at-search .tm-search-field__control {
+  flex: 1;
+  inline-size: 100%;
+}
+
+.tm-at-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-at-table {
+  inline-size: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-at-table th {
+  padding-block: var(--s2);
+  padding-inline: var(--s1);
+  color: var(--ink-950);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  text-align: start;
+  text-transform: uppercase;
+  vertical-align: bottom;
+}
+
+/* Column widths, so the long IPv6 source fits on one line. */
+.tm-at-table th:nth-child(1) {
+  inline-size: 27%;
+}
+
+.tm-at-table th:nth-child(2) {
+  inline-size: 18%;
+}
+
+.tm-at-table th:nth-child(3) {
+  inline-size: 11%;
+}
+
+.tm-at-table th:nth-child(4) {
+  inline-size: 10%;
+}
+
+.tm-at-table th:nth-child(5) {
+  inline-size: 9%;
+}
+
+.tm-at-table th:nth-child(6) {
+  inline-size: 6%;
+}
+
+.tm-at-table th:nth-child(7) {
+  inline-size: 12%;
+}
+
+.tm-at-table th:nth-child(8) {
+  inline-size: 7%;
+}
+
+.tm-at-table td {
+  padding-block: var(--s2);
+  padding-inline: var(--s1);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  vertical-align: middle;
+  font-weight: 500;
+}
+
+.tm-at-table th:first-child,
+.tm-at-table td:first-child {
+  padding-inline-start: var(--s2);
+}
+
+.tm-at-table th:last-child,
+.tm-at-table td:last-child {
+  padding-inline-end: var(--s2);
+}
+
+.tm-at-table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.tm-at-num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-at-table th.tm-at-num {
+  text-align: end;
+}
+
+.tm-at-row {
+  cursor: pointer;
+}
+
+.tm-at-row:hover td {
+  background: var(--tm-hover-surface);
+}
+
+.tm-at-row[data-selected='true'] td {
+  background: var(--lime-100);
+}
+
+.tm-at-row[data-selected='true'] td:first-child {
+  border-start-start-radius: var(--r-compact);
+  border-end-start-radius: var(--r-compact);
+}
+
+.tm-at-row[data-selected='true'] td:last-child {
+  border-start-end-radius: var(--r-compact);
+  border-end-end-radius: var(--r-compact);
+}
+
+.tm-at-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-at-cell--network {
+  gap: 2px;
+}
+
+.tm-at-address {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.tm-at-capsules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-at-got-in {
+  color: var(--tm-danger-text);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 600;
+}
+
+.tm-at-zero {
+  color: var(--ink-650);
+}
+
+.tm-at-last-seen {
+  color: var(--ink-650);
+}
+
+.tm-at-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  padding-block: var(--s6);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-at-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+/* The row menu: three actions, Block last after a divider. */
+.tm-at-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-at-menu__list {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--s1));
+  inset-inline-end: 0;
+  min-inline-size: 180px;
+  margin: 0;
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+  list-style: none;
+}
+
+.tm-at-menu__item {
+  display: block;
+  inline-size: 100%;
+  padding-block: var(--s2);
+  padding-inline: var(--s3);
+  border: 0;
+  border-radius: var(--r-micro);
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-at-menu__item:hover,
+.tm-at-menu__item:focus-visible {
+  background: var(--paper-150);
+}
+
+.tm-at-menu__item[aria-disabled='true'] {
+  color: var(--ink-500);
+  cursor: default;
+}
+
+.tm-at-menu__divider {
+  margin-block: var(--s1);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+/* ── Source detail ──────────────────────────────────────────────────────── */
+
+.tm-at-detail__address {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tm-at-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-at-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+}
+
+.tm-at-fact {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-at-fact dt {
+  color: var(--ink-650);
+}
+
+.tm-at-fact dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  margin: 0;
+  color: var(--ink-950);
+}
+
+.tm-at-fact dd.tm-at-fact__lines {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.tm-at-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* "All 63 attempts" sits at the start under the timeline, not centred. */
+.tm-at-card > .tm-at-link {
+  align-self: flex-start;
+}
+
+.tm-at-split__got-in {
+  color: var(--tm-danger-text);
+  white-space: nowrap;
+}
+
+.tm-at-timeline {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-at-step {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--s3);
+  row-gap: var(--s3);
+  padding-block: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-at-step:last-child {
+  border-block-end: 0;
+}
+
+.tm-at-step__time {
+  padding-block-start: 2px;
+}
+
+.tm-at-step__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-at-step__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-at-step__action {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+.tm-at-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s6);
+}
+
+.tm-at-actions__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* ── Allowlist ──────────────────────────────────────────────────────────── */
+
+.tm-at-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-at-list > li {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s3);
+  padding-block: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-at-list > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-at-list__date {
+  color: var(--ink-650);
+}
+
+/* ── Sign-in door ───────────────────────────────────────────────────────── */
+
+/* The policy words first, the switch at the end. */
+.tm-at-door__switch .tm-choice__row {
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.tm-at-door__switch .tm-choice__label {
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-at-door__lists {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-at-door__lists > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding-block: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-at-door__lists > li:first-child {
+  color: var(--ink-650);
+}
+
+.tm-at-door__lists > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-at-door__count {
+  color: var(--ink-650);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Dialogs and the side sheet ─────────────────────────────────────────── */
+
+.tm-at-scrim {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: var(--tm-scrim);
+}
+
+.tm-at-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: min(334px, 100%);
+  max-block-size: 92vh;
+  overflow-y: auto;
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  /* Fable build rule 2: the Dialog component's own shadow, not the Figma clipping artefact. */
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+.tm-at-dialog--wide {
+  inline-size: min(425px, 100%);
+}
+
+.tm-at-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-at-dialog__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+}
+
+.tm-at-dialog__value {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+  font-weight: 500;
+}
+
+.tm-at-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-at-accounts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-at-accounts > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) auto;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding-block: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+.tm-at-accounts > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-at-accounts__name {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  color: var(--ink-950);
+}
+
+.tm-at-accounts__org {
+  color: var(--ink-650);
+}
+
+.tm-at-accounts__action {
+  grid-column: 1 / -1;
+}
+
+.tm-at-sheet {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(9 10 9 / 0.32);
+}
+
+.tm-at-sheet__panel {
+  inline-size: min(400px, 100%);
+  max-block-size: calc(100vh - var(--s8));
+  margin: var(--s4);
+  overflow-y: auto;
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+.tm-at-sheet__panel.tm-at-card {
+  border-color: var(--line-700);
+}
+
+@media (max-width: 1099px) {
+  .tm-at-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-at-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tm-at-table {
+    table-layout: auto;
+  }
+
+  .tm-at-chip,
+  .tm-at-icon-button,
+  .tm-at .tm-button {
+    min-block-size: 44px;
+  }
+}

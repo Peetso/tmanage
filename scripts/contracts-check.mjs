@@ -875,12 +875,15 @@ function apiTypeStillExported(name) {
   );
 }
 
-const ASSERT_RE = /Assert<\s*(Exact|Narrows)\s*<\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*>\s*>/g;
+// The api side may be wrapped in the pairing file's `Wire<…>` (Date fields serialised to ISO strings,
+// SEC-TRACKER): `Assert<Exact<Wire<ApiX>, WebX>>` pairs ApiX with WebX like a bare alias does.
+const ASSERT_RE =
+  /Assert<\s*(Exact|Narrows)\s*<\s*(?:Wire<\s*([A-Za-z0-9_]+)\s*>|([A-Za-z0-9_]+))\s*,\s*([A-Za-z0-9_]+)\s*>\s*>/g;
 /** @type {{ kind: string, api: string, web: string }[]} */
 const pairs = [];
 for (const m of pairingText.matchAll(ASSERT_RE)) {
-  const api = aliasToView.get(m[2]);
-  if (api) pairs.push({ kind: m[1], api, web: m[3] });
+  const api = aliasToView.get(m[2] ?? m[3]);
+  if (api) pairs.push({ kind: m[1], api, web: m[4] });
 }
 const pairedViews = new Set(pairs.map((p) => p.api));
 /** Web shapes named on the web side of a pair, resolved through the aliases above. */
