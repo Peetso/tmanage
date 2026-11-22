@@ -96,12 +96,14 @@ const context = {
 function controllerWith(
   projectRows: readonly ProjectRow[],
   itemRows: readonly WorkItemRow[],
+  aiOwners: readonly string[] = [],
 ): WorkloadForecastController {
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
 
   const repository = {
+    aiUserIds: async () => new Set<string>(aiOwners),
     listProjects: async (_runner: unknown, _context: unknown, options: { limit?: number } = {}) =>
       projectRows.slice(0, options.limit ?? projectRows.length),
     listOpenProjectItems: async (
@@ -158,6 +160,18 @@ describe('WorkloadForecastController.workloadForecast', () => {
       overCapacityWeekCount: 1,
     });
     expect(typeof view.computedAt).toBe('string');
+  });
+
+  it('60-09: counts an AI employee’s open work but adds no capacity for it', async () => {
+    const dueInDays = (days: number) => new Date(Date.now() + days * DAY_MS);
+    const itemRows = [
+      item({ id: 'work-p1-00000000-0000-000000000001', ownerUserId: 'u1', dueAt: dueInDays(2) }),
+      item({ id: 'work-ai-00000000-0000-000000000001', ownerUserId: 'u-ai', dueAt: dueInDays(2) }),
+    ];
+    const view = await controllerWith([project({ id: PROJECT_A })], itemRows, [
+      'u-ai',
+    ]).workloadForecast(context, orgWide(), '1');
+    expect(view.totals).toMatchObject({ memberCount: 1, committedItemCount: 2, capacity: 5 });
   });
 
   it('excludes a cross-tenant project that reaches the loop — Known-trap, never a 500', async () => {

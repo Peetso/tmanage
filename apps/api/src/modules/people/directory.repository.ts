@@ -132,6 +132,9 @@ export class PeopleDirectoryRepository {
       eq(memberships.organizationId, context.organizationId),
       inArray(memberships.status, ['active']),
       ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
+      // 60-09: people only. AI employees are listed by `/ai-employees`; the People screen (S1,
+      // 60-07) shows them in their own section with the AI badge.
+      eq(memberships.kind, 'human'),
     ];
     if (options.after) predicates.push(gt(memberships.id, options.after));
     if (search !== '') {

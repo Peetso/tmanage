@@ -23,6 +23,8 @@ export class BillingSeatsRepository {
    * The membership a seat would be assigned to, tenant-scoped; `null` if it is absent or belongs to
    * another tenant. Resolving it here is what turns a cross-tenant `membership_id` into a 404 in the
    * service, before any write, rather than a foreign-key 500.
+   *
+   * 60-09: an AI employee never takes a seat, so its membership answers `null` here too.
    */
   async findMembership(
     runner: TenantQueryRunner,
@@ -36,6 +38,7 @@ export class BillingSeatsRepository {
         and(
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.id, membershipId),
+          eq(memberships.kind, 'human'),
         ),
       )
       .limit(1);

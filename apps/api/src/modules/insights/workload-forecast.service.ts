@@ -155,7 +155,9 @@ export class WorkloadForecastService {
     const committedByWeek = new Array<number>(weeks).fill(0);
     const owners = new Set<string>();
 
+    let aiUsers: ReadonlySet<string> = new Set();
     await this.database.read(context, async (runner) => {
+      aiUsers = await this.repository.aiUserIds(runner, context);
       const projectRows = await this.repository.listProjects(runner, context, {
         limit: clampProjectLimit(undefined),
       });
@@ -177,7 +179,9 @@ export class WorkloadForecastService {
         for (const row of items) {
           // Belt-and-braces to the tenant-scoped, open-state-filtered SQL.
           if (!this.mayRead(principal, row)) continue;
-          if (row.ownerUserId !== null) owners.add(row.ownerUserId);
+          // 60-09: an AI employee's open work counts; it adds no capacity.
+          if (row.ownerUserId !== null && !aiUsers.has(row.ownerUserId))
+            owners.add(row.ownerUserId);
           if (row.dueAt === null) continue; // undated open work is not committed to a week
 
           const bucket = weekBucket(row.dueAt.getTime(), horizonStart, horizonEnd, weeks);

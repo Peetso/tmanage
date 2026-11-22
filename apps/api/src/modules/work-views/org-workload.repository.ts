@@ -90,6 +90,7 @@ export class OrgWorkloadRepository {
   /**
    * Active internal members after the keyset cursor, ordered by membership id. The hidden support
    * role never appears (PA-05). `limit` is the page size + 1; the extra row only proves a next page.
+   * 60-09: people only; an AI employee carries no capacity.
    */
   async listInternalMembers(
     runner: TenantQueryRunner,
@@ -100,6 +101,7 @@ export class OrgWorkloadRepository {
       eq(memberships.organizationId, context.organizationId),
       eq(memberships.status, 'active'),
       ne(memberships.role, PLATFORM_SUPPORT_ROLE),
+      eq(memberships.kind, 'human'),
     ];
     if (options.afterMembershipId !== null) {
       predicates.push(gt(memberships.id, options.afterMembershipId));

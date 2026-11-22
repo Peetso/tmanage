@@ -49,6 +49,7 @@ function member(id: string, organizationId: string): MembershipRow {
     userId: 'user-0000-0000-0000-0000-0000000000aa',
     role: 'member',
     status: 'active',
+    kind: 'human',
     hasOrgWideScope: false,
     workspaceScopeId: null,
     version: 1,
@@ -173,6 +174,20 @@ describe('ReportingLinesController', () => {
       controller.set(context, principal('owner'), A, { managerMembershipId: B }),
     ).rejects.toMatchObject({ status: 400 });
     expect(setCalls).toEqual([]);
+  });
+
+  it('60-09: an AI employee neither reports nor manages (422), and nothing is written', async () => {
+    const ai = (id: string) => ({ ...member(id, ORG), kind: 'ai' }) as MembershipRow;
+    for (const members of [
+      [ai(A), member(B, ORG)],
+      [member(A, ORG), ai(B)],
+    ]) {
+      const { controller, setCalls } = controllerWith(members);
+      await expect(
+        controller.set(context, principal('owner'), A, { managerMembershipId: B }),
+      ).rejects.toMatchObject({ status: 422, auditCode: 'reporting_line.ai_employee' });
+      expect(setCalls).toEqual([]);
+    }
   });
 
   it('returns 404 for a cross-tenant manager id and writes nothing', async () => {

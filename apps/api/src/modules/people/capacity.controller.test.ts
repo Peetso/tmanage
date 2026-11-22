@@ -88,6 +88,7 @@ function member(id: string, organizationId: string): MembershipRow {
     userId: 'user-0000-0000-0000-0000-0000000000aa',
     role: 'member',
     status: 'active',
+    kind: 'human',
     hasOrgWideScope: false,
     workspaceScopeId: null,
     version: 1,
@@ -130,6 +131,18 @@ describe('PersonCapacityController', () => {
         effectiveFrom: '2026-01-05',
       }),
     ).rejects.toMatchObject({ status: 400 });
+    expect(setCalls).toEqual([]);
+  });
+
+  it('60-09: refuses capacity for an AI employee (422) and writes nothing', async () => {
+    const ai = { ...member(MEMBER_ID, ORG), kind: 'ai' } as MembershipRow;
+    const { controller, setCalls } = controllerWith([ai]);
+    await expect(
+      controller.set(context, principal('owner'), MEMBER_ID, {
+        weeklyHours: 40,
+        effectiveFrom: '2026-01-05',
+      }),
+    ).rejects.toMatchObject({ status: 422, auditCode: 'capacity.ai_employee' });
     expect(setCalls).toEqual([]);
   });
 

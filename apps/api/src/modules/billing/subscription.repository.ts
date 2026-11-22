@@ -54,6 +54,8 @@ export class SubscriptionRepository {
   /**
    * How many internal people the organization has: active memberships holding an internal role.
    * Clients are never counted — they are always free and never count as people on a flat plan.
+   * 60-09: AI employees are never people here either (plan 60 v2 open question 1: free in the
+   * beta, not a paid seat); only `kind = 'human'` counts.
    */
   async countInternalPeople(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
     const rows = await tenantDrizzle(runner)
@@ -65,6 +67,7 @@ export class SubscriptionRepository {
           eq(memberships.status, 'active'),
           inArray(memberships.role, [...INTERNAL_ROLES]),
           ne(memberships.role, PLATFORM_SUPPORT_ROLE), // PA-05 (SPEC §3.2): the hidden Support-mode role never shows here.
+          eq(memberships.kind, 'human'), // 60-09: an AI employee is never a person on the bill.
         ),
       );
     return Number(rows[0]?.people ?? 0);

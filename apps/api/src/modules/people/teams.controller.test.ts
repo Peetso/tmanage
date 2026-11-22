@@ -46,7 +46,10 @@ const member = principal('member'); // holds neither org.manage nor org-wide wor
 
 const context = { organizationId: ORG, userId: USER } as unknown as TenantContext;
 
-function build(knownMembershipIds: readonly string[] = [MEMBERSHIP]): {
+function build(
+  knownMembershipIds: readonly string[] = [MEMBERSHIP],
+  aiMembershipIds: readonly string[] = [],
+): {
   controller: PeopleTeamsController;
   store: MemberTeamRow[];
 } {
@@ -133,7 +136,7 @@ function build(knownMembershipIds: readonly string[] = [MEMBERSHIP]): {
   const memberships = {
     findById: async (_r: unknown, ctx: TenantContext, mid: string) =>
       knownMembershipIds.includes(mid) && ctx.organizationId === ORG
-        ? ({ id: mid } as unknown)
+        ? ({ id: mid, kind: aiMembershipIds.includes(mid) ? 'ai' : 'human' } as unknown)
         : null,
   } as unknown as MembershipsRepository;
 
@@ -200,6 +203,15 @@ describe('the Known-trap: unknown/cross-tenant is a 404, no write', () => {
       expect.objectContaining({ status: 404 }),
     );
     expect(store).toHaveLength(0);
+  });
+
+  it('60-09: an AI employee is never a team member (422) and nothing is written', async () => {
+    const { controller, store } = build([MEMBERSHIP], [MEMBERSHIP]);
+    const team = await controller.create(context, admin, { name: 'Platform' });
+    await expect(controller.assign(context, admin, team.id, MEMBERSHIP)).rejects.toEqual(
+      expect.objectContaining({ status: 422, auditCode: 'team.ai_employee' }),
+    );
+    expect(store.filter((r) => r.name === null)).toHaveLength(0);
   });
 
   it('assign of a non-member membership is a 404 and writes nothing', async () => {

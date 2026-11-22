@@ -133,6 +133,16 @@ export class PersonCapacityController {
           'capacity_write_denied',
         );
       }
+      // 60-09: an AI employee has no capacity; its limits and hours live on the AI employee.
+      if (member.kind !== 'human') {
+        throw new ApiError(
+          422,
+          'validation_failed',
+          'An AI employee is not counted as a person here.',
+          [{ field: 'membershipId', message: 'An AI employee is not counted as a person here.' }],
+          'capacity.ai_employee',
+        );
+      }
 
       const weeklyHours = this.validateWeeklyHours(body?.weeklyHours);
       const effectiveFrom = this.validateEffectiveFrom(body?.effectiveFrom);

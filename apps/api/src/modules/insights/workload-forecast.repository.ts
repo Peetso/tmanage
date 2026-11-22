@@ -1,4 +1,7 @@
 import type { Audience, WorkItemState } from '@tmanage/domain';
+import { and, eq } from 'drizzle-orm';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { memberships } from '../../common/database/schema.js';
 import type { ProjectRow, WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
@@ -56,5 +59,19 @@ export class WorkloadForecastRepository {
     return this.workload.listOpenProjectItems(runner, context, projectId, openStates, {
       ...(options.audiences === undefined ? {} : { audiences: options.audiences }),
     });
+  }
+
+  /**
+   * 60-09: the users of the tenant's AI employees. Their open work is still counted, but they add
+   * no capacity: the forecast's "members" are people only.
+   */
+  async aiUserIds(runner: TenantQueryRunner, context: TenantContext): Promise<ReadonlySet<string>> {
+    const rows = await tenantDrizzle(runner)
+      .select({ userId: memberships.userId })
+      .from(memberships)
+      .where(
+        and(eq(memberships.organizationId, context.organizationId), eq(memberships.kind, 'ai')),
+      );
+    return new Set(rows.map((row) => row.userId));
   }
 }

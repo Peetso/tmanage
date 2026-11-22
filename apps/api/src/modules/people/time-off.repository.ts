@@ -59,7 +59,12 @@ export class PersonTimeOffRepository {
       .select({ userId: memberships.userId })
       .from(memberships)
       .where(
-        and(eq(memberships.organizationId, context.organizationId), eq(memberships.userId, userId)),
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.userId, userId),
+          // 60-09: an AI employee has no time off; its working hours live on the AI employee.
+          eq(memberships.kind, 'human'),
+        ),
       )
       .limit(1);
     return rows[0] ?? null;

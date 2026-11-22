@@ -128,6 +128,16 @@ export class PeopleTeamsService {
         'team_or_member_not_found',
       );
     }
+    // 60-09: teams are the people structure; an AI employee is never a team member.
+    if (resolved.membership.kind !== 'human') {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'An AI employee is not counted as a person here.',
+        [{ field: 'membershipId', message: 'An AI employee is not counted as a person here.' }],
+        'team.ai_employee',
+      );
+    }
     // Idempotent: already assigned is success with no second row.
     if (resolved.assignment) return;
     await this.database.transaction(context, (tx) =>

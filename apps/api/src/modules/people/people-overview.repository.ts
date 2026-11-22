@@ -61,7 +61,10 @@ export interface OverviewWindow {
 }
 
 export class PeopleOverviewRepository {
-  /** Active members (never the hidden support role), by name, with their weekly capacity if set. */
+  /**
+   * Active members (never the hidden support role), by name, with their weekly capacity if set.
+   * 60-09: people only; an AI employee is no headcount and no capacity.
+   */
   async roster(runner: TenantQueryRunner, context: TenantContext): Promise<RosterRow[]> {
     const org = context.organizationId;
     const rows = await tenantDrizzle(runner)
@@ -86,6 +89,7 @@ export class PeopleOverviewRepository {
           eq(memberships.organizationId, org),
           eq(memberships.status, 'active'),
           ne(memberships.role, PLATFORM_SUPPORT_ROLE),
+          eq(memberships.kind, 'human'),
         ),
       )
       .orderBy(asc(users.displayName), asc(memberships.id))

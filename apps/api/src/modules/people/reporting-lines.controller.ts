@@ -183,6 +183,21 @@ export class ReportingLinesController {
           'reporting_write_denied',
         );
       }
+      // 60-09: the org chart is people only; an AI employee neither reports nor manages.
+      if (member.kind !== 'human' || manager.kind !== 'human') {
+        throw new ApiError(
+          422,
+          'validation_failed',
+          'An AI employee is not counted as a person here.',
+          [
+            {
+              field: member.kind !== 'human' ? 'membershipId' : 'managerMembershipId',
+              message: 'An AI employee is not counted as a person here.',
+            },
+          ],
+          'reporting_line.ai_employee',
+        );
+      }
 
       // A cycle is a 400 with no write: walk the proposed manager's chain upward within the tenant; if
       // it reaches this member, the new edge would close a loop.
