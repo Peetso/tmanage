@@ -33,6 +33,8 @@ import {
   AiConversationsController,
 } from './ai-conversations.controller.js';
 import { AiConversationsService } from './ai-conversations.service.js';
+import { AI_SETTINGS_SERVICE, AiSettingsController } from './ai-settings.controller.js';
+import { AiSettingsService } from './ai-settings.service.js';
 import { platformCapMicroUsd } from './ai-tiers.js';
 import {
   AI_CHANGE_SERVICE,
@@ -188,6 +190,16 @@ export class CopilotModule {
             };
           },
         },
+        // 62-17: Settings > AI, the owner's page (audited; NEVER for the AI).
+        {
+          provide: AI_SETTINGS_SERVICE,
+          inject: [TENANT_DATABASE, AI_BUDGET_SERVICE, AUDIT_SERVICE],
+          useFactory: (
+            database: TenantDatabase,
+            wired: { allowance: AiAllowanceService },
+            audit: AuditService,
+          ) => new AiSettingsService({ database, audit, allowance: wired.allowance }),
+        },
         {
           provide: AI_CONVERSATIONS_SERVICE,
           inject: [TENANT_DATABASE, AUDIT_SERVICE],
@@ -313,6 +325,7 @@ export class CopilotModule {
         CopilotController,
         CopilotChatController,
         AiConversationsController,
+        AiSettingsController,
         KnowledgeController,
         FileKnowledgeController,
         BusinessMemoryController,

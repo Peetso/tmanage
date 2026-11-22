@@ -42,6 +42,19 @@ export interface AiWorkspaceAllowance {
   readonly memberCredits: number;
 }
 
+/**
+ * What the workspace can spend this month: the allowance, the pack credits already moved into the
+ * month and what the live packs still hold. The one formula the member share is taken of (AR-8);
+ * 62-17's share preview uses it too.
+ */
+export function spendableCreditsOf(
+  resolved: Pick<AiWorkspaceAllowance, 'allowanceCredits' | 'period' | 'packBalanceCredits'>,
+): number {
+  return (
+    resolved.allowanceCredits + (resolved.period?.packCredits ?? 0) + resolved.packBalanceCredits
+  );
+}
+
 export interface AiAllowanceDeps {
   readonly database: Pick<TenantDatabase, 'read'>;
   readonly poolCapMicroUsd?: PoolCapReader;
@@ -95,7 +108,11 @@ export class AiAllowanceService {
     const livePacks = await this.packs.livePacks(runner, context, now);
     const balance = packBalance(livePacks, now);
     const people = await this.subscriptions.countInternalPeople(runner, context);
-    const spendable = allowance.allowanceCredits + (period?.packCredits ?? 0) + balance;
+    const spendable = spendableCreditsOf({
+      allowanceCredits: allowance.allowanceCredits,
+      period,
+      packBalanceCredits: balance,
+    });
     return {
       settings,
       periodStart,

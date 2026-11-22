@@ -177,6 +177,12 @@ export interface ChatStanding {
   /** `ai_workspace_settings.run_at_once` (owner setting, default off). */
   readonly runAtOnce: boolean;
   readonly poolClass: AiSpendingPool;
+  /** 62-17: the owner's master switch (`ai_enabled`, default off). */
+  readonly aiEnabled: boolean;
+  /** 62-17: "let AI read files" (`file_reading`, default on). */
+  readonly fileReading: boolean;
+  /** 62-17: the calling member is on the owner's block list (`ai_member_blocks`). */
+  readonly memberBlocked: boolean;
 }
 
 /** Freezes a confirm-class op for its card (`pending_ai_actions`, 10 minutes); returns its id. */
@@ -555,8 +561,9 @@ const notFound = (auditCode: string) =>
 
 /**
  * The gates every AI route shares (chat, confirm, undo): an internal member on an ordinary
- * session (403 otherwise), the workspace on the test list and the `copilot` flag on (404: the
- * feature is absent). Returns the standing it read.
+ * session (403 otherwise), the workspace on the test list, the `copilot` flag on and the owner's
+ * switch on (404: the feature is absent), and the member not on the owner's block list (403,
+ * 62-17). Returns the standing it read.
  */
 export async function openStanding(
   context: TenantContext,
@@ -568,6 +575,16 @@ export async function openStanding(
   const read = await standing(context);
   if (!read.onTestList) throw notFound('copilot.chat:not_on_test_list');
   if (!read.copilotFlag) throw notFound('copilot.chat:flag_off');
+  if (!read.aiEnabled) throw notFound('copilot.chat:ai_off');
+  if (read.memberBlocked) {
+    throw new ApiError(
+      403,
+      'forbidden',
+      MESSAGES.forbidden,
+      undefined,
+      'copilot.chat:member_blocked',
+    );
+  }
   return read;
 }
 
@@ -687,6 +704,16 @@ export class CopilotChatService {
     const askedAt = this.now();
     // 1. Gates before any spend.
     const standing = await openStanding(context, this.deps.standing);
+    // 62-17: the owner turned "let AI read files" off: a file question is refused before any call.
+    if ((input.file ?? null) !== null && !standing.fileReading) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'copilot.chat:file_reading_off',
+      );
+    }
     const client = this.deps.clientFor(standing.poolClass);
     if (client === null) throw notFound('copilot.chat:no_key');
     // 62-13: a conversation the turn continues must be the member's own (404 otherwise).

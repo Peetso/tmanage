@@ -280,6 +280,9 @@ function setup(
   const standingOf = async (): Promise<ChatStanding> => ({
     onTestList: true,
     copilotFlag: true,
+    aiEnabled: true,
+    fileReading: true,
+    memberBlocked: false,
     writeScope: 'read_write',
     runAtOnce: false,
     poolClass: 'customers',

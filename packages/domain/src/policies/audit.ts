@@ -1300,6 +1300,25 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 62-13 — the owner changed how long AI conversations are kept (days only)',
   },
+  // ---- 62-17 · Settings > AI (owner) ----
+  /**
+   * The owner changed the workspace AI settings. Metadata: the names of the changed settings with
+   * their values before and after (switches, write scope, share percent, retention days only).
+   */
+  'ai_settings.updated': {
+    objectType: 'organization',
+    clause: '§12 62-17 — the owner changed the workspace AI settings (setting names and values)',
+  },
+  /** The owner kept a member away from TManage AI. Object: the membership. */
+  'ai_settings.member_blocked': {
+    objectType: 'membership',
+    clause: '§12 62-17 — the owner blocked a member from using TManage AI',
+  },
+  /** The owner let a blocked member use TManage AI again. Object: the membership. */
+  'ai_settings.member_allowed': {
+    objectType: 'membership',
+    clause: '§12 62-17 — the owner let a blocked member use TManage AI again',
+  },
   // ---- 62-14 · AI audit rows ----
   /**
    * One in-app AI task closed. Metadata: model, tier, domain, outcome, model calls, tokens,
@@ -2224,6 +2243,9 @@ const AUDIT_ACTION_LABELS = {
   'ai_change.applied': 'Applied the AI changes',
   'ai_change.ran_at_once': 'The AI made a change at once',
   'ai_conversation.retention_updated': 'Changed how long AI conversations are kept',
+  'ai_settings.updated': 'Changed the AI settings',
+  'ai_settings.member_blocked': 'Blocked a member from using TManage AI',
+  'ai_settings.member_allowed': 'Let a member use TManage AI again',
   'ai.turn_completed': 'The AI assistant answered a request',
   'business_fact.proposed': 'Proposed a Business Memory fact',
   'business_fact.approved': 'Approved a Business Memory fact',

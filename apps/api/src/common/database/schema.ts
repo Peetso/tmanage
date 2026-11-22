@@ -15116,6 +15116,8 @@ export const aiWorkspaceSettings = mysqlTable(
     aiEnabled: boolean('ai_enabled').notNull().default(false),
     writeScope: mysqlEnum('write_scope', AI_WRITE_SCOPES).notNull().default('read'),
     runAtOnce: boolean('run_at_once').notNull().default(false),
+    // 0403 (62-17): the AI may read the workspace's files (owner setting, default on).
+    fileReading: boolean('file_reading').notNull().default(true),
     memberSharePercent: tinyint('member_share_percent', { unsigned: true }).notNull().default(50),
     testListAt: datetime('test_list_at', { mode: 'date', fsp: 3 }),
     poolClass: mysqlEnum('pool_class', AI_WORKSPACE_POOL_CLASSES).notNull().default('customers'),
@@ -15757,3 +15759,23 @@ Object.assign(TABLES, {
   ai_employees: aiEmployees,
   ai_excluded_projects: aiExcludedProjects,
 });
+
+/**
+ * 0403 `ai_member_blocks` (62-17). The members the owner keeps away from TManage AI: one row per
+ * blocked member; deleting it ("Allow again") lifts the block. The key is the idempotency key.
+ * TENANT; api SELECT, INSERT, DELETE.
+ */
+export const aiMemberBlocks = mysqlTable(
+  'ai_member_blocks',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    blockedByMembershipId: char('blocked_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.membershipId] })],
+);
+
+export type AiMemberBlockRow = typeof aiMemberBlocks.$inferSelect;
+
+Object.assign(TABLES, { ai_member_blocks: aiMemberBlocks });

@@ -2727,6 +2727,11 @@ GRANT INSERT, UPDATE ON `tmanage`.`ai_employees` TO 'tmanage_app'@'%';
 -- that row (audited in the same transaction). Nothing else is ever written. SELECT rides the
 -- database-wide read.
 GRANT INSERT, DELETE ON `tmanage`.`ai_excluded_projects` TO 'tmanage_app'@'%';
+-- 0403 (62-17 AI SETTINGS). The owner blocking a member from TManage AI is an INSERT; "Allow
+-- again" is a DELETE of that row (each audited in the same transaction). Nothing else is ever
+-- written. The new `ai_workspace_settings.file_reading` column rides the existing upsert grant.
+-- SELECT rides the database-wide read. The worker touches none of it.
+GRANT INSERT, DELETE ON `tmanage`.`ai_member_blocks` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_app'@'%';
 -- 62-A3 (B14 GROWTH). The nightly growth rollup (`growth-rollup-store.ts`) counts the AI tasks
 -- started and finished (`ai_tasks`) and the settled AI spend (`ai_usage_ledger`) for the month;
@@ -2818,6 +2823,7 @@ GRANT SELECT, DELETE ON `tmanage`.`ai_excluded_projects` TO 'tmanage_erasure'@'%
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_summaries` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_texts` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_member_blocks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_member_periods` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_tasks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_usage_ledger` TO 'tmanage_erasure'@'%';

@@ -66,6 +66,9 @@ function service(at: Date): AiConversationsService {
     standing: async () => ({
       onTestList: true,
       copilotFlag: true,
+      aiEnabled: true,
+      fileReading: true,
+      memberBlocked: false,
       writeScope: 'read',
       poolClass: 'customers',
       runAtOnce: false,

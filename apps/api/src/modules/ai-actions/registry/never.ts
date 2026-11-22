@@ -1373,6 +1373,9 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/copilot/conversation-retention',
     reason: 'ai_chat',
   },
+  // 62-17. Settings > AI is the owner's: the AI never reads or changes its own settings.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/copilot/settings/', reason: 'ai_chat' },
+  { method: 'PATCH', path: '/v1/organizations/:orgSlug/copilot/settings/', reason: 'ai_chat' },
   // 62-26. Business Memory decisions are a person's, never the AI's.
   {
     method: 'PATCH',

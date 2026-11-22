@@ -72,7 +72,11 @@ interface FileState {
   audience?: 'internal' | 'client_visible';
 }
 
-function setup(script: AiCallResult[], file: FileState, options: { visible?: boolean } = {}) {
+function setup(
+  script: AiCallResult[],
+  file: FileState,
+  options: { visible?: boolean; fileReading?: boolean } = {},
+) {
   const requests: AiRequest[] = [];
   const client: AiClient = {
     async call(request) {
@@ -125,6 +129,9 @@ function setup(script: AiCallResult[], file: FileState, options: { visible?: boo
     standing: async () => ({
       onTestList: true,
       copilotFlag: true,
+      aiEnabled: true,
+      fileReading: options.fileReading ?? true,
+      memberBlocked: false,
       writeScope: 'read',
       poolClass: 'customers',
       runAtOnce: false,
@@ -398,6 +405,16 @@ describe('a question about one file (62-25)', () => {
     expect(await status(env.ask('What is the notice period?'))).toBe(
       '404 copilot.chat:file_not_visible',
     );
+    expect(env.opened).toEqual([]);
+    expect(env.requests).toEqual([]);
+  });
+
+  it('with "let AI read files" off (62-17) a file question is 403 before any read, task or call', async () => {
+    const env = setup([], { status: 'ready', body: CONTRACT }, { fileReading: false });
+    expect(await status(env.ask('What is the notice period?'))).toBe(
+      '403 copilot.chat:file_reading_off',
+    );
+    expect(env.fileRuns).toEqual([]);
     expect(env.opened).toEqual([]);
     expect(env.requests).toEqual([]);
   });

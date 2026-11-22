@@ -176,6 +176,9 @@ function setup(
     standing: async () => ({
       onTestList: true,
       copilotFlag: true,
+      aiEnabled: true,
+      fileReading: true,
+      memberBlocked: false,
       writeScope: 'read',
       poolClass: 'customers',
       runAtOnce: false,
@@ -222,11 +225,18 @@ async function status(work: Promise<unknown>): Promise<string> {
 
 describe('gates before any spend', () => {
   it('off the test list, flag off or no key = 404; not a member session = 403; nothing opened', async () => {
-    for (const standing of [{ onTestList: false }, { copilotFlag: false }]) {
+    for (const standing of [{ onTestList: false }, { copilotFlag: false }, { aiEnabled: false }]) {
       const env = setup([], { standing });
       expect(await status(env.turn('my tasks'))).toMatch(/^404 /);
       expect(env.opened).toEqual([]);
     }
+    // 62-17: the owner switched TManage AI off = absent (404 ai_off).
+    const off = setup([], { standing: { aiEnabled: false } });
+    expect(await status(off.turn('my tasks'))).toBe('404 copilot.chat:ai_off');
+    // 62-17: a member on the owner's block list = 403, nothing opened.
+    const blocked = setup([], { standing: { memberBlocked: true } });
+    expect(await status(blocked.turn('my tasks'))).toBe('403 copilot.chat:member_blocked');
+    expect(blocked.opened).toEqual([]);
     const pat = setup([]);
     expect(
       await status(pat.turn('my tasks', null, memberContext({ actorChannel: 'ai_assistant' }))),
