@@ -2029,6 +2029,11 @@ GRANT SELECT ON `tmanage`.`security_source_findings`            TO 'tmanage_work
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`network_block_lists`  TO 'tmanage_worker'@'%';
 GRANT SELECT, INSERT, DELETE ON `tmanage`.`network_block_ranges` TO 'tmanage_worker'@'%';
 GRANT INSERT, DELETE ON `tmanage`.`network_access_allowlist`     TO 'tmanage_app'@'%';
+-- 0406 (SEC-TRACKER) the platform's own block list (the sign-in door's first layer) and the
+-- attack tracker's source labels (`known_tester`). Both the API's alone: platform admins add and
+-- remove rows, each with its platform audit row; the API reads them with its database-wide SELECT.
+GRANT INSERT, DELETE ON `tmanage`.`network_access_blocklist`     TO 'tmanage_app'@'%';
+GRANT INSERT, DELETE ON `tmanage`.`security_source_labels`       TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`public_link_events`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`rate_limit_buckets`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`webhook_deliveries`                  TO 'tmanage_worker'@'%';

@@ -160,6 +160,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.ai_reserve_released',
   // ---- 62-13 ---- the worker's AI conversation retention purge (count only, system actor).
   'platform.ai_conversations_purged',
+  // ---- SEC-TRACKER (0406) ---- the attack tracker's owner actions: block a source at the sign-in
+  // door, and the known-tester label (read side only; never the door or a severity).
+  'platform.network_block_added',
+  'platform.network_block_removed',
+  'platform.source_label_added',
+  'platform.source_label_removed',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];

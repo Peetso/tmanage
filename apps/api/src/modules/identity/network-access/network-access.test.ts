@@ -92,6 +92,10 @@ function setup(entries: readonly AllowlistEntry[] = [], policy: string | null = 
     addAllowlistEntry: () => Promise.reject(new Error('unused')),
     removeAllowlistEntry: () => Promise.reject(new Error('unused')),
     setPolicy: () => Promise.reject(new Error('unused')),
+    blocklist: () => Promise.resolve([]),
+    addBlock: () => Promise.reject(new Error('unused')),
+    removeBlock: () => Promise.reject(new Error('unused')),
+    listStatus: () => Promise.resolve([]),
   };
   const classifier: IpClassifier = { classify: (ip) => (ip ? (PLACES[ip] ?? null) : null) };
   const service = new NetworkAccessService(
@@ -200,6 +204,7 @@ describe('the sign-in door (SEC-ALERTS item 7)', () => {
 describe('the layers, pure', () => {
   const base: NetworkAccessInput = {
     policy: 'refuse',
+    blocked: false,
     allowlisted: false,
     listHits: [],
     isTor: false,

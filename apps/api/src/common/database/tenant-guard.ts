@@ -1660,6 +1660,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   'network_block_lists',
   'network_block_ranges',
   'network_access_allowlist',
+  // 0406 (SEC-TRACKER). The platform's own block list (the sign-in door's first layer) and the
+  // tracker's source labels (`known_tester`). GLOBAL: an address belongs to no company. Written by
+  // platform admins on `identityTransaction`, each with its platform audit row.
+  'network_access_blocklist',
+  'security_source_labels',
 ]);
 
 export function isTenantTable(name: string): boolean {

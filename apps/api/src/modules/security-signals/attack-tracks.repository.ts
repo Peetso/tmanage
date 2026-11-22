@@ -19,6 +19,8 @@ import type { TrackAuthRow, TrackNetwork, TrackStep } from './attack-tracks.js';
 
 const SOURCE_LIMIT = 20_000;
 const ROW_LIMIT = 5_000;
+/** SEC-TRACKER: sources per `authRows` statement, so a 1,000-source list read is 10 statements. */
+const IP_BATCH = 100;
 
 const SIGNAL_REASON =
   'platform attack tracker: the signals of one source hash across organizations, ids and counts only';
@@ -31,15 +33,18 @@ const text = (value: unknown): string | null =>
 const marks = (n: number): string => Array.from({ length: n }, () => '?').join(', ');
 
 export interface AttackTrackStore {
-  /** Sources with a hostile row since `from`, newest activity first. */
-  recentSources(from: Date, limit: number): Promise<readonly string[]>;
+  /** Sources with a hostile row in `[from, until]`, newest activity first. */
+  recentSources(from: Date, until: Date, limit: number): Promise<readonly string[]>;
   /** Every distinct source with a hostile row since `from` (to resolve a track id). */
   allSources(from: Date): Promise<readonly string[]>;
-  authRows(ips: readonly string[], from: Date): Promise<readonly TrackAuthRow[]>;
+  /** The sources' rows in `[from, until]`, read in batches of {@link IP_BATCH} sources. */
+  authRows(ips: readonly string[], from: Date, until: Date): Promise<readonly TrackAuthRow[]>;
   networks(ips: readonly string[]): Promise<ReadonlyMap<string, TrackNetwork>>;
+  /** Signals of the hashes seen since `from` and first raised by `until`. */
   signals(
     hashes: readonly string[],
     from: Date,
+    until: Date,
   ): Promise<
     readonly {
       sourceHash: string;
@@ -81,14 +86,14 @@ export class AttackTrackRepository implements AttackTrackStore {
     );
   }
 
-  async recentSources(from: Date, limit: number): Promise<readonly string[]> {
+  async recentSources(from: Date, until: Date, limit: number): Promise<readonly string[]> {
     const rows = await this.identity(
       ['authentication_events'],
       uuidv7(),
       `select ip, max(occurred_at) as last_at from authentication_events
-        where occurred_at >= ? and outcome <> 'succeeded' and ip is not null
+        where occurred_at >= ? and occurred_at <= ? and outcome <> 'succeeded' and ip is not null
         group by ip order by last_at desc limit ?`,
-      [from, limit],
+      [from, until, limit],
     );
     return rows.map((r) => String(r['ip']));
   }
@@ -105,18 +110,27 @@ export class AttackTrackRepository implements AttackTrackStore {
     return rows.map((r) => String(r['ip']));
   }
 
-  async authRows(ips: readonly string[], from: Date): Promise<readonly TrackAuthRow[]> {
-    if (ips.length === 0) return [];
-    const rows = await this.identity(
-      ['authentication_events'],
-      uuidv7(),
-      `select ip, user_id, action, outcome, reason, user_agent, occurred_at,
-          automation_score, automation_reasons_json
-        from authentication_events
-        where ip in (${marks(ips.length)}) and occurred_at >= ?
-        order by occurred_at desc limit ${String(ROW_LIMIT)}`,
-      [...ips, from],
-    );
+  async authRows(
+    ips: readonly string[],
+    from: Date,
+    until: Date,
+  ): Promise<readonly TrackAuthRow[]> {
+    const rows: RowDataPacket[] = [];
+    for (let i = 0; i < ips.length; i += IP_BATCH) {
+      const batch = ips.slice(i, i + IP_BATCH);
+      rows.push(
+        ...(await this.identity(
+          ['authentication_events'],
+          uuidv7(),
+          `select ip, user_id, action, outcome, reason, user_agent, occurred_at,
+              automation_score, automation_reasons_json
+            from authentication_events
+            where ip in (${marks(batch.length)}) and occurred_at >= ? and occurred_at <= ?
+            order by occurred_at desc limit ${String(ROW_LIMIT)}`,
+          [...batch, from, until],
+        )),
+      );
+    }
     return rows.map((r) => ({
       ip: String(r['ip']),
       userId: text(r['user_id']),
@@ -154,18 +168,24 @@ export class AttackTrackRepository implements AttackTrackStore {
     );
   }
 
-  async signals(hashes: readonly string[], from: Date) {
-    if (hashes.length === 0) return [];
-    const rows = await this.database.bootstrapRead(
-      { correlationId: uuidv7(), reason: SIGNAL_REASON, tables: ['security_signals'] },
-      (runner) =>
-        runner.query<RowDataPacket[]>(
-          `select source_hash, rule_key, severity, last_seen, count from security_signals
-            where source_hash in (${marks(hashes.length)}) and last_seen >= ?
-            order by last_seen desc limit 500`,
-          [...hashes, from],
-        ),
-    );
+  async signals(hashes: readonly string[], from: Date, until: Date) {
+    const rows: RowDataPacket[] = [];
+    for (let i = 0; i < hashes.length; i += IP_BATCH) {
+      const batch = hashes.slice(i, i + IP_BATCH);
+      rows.push(
+        ...(await this.database.bootstrapRead(
+          { correlationId: uuidv7(), reason: SIGNAL_REASON, tables: ['security_signals'] },
+          (runner) =>
+            runner.query<RowDataPacket[]>(
+              `select source_hash, rule_key, severity, last_seen, count from security_signals
+                where source_hash in (${marks(batch.length)}) and last_seen >= ?
+                  and first_seen <= ?
+                order by last_seen desc limit 500`,
+              [...batch, from, until],
+            ),
+        )),
+      );
+    }
     return rows.map((r) => ({
       sourceHash: String(r['source_hash']),
       ruleKey: String(r['rule_key']),

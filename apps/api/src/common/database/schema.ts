@@ -15871,3 +15871,45 @@ Object.assign(TABLES, {
   network_block_ranges: networkBlockRanges,
   network_access_allowlist: networkAccessAllowlist,
 });
+
+/**
+ * 0406 `network_access_blocklist` (SEC-TRACKER, gap 1). Addresses and CIDRs a platform admin
+ * blocked by hand; the sign-in door refuses them first, whatever the policy switch says. GLOBAL;
+ * api SELECT, INSERT, DELETE (platform admins, audited). Owner: identity (network-access).
+ */
+export const networkAccessBlocklist = mysqlTable(
+  'network_access_blocklist',
+  {
+    id: char('id', { length: 36 }).notNull().primaryKey(),
+    value: varchar('value', { length: 64 }).notNull(),
+    note: varchar('note', { length: 190 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_network_access_blocklist_value').on(table.value)],
+);
+
+export type NetworkAccessBlocklistRow = typeof networkAccessBlocklist.$inferSelect;
+
+/**
+ * 0406 `security_source_labels` (SEC-TRACKER, gap 2). How a source's activity is read
+ * (`known_tester`); never the door, never the severity, never an alert. GLOBAL; api SELECT,
+ * INSERT, DELETE (platform admins, audited). Owner: security-signals.
+ */
+export const securitySourceLabels = mysqlTable(
+  'security_source_labels',
+  {
+    id: char('id', { length: 36 }).notNull().primaryKey(),
+    value: varchar('value', { length: 64 }).notNull(),
+    label: varchar('label', { length: 32 }).notNull(),
+    note: varchar('note', { length: 190 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_security_source_labels_value').on(table.value)],
+);
+
+export type SecuritySourceLabelRow = typeof securitySourceLabels.$inferSelect;
+
+Object.assign(TABLES, {
+  network_access_blocklist: networkAccessBlocklist,
+  security_source_labels: securitySourceLabels,
+});

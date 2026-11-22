@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
@@ -30,6 +31,9 @@ import { SECURITY_SIGNALS_SERVICE } from './security-signals.service.js';
 import { ATTACK_TRACKS_SERVICE } from './attack-tracks.service.js';
 import type { AttackTracksService, TrackPage } from './attack-tracks.service.js';
 import type { TrackDetail } from './attack-tracks.js';
+import { SOURCE_LABELS_SERVICE } from './source-labels.service.js';
+import type { SourceLabelsService } from './source-labels.service.js';
+import type { SourceLabel } from './source-labels.js';
 import type {
   AlertRuleView,
   SecuritySignalsService,
@@ -136,6 +140,10 @@ export class PlatformSecuritySignalsController {
  * SEC-ALERTS item 6 — `GET /v1/platform/security/attack-tracks?from&limit` (every hostile source
  * as one track) and `GET …/:trackId` (its step-by-step timeline). Platform admins only; the guard
  * demands a fresh step-up, as on every non-exempt platform route; each read is audited.
+ *
+ * SEC-TRACKER: the list also takes `cursor`, `q` (address prefix, network owner, exact account
+ * e-mail) and `filter` (all, critical, high, vpn, tor, hosting, known_tester) and answers
+ * `total`, `counts` per chip and `nextCursor` (25 a page).
  */
 @Controller('v1/platform/security/attack-tracks')
 @NoTenant()
@@ -149,9 +157,16 @@ export class PlatformAttackTracksController {
     @CurrentPlatformAdmin() actor: PlatformAdminActor,
     @Query('from') from: string | undefined,
     @Query('limit') limit: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+    @Query('q') q: string | undefined,
+    @Query('filter') filter: string | undefined,
     @Req() request: object,
   ): Promise<TrackPage> {
-    return this.service.list(actor, { from, limit }, platformRequestContext(request));
+    return this.service.list(
+      actor,
+      { from, limit, cursor, q, filter },
+      platformRequestContext(request),
+    );
   }
 
   @Get(':trackId')
@@ -162,5 +177,39 @@ export class PlatformAttackTracksController {
     @Req() request: object,
   ): Promise<TrackDetail> {
     return this.service.get(actor, trackId, platformRequestContext(request));
+  }
+}
+
+/**
+ * SEC-TRACKER (gap 2) — the known-tester label: `POST /v1/platform/security/source-labels`
+ * `{ value, label, note? }` (an address or a CIDR of at most /24 or /48; 409 on overlap) and
+ * `DELETE …/source-labels/:id`. Same guards as the tracker; each write audited. A label changes
+ * how a source is read on the tracker, never its severity, an alert or the sign-in door.
+ */
+@Controller('v1/platform/security/source-labels')
+@NoTenant()
+@UseGuards(PlatformAdminGuard)
+export class PlatformSourceLabelsController {
+  constructor(@Inject(SOURCE_LABELS_SERVICE) private readonly service: SourceLabelsService) {}
+
+  @Post()
+  @RequirePlatformPermission('platform.settings.edit')
+  add(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Body() body: Readonly<Record<string, unknown>> | undefined,
+    @Req() request: object,
+  ): Promise<SourceLabel> {
+    return this.service.add(actor, body ?? {}, platformRequestContext(request));
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequirePlatformPermission('platform.settings.edit')
+  remove(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('id') id: string,
+    @Req() request: object,
+  ): Promise<void> {
+    return this.service.remove(actor, id, platformRequestContext(request));
   }
 }

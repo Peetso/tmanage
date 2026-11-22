@@ -1,4 +1,5 @@
 import { ApiError } from '../../common/http/errors.js';
+import type { SourceLabelKind } from './source-labels.js';
 import {
   CREDENTIAL_ACTIONS,
   GUARD_ACTIONS,
@@ -34,8 +35,17 @@ import {
 export const TRACK_MAX_LOOKBACK_DAYS = 730;
 export const TRACK_DEFAULT_LOOKBACK_DAYS = 7;
 export const TRACK_LIST_MAX = 100;
-export const TRACK_LIST_DEFAULT = 50;
+/** SEC-TRACKER gap 8: a page is 25 sources ("Showing 25 of 212 · Show more"). */
+export const TRACK_LIST_DEFAULT = 25;
 export const TRACK_STEP_MAX = 500;
+/**
+ * The most sources one list read summarises (AS-6 bounded work). Totals and chip counts are exact
+ * up to this many sources in the window; beyond it the page says `truncated: true`.
+ */
+export const TRACK_SCAN_MAX = 1_000;
+export const TRACK_QUERY_MAX = 254;
+/** The door's refusal reasons on a `network_guard` row (`network-access-policy.ts`). */
+const DOOR_ACTION = 'network_guard';
 const TRACK_ID = /^[0-9a-f]{64}$/u;
 
 export type StepOutcome = 'refused' | 'throttled' | 'succeeded' | 'signal' | 'observed';
@@ -78,16 +88,25 @@ export interface TrackStep {
   readonly score?: number;
 }
 
-export interface TrackSummary {
+/** What the log rows of one source say, before the platform's own state is added. */
+export interface TrackFacts {
   readonly trackId: string;
   readonly ip: string;
   readonly network: TrackNetwork | null;
   readonly firstSeen: Date;
   readonly lastSeen: Date;
   readonly steps: number;
+  /**
+   * SEC-TRACKER (must-fix 5): the sign-in attempts, `refused + throttled + succeeded` exactly, so
+   * the detail line "Attempts 63 · Refused 61 · Slowed down 1 · Got in 1" always sums. `steps`
+   * also counts signals, wrong link codes and rate-limit windows, which are not attempts.
+   */
+  readonly attempts: number;
   readonly refused: number;
   readonly throttled: number;
   readonly succeeded: number;
+  /** SEC-TRACKER gap 6: refusals by the sign-in door (VPN / data centre / blocked), of `refused`. */
+  readonly doorRefused: number;
   readonly accountsTargeted: readonly string[];
   readonly userAgents: readonly string[];
   readonly signals: readonly string[];
@@ -96,8 +115,43 @@ export interface TrackSummary {
   readonly severity: TrackSeverity;
 }
 
+/** A list row: the facts plus the platform's own state of the source (gaps 2 and 4). */
+export interface TrackSummary extends TrackFacts {
+  /** On the platform's block list now (refused at the door first). */
+  readonly blocked: boolean;
+  /** The block entry, for "Unblock"; null when not blocked. */
+  readonly blockId: string | null;
+  /** Let through the door by the allowlist (an entry, a range or its network). */
+  readonly allowlisted: boolean;
+  /** `known_tester` when an admin marked the source; never changes `severity`. */
+  readonly label: SourceLabelKind | null;
+  readonly labelId: string | null;
+  readonly labelNote: string | null;
+}
+
+/** One targeted account, named on the audited detail read only (gaps 5 and 9). */
+export interface TrackAccount {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly email: string;
+  readonly organizations: readonly { readonly name: string; readonly slug: string }[];
+}
+
 export interface TrackDetail extends TrackSummary {
   readonly timeline: readonly TrackStep[];
+  /** At most 20, when `accountsVisible`; empty otherwise. Steps refer to them by `userId`. */
+  readonly accounts: readonly TrackAccount[];
+  /** Every distinct account the source tried, uncapped. */
+  readonly accountsTotal: number;
+  /** Decision (AR-9): the viewer holds `platform.people.view`, so names are shown. */
+  readonly accountsVisible: boolean;
+  /**
+   * Decision (AR-9): the viewer may "Sign this account out everywhere" (`platform.people.security`),
+   * through the existing `POST /v1/platform/people/:userId/sign-out` (reason required, step-up).
+   */
+  readonly canSignOutAccounts: boolean;
+  /** SEC-TRACKER gap 4: the free block lists whose active version holds the address now. */
+  readonly onLists: readonly string[];
 }
 
 const isHostile = (row: TrackAuthRow): boolean => row.outcome !== 'succeeded';
@@ -168,7 +222,7 @@ export function summarize(input: {
   readonly network: TrackNetwork | null;
   readonly signals: readonly { readonly ruleKey: string; readonly severity: string }[];
   readonly extraSteps?: readonly TrackStep[];
-}): TrackSummary | null {
+}): TrackFacts | null {
   const rows = trackRows(input.rows);
   const extra = input.extraSteps ?? [];
   if (rows.length === 0 && extra.length === 0) return null;
@@ -193,9 +247,11 @@ export function summarize(input: {
     firstSeen: new Date(Math.min(...times)),
     lastSeen: new Date(Math.max(...times)),
     steps: rows.length + extra.length,
+    attempts: outcomes.length,
     refused: outcomes.filter((o) => o === 'refused').length,
     throttled,
     succeeded,
+    doorRefused: rows.filter((r) => r.action === DOOR_ACTION && isHostile(r)).length,
     accountsTargeted: distinct(
       rows.map((r) => r.userId),
       50,
@@ -231,19 +287,134 @@ export function timeline(
   return steps.slice(Math.max(0, steps.length - TRACK_STEP_MAX));
 }
 
+export const TRACK_FILTERS = [
+  'all',
+  'critical',
+  'high',
+  'vpn',
+  'tor',
+  'hosting',
+  'known_tester',
+] as const;
+export type TrackFilter = (typeof TRACK_FILTERS)[number];
+
+/** Where a page starts: the snapshot time of the first page and the offset into its order. */
+export interface TrackCursor {
+  readonly until: Date;
+  readonly offset: number;
+}
+
 export interface TrackQuery {
   readonly from: Date;
   readonly limit: number;
+  /** Rows after this time are not read, so later pages keep the first page's order. */
+  readonly until: Date;
+  readonly offset: number;
+  readonly q: string | null;
+  readonly filter: TrackFilter;
+}
+
+export function encodeTrackCursor(cursor: TrackCursor): string {
+  return Buffer.from(`${cursor.until.toISOString()}|${String(cursor.offset)}`, 'utf8').toString(
+    'base64url',
+  );
+}
+
+export function decodeTrackCursor(raw: string): TrackCursor | null {
+  if (raw.length > 64) return null;
+  const text = Buffer.from(raw, 'base64url').toString('utf8');
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\|(\d{1,6})$/u.exec(text);
+  if (m === null) return null;
+  const until = new Date(m[1] ?? '');
+  if (Number.isNaN(until.getTime())) return null;
+  return { until, offset: Number(m[2]) };
+}
+
+export function matchesFilter(track: TrackSummary, filter: TrackFilter): boolean {
+  switch (filter) {
+    case 'all':
+      return true;
+    case 'critical':
+    case 'high':
+      return track.severity === filter;
+    case 'vpn':
+      return track.network?.vpnLikely === true;
+    case 'tor':
+      return track.network?.tor === true;
+    case 'hosting':
+      return track.network?.kind === 'hosting';
+    case 'known_tester':
+      return track.label === 'known_tester';
+  }
+}
+
+/** The count of every filter chip over the searched tracks (the chips show their own count). */
+export function trackCounts(
+  tracks: readonly TrackSummary[],
+): Readonly<Record<TrackFilter, number>> {
+  const counts = Object.fromEntries(TRACK_FILTERS.map((f) => [f, 0])) as Record<
+    TrackFilter,
+    number
+  >;
+  for (const track of tracks) {
+    for (const filter of TRACK_FILTERS) if (matchesFilter(track, filter)) counts[filter] += 1;
+  }
+  return counts;
+}
+
+/**
+ * The server-side search (gap 8): an address prefix, a network owner (contains, any case), or an
+ * exact account e-mail (resolved to its id by the caller: `accountId`).
+ */
+export function matchesSearch(
+  track: TrackSummary,
+  q: string | null,
+  accountId: string | null,
+): boolean {
+  if (q === null) return true;
+  const needle = q.toLowerCase();
+  if (track.ip.toLowerCase().startsWith(needle)) return true;
+  if ((track.network?.owner ?? '').toLowerCase().includes(needle)) return true;
+  return accountId !== null && track.accountsTargeted.includes(accountId);
+}
+
+const SEVERITY_RANK: Readonly<Record<TrackSeverity, number>> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+/**
+ * Worst first; inside one severity a labelled source (a known tester) after the unlabelled ones;
+ * then the latest activity; then the id, so the order is total and pages never overlap.
+ */
+export function compareTracks(a: TrackSummary, b: TrackSummary): number {
+  return (
+    SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+    Number(a.label !== null) - Number(b.label !== null) ||
+    b.lastSeen.getTime() - a.lastSeen.getTime() ||
+    (a.trackId < b.trackId ? -1 : a.trackId > b.trackId ? 1 : 0)
+  );
 }
 
 const invalid = (field: string, message: string): ApiError =>
   new ApiError(400, 'validation_failed', 'The query is invalid', [{ field, message }]);
 
-/** `?from=ISO&limit=n`; `from` defaults to 7 days back and is clamped to the retention. */
-export function parseTrackQuery(
-  raw: { readonly from?: string | undefined; readonly limit?: string | undefined },
-  now: Date,
-): TrackQuery {
+export interface RawTrackQuery {
+  readonly from?: string | undefined;
+  readonly limit?: string | undefined;
+  readonly cursor?: string | undefined;
+  readonly q?: string | undefined;
+  readonly filter?: string | undefined;
+}
+
+/**
+ * `?from=ISO&limit=n&cursor&q&filter`; `from` defaults to 7 days back and is clamped to the
+ * retention. A `cursor` (from `nextCursor`) carries the first page's snapshot time and the offset;
+ * the caller sends the same `from`, `q` and `filter` with it.
+ */
+export function parseTrackQuery(raw: RawTrackQuery, now: Date): TrackQuery {
   const floor = now.getTime() - TRACK_MAX_LOOKBACK_DAYS * 86_400_000;
   let from = now.getTime() - TRACK_DEFAULT_LOOKBACK_DAYS * 86_400_000;
   if (raw.from !== undefined && raw.from !== '') {
@@ -258,7 +429,29 @@ export function parseTrackQuery(
       throw invalid('limit', `an integer 1–${String(TRACK_LIST_MAX)}`);
     }
   }
-  return { from: new Date(Math.max(from, floor)), limit };
+  let cursor: TrackCursor = { until: now, offset: 0 };
+  if (raw.cursor !== undefined && raw.cursor !== '') {
+    const decoded = decodeTrackCursor(raw.cursor);
+    if (decoded === null || decoded.until.getTime() > now.getTime()) {
+      throw invalid('cursor', 'a nextCursor from this list');
+    }
+    cursor = decoded;
+  }
+  const q = (raw.q ?? '').trim();
+  if (q.length > TRACK_QUERY_MAX)
+    throw invalid('q', `at most ${String(TRACK_QUERY_MAX)} characters`);
+  const filter = raw.filter === undefined || raw.filter === '' ? 'all' : raw.filter;
+  if (!(TRACK_FILTERS as readonly string[]).includes(filter)) {
+    throw invalid('filter', TRACK_FILTERS.join(', '));
+  }
+  return {
+    from: new Date(Math.max(from, floor)),
+    limit,
+    until: cursor.until,
+    offset: cursor.offset,
+    q: q === '' ? null : q,
+    filter: filter as TrackFilter,
+  };
 }
 
 export function assertTrackId(trackId: string): void {

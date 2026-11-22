@@ -25,6 +25,7 @@ provides_api:
     '/v1/organizations/:orgSlug/admin/sessions/*',
     '/v1/organizations/:orgSlug/security/sign-in-policy',
     '/v1/dev/sessions (non-production only)',
+    '/v1/platform/security/network-access/*',
   ]
 consumes_api: []
 tables_owned:
@@ -41,6 +42,10 @@ tables_owned:
     credential_change_notices,
     password_reset_tokens,
     ip_lookups,
+    network_block_lists,
+    network_block_ranges,
+    network_access_allowlist,
+    network_access_blocklist,
   ]
 rules:
   [
@@ -74,9 +79,9 @@ rules:
     PR-3,
   ]
 ux_rules: []
-last_verified_commit: 954d80b32e5fbe6379a1c4e71bb45a616aa9ce65
-last_verified_date: 2026-11-20
-last_verified_by: Claude Opus 5.5 (lane G)
+last_verified_commit: 61717279d7628572badf37ec0f532b2b45221a64
+last_verified_date: 2026-11-22
+last_verified_by: Claude Opus 5.5 (lane SEC-TRACKER-API)
 ---
 
 # api/identity
@@ -223,6 +228,8 @@ or invalid credentials, 403 refusal, 404 hidden, 409 conflict, 429 rate limit.
 | `user_passkeys` | `0329_user_passkeys.sql` | — | `uq_user_passkeys_credential (credential_id_hash)` (`:44`) | until removed |
 | `user_mfa_email_codes` | `0360_mfa_email_codes.sql` | — | PK id (`:42`) | TTL 10 min |
 | `ip_lookups` | `0280_security_ip_intelligence.sql` | — | — | cache, swept by `apps/worker/.../ip-lookup-sweeper-store.ts` |
+| `network_block_lists`, `network_block_ranges`, `network_access_allowlist` | `0405_network_access_policy.sql` | — | PK `(list_key, version, range_start)`; `uq_network_access_allowlist_value` | ranges: old versions deleted by the worker refresh; allowlist until removed |
+| `network_access_blocklist` | `0406_network_access_blocklist_and_source_labels.sql` | — | `uq_network_access_blocklist_value (value)` | until a platform admin removes it |
 
 **Read but not owned** (owner = tenancy): `org_policies`, `memberships`, `client_memberships`;
 (owner = google-auth/sso): `user_identities` — all from `sign-in-policy.repository.ts`.

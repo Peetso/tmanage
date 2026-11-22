@@ -93,6 +93,56 @@ export function parseIpRange(line: string): IpRange | null {
   return { start: ipRangeKey(start), end: ipRangeKey(start | mask) };
 }
 
+/**
+ * Whether two ranges share at least one address (the sign-in door's block / allowlist / label
+ * overlap checks). Keys are fixed width, so string order is numeric order.
+ */
+export function rangesOverlap(a: IpRange, b: IpRange): boolean {
+  return a.start <= b.end && b.start <= a.end;
+}
+
+/** An address or CIDR an admin typed, in its one stored spelling (SEC-TRACKER, 0406). */
+export interface CidrValue {
+  /** `203.0.113.7/32`, `203.0.113.0/24`, `2001:db8::/48` (IPv6 lower-cased as typed). */
+  readonly value: string;
+  readonly range: IpRange;
+  readonly family: 4 | 6;
+  /** The prefix length (32 or 128 for a single address). */
+  readonly bits: number;
+  /** The network address as text, for a lookup by address. */
+  readonly address: string;
+}
+
+/**
+ * An address or CIDR as a platform admin types it, or null. A bare address becomes a /32 or /128.
+ * The host bits must be zero (`203.0.113.7/24` is refused: the admin meant either the address or
+ * `203.0.113.0/24`, and storing a guess would block a range nobody chose). One parse for the block
+ * list (identity) and the source labels (security-signals), so both read a value the same way.
+ */
+export function parseCidrValue(raw: string): CidrValue | null {
+  const text = raw.trim().toLowerCase();
+  if (text === '' || text.length > 64 || /[#;\s]/u.test(text)) return null;
+  const [address = '', prefixText, extra] = text.split('/');
+  if (extra !== undefined) return null;
+  if (prefixText !== undefined && !/^\d{1,3}$/u.test(prefixText)) return null;
+  const n = ipToBigInt(address);
+  if (n === null) return null;
+  const family = v4ToBig(address) !== null ? 4 : 6;
+  const width = family === 4 ? 32 : 128;
+  const bits = prefixText === undefined ? width : Number(prefixText);
+  if (bits > width) return null;
+  const range = parseIpRange(`${address}/${String(bits)}`);
+  if (range === null || range.start !== ipRangeKey(n)) return null;
+  const canonical =
+    family === 4
+      ? address
+          .split('.')
+          .map((octet) => String(Number(octet)))
+          .join('.')
+      : address;
+  return { value: `${canonical}/${String(bits)}`, range, family, bits, address: canonical };
+}
+
 /** An IPv4 numeric range (decimal `ip_from`, `ip_to`, the IP2Proxy CSV form) as a mapped range. */
 export function ipV4NumericRange(from: string, to: string): IpRange | null {
   if (!/^\d{1,10}$/u.test(from) || !/^\d{1,10}$/u.test(to)) return null;

@@ -1653,6 +1653,20 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/platform/security/network-access/allowlist/:id',
     reason: 'platform_admin',
   },
+  // SEC-TRACKER (0406): block a source at the sign-in door, and the known-tester label. Platform
+  // security administration; an AI never blocks an address or relabels attack traffic.
+  {
+    method: 'POST',
+    path: '/v1/platform/security/network-access/blocklist',
+    reason: 'platform_admin',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/platform/security/network-access/blocklist/:id',
+    reason: 'platform_admin',
+  },
+  { method: 'POST', path: '/v1/platform/security/source-labels/', reason: 'platform_admin' },
+  { method: 'DELETE', path: '/v1/platform/security/source-labels/:id', reason: 'platform_admin' },
   // R44 L2 (0332): an owner marks a signal reviewed; 56-06 the blocked-files queue and its
   // delete-now. Security triage an AI must not drive.
   {

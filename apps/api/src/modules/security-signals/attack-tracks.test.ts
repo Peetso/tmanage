@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseTrackQuery, summarize, timeline, TRACK_MAX_LOOKBACK_DAYS } from './attack-tracks.js';
 import type { TrackAuthRow } from './attack-tracks.js';
 import { AttackTracksService } from './attack-tracks.service.js';
+import type { AttackTrackDependencies } from './attack-tracks.service.js';
+import { SourceLabelMatcher } from './source-labels.js';
 import type { AttackTrackStore } from './attack-tracks.repository.js';
 import { sourceHash } from './source-findings.js';
 import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
@@ -94,6 +96,20 @@ describe('attack track service', () => {
     userAgent: null,
   };
 
+  const deps = (): AttackTrackDependencies => ({
+    standing: {
+      standing: (sources) =>
+        Promise.resolve(
+          new Map(
+            sources.map((x) => [x.ip, { blocked: false, blockId: null, allowlisted: false }]),
+          ),
+        ),
+      listsHolding: () => Promise.resolve([]),
+    },
+    labels: { matcher: () => Promise.resolve(new SourceLabelMatcher([])) },
+    people: { accounts: () => Promise.resolve([]), userIdByEmail: () => Promise.resolve(null) },
+  });
+
   function store(): AttackTrackStore & { audit: ReturnType<typeof vi.fn> } {
     return {
       recentSources: () => Promise.resolve([IP]),
@@ -109,7 +125,7 @@ describe('attack track service', () => {
 
   it('audits the list and the detail; the detail resolves the hash, never takes an address', async () => {
     const s = store();
-    const service = new AttackTracksService(s, {}, () => NOW);
+    const service = new AttackTracksService(s, {}, deps(), () => NOW);
     const page = await service.list(actor, {}, context);
     expect(page.tracks.map((t) => t.trackId)).toEqual([sourceHash(IP)]);
     const detail = await service.get(actor, sourceHash(IP), context);

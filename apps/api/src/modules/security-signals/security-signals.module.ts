@@ -1,14 +1,21 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { API_CONFIG, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import { NETWORK_ACCESS_SERVICE } from '../identity/network-access/network-access.service.js';
+import type { NetworkAccessService } from '../identity/network-access/network-access.service.js';
+import { platformPeopleDirectory } from '../platform-admin/people/people-directory.js';
 import { platformAdminCore } from '../platform-admin/platform-admin-core.module.js';
 import {
   OrganizationSecurityEventsController,
   PlatformAlertRulesController,
   PlatformAttackTracksController,
   PlatformSecuritySignalsController,
+  PlatformSourceLabelsController,
 } from './security-signals.controller.js';
+import { SourceLabelRepository } from './source-labels.repository.js';
+import { SOURCE_LABELS_SERVICE, SourceLabelsService } from './source-labels.service.js';
 import { SecuritySignalsRepository } from './security-signals.repository.js';
 import { SECURITY_SIGNALS_SERVICE, SecuritySignalsService } from './security-signals.service.js';
 import {
@@ -88,12 +95,44 @@ export class SecuritySignalsModule {
   }
 }
 
+function sourceLabelsProvider(): Provider {
+  return {
+    provide: SOURCE_LABELS_SERVICE,
+    inject: [TENANT_DATABASE],
+    useFactory: (database: TenantDatabase) =>
+      new SourceLabelsService(new SourceLabelRepository(database)),
+  };
+}
+
+/**
+ * SEC-TRACKER: the tracker reads the door's standing through identity's published
+ * `NETWORK_ACCESS_SERVICE` (global `NetworkAccessModule`), the labels through its own service, and
+ * the targeted accounts' names through the platform people directory (AR-5: services, not
+ * foreign repositories). The door service is required: a tracker that cannot say "blocked" must
+ * fail to boot, not show every source as unblocked.
+ */
 function attackTracksProvider(): Provider {
   return {
     provide: ATTACK_TRACKS_SERVICE,
-    inject: [TENANT_DATABASE, { token: SOURCE_HASHERS, optional: true }],
-    useFactory: (database: TenantDatabase, hashers: SourceHashers | undefined) =>
-      new AttackTracksService(new AttackTrackRepository(database), hashers ?? {}),
+    inject: [
+      TENANT_DATABASE,
+      API_CONFIG,
+      NETWORK_ACCESS_SERVICE,
+      SOURCE_LABELS_SERVICE,
+      { token: SOURCE_HASHERS, optional: true },
+    ],
+    useFactory: (
+      database: TenantDatabase,
+      config: ApiConfig,
+      door: NetworkAccessService,
+      labels: SourceLabelsService,
+      hashers: SourceHashers | undefined,
+    ) =>
+      new AttackTracksService(new AttackTrackRepository(database), hashers ?? {}, {
+        standing: door,
+        labels,
+        people: platformPeopleDirectory(database, config),
+      }),
   };
 }
 
@@ -103,11 +142,12 @@ export class PlatformSecuritySignalsModule {
     return {
       module: PlatformSecuritySignalsModule,
       imports: [platformAdminCore()],
-      providers: [serviceProvider(), attackTracksProvider()],
+      providers: [serviceProvider(), sourceLabelsProvider(), attackTracksProvider()],
       controllers: [
         PlatformAlertRulesController,
         PlatformSecuritySignalsController,
         PlatformAttackTracksController,
+        PlatformSourceLabelsController,
       ],
     };
   }

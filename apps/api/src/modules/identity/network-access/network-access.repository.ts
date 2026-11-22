@@ -1,23 +1,46 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { uuidv7 } from '@tmanage/domain';
 import type { TenantDatabase } from '../../../common/database/tenant-context.js';
+import { unwrapQueryError } from '../../../common/database/query-error.js';
 import { insertPlatformAudit } from '../../platform-admin/platform-admin.repository.js';
 import type { PlatformAuditInput } from '../../platform-admin/platform-admin.repository.js';
 
 /**
  * SEC-ALERTS item 7 — the statements of the sign-in door, all on the identity path (every table
  * here is GLOBAL: `network_block_lists`, `network_block_ranges`, `network_access_allowlist`,
- * `platform_settings`, `users`, `authentication_events`, `ip_lookups`).
+ * `network_access_blocklist` (0406), `platform_settings`, `users`, `authentication_events`,
+ * `ip_lookups`).
  *
  * - The block-list lookup is one indexed point read per active list: the greatest `range_start`
  *   not above the address in that version (primary key `(list_key, version, range_start)`), then
  *   its `range_end`. Exact because the worker stores merged, non-overlapping ranges.
- * - The allowlist, the policy switch and the active versions are small and read on a cache
+ * - The allowlist, the block list, the policy switch and the active versions are small and read
+ *   on a cache
  *   (`network-access.service.ts`), never per request.
  * - Layer C reads the named account's last 24 hours of log rows with their cached network.
  */
 
 export const POLICY_SETTING_KEY = 'security.anonymous_networks';
+
+const toDate = (value: unknown): Date | null =>
+  value === null || value === undefined
+    ? null
+    : value instanceof Date
+      ? value
+      : new Date(String(value));
+
+/** ER_DUP_ENTRY: the unique key on `value` (the write-skew backstop of an identical value). */
+export function isDuplicateKey(error: unknown): boolean {
+  const cause = unwrapQueryError(error) as { errno?: number; code?: string } | null;
+  return cause?.errno === 1062 || cause?.code === 'ER_DUP_ENTRY';
+}
+
+const toBlockEntry = (r: RowDataPacket): BlockEntry => ({
+  id: String(r['id']),
+  value: String(r['value']),
+  note: r['note'] === null ? null : String(r['note']),
+  createdAt: toDate(r['created_at']) ?? new Date(0),
+});
 
 const SQL = {
   activeLists: `select list_key, active_version from network_block_lists
@@ -35,6 +58,15 @@ const SQL = {
   addAllow: `insert into network_access_allowlist (id, kind, value, note, created_at)
     values (?, ?, ?, ?, ?)`,
   removeAllow: `delete from network_access_allowlist where id = ?`,
+  blocklist: `select id, value, note, created_at from network_access_blocklist
+    order by created_at, id`,
+  blockById: `select id, value, note, created_at from network_access_blocklist
+    where id = ? for update`,
+  addBlock: `insert into network_access_blocklist (id, value, note, created_at) values (?, ?, ?, ?)`,
+  removeBlock: `delete from network_access_blocklist where id = ?`,
+  listStatus: `select list_key, active_version, range_count, fetched_at, last_attempt_at,
+      last_error is not null as failed
+    from network_block_lists order by list_key`,
   upsertPolicy: `insert into platform_settings (setting_key, setting_value, updated_by_user_id, updated_at)
     values (?, ?, ?, ?) on duplicate key update setting_value = values(setting_value),
     updated_by_user_id = values(updated_by_user_id), updated_at = values(updated_at)`,
@@ -51,6 +83,24 @@ export interface AllowlistEntry {
   readonly value: string;
   readonly note: string | null;
   readonly createdAt: Date;
+}
+
+/** SEC-TRACKER (0406): an address or CIDR a platform admin blocked; `value` is canonical. */
+export interface BlockEntry {
+  readonly id: string;
+  readonly value: string;
+  readonly note: string | null;
+  readonly createdAt: Date;
+}
+
+/** One `network_block_lists` row as stored. `failed` only: the error text never leaves here. */
+export interface BlockListRow {
+  readonly listKey: string;
+  readonly activeVersion: string | null;
+  readonly rangeCount: number;
+  readonly fetchedAt: Date | null;
+  readonly lastAttemptAt: Date | null;
+  readonly failed: boolean;
 }
 
 export interface NetworkAccessStore {
@@ -70,6 +120,16 @@ export interface NetworkAccessStore {
   ): Promise<AllowlistEntry>;
   removeAllowlistEntry(id: string, audit: PlatformAuditInput): Promise<boolean>;
   setPolicy(mode: string, now: Date, audit: PlatformAuditInput): Promise<void>;
+  blocklist(): Promise<readonly BlockEntry[]>;
+  /** Each write lands with its platform audit row in one transaction. */
+  /** The new entry, or null when the same value is already there (the unique key; 409). */
+  addBlock(
+    entry: Omit<BlockEntry, 'id'>,
+    audit: (id: string) => PlatformAuditInput,
+  ): Promise<BlockEntry | null>;
+  /** The removed entry, or null when there was none (404). */
+  removeBlock(id: string, audit: PlatformAuditInput): Promise<BlockEntry | null>;
+  listStatus(): Promise<readonly BlockListRow[]>;
 }
 
 export class NetworkAccessRepository implements NetworkAccessStore {
@@ -192,5 +252,65 @@ export class NetworkAccessRepository implements NetworkAccessStore {
         await insertPlatformAudit(tx, audit);
       },
     );
+  }
+  async blocklist(): Promise<readonly BlockEntry[]> {
+    const rows = await this.database.identityRead(
+      { correlationId: uuidv7(), tables: ['network_access_blocklist'] },
+      (db) => db.query<RowDataPacket[]>(SQL.blocklist, []),
+    );
+    return rows.map(toBlockEntry);
+  }
+
+  async addBlock(
+    entry: Omit<BlockEntry, 'id'>,
+    audit: (id: string) => PlatformAuditInput,
+  ): Promise<BlockEntry | null> {
+    const id = uuidv7();
+    try {
+      await this.database.identityTransaction(
+        { correlationId: id, tables: ['network_access_blocklist', 'platform_admin_audit_events'] },
+        async (tx) => {
+          await tx.query(SQL.addBlock, [id, entry.value, entry.note, entry.createdAt]);
+          await insertPlatformAudit(tx, audit(id));
+        },
+      );
+    } catch (error) {
+      if (isDuplicateKey(error)) return null;
+      throw error;
+    }
+    return { id, ...entry };
+  }
+
+  async removeBlock(id: string, audit: PlatformAuditInput): Promise<BlockEntry | null> {
+    return this.database.identityTransaction(
+      {
+        correlationId: audit.correlationId,
+        tables: ['network_access_blocklist', 'platform_admin_audit_events'],
+      },
+      async (tx) => {
+        const rows = await tx.query<RowDataPacket[]>(SQL.blockById, [id]);
+        const row = rows[0];
+        if (row === undefined) return null;
+        const entry = toBlockEntry(row);
+        await tx.query<ResultSetHeader>(SQL.removeBlock, [id]);
+        await insertPlatformAudit(tx, { ...audit, targetLabel: `cidr:${entry.value}` });
+        return entry;
+      },
+    );
+  }
+
+  async listStatus(): Promise<readonly BlockListRow[]> {
+    const rows = await this.database.identityRead(
+      { correlationId: uuidv7(), tables: ['network_block_lists'] },
+      (db) => db.query<RowDataPacket[]>(SQL.listStatus, []),
+    );
+    return rows.map((r) => ({
+      listKey: String(r['list_key']),
+      activeVersion: r['active_version'] === null ? null : String(r['active_version']),
+      rangeCount: Number(r['range_count'] ?? 0),
+      fetchedAt: toDate(r['fetched_at']),
+      lastAttemptAt: toDate(r['last_attempt_at']),
+      failed: Number(r['failed']) === 1,
+    }));
   }
 }

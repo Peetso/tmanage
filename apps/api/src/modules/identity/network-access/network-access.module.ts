@@ -27,6 +27,10 @@ export class NetworkAccessModule {
   static register(): DynamicModule {
     return {
       module: NetworkAccessModule,
+      // Global (SEC-TRACKER): the attack tracker in the platform area reads a source's standing
+      // (blocked, allowlisted, on a list) through this module's published service (AR-5), and a
+      // second `register()` there would mount the controller twice.
+      global: true,
       // The platform routes sit behind PlatformAdminGuard, whose lookup, allowlist and audit
       // providers live in the shared platform-admin core (one module object for every area).
       imports: [GeoModule, platformAdminCore()],

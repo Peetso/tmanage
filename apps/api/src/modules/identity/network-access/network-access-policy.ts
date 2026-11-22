@@ -3,8 +3,13 @@
  * decision of the sign-in door: given what is known about the address and the browser, refuse or
  * let through. No I/O; `network-access.service.ts` gathers the inputs.
  *
- * ## Layers (any strong layer refuses; the allowlist overrides everything)
+ * ## Layers (the block list first; then any strong layer refuses; the allowlist overrides those)
  *
+ * - **0, the platform's own block list** (SEC-TRACKER, 0406): an address or CIDR a platform admin
+ *   blocked by hand is refused before anything else is read, **whether the policy switch is on or
+ *   off**, and recorded with its own reason ({@link SOURCE_BLOCKED_REASON}). A block never
+ *   overlaps an allowlist entry (the API answers 409 on both sides), so there is no precedence
+ *   puzzle; should one arise anyway (an env allowlist entry), the block wins.
  * - **A, the address** (strong): on a free block list (X4BNet VPN or data-centre ranges, the Tor
  *   exit list, IP2Proxy LITE open proxies), a Tor exit by the in-memory list, an ASN in
  *   `HOSTING_ASNS` or `VPN_PROVIDER_ASNS`. Owner-name keywords ("cloud", "vpn", …) are **weak**
@@ -43,6 +48,8 @@ export const SPREAD_WINDOW_MS = 24 * 3_600_000;
 /** The `authentication_events` row of a refusal. */
 export const NETWORK_GUARD_ACTION = GUARD_REFUSAL_ACTIONS.network;
 export const VPN_REFUSED_REASON = 'vpn_refused';
+/** SEC-TRACKER: refused because a platform admin blocked the address ("Refused · blocked by you"). */
+export const SOURCE_BLOCKED_REASON = 'source_blocked';
 
 export type NetworkPolicyMode = 'refuse' | 'allow';
 export type TimeZoneCheck = 'match' | 'mismatch' | 'utc' | 'unknown';
@@ -50,6 +57,8 @@ export type LanguageCheck = 'match' | 'mismatch' | 'unknown';
 
 export interface NetworkAccessInput {
   readonly policy: NetworkPolicyMode;
+  /** On the platform's own block list (layer 0): refused whatever the policy says. */
+  readonly blocked: boolean;
   readonly allowlisted: boolean;
   /** Block lists whose active version holds the address (`x4b_datacenter`, …). */
   readonly listHits: readonly string[];
@@ -66,7 +75,8 @@ export interface NetworkAccessInput {
 
 export interface NetworkAccessDecision {
   readonly refuse: boolean;
-  readonly because: 'allowlisted' | 'policy_off' | 'address' | 'browser_time_zone' | 'clear';
+  readonly because:
+    'blocked' | 'allowlisted' | 'policy_off' | 'address' | 'browser_time_zone' | 'clear';
   /** 0–100: 100 when refused, else the weak signals' sum. Stored as `automation_score`. */
   readonly score: number;
   /** Every layer's reading as fixed tokens. Stored as `automation_reasons_json`. */
@@ -117,6 +127,9 @@ export function checkLanguage(language: string | null, countryCode: string | nul
 }
 
 export function decideNetworkAccess(input: NetworkAccessInput): NetworkAccessDecision {
+  // Layer 0, first and alone: a source the platform blocked is refused before any other reading.
+  if (input.blocked)
+    return { refuse: true, because: 'blocked', score: 100, reasons: ['net.blocked'] };
   const reasons: string[] = [];
   // Layer A.
   for (const list of input.listHits) reasons.push(`net.a.list:${list}`);

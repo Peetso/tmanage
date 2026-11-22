@@ -303,6 +303,10 @@ export const PEOPLE_SQL = {
     order by u.id desc limit ?`,
   count: (where: string) => `select count(*) as total from users u where ${where || '1 = 1'}`,
   person: `select ${PERSON_COLUMNS} from users u where u.id = ? limit 1`,
+  // SEC-TRACKER: the attack tracker's "who was targeted" (names only, `people-directory.ts`).
+  names: (ids: number) => `select u.id as id, u.email as email, u.display_name as display_name
+    from users u where u.id in (${placeholders(ids)})`,
+  idByEmail: `select id from users where email = ? limit 1`,
   internalMemberships: (ids: number) => `select m.id as membership_id, m.user_id as user_id,
       o.id as organization_id, o.name as organization_name, o.slug as organization_slug,
       o.suspended_at as suspended_at, o.archived_at as archived_at,
@@ -510,6 +514,38 @@ export class PlatformPeopleRepository {
         return rows[0] ? toPerson(rows[0]) : null;
       },
     );
+  }
+
+  /**
+   * SEC-TRACKER: name, e-mail and memberships of up to a page of accounts, in one metadata read
+   * (the people list's own path). For `people-directory.ts`; the caller caps the id count.
+   */
+  async names(
+    userIds: readonly string[],
+    correlationId: string,
+  ): Promise<{
+    readonly people: readonly { userId: string; email: string; displayName: string }[];
+    readonly memberships: readonly MembershipRow[];
+  }> {
+    if (userIds.length === 0) return { people: [], memberships: [] };
+    return this.metadata(correlationId, async (db) => {
+      const rows = await db.query<Row[]>(PEOPLE_SQL.names(userIds.length), [...userIds]);
+      const people = rows.map((row) => ({
+        userId: String(row['id']),
+        email: String(row['email']),
+        displayName: String(row['display_name']),
+      }));
+      return { people, memberships: await this.membershipsOf(db, userIds) };
+    });
+  }
+
+  /** SEC-TRACKER: the account id of an exact e-mail, or null (the tracker's account search). */
+  async userIdByEmail(email: string, correlationId: string): Promise<string | null> {
+    return this.database.identityRead({ correlationId, tables: ['users'] }, async (db) => {
+      const rows = await db.query<Row[]>(PEOPLE_SQL.idByEmail, [email.trim().toLowerCase()]);
+      const id = rows[0]?.['id'];
+      return typeof id === 'string' ? id : null;
+    });
   }
 
   async memberships(userId: string, correlationId: string): Promise<readonly MembershipRow[]> {
