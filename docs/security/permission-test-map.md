@@ -163,6 +163,13 @@ The gates are unchanged (`work.update`); the census rows for both routes stay in
 - Work-item comment POST and time-log POST (`/v1/organizations/:orgSlug/work-items/:workItemId/comments` and `.../time-logs`) accept an optional `Idempotency-Key` (16–128 characters, `[A-Za-z0-9_-]`). A replay returns the first result. The key is scoped to organization + membership, so another member or tenant reusing it gets no replay. A key reused with a different body gets 422; a malformed key gets 400.
 - Test: `apps/api/src/common/http/idempotency-replay.interceptor.test.ts`.
 
+## My Day v3.1 — saved items carry their real name
+
+No route and no gate changed; the census row for `GET /v1/organizations/:orgSlug/home/saved-context` stays in the 56-04 table below.
+
+- Each saved item now has an additive `title` (string or `null`), read from its source row in the same tenant-scoped read. A title is shown only where the source's own read would let the viewer in: work through `work.read` on the item (audience, lifecycle); a deliverable version through `work.read` on its project; a file through `file.download` (audience, client organization); a message through `conversation.read` with the conversation rule (members only for a group or direct conversation; a project channel needs a membership row unless the viewer has organization-wide scope). Deleted, purged or unresolved sources, and every refusal, give `null`, and the client shows the generic kind word.
+- Test: `apps/api/src/modules/home/saved-context.test.ts` ("Saved item titles"), real `authorize`, prohibitions included.
+
 ## 56-04 — every signed-in route, and the test that proves its isolation
 
 One row per route the 56-15 census (`apps/api/src/security/route-census.ts`) classifies as `org`,

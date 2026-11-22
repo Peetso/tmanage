@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
-import { HomeService } from './home.service.js';
+import { HomeService, messageTitle } from './home.service.js';
 import { MyDayRepository } from './my-day.repository.js';
 import { WaitingRepository } from './waiting.repository.js';
-import type { SavedContextRepository } from './saved-context.repository.js';
+import type {
+  SavedContextRepository,
+  SavedContextSources,
+  SavedDocSource,
+  SavedFileSource,
+  SavedMessageSource,
+  SavedWorkSource,
+} from './saved-context.repository.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { SavedContextEntityType, SavedContextRow } from '../../common/database/schema.js';
@@ -56,6 +63,11 @@ const contextFor = (userId: string) =>
 class FakeSavedContextRepository {
   readonly rows: SavedContextRow[] = [];
   insertCalls = 0;
+  /** The source rows the title read resolves; empty unless a test names some. */
+  readonly work = new Map<string, SavedWorkSource>();
+  readonly doc = new Map<string, SavedDocSource>();
+  readonly file = new Map<string, SavedFileSource>();
+  readonly message = new Map<string, SavedMessageSource>();
   private nextId = 1;
 
   constructor(
@@ -129,6 +141,15 @@ class FakeSavedContextRepository {
     return Promise.resolve(true);
   }
 
+  sources(): Promise<SavedContextSources> {
+    return Promise.resolve({
+      work: this.work,
+      doc: this.doc,
+      file: this.file,
+      message: this.message,
+    });
+  }
+
   listForUser(_r: unknown, _c: unknown, userId: string): Promise<readonly SavedContextRow[]> {
     return Promise.resolve(
       this.rows
@@ -189,6 +210,7 @@ describe('HomeService saved/pinned context (HOME-05)', () => {
               entityType: 'work',
               entityId: WORK_ITEM,
               createdAt: '2026-09-21T00:00:00.000Z',
+              title: null,
             },
           ],
         },
@@ -292,5 +314,155 @@ describe('HomeService saved/pinned context (HOME-05)', () => {
 
     const mine = await service.listSavedContext(contextFor(ME), manager());
     expect(mine).toEqual({ groups: [] });
+  });
+});
+
+describe('Saved item titles (My Day v3.1): the real name only where the source is readable', () => {
+  const OTHER_PROJECT = '00000000-0000-4000-8000-0000000000b2';
+  const CONVERSATION_ORG = ORG;
+
+  function pin(id: string, entityType: SavedContextEntityType, entityId: string): SavedContextRow {
+    return {
+      id,
+      organizationId: ORG,
+      userId: ME,
+      entityType,
+      entityId,
+      projectId: PROJECT,
+      createdAt: new Date(`2026-09-2${id.slice(-1)}T00:00:00.000Z`),
+    };
+  }
+
+  function message(overrides: Partial<SavedMessageSource>): SavedMessageSource {
+    return {
+      body: 'Client call notes\nSecond line',
+      kind: 'text',
+      deleted: false,
+      conversationOrganizationId: CONVERSATION_ORG,
+      conversationProjectId: PROJECT,
+      conversationKind: 'project_channel',
+      conversationArchived: false,
+      viewerIsMember: true,
+      ...overrides,
+    };
+  }
+
+  async function titles(repo: FakeSavedContextRepository, principal = manager()) {
+    const view = await serviceWith(repo).listSavedContext(context, principal);
+    return Object.fromEntries(
+      view.groups.flatMap((group) => group.items.map((item) => [item.entityId, item.title])),
+    );
+  }
+
+  it('names work, deliverables, files and messages the viewer may read', async () => {
+    const repo = fullWorld();
+    repo.rows.push(
+      pin('pin-1', 'work', 'w-1'),
+      pin('pin-2', 'doc', 'v-1'),
+      pin('pin-3', 'file', 'f-1'),
+      pin('pin-4', 'message', 'm-1'),
+    );
+    repo.work.set('w-1', {
+      projectId: PROJECT,
+      title: 'Homepage concept v2',
+      audience: 'internal',
+      archived: false,
+      deleted: false,
+    });
+    repo.doc.set('v-1', { projectId: PROJECT, title: 'Homepage brief', deleted: false });
+    repo.file.set('f-1', {
+      projectId: PROJECT,
+      name: 'Logo pack.zip',
+      audience: 'internal',
+      clientOrganizationId: null,
+      gone: false,
+    });
+    repo.message.set('m-1', message({}));
+
+    expect(await titles(repo)).toEqual({
+      'w-1': 'Homepage concept v2',
+      'v-1': 'Homepage brief',
+      'f-1': 'Logo pack.zip',
+      'm-1': 'Client call notes',
+    });
+  });
+
+  it('keeps the generic label for a source that is gone, unknown or in a project the viewer cannot read', async () => {
+    const repo = fullWorld();
+    repo.rows.push(
+      pin('pin-1', 'work', 'w-gone'),
+      pin('pin-2', 'doc', 'v-unknown'),
+      pin('pin-3', 'file', 'f-purged'),
+      pin('pin-4', 'work', 'w-elsewhere'),
+    );
+    repo.work.set('w-gone', {
+      projectId: PROJECT,
+      title: 'Deleted task',
+      audience: 'internal',
+      archived: false,
+      deleted: true,
+    });
+    repo.file.set('f-purged', {
+      projectId: PROJECT,
+      name: 'old.pdf',
+      audience: 'internal',
+      clientOrganizationId: null,
+      gone: true,
+    });
+    // The pin groups under PROJECT, but the work item itself now lives where the viewer is no member.
+    repo.work.set('w-elsewhere', {
+      projectId: OTHER_PROJECT,
+      title: 'Secret task',
+      audience: 'internal',
+      archived: false,
+      deleted: false,
+    });
+
+    expect(await titles(repo)).toEqual({
+      'w-gone': null,
+      'v-unknown': null,
+      'f-purged': null,
+      'w-elsewhere': null,
+    });
+  });
+
+  it('names a message only where the conversation read would let the viewer in', async () => {
+    const repo = fullWorld();
+    repo.rows.push(
+      pin('pin-1', 'message', 'm-group-member'),
+      pin('pin-2', 'message', 'm-group-outsider'),
+      pin('pin-3', 'message', 'm-direct-outsider'),
+      pin('pin-4', 'message', 'm-channel-no-row'),
+      pin('pin-5', 'message', 'm-deleted'),
+    );
+    repo.message.set('m-group-member', message({ conversationKind: 'group', body: 'Plan' }));
+    repo.message.set(
+      'm-group-outsider',
+      message({ conversationKind: 'group', viewerIsMember: false }),
+    );
+    repo.message.set(
+      'm-direct-outsider',
+      message({ conversationKind: 'direct', conversationProjectId: null, viewerIsMember: false }),
+    );
+    repo.message.set('m-channel-no-row', message({ viewerIsMember: false }));
+    repo.message.set('m-deleted', message({ deleted: true }));
+
+    expect(await titles(repo)).toEqual({
+      'm-group-member': 'Plan',
+      'm-group-outsider': null,
+      'm-direct-outsider': null,
+      'm-channel-no-row': null,
+      'm-deleted': null,
+    });
+    // An org-wide owner reads a project channel without a membership row, as the chat read does.
+    expect((await titles(repo, owner()))['m-channel-no-row']).toBe('Client call notes');
+  });
+
+  it('cuts a long message to its first line, at a word, with an ellipsis', () => {
+    expect(messageTitle('\n\n  Hello there  \nmore')).toBe('Hello there');
+    expect(messageTitle('   ')).toBeNull();
+    const long = messageTitle('word '.repeat(40));
+    expect(long?.endsWith('\u2026')).toBe(true);
+    expect((long ?? '').length).toBeLessThanOrEqual(80);
   });
 });

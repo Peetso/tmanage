@@ -521,7 +521,7 @@ export function QuickQuestionWidget({
 
 /* ── W12–W14 Saved, Pinned, Recent ──────────────────────────────────────────────────────── */
 
-type RefKind = 'work' | 'project' | 'document' | 'meeting' | 'message' | 'file';
+type RefKind = 'work' | 'project' | 'document' | 'deliverable' | 'meeting' | 'message' | 'file';
 
 interface RefRow {
   readonly id: string;
@@ -531,12 +531,18 @@ interface RefRow {
   readonly projectId: string | null;
   /** The time shown at the row's end (Recent only). */
   readonly at: string | null;
+  /**
+   * The name the API already resolved through the source's own gate (Saved). `undefined` means
+   * "resolve it here" (Pinned, Recent); `null` means the viewer may not see it: show the kind word.
+   */
+  readonly title?: string | null;
 }
 
 const KIND_ICON: Readonly<Record<RefKind, PhoneIconName>> = {
   work: 'squareCheck',
   project: 'layers',
   document: 'file',
+  deliverable: 'file',
   meeting: 'calendar',
   message: 'chat',
   file: 'file',
@@ -546,6 +552,7 @@ const KIND_KEY: Readonly<Record<RefKind, MessageKey>> = {
   work: 'MyDay.kind.work',
   project: 'MyDay.kind.project',
   document: 'MyDay.kind.doc',
+  deliverable: 'MyDay.kind.doc',
   meeting: 'MyDay.kind.meeting',
   message: 'MyDay.kind.message',
   file: 'MyDay.kind.file',
@@ -562,8 +569,14 @@ function refHref(slug: string, row: RefRow): string | null {
       return `/${slug}/docs/${id}`;
     case 'meeting':
       return `/${slug}/calendar/meetings/${id}`;
-    case 'message':
     case 'file':
+      return `/${slug}/files/${id}`;
+    // A saved deliverable is a version: its project's deliverables list holds it.
+    case 'deliverable':
+      return row.projectId
+        ? `/${slug}/projects/${encodeURIComponent(row.projectId)}/deliverables`
+        : null;
+    case 'message':
       return row.projectId ? `/${slug}/projects/${encodeURIComponent(row.projectId)}` : null;
   }
 }
@@ -597,6 +610,7 @@ async function refName(
       }
       case 'message':
       case 'file':
+      case 'deliverable':
         return null;
     }
   } catch {
@@ -620,7 +634,7 @@ function RefList({
     queries: rows.map((row) => ({
       queryKey: ['home', 'ref-name', ctx.slug, row.kind, row.targetId],
       queryFn: () => refName(api, ctx.slug, row.kind, row.targetId),
-      enabled: row.kind !== 'message' && row.kind !== 'file',
+      enabled: row.title === undefined && row.kind !== 'message' && row.kind !== 'file',
       staleTime: 5 * 60_000,
       retry: false,
     })),
@@ -628,8 +642,13 @@ function RefList({
   return (
     <ul className="tm-myday-rows tm-myday-rows--refs">
       {rows.map((row, index) => {
-        const resolved = names[index]?.data ?? null;
-        const name = resolved?.name ?? t(KIND_KEY[row.kind]);
+        const query = names[index];
+        // FIX5 6d: a reference whose object answered "not found" or "not yours" is left out,
+        // never drawn as a row the person cannot open.
+        if (query?.isSuccess && query.data === null) return null;
+        const resolved = query?.data ?? null;
+        const name =
+          (row.title === undefined ? resolved?.name : row.title) ?? t(KIND_KEY[row.kind]);
         const projectId = resolved?.projectId ?? row.projectId;
         const meta =
           row.kind === 'project'
@@ -677,10 +696,11 @@ export function SavedWidget({
       (saved.data?.groups ?? []).flatMap((group) =>
         group.items.map((item) => ({
           id: item.id,
-          kind: item.entityType === 'doc' ? 'document' : item.entityType,
+          kind: item.entityType === 'doc' ? 'deliverable' : item.entityType,
           targetId: item.entityId,
           projectId: group.projectId,
           at: item.createdAt,
+          title: item.title,
         })),
       ),
     [saved.data],

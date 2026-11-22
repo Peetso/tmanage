@@ -157,6 +157,8 @@ export interface SavedContext {
       readonly entityType: SavedContextEntityType;
       readonly entityId: string;
       readonly createdAt: string;
+      /** The saved thing's own name; `null` when the viewer may not see it (show the kind word). */
+      readonly title: string | null;
     }[];
   }[];
 }

@@ -1,9 +1,11 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
+  conversationMemberships,
   conversations,
+  deliverables,
   deliverableVersions,
   fileAssets,
   messages,
@@ -11,7 +13,12 @@ import {
   savedContext,
   workItems,
 } from '../../common/database/schema.js';
-import type { SavedContextEntityType, SavedContextRow } from '../../common/database/schema.js';
+import type {
+  ConversationKind,
+  SavedContextEntityType,
+  SavedContextRow,
+  WorkItemRow,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -35,6 +42,56 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * resolve, so the service turns it into a 404 with no write, and a pin can never cite a row a
  * different studio owns. `07-DATA-MODEL` §5, `25-AUTH-AND-TENANT-ISOLATION` §6.
  */
+/** A saved work item's source facts. */
+export interface SavedWorkSource {
+  readonly projectId: string;
+  readonly title: string;
+  readonly audience: WorkItemRow['audience'];
+  readonly archived: boolean;
+  readonly deleted: boolean;
+}
+
+/** A saved deliverable version's source facts: its deliverable's title. */
+export interface SavedDocSource {
+  readonly projectId: string;
+  readonly title: string;
+  readonly deleted: boolean;
+}
+
+/** A saved file's source facts. */
+export interface SavedFileSource {
+  readonly projectId: string;
+  readonly name: string;
+  readonly audience: WorkItemRow['audience'];
+  readonly clientOrganizationId: string | null;
+  readonly gone: boolean;
+}
+
+/** A saved message's source facts, with its conversation and the viewer's membership of it. */
+export interface SavedMessageSource {
+  readonly body: string;
+  readonly kind: string;
+  readonly deleted: boolean;
+  readonly conversationOrganizationId: string;
+  readonly conversationProjectId: string | null;
+  readonly conversationKind: ConversationKind;
+  readonly conversationArchived: boolean;
+  /** Whether the viewer holds a membership row in the message's conversation. */
+  readonly viewerIsMember: boolean;
+}
+
+/**
+ * The rows a saved item's title is read from, per entity kind, keyed by entity id. Only the
+ * columns the service needs to decide visibility and to name the item. An id that does not
+ * resolve in the tenant is absent, and the item keeps its generic kind label.
+ */
+export interface SavedContextSources {
+  readonly work: ReadonlyMap<string, SavedWorkSource>;
+  readonly doc: ReadonlyMap<string, SavedDocSource>;
+  readonly file: ReadonlyMap<string, SavedFileSource>;
+  readonly message: ReadonlyMap<string, SavedMessageSource>;
+}
+
 export class SavedContextRepository {
   /** Whether a project with this id exists in the acting tenant. */
   async projectExists(
@@ -176,6 +233,153 @@ export class SavedContextRepository {
         ),
       );
     return result[0].affectedRows > 0;
+  }
+
+  /**
+   * The source rows behind a set of pins: one tenant-scoped read per entity kind present (at most
+   * four queries, never one per row). The service decides from these facts whether the viewer may
+   * see each source, and so whether the item shows its real name or the generic kind label.
+   */
+  async sources(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    viewerUserId: string,
+    rows: readonly SavedContextRow[],
+  ): Promise<SavedContextSources> {
+    const db = tenantDrizzle(runner);
+    const org = context.organizationId;
+    const ids = (kind: SavedContextEntityType): string[] => [
+      ...new Set(rows.filter((row) => row.entityType === kind).map((row) => row.entityId)),
+    ];
+
+    const work = new Map<string, SavedWorkSource>();
+    const workIds = ids('work');
+    if (workIds.length > 0) {
+      const found = await db
+        .select({
+          id: workItems.id,
+          projectId: workItems.projectId,
+          title: workItems.title,
+          audience: workItems.audience,
+          state: workItems.state,
+          deletedAt: workItems.deletedAt,
+        })
+        .from(workItems)
+        .where(and(eq(workItems.organizationId, org), inArray(workItems.id, workIds)));
+      for (const row of found) {
+        work.set(row.id, {
+          projectId: row.projectId,
+          title: row.title,
+          audience: row.audience,
+          archived: row.state === 'archived',
+          deleted: row.deletedAt !== null,
+        });
+      }
+    }
+
+    const doc = new Map<string, SavedDocSource>();
+    const docIds = ids('doc');
+    if (docIds.length > 0) {
+      const found = await db
+        .select({
+          id: deliverableVersions.id,
+          projectId: deliverableVersions.projectId,
+          title: deliverables.title,
+          deletedAt: deliverables.deletedAt,
+        })
+        .from(deliverableVersions)
+        .innerJoin(
+          deliverables,
+          and(
+            eq(deliverables.organizationId, deliverableVersions.organizationId),
+            eq(deliverables.id, deliverableVersions.deliverableId),
+          ),
+        )
+        .where(
+          and(eq(deliverableVersions.organizationId, org), inArray(deliverableVersions.id, docIds)),
+        );
+      for (const row of found) {
+        doc.set(row.id, {
+          projectId: row.projectId,
+          title: row.title,
+          deleted: row.deletedAt !== null,
+        });
+      }
+    }
+
+    const file = new Map<string, SavedFileSource>();
+    const fileIds = ids('file');
+    if (fileIds.length > 0) {
+      const found = await db
+        .select({
+          id: fileAssets.id,
+          projectId: fileAssets.projectId,
+          name: fileAssets.name,
+          audience: fileAssets.audience,
+          clientOrganizationId: fileAssets.clientOrganizationId,
+          deletedAt: fileAssets.deletedAt,
+          purgedAt: fileAssets.purgedAt,
+        })
+        .from(fileAssets)
+        .where(and(eq(fileAssets.organizationId, org), inArray(fileAssets.id, fileIds)));
+      for (const row of found) {
+        file.set(row.id, {
+          projectId: row.projectId,
+          name: row.name,
+          audience: row.audience,
+          clientOrganizationId: row.clientOrganizationId,
+          gone: row.deletedAt !== null || row.purgedAt !== null,
+        });
+      }
+    }
+
+    const message = new Map<string, SavedMessageSource>();
+    const messageIds = ids('message');
+    if (messageIds.length > 0) {
+      const found = await db
+        .select({
+          id: messages.id,
+          body: messages.body,
+          kind: messages.kind,
+          deletedAt: messages.deletedAt,
+          conversationOrganizationId: conversations.organizationId,
+          conversationProjectId: conversations.projectId,
+          conversationKind: conversations.kind,
+          conversationArchivedAt: conversations.archivedAt,
+          membershipId: conversationMemberships.id,
+        })
+        .from(messages)
+        .innerJoin(
+          conversations,
+          and(
+            eq(conversations.organizationId, messages.organizationId),
+            eq(conversations.id, messages.conversationId),
+          ),
+        )
+        .leftJoin(
+          conversationMemberships,
+          and(
+            eq(conversationMemberships.organizationId, messages.organizationId),
+            eq(conversationMemberships.conversationId, messages.conversationId),
+            eq(conversationMemberships.userId, viewerUserId),
+          ),
+        )
+        .where(and(eq(messages.organizationId, org), inArray(messages.id, messageIds)));
+      for (const row of found) {
+        message.set(row.id, {
+          body: row.body,
+          kind: row.kind,
+          deleted: row.deletedAt !== null,
+          conversationOrganizationId: row.conversationOrganizationId,
+          conversationProjectId: row.conversationProjectId,
+          conversationKind: row.conversationKind,
+          conversationArchived: row.conversationArchivedAt !== null,
+          viewerIsMember: row.membershipId !== null,
+        });
+      }
+    }
+
+    return { work, doc, file, message };
   }
 
   /**

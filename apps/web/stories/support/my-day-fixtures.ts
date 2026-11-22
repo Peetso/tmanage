@@ -183,6 +183,10 @@ function seed(lang: Lang) {
       startsAt: at(-1, 10),
     },
   };
+  const saved = {
+    call: w('Client call notes', 'ملاحظات مكالمة العميل'),
+    sitemap: w('Sitemap v3', 'خريطة الموقع v3'),
+  };
   const invoice = task('w-invoice', 'p-meridian', 'INV-0142', null);
   return {
     myDay,
@@ -191,6 +195,7 @@ function seed(lang: Lang) {
     documents,
     meetings,
     invoice,
+    saved,
     focus: w('Homepage', 'الصفحة الرئيسية'),
   };
 }
@@ -410,26 +415,56 @@ export function myDayFetch({ lang = 'en', variant = 'busy' }: MyDaySeedOptions =
                 {
                   projectId: 'p-atlas',
                   items: [
-                    { id: 's-1', entityType: 'doc', entityId: 'doc-brief', createdAt: at(-1, 9) },
+                    {
+                      id: 's-1',
+                      entityType: 'doc',
+                      entityId: 'doc-brief',
+                      createdAt: at(-1, 9),
+                      title: data.documents['doc-brief']?.title ?? null,
+                    },
                   ],
                 },
                 {
                   projectId: 'p-meridian',
                   items: [
-                    { id: 's-2', entityType: 'message', entityId: 'msg-1', createdAt: at(-2, 9) },
+                    {
+                      id: 's-2',
+                      entityType: 'message',
+                      entityId: 'msg-1',
+                      createdAt: at(-2, 9),
+                      title: data.saved.call,
+                    },
                   ],
                 },
                 {
                   projectId: 'p-northstar',
                   items: [
-                    { id: 's-3', entityType: 'file', entityId: 'file-1', createdAt: at(-3, 9) },
+                    {
+                      id: 's-3',
+                      entityType: 'file',
+                      entityId: 'file-1',
+                      createdAt: at(-3, 9),
+                      title: 'Logo pack.zip',
+                    },
                   ],
                 },
                 {
                   projectId: 'p-atlas',
                   items: [
-                    { id: 's-4', entityType: 'doc', entityId: 'doc-launch', createdAt: at(-6, 9) },
-                    { id: 's-5', entityType: 'work', entityId: 'w-sitemap', createdAt: at(-7, 9) },
+                    {
+                      id: 's-4',
+                      entityType: 'doc',
+                      entityId: 'doc-launch',
+                      createdAt: at(-6, 9),
+                      title: data.documents['doc-launch']?.title ?? null,
+                    },
+                    {
+                      id: 's-5',
+                      entityType: 'work',
+                      entityId: 'w-sitemap',
+                      createdAt: at(-7, 9),
+                      title: data.saved.sitemap,
+                    },
                   ],
                 },
               ],

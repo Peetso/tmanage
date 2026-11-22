@@ -13,6 +13,7 @@ import { toWorkItemView } from '../work/work-items.service.js';
 import type { WorkItemView } from '../work/work-items.service.js';
 import { MyDayRepository } from './my-day.repository.js';
 import { SavedContextRepository } from './saved-context.repository.js';
+import type { SavedContextSources } from './saved-context.repository.js';
 import { WaitingRepository } from './waiting.repository.js';
 import type { PendingApprovalRow } from './waiting.repository.js';
 
@@ -386,6 +387,13 @@ export interface SavedContextView {
       readonly entityType: SavedContextEntityType;
       readonly entityId: string;
       readonly createdAt: string;
+      /**
+       * My Day v3.1: the saved thing's own name (a work item's or deliverable's title, a file's
+       * name, a message's first line), read from its source row through the same gate that
+       * source's own read applies. `null` when the viewer may not see the source, or it is gone:
+       * the client then shows the generic kind word, never a name it could not otherwise read.
+       */
+      readonly title: string | null;
     }[];
   }[];
 }
@@ -398,7 +406,10 @@ export interface SavedContextView {
  * its items in that same stable order. Rows with a null `projectId` are excluded upstream (this
  * slice always sets it), so `projectId` is a string here.
  */
-export function groupSavedContext(rows: readonly SavedContextRow[]): SavedContextView['groups'] {
+export function groupSavedContext(
+  rows: readonly SavedContextRow[],
+  titleOf: (row: SavedContextRow) => string | null = () => null,
+): SavedContextView['groups'] {
   const groups: {
     projectId: string;
     items: {
@@ -406,6 +417,7 @@ export function groupSavedContext(rows: readonly SavedContextRow[]): SavedContex
       entityType: SavedContextEntityType;
       entityId: string;
       createdAt: string;
+      title: string | null;
     }[];
   }[] = [];
   for (const row of rows) {
@@ -420,9 +432,112 @@ export function groupSavedContext(rows: readonly SavedContextRow[]): SavedContex
       entityType: row.entityType,
       entityId: row.entityId,
       createdAt: row.createdAt.toISOString(),
+      title: titleOf(row),
     });
   }
   return groups;
+}
+
+/** The longest saved-message title: the first line of the message, cut at a word where it can be. */
+export const SAVED_MESSAGE_TITLE_MAX = 80;
+
+/** A message's first non-empty line, at most {@link SAVED_MESSAGE_TITLE_MAX} characters. */
+export function messageTitle(body: string): string | null {
+  const line = body
+    .split(/\r?\n/u)
+    .map((part) => part.trim())
+    .find((part) => part.length > 0);
+  if (!line) return null;
+  if (line.length <= SAVED_MESSAGE_TITLE_MAX) return line;
+  const cut = line.slice(0, SAVED_MESSAGE_TITLE_MAX - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > SAVED_MESSAGE_TITLE_MAX / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+/**
+ * The title a saved item shows, or `null` for the generic label. Each kind applies the gate its
+ * own read applies, so the Saved widget never names something the viewer could not open:
+ *
+ * - work: `work.read` on the item (its audience and lifecycle), soft-deleted items excluded;
+ * - doc: the deliverable's project under `work.read`, a deleted deliverable excluded;
+ * - file: `file.download` on the file (audience and client organisation), deleted or purged excluded;
+ * - message: `conversation.read` as the conversation read decides it (members only for a group or
+ *   a direct conversation; a project channel needs a membership row unless the viewer has
+ *   organisation-wide scope), a deleted or non-text message excluded.
+ */
+export function savedItemTitle(
+  principal: Principal,
+  row: SavedContextRow,
+  sources: SavedContextSources,
+): string | null {
+  switch (row.entityType) {
+    case 'work': {
+      const source = sources.work.get(row.entityId);
+      if (!source || source.deleted) return null;
+      const allowed = authorize({
+        principal,
+        capability: 'work.read',
+        resource: {
+          organizationId: principal.organizationId,
+          projectId: source.projectId,
+          audience: source.audience,
+          lifecycle: source.archived ? 'archived' : 'active',
+        },
+      }).allowed;
+      return allowed ? source.title : null;
+    }
+    case 'doc': {
+      const source = sources.doc.get(row.entityId);
+      if (!source || source.deleted) return null;
+      const allowed = authorize({
+        principal,
+        capability: 'work.read',
+        resource: {
+          organizationId: principal.organizationId,
+          projectId: source.projectId,
+          audience: 'internal',
+          lifecycle: 'active',
+        },
+      }).allowed;
+      return allowed ? source.title : null;
+    }
+    case 'file': {
+      const source = sources.file.get(row.entityId);
+      if (!source || source.gone) return null;
+      const allowed = authorize({
+        principal,
+        capability: 'file.download',
+        resource: {
+          organizationId: principal.organizationId,
+          projectId: source.projectId,
+          audience: source.audience,
+          clientOrganizationId: source.clientOrganizationId,
+          lifecycle: 'active',
+        },
+      }).allowed;
+      return allowed ? source.name : null;
+    }
+    case 'message': {
+      const source = sources.message.get(row.entityId);
+      if (!source || source.deleted || source.kind !== 'text') return null;
+      const memberGated = source.conversationKind !== 'project_channel';
+      const verdict = authorize({
+        principal,
+        capability: 'conversation.read',
+        resource: {
+          organizationId: source.conversationOrganizationId,
+          projectId: source.conversationProjectId,
+          audience: 'internal',
+          lifecycle: source.conversationArchived ? 'archived' : 'active',
+          conversationKind: source.conversationKind,
+          ...(memberGated ? { conversationMember: source.viewerIsMember } : {}),
+        },
+      });
+      if (!verdict.allowed) return null;
+      if (!memberGated && !principal.hasOrgWideScope && !source.viewerIsMember) return null;
+      return messageTitle(source.body);
+    }
+  }
 }
 
 export class HomeService {
@@ -675,13 +790,16 @@ export class HomeService {
    * ordered by project then oldest-first then id, so grouping in one pass keeps the order total.
    */
   async listSavedContext(context: TenantContext, principal: Principal): Promise<SavedContextView> {
-    const rows = await this.database.read(context, (runner) =>
-      this.savedContext.listForUser(runner, context, context.userId),
-    );
-    const visible = rows.filter(
-      (row) => row.projectId !== null && this.mayReadProject(principal, row.projectId),
-    );
-    return { groups: groupSavedContext(visible) };
+    return this.database.read(context, async (runner) => {
+      const rows = await this.savedContext.listForUser(runner, context, context.userId);
+      const visible = rows.filter(
+        (row) => row.projectId !== null && this.mayReadProject(principal, row.projectId),
+      );
+      const sources = await this.savedContext.sources(runner, context, context.userId, visible);
+      return {
+        groups: groupSavedContext(visible, (row) => savedItemTitle(principal, row, sources)),
+      };
+    });
   }
 
   /**

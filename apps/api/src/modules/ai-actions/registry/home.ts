@@ -121,7 +121,8 @@ export const homeDetails: readonly AiActionDetail[] = [
   det({
     id: 'home.saved_context.list',
     title: 'List home saved context',
-    description: 'List home saved context.',
+    description:
+      "List the caller's saved items by project, each with its name where the caller may read the source.",
     input: listArgs(),
     redact: 'config',
     examples: [{ summary: 'List home saved context', args: {} }],

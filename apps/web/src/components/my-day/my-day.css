@@ -963,6 +963,16 @@
   cursor: pointer;
 }
 
+/* 824:322: the Arabic labels ("أكثر من $15") are longer than the English ones, so the five
+   bands keep one row with tighter padding and gap, as the frame draws them. */
+[dir='rtl'] .tm-myday-bands {
+  gap: var(--s1);
+}
+
+[dir='rtl'] .tm-myday-band {
+  padding-inline: var(--s2);
+}
+
 .tm-myday-band[aria-checked='true'] {
   border-color: var(--ink-950);
   background: var(--ink-950);
