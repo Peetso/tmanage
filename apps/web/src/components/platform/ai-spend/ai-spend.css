@@ -1,0 +1,186 @@
+/*
+ * Platform admin › AI spend (plan 62-19, Figma G13 v2 784:48078). Tokens only (UX-11), logical
+ * properties only (UX-14), 44 px targets on phone (UX-16).
+ */
+
+.tm-ais {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-ais-spacer {
+  flex: 1;
+}
+
+.tm-ais-muted {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-ais-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--s4);
+  margin: 0;
+}
+
+.tm-ais-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-ais-stat dt {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  text-transform: uppercase;
+}
+
+.tm-ais-stat dd {
+  margin: 0;
+}
+
+.tm-ais-stat__value {
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-ais-stat__note {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-ais-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  align-items: start;
+  gap: var(--s6);
+}
+
+.tm-ais-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-ais-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-ais-card__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+}
+
+.tm-ais-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-ais-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-block: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-ais-row:last-child {
+  border-block-end: 0;
+}
+
+.tm-ais-row__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-ais-row__name {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-ais-chip {
+  padding-block: var(--s1);
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-ais-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-ais-divider {
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-ais-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+}
+
+.tm-ais-confirm__title {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+@media (max-width: 767px) {
+  .tm-ais-row {
+    flex-wrap: wrap;
+  }
+
+  .tm-ais .tm-button,
+  .tm-ais-dialog__actions .tm-button,
+  .tm-ais-more {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+}

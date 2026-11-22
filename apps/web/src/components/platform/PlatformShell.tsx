@@ -20,6 +20,7 @@ export type PlatformSection =
   | 'support'
   | 'people'
   | 'content'
+  | 'ai-spend'
   | 'activity'
   | 'settings'
   | 'team';
@@ -46,6 +47,8 @@ const SECTIONS: readonly { id: PlatformSection; labelKey: MessageKey; href: stri
   { id: 'people', labelKey: 'PlatformShell.people', href: '/platform/people' },
   // Content lives under an organization (B5); the entry opens a picker of organizations.
   { id: 'content', labelKey: 'PlatformShell.content', href: '/platform/content' },
+  // Plan 62-19 (Figma 784:48078): the platform's AI spend, after Content.
+  { id: 'ai-spend', labelKey: 'PlatformShell.aiSpend', href: '/platform/ai-spend' },
   { id: 'activity', labelKey: 'PlatformShell.activity', href: '/platform/activity' },
   { id: 'settings', labelKey: 'PlatformShell.settings', href: '/platform/settings' },
   { id: 'team', labelKey: 'PlatformShell.team', href: '/platform/team' },

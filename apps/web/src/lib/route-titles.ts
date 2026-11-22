@@ -105,6 +105,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/connect/authorize': { en: 'Authorize access', key: 'RouteTitle.connectAuthorize' },
   '/platform': { en: 'Platform', key: 'RouteTitle.platform' },
   '/platform/ai-access': { en: 'AI access', key: 'RouteTitle.platformAiAccess' },
+  '/platform/ai-spend': { en: 'AI spend', key: 'AiSpend.title' },
   '/platform/audit': { en: 'Platform audit', key: 'RouteTitle.platformAudit' },
   '/platform/companies': { en: 'Companies', key: 'RouteTitle.platformCompanies' },
   '/platform/companies/[organizationId]': { en: 'Company', key: 'RouteTitle.platformCompany' },

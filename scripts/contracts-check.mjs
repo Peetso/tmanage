@@ -73,6 +73,10 @@ const EXEMPT = new Map([
     'No web consumer yet: 60-03 AI employees routes (…/ai-employees); the People list, hire wizard and profile screens (S1–S6) are designed in Figma first and built in 60-07.',
   ],
   [
+    'AiSettingsView',
+    'No web consumer yet: 62-17 Settings > AI routes (GET/PATCH …/copilot/settings); lane W builds AiSettingsScreen against them next.',
+  ],
+  [
     'AgentKeyListView',
     'No web consumer yet: 60-05 agent-key routes (…/ai-employees/:aiEmployeeId/keys); the AI employee keys screen is designed in Figma first and built in 60-07.',
   ],
@@ -330,32 +334,8 @@ const EXEMPT = new Map([
     'No web consumer yet: no route serves it — `clientHolidayProjection` in working-calendar.service.ts is not wired to any controller.',
   ],
   [
-    'AiTestListView',
-    'No web consumer yet: 62-07 `GET /v1/platform/ai/test-list` is API-only; the Platform admin AI spend screen is slice 62-19 (Figma first).',
-  ],
-  [
-    'AiTestListEntryView',
-    'No web consumer yet: 62-07 `PUT /v1/platform/ai/test-list/:organizationId`; the screen is slice 62-19.',
-  ],
-  [
-    'AiPackRequestQueueView',
-    'No web consumer yet: 62-07 open pack requests and the decline route; the screen is slice 62-19.',
-  ],
-  [
-    'AiPackGrantView',
-    'No web consumer yet: 62-07 `POST /v1/platform/ai/test-list/:organizationId/packs`; the grant dialog is slice 62-19.',
-  ],
-  [
-    'AiBudgetView',
-    'No web consumer yet: 62-08 `GET/PUT /v1/platform/settings/ai-budget` and its actions; the screen is slice 62-19.',
-  ],
-  [
     'AiConversationRetentionView',
     'No web consumer yet: 62-13 `PUT /v1/organizations/:orgSlug/copilot/conversation-retention`; the chat panel is slice 62-15.',
-  ],
-  [
-    'AiBudgetPoolView',
-    'No web consumer yet: 62-08 the pools of `AiBudgetView`; the screen is slice 62-19.',
   ],
 ]);
 
@@ -425,6 +405,10 @@ const WEB_EXEMPT = new Map([
   [
     'BusinessFactEdit',
     'Plan 62 Business Memory: the request body of `PATCH …/business-memory/facts/:factId`, not a response; the API parses it once in `parseEdit` (IP-2).',
+  ],
+  [
+    'AiBudgetUpdate',
+    'Plan 62-19 AI spend: the request body of `PUT /v1/platform/settings/ai-budget`, not a response; the API parses it once in the budget controller (IP-2).',
   ],
   [
     'ChatTurnRequest',

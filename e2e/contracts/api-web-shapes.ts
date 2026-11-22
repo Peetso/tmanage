@@ -5177,3 +5177,28 @@ import type {
 } from '../../apps/web/src/lib/api/business-memory.js';
 type _businessFact = Assert<Exact<ApiBusinessFactView, WebBusinessFactView>>;
 type _businessFactList = Assert<Exact<ApiBusinessFactListView, WebBusinessFactListView>>;
+
+import type {
+  AiBudgetPoolView as ApiAiBudgetPoolView,
+  AiBudgetView as ApiAiBudgetView,
+} from '../../apps/api/src/modules/platform-admin/settings/ai-budget.service.js';
+import type {
+  AiPackGrantView as ApiAiPackGrantView,
+  AiPackRequestQueueView as ApiAiPackRequestQueueView,
+  AiTestListEntryView as ApiAiTestListEntryView,
+  AiTestListView as ApiAiTestListView,
+} from '../../apps/api/src/modules/billing/ai-packs-platform.service.js';
+import type {
+  AiBudgetPoolView as WebAiBudgetPoolView,
+  AiBudgetView as WebAiBudgetView,
+  AiPackGrantView as WebAiPackGrantView,
+  AiPackRequestQueueView as WebAiPackRequestQueueView,
+  AiTestListEntryView as WebAiTestListEntryView,
+  AiTestListView as WebAiTestListView,
+} from '../../apps/web/src/lib/api/ai-spend.js';
+type _aiBudgetPool = Assert<Exact<ApiAiBudgetPoolView, WebAiBudgetPoolView>>;
+type _aiBudget = Assert<Exact<ApiAiBudgetView, WebAiBudgetView>>;
+type _aiPackGrant = Assert<Exact<ApiAiPackGrantView, WebAiPackGrantView>>;
+type _aiPackRequestQueue = Assert<Exact<ApiAiPackRequestQueueView, WebAiPackRequestQueueView>>;
+type _aiTestListEntry = Assert<Exact<ApiAiTestListEntryView, WebAiTestListEntryView>>;
+type _aiTestList = Assert<Exact<ApiAiTestListView, WebAiTestListView>>;
