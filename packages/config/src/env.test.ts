@@ -642,6 +642,30 @@ describe('loadEnv', () => {
     });
   });
 
+  /** LANE-X (2026-11-22): Hostinger's `.env` cuts a value at `;`, so live keyrings use `,`. */
+  describe('keyring separators: "," for Hostinger, ";" still read', () => {
+    const KEY = 'k'.repeat(43);
+    const OTHER = 'm'.repeat(43);
+
+    it.each(['AUTH_MFA_SEED_KEYS', 'FIELD_CIPHER_KEYS'])('%s accepts "," and ";" lists', (name) => {
+      expect(() => loadEnv({ ...devEnv(), [name]: `1:${KEY},2:${OTHER}` })).not.toThrow();
+      expect(() => loadEnv({ ...devEnv(), [name]: `1:${KEY};2:${OTHER}` })).not.toThrow();
+    });
+
+    it.each([
+      ['a trailing ";" (what a cut can leave)', `1:${OTHER};`],
+      ['mixed separators', `1:${OTHER},2:${KEY};3:${'n'.repeat(43)}`],
+      ['a doubled ","', `1:${OTHER},,2:${KEY}`],
+    ])('both refuse %s', (_label, value) => {
+      expect(issuePaths(() => loadEnv({ ...devEnv(), AUTH_MFA_SEED_KEYS: value }))).toContain(
+        'AUTH_MFA_SEED_KEYS',
+      );
+      expect(issuePaths(() => loadEnv({ ...devEnv(), FIELD_CIPHER_KEYS: value }))).toContain(
+        'FIELD_CIPHER_KEYS',
+      );
+    });
+  });
+
   describe('development sign-in opt-in (ALLOW_DEV_SIGN_IN, pre-launch review 2026-10-17)', () => {
     it('defaults to off, including when NODE_ENV is missing', () => {
       expect(loadEnv({ ...devEnv(), NODE_ENV: undefined }).ALLOW_DEV_SIGN_IN).toBe(false);

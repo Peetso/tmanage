@@ -377,8 +377,9 @@ that will not start: the failure would otherwise appear later, somewhere else, a
 that looks unrelated. Set the variable for all five — including the cron entries — or the
 first tick after the deploy fails.
 
-Its value is one or more `version:key` pairs separated by `;`, for example `1:<key>` or
-`1:<older key>;2:<key>`. The **highest version is active**: everything written from now on is
+Its value is one or more `version:key` pairs separated by `,`, for example `1:<key>` or
+`1:<older key>,2:<key>`. (`;` is still read, but Hostinger's `.env` cuts a value at `;`, so
+live must use `,`; see "Setting `FIELD_CIPHER_KEYS` on Hostinger" below.) The **highest version is active**: everything written from now on is
 encrypted under it, and the lower entries stay so that rows written before a rotation still
 open. Generate a key with:
 
@@ -444,7 +445,8 @@ Rotation is an append, never a replacement — removing the key rows are written
 you lose them.
 
 1. Generate a new key and **append** it with the next higher version:
-   `AUTH_MFA_SEED_KEYS=1:<old>;2:<new>`. Keep the old entry.
+   `AUTH_MFA_SEED_KEYS=1:<old>,2:<new>`. Keep the old entry. Use `,`, never `;` (Hostinger
+   cuts the value at `;` and would silently drop the new key).
 2. Restart every process that carries the variable.
 3. Run `mfa:encrypt-seeds`. Expect `rotated` to equal the number of factors and `failed` to be
    `0`.
@@ -518,6 +520,82 @@ Two behaviours look like bugs at 02:00 and are not:
 - **A broken row costs only itself.** Somebody with two factors still signs in on the working
   one; only when _no_ factor of theirs opens is the sign-in refused. That is the same closed
   door, held open exactly as far as it safely can be.
+
+---
+
+## Setting `FIELD_CIPHER_KEYS` on Hostinger (LANE-X, 2026-11-22)
+
+`FIELD_CIPHER_KEYS` is the FieldCipher keyring (56-02): webhook signing secrets, storage,
+calendar and integration tokens, SCIM tokens, push keys, the ZATCA key, and the outreach and
+walkthrough addresses. While it is unset, FieldCipher is **disabled**. Every one of those
+features refuses rather than store plaintext, and the worker's campaign sender logs
+`idle: needs SESSION_SECRET, FIELD_CIPHER_KEYS and a mail driver`. The platform Keys page shows
+"Two-step keys only".
+
+### Why it is safe to set, and what it does not touch
+
+- **Two-step (TOTP) seeds are not affected.** They are `mfa1.` envelopes in
+  `user_mfa_factors.secret`, sealed by `seed-cipher.ts` with `AUTH_MFA_SEED_KEYS` only
+  (`identity.module.ts`, `google-auth.module.ts` build `createSeedCipher(config.mfaSeedKeys)`).
+  Nothing reads them through FieldCipher. Do **not** change `AUTH_MFA_SEED_KEYS` in this step.
+- **Connector tokens sealed before the key** are `mfa1.` values. They keep opening through the
+  token vault's legacy path. New ones are sealed `fc1.` under the new key.
+  `pnpm --filter @tmanage/api token-vault:upgrade` moves the old ones when convenient.
+- **FieldCipher's own `mfa` purpose** (status only today) reads both rings after the switch:
+  `field-cipher.ts` tries the `AUTH_MFA_SEED_KEYS` ring when the key id is missing from the new
+  ring, or when the id is in both (id `1` in both is normal) and the new key fails. Writes use
+  the new key only. `rotate` moves a value onto it.
+
+### The value: one entry, `,` between entries, never `;`
+
+Hostinger writes hPanel values into a `.env` that **cuts a value at `;`** (proven 2026-11-20 on
+`SMTP_PASSWORD`; quoting does not help). Entries are therefore separated by `,`. A value that
+mixes `,` and `;`, or that ends in a separator, is refused at start with a message naming the
+cut. A cut that falls exactly between two entries leaves a valid, shorter list, and no parser
+can see that. That is why step 6 below checks the key ids.
+
+Generate the entry on a trusted machine (never in a shared terminal or chat):
+
+```
+node scripts/gen-field-cipher-key.mjs          # prints 1:<43 base64url characters>
+```
+
+It is 32 random bytes in base64url, so it has no `=`, `+`, `/` or `;`. The key must differ from
+every `AUTH_MFA_SEED_KEYS` key and every other secret. A fresh key from the script always does.
+Keep the offline copy where the other keys are kept ("Where the key lives" above). Losing it
+loses every secret sealed under it.
+
+### hPanel, step by step
+
+1. hPanel, **Websites**, **Manage** next to `tmanageapp.com`, then the Node.js app's
+   **Environment variables** (the same screen used in `deploy/hostinger/DEPLOY-HOSTINGER.md`
+   step 6).
+2. **Add** a variable named `FIELD_CIPHER_KEYS`. Paste the one line from the script as its
+   value, `1:` included, with no quotes and no spaces. Do not touch any other variable, and
+   never use a full replace of the variable set (RT-1).
+3. **Apply** (Save). Hostinger rewrites the `.env` and restarts the app.
+4. Restart quietly: wait about 3 minutes, then open the site once. Requests during boot start a
+   second process.
+5. Check `https://tmanageapp.com/healthz` shows `{"status":"ok"}`. If the app does not start,
+   open **Logs**. A refused value names `FIELD_CIPHER_KEYS` and the reason. Fix the value in
+   **Environment variables** and Apply again.
+6. Open the platform **Keys** page (`/platform/settings/keys`) as a platform admin. Expect
+   **All keys present**, active key **1**, keys in the ring **1** (or exactly the ids you
+   entered). "Two-step keys only" means the variable did not arrive. A missing id means the
+   value was cut.
+7. Sign in once with an account that has two-step on, to confirm TOTP still works (it should:
+   step 1 above did not change the seed ring).
+8. In the worker log, the campaign sender no longer names `FIELD_CIPHER_KEYS` in its idle
+   line. If it still says idle, the remaining cause is the mail driver (`SMTP_HOST` and
+   `SMTP_PASSWORD`).
+
+### Rotating later
+
+Append, never replace: `1:<old>,2:<new>` (generate with `--id 2`). Apply, then check that the
+Keys page shows ids 1 and 2 with 2 active. Queue the rotation for each purpose and wait until
+every row is done. Remove `1:` only in a later deploy. A key stays in its decrypt-only period
+until its data is re-encrypted (NIST SP 800-57 Part 1 Rev. 5, §5.3.6 item 6 and §7.2). Keys
+must be replaceable and data re-encryptable (OWASP ASVS 5.0 11.2.2).
 
 ---
 

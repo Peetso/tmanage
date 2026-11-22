@@ -11,7 +11,8 @@ const key = () => randomBytes(32).toString('base64url');
 
 if (process.argv.includes('--mfa')) {
   // The keyring format is `<version>:<base64url 32 bytes>`; version 1 is the first key. To
-  // rotate later, append `;2:<new key>` and run the API's mfa:encrypt-seeds command.
+  // rotate later, append `,2:<new key>` (a comma: Hostinger's .env cuts a value at `;`) and run
+  // the API's mfa:encrypt-seeds command. For FIELD_CIPHER_KEYS use scripts/gen-field-cipher-key.mjs.
   process.stdout.write(`1:${key()}\n`);
 } else {
   process.stdout.write(`${key()}\n`);

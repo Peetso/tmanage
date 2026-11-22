@@ -8,7 +8,13 @@
  *
  * ## The format, and why it is one variable
  *
- *     AUTH_MFA_SEED_KEYS=1:<base64url 32 bytes>;2:<base64url 32 bytes>
+ *     AUTH_MFA_SEED_KEYS=1:<base64url 32 bytes>,2:<base64url 32 bytes>
+ *
+ * Entries are separated by `,`. `;` is still read for older values, but Hostinger's hPanel
+ * writes the value into a `.env` that cuts it at `;` (proven 2026-11-20), so live must use `,`.
+ * {@link splitKeyEntries} refuses a value mixing the two, and an empty entry. The same rule is in
+ * `packages/domain/src/security/field-cipher.ts` (`splitKeyringEntries`) for `FIELD_CIPHER_KEYS`;
+ * the domain package may import nothing, so it cannot share this one.
  *
  * The **highest version is active** — everything new is encrypted under it — and every other
  * entry is decrypt-only, kept so rows written before a rotation still open. Rotating is
@@ -58,6 +64,29 @@ const KEY_BYTES = 32;
  */
 const BASE64URL = /^[A-Za-z0-9_-]*$/;
 
+/**
+ * Split a keyring value into entries: `,` (Hostinger-safe) or `;` (older values), never both,
+ * never an empty entry. Used for `AUTH_MFA_SEED_KEYS` here and `FIELD_CIPHER_KEYS` in `env.ts`.
+ */
+export function splitKeyEntries(text: string, name: string): string[] {
+  const hasComma = text.includes(',');
+  const hasSemicolon = text.includes(';');
+  if (hasComma && hasSemicolon) {
+    throw new TypeError(`${name} mixes "," and ";": separate entries with "," only`);
+  }
+  const separator = hasSemicolon ? ';' : ',';
+  const entries = text.split(separator).map((entry) => entry.trim());
+  entries.forEach((entry, index) => {
+    if (entry === '') {
+      throw new TypeError(
+        `${name} entry ${index + 1} is empty (a trailing or doubled "${separator}"). ` +
+          'Hostinger cuts a value at ";", so separate entries with ","',
+      );
+    }
+  });
+  return entries;
+}
+
 export function parseSeedKeys(raw: string): SeedKeyring {
   const entries = raw.trim();
   if (entries === '') {
@@ -66,12 +95,8 @@ export function parseSeedKeys(raw: string): SeedKeyring {
 
   const byVersion = new Map<number, Buffer>();
 
-  entries.split(';').forEach((entry, index) => {
+  splitKeyEntries(entries, 'seed keys').forEach((text, index) => {
     const where = `seed key entry ${index + 1}`;
-    const text = entry.trim();
-    if (text === '') {
-      throw new TypeError(`${where} is empty: entries are separated by ";" with none trailing`);
-    }
 
     const separator = text.indexOf(':');
     if (separator < 0) {

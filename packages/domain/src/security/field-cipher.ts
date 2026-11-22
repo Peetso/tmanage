@@ -32,6 +32,33 @@ import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual } from '
  * Without `FIELD_CIPHER_KEYS` the cipher is **disabled**: `encrypt` throws `disabled`. A caller
  * must then refuse the feature (or keep the secret out of the database) — it never falls back
  * to storing plaintext. `status()` reports the state for the platform Keys page.
+ *
+ * ## The MFA fallback ring across the switch (LANE-X, 2026-11-22)
+ *
+ * The `mfa` purpose may also be given `AUTH_MFA_SEED_KEYS` as a fallback ring. While
+ * `FIELD_CIPHER_KEYS` is unset, that ring is used for both directions. Once it is set,
+ * **encryption** uses only the `FIELD_CIPHER_KEYS` active key, and **decryption** still reads the
+ * fallback ring. The fallback is tried when the envelope's key id is missing from the main ring,
+ * and also when the id is in both rings (the usual case: both start at `1`) but the main key
+ * fails authentication. When both rings hold the id, both keys are tried every time, with no
+ * early exit, so the time taken does not show which ring opened it (ASVS 5.0 11.2.4). A key held
+ * in both rings with the same bytes is tried once. `rotate` re-seals anything that was not opened
+ * by the main active key itself, so an envelope that only looks current (id collision, fallback
+ * key) moves too. The cipher never writes on its own: re-encryption happens through `rotate`.
+ * This keeps a key in its recipient-usage period, decrypt only, until its data is re-encrypted
+ * (NIST SP 800-57 Pt 1 Rev 5 §5.3.6 item 6, §7.2).
+ *
+ * ## Entry separator: `,` on Hostinger
+ *
+ * Hostinger's hPanel writes environment values into a `.env` that cuts a value at `;` (proven
+ * 2026-11-20 on `SMTP_PASSWORD`; quoting did not help). So entries are separated by `,`. `;` is
+ * still read for older values. A value that mixes the two, or that has an empty entry (a
+ * trailing or doubled separator), is refused with a message naming the cut. A cut that falls
+ * exactly between two entries leaves a valid shorter list, and no parser can see that. The deploy
+ * runbook therefore says to check the key ids on the platform Keys page after every change.
+ * The same rule lives in `packages/config/src/seed-keys.ts` (`splitKeyEntries`), because this
+ * inner-ring package may import nothing (AR-1); `field-cipher.test.ts` and `seed-keys.test.ts`
+ * pin the same cases.
  */
 
 export const FIELD_CIPHER_PURPOSES = [
@@ -108,6 +135,10 @@ export interface FieldCipherStatus {
   readonly activeKeyId: string | null;
   /** Key ids only — never a value. */
   readonly keyIds: readonly string[];
+  /**
+   * True while MFA is still *written* on the fallback ring (`FIELD_CIPHER_KEYS` unset). Once it is
+   * set this is false, and the fallback ring is read-only for `mfa` (see the module comment).
+   */
   readonly mfaFallback: boolean;
 }
 
@@ -128,16 +159,39 @@ export interface FieldCipher {
 }
 
 /**
- * Parse `FIELD_CIPHER_KEYS`: `<id>:<base64 32 bytes>` entries separated by `;`. The highest id is
- * active. Refuses rather than repairs — a short key, a duplicate id, a stray character.
+ * Split a keyring value into its entries: `,` (what Hostinger needs) or `;` (older values), never
+ * both, and never an empty entry.
+ */
+export function splitKeyringEntries(text: string, name: string): string[] {
+  const hasComma = text.includes(',');
+  const hasSemicolon = text.includes(';');
+  if (hasComma && hasSemicolon) {
+    throw new TypeError(`${name} mixes "," and ";": separate entries with "," only`);
+  }
+  const separator = hasSemicolon ? ';' : ',';
+  const entries = text.split(separator).map((entry) => entry.trim());
+  entries.forEach((entry, index) => {
+    if (entry === '') {
+      throw new TypeError(
+        `${name} entry ${index + 1} is empty (a trailing or doubled "${separator}"). ` +
+          'Hostinger cuts a value at ";", so separate entries with ","',
+      );
+    }
+  });
+  return entries;
+}
+
+/**
+ * Parse `FIELD_CIPHER_KEYS`: `<id>:<base64 32 bytes>` entries separated by `,` (or `;`, see
+ * {@link splitKeyringEntries}). The highest id is active. Refuses rather than repairs: a short
+ * key, a duplicate id, a stray character, an empty entry.
  */
 export function parseFieldCipherKeys(raw: string): FieldCipherKeyring {
   const text = raw.trim();
   if (text === '') throw new TypeError('FIELD_CIPHER_KEYS has no <id>:<key> entry');
   const byId = new Map<string, Buffer>();
-  text.split(';').forEach((entry, index) => {
+  splitKeyringEntries(text, 'FIELD_CIPHER_KEYS').forEach((item, index) => {
     const where = `FIELD_CIPHER_KEYS entry ${index + 1}`;
-    const item = entry.trim();
     const separator = item.indexOf(':');
     if (separator < 0) throw new TypeError(`${where} is not of the form <id>:<key>`);
     const id = item.slice(0, separator);
@@ -163,7 +217,10 @@ export function loadFieldCipherKeyring(env: {
   return raw === undefined || raw.trim() === '' ? null : parseFieldCipherKeys(raw);
 }
 
-/** The MFA fallback: `AUTH_MFA_SEED_KEYS`' parsed ring (structurally), as a FieldCipher ring. */
+/**
+ * The MFA fallback: `AUTH_MFA_SEED_KEYS`' parsed ring (structurally), as a FieldCipher ring. It
+ * writes only while `FIELD_CIPHER_KEYS` is unset; afterwards it still opens `mfa` envelopes.
+ */
 export function keyringFromSeedKeyring(seed: {
   readonly active: { readonly version: number; readonly key: Buffer };
   readonly byVersion: ReadonlyMap<number, Buffer>;
@@ -224,8 +281,26 @@ export function createFieldCipher(
     ].join('.');
   };
 
-  const decrypt = (envelope: string, aad: FieldCipherAad): string => {
-    const ring = requireRing(aad.purpose);
+  /**
+   * The keys that may open an envelope naming `keyId`: the ring's own key and, for `mfa` only,
+   * the fallback ring's key of the same id when it differs in bytes (an id collision).
+   */
+  const candidateKeys = (purpose: FieldCipherPurpose, keyId: string): Buffer[] => {
+    const candidates: Buffer[] = [];
+    const main = requireRing(purpose).byId.get(keyId);
+    if (main !== undefined) candidates.push(main);
+    if (purpose === 'mfa' && keyring !== null && mfaFallback !== null) {
+      const fallback = mfaFallback.byId.get(keyId);
+      if (fallback !== undefined && !(main !== undefined && sameKey(main, fallback))) {
+        candidates.push(fallback);
+      }
+    }
+    return candidates;
+  };
+
+  /** Open an envelope; also returns the key that opened it, so `rotate` can tell the rings apart. */
+  const open = (envelope: string, aad: FieldCipherAad): { plaintext: string; key: Buffer } => {
+    requireRing(aad.purpose);
     const parts = parseEnvelope(envelope);
     if (parts.purpose !== aad.purpose) {
       throw new FieldCipherError(
@@ -233,25 +308,31 @@ export function createFieldCipher(
         `envelope is for "${parts.purpose}", not "${aad.purpose}"`,
       );
     }
-    const key = ring.byId.get(parts.keyId);
-    if (key === undefined) {
+    const candidates = candidateKeys(aad.purpose, parts.keyId);
+    if (candidates.length === 0) {
       throw new FieldCipherError(
         'unknown_key',
         `envelope needs key ${parts.keyId}, which the keyring does not hold`,
       );
     }
-    const decipher = createDecipheriv('aes-256-gcm', key, parts.iv, { authTagLength: TAG_BYTES });
-    decipher.setAAD(aadBytes(aad));
-    decipher.setAuthTag(parts.tag);
-    try {
-      return Buffer.concat([decipher.update(parts.ciphertext), decipher.final()]).toString('utf8');
-    } catch {
+    const additional = aadBytes(aad);
+    let opened: { plaintext: string; key: Buffer } | null = null;
+    // Every candidate is tried, even after one succeeds: no early exit, so the time taken does
+    // not tell which ring holds the seed (ASVS 5.0 11.2.4). GCM checks the tag itself in constant
+    // time; at most two candidates exist.
+    for (const key of candidates) {
+      const plaintext = openWith(key, parts, additional);
+      if (plaintext !== null && opened === null) opened = { plaintext, key };
+    }
+    if (opened === null) {
       throw new FieldCipherError(
         'authentication_failed',
         'secret failed authentication: altered, or moved from another row',
       );
     }
+    return opened;
   };
+  const decrypt = (envelope: string, aad: FieldCipherAad): string => open(envelope, aad).plaintext;
 
   const keyIdOf = (envelope: string): string | null => {
     try {
@@ -276,10 +357,30 @@ export function createFieldCipher(
     keyIdOf,
     rotate(envelope, aad) {
       const ring = requireRing(aad.purpose);
-      const plaintext = decrypt(envelope, aad);
-      return keyIdOf(envelope) === ring.active.id ? null : encryptWith(ring, plaintext, aad);
+      const { plaintext, key } = open(envelope, aad);
+      // Current only when opened by the active key itself. Comparing ids alone would leave a seed
+      // sealed under fallback key 1 in place when the main ring's active key is also id 1.
+      const current = keyIdOf(envelope) === ring.active.id && sameKey(key, ring.active.key);
+      return current ? null : encryptWith(ring, plaintext, aad);
     },
   };
+}
+
+function sameKey(a: Buffer, b: Buffer): boolean {
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Authenticated decrypt under one key; `null` when the tag does not verify. */
+function openWith(key: Buffer, parts: EnvelopeParts, additional: Buffer): string | null {
+  const decipher = createDecipheriv('aes-256-gcm', key, parts.iv, { authTagLength: TAG_BYTES });
+  decipher.setAAD(additional);
+  decipher.setAuthTag(parts.tag);
+  try {
+    // `final` checks the tag; bytes are returned only after it passes.
+    return Buffer.concat([decipher.update(parts.ciphertext), decipher.final()]).toString('utf8');
+  } catch {
+    return null;
+  }
 }
 
 function aadBytes(aad: FieldCipherAad): Buffer {

@@ -240,18 +240,18 @@ cron env file (§4) — every process runs the same `loadEnv`.
 
 ### 5a. No default — every environment refuses to boot without these (10)
 
-| Variable                 | Source (env.ts)                                                                    | Value for this deploy                                                     |
-| ------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `API_PUBLIC_URL`         | `:135` `z.string().url()`; prod https `:530-532`                                   | `https://peetrix.com` (the **web** origin — §3)                           |
-| `WEB_PUBLIC_URL`         | `:136`; prod https `:533-535`                                                      | `https://peetrix.com`                                                     |
-| `CORS_ALLOWED_ORIGINS`   | `:137`, `originList :88-106`; prod https `:536-540`                                | `https://peetrix.com`                                                     |
-| `DATABASE_URL`           | `:164` `mysqlUrl`; runtime user                                                    | hPanel MySQL user 1 (runtime)                                             |
-| `DATABASE_MIGRATION_URL` | `:165`; must differ, and in prod be a different **user** `:455-460, :469-474`      | hPanel MySQL user 2 (schema owner)                                        |
-| `STORAGE_BUCKET`         | `:196` `nonEmpty`                                                                  | R2/S3 bucket name — required even though the driver is unavailable (§6)   |
-| `SESSION_SECRET`         | `:222` `secret` ≥32; prod placeholder/dup checks `:505-528`                        | generated ≥32-char secret                                                 |
-| `CSRF_SECRET`            | `:225` ≥32; same checks                                                            | generated, distinct from `SESSION_SECRET`                                 |
-| `AUTH_MFA_SEED_KEYS`     | `:249` `superRefine` (no default); `<version>:<base64url 32 bytes>`, `;`-separated | the seed keyring (D07 — see `deploy.md`); same value in **every** process |
-| `EMAIL_FROM_ADDRESS`     | `:356` `z.string().email()`                                                        | the sending mailbox address                                               |
+| Variable                 | Source (env.ts)                                                                                                       | Value for this deploy                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `API_PUBLIC_URL`         | `:135` `z.string().url()`; prod https `:530-532`                                                                      | `https://peetrix.com` (the **web** origin — §3)                           |
+| `WEB_PUBLIC_URL`         | `:136`; prod https `:533-535`                                                                                         | `https://peetrix.com`                                                     |
+| `CORS_ALLOWED_ORIGINS`   | `:137`, `originList :88-106`; prod https `:536-540`                                                                   | `https://peetrix.com`                                                     |
+| `DATABASE_URL`           | `:164` `mysqlUrl`; runtime user                                                                                       | hPanel MySQL user 1 (runtime)                                             |
+| `DATABASE_MIGRATION_URL` | `:165`; must differ, and in prod be a different **user** `:455-460, :469-474`                                         | hPanel MySQL user 2 (schema owner)                                        |
+| `STORAGE_BUCKET`         | `:196` `nonEmpty`                                                                                                     | R2/S3 bucket name — required even though the driver is unavailable (§6)   |
+| `SESSION_SECRET`         | `:222` `secret` ≥32; prod placeholder/dup checks `:505-528`                                                           | generated ≥32-char secret                                                 |
+| `CSRF_SECRET`            | `:225` ≥32; same checks                                                                                               | generated, distinct from `SESSION_SECRET`                                 |
+| `AUTH_MFA_SEED_KEYS`     | `:249` `superRefine` (no default); `<version>:<base64url 32 bytes>`, `,`-separated (`;` is cut by Hostinger's `.env`) | the seed keyring (D07 — see `deploy.md`); same value in **every** process |
+| `EMAIL_FROM_ADDRESS`     | `:356` `z.string().email()`                                                                                           | the sending mailbox address                                               |
 
 ### 5b. Defaults that `NODE_ENV=production` rejects — must also be set (7)
 

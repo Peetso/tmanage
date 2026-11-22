@@ -108,6 +108,21 @@ describe('parseSeedKeys', () => {
     expect(() => parseSeedKeys(`1:${encoded}`)).toThrow(/base64url/);
   });
 
+  /** LANE-X (2026-11-22): Hostinger's `.env` cuts a value at `;`, so live lists use `,`. */
+  it('reads "," entries, the separator live must use', () => {
+    const keyring = parseSeedKeys(` 1:${key(0x11)} , 2:${key(0x22)} `);
+    expect(keyring.active.version).toBe(2);
+    expect(keyring.byVersion.get(1)).toEqual(Buffer.alloc(32, 0x11));
+  });
+
+  it('refuses mixed separators and names the Hostinger cut for an empty entry', () => {
+    expect(() => parseSeedKeys(`1:${key(0x11)},2:${key(0x22)};3:${key(0x33)}`)).toThrow(
+      /mixes "," and ";"/,
+    );
+    expect(() => parseSeedKeys(`1:${key(0x11)};`)).toThrow(/Hostinger cuts a value at ";"/);
+    expect(() => parseSeedKeys(`1:${key(0x11)},`)).toThrow(/entry 2 is empty/);
+  });
+
   it('names the offending entry so a long list can be fixed without bisecting it', () => {
     expect(() => parseSeedKeys(`1:${key(0x11)};2:short`)).toThrow(/entry 2/);
   });

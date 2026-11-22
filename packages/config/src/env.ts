@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { parseSeedKeys } from './seed-keys.js';
+import { parseSeedKeys, splitKeyEntries } from './seed-keys.js';
 import { parseTrustedProxies } from './trusted-proxies.js';
 
 /**
@@ -398,7 +398,7 @@ export const envSchema = z
     AUTH_TOTP_ISSUER: nonEmpty('AUTH_TOTP_ISSUER').default('TManage'),
     /**
      * D07. The keys TOTP seeds are encrypted with, `<version>:<base64url 32 bytes>` entries
-     * separated by `;` — `seed-keys.ts` owns the format and this validates with that same
+     * separated by `,` (`;` still read; Hostinger cuts at `;`) — `seed-keys.ts` owns the format and this validates with that same
      * parser, so what boots is exactly what the cipher will accept.
      *
      * Required in **every** environment, unlike the storage signing secret's driver
@@ -418,28 +418,39 @@ export const envSchema = z
     }),
 
     /**
-     * 56-02. The FieldCipher keyring: `<id>:<base64 32 bytes>` entries separated by `;`, highest id
-     * active (`openssl rand -base64 32`). Optional: without it FieldCipher reports "disabled" and
-     * every feature that would store a recoverable secret refuses instead of storing plaintext.
+     * 56-02. The FieldCipher keyring: `<id>:<32-byte key>` entries separated by `,` (`;` is still
+     * read, but Hostinger's `.env` cuts a value at `;`, so live uses `,`), highest id active
+     * (`node scripts/gen-field-cipher-key.mjs`). Optional: without it FieldCipher reports
+     * "disabled" and every feature that would store a recoverable secret refuses instead of
+     * storing plaintext. The domain parser (`field-cipher.ts`) applies the same rules.
      */
     FIELD_CIPHER_KEYS: z
       .string()
       .optional()
-      .refine(
-        (value) =>
-          value === undefined ||
-          value.trim() === '' ||
-          value
-            .trim()
-            .split(';')
-            .every((entry) =>
-              /^[1-9]\d{0,8}:(?:[A-Za-z0-9+/]{43}=|[A-Za-z0-9_-]{43})$/.test(entry.trim()),
-            ),
-        {
-          message:
-            'entries must be <id>:<32-byte key from `openssl rand -base64 32`>, ";"-separated',
-        },
-      ),
+      .superRefine((value, ctx) => {
+        if (value === undefined || value.trim() === '') return;
+        let entries: string[];
+        try {
+          entries = splitKeyEntries(value.trim(), 'FIELD_CIPHER_KEYS');
+        } catch (error) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: error instanceof Error ? error.message : 'is not a valid key list',
+          });
+          return;
+        }
+        if (
+          !entries.every((entry) =>
+            /^[1-9]\d{0,8}:(?:[A-Za-z0-9+/]{43}=|[A-Za-z0-9_-]{43})$/.test(entry),
+          )
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'entries must be <id>:<32-byte key from `node scripts/gen-field-cipher-key.mjs`>, ","-separated',
+          });
+        }
+      }),
 
     // Invitations and client access
     INVITATION_TTL_HOURS: positiveInt.default(168),

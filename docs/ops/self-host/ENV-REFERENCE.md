@@ -63,8 +63,8 @@ one credential, so a one-user install sets only the database connection.
 | `AUTH_MAX_FAILURES_IN_WINDOW` | no | `5` | no |  | ID-002's lockout window. |
 | `AUTH_FAILURE_WINDOW_SECONDS` | no | `900` | no |  |  |
 | `AUTH_TOTP_ISSUER` | no | `TManage` | no |  | The issuer an authenticator application shows beside the code. |
-| `AUTH_MFA_SEED_KEYS` | yes |  | yes | yes | The keys TOTP seeds are encrypted with, `<version>:<base64url 32 bytes>` entries separated by `;` — `seed-keys.ts` owns the format and this validates with that same parser, so what boots is exactly what the cipher will accept. |
-| `FIELD_CIPHER_KEYS` | no |  | yes | yes | The FieldCipher keyring: `<id>:<base64 32 bytes>` entries separated by `;`, highest id active (`openssl rand -base64 32`). |
+| `AUTH_MFA_SEED_KEYS` | yes |  | yes | yes | The keys TOTP seeds are encrypted with, `<version>:<base64url 32 bytes>` entries separated by `,` (`;` still read; Hostinger cuts at `;`) — `seed-keys.ts` owns the format and this validates with that same parser, so what boots is exactly what the cipher will accept. |
+| `FIELD_CIPHER_KEYS` | no |  | yes | yes | The FieldCipher keyring: `<id>:<32-byte key>` entries separated by `,` (`;` is still read, but Hostinger's `.env` cuts a value at `;`, so live uses `,`), highest id active (`node scripts/gen-field-cipher-key.mjs`). |
 | `INVITATION_TTL_HOURS` | no | `168` | no |  |  |
 | `CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS` | no | `180` | no |  |  |
 | `IDEMPOTENCY_RETENTION_HOURS` | no | `24` | no |  |  |
