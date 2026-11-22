@@ -1061,21 +1061,16 @@
 }
 
 .tm-switch:checked {
-  background: var(--ink-950);
-  border-color: var(--ink-950);
-}
-
-/*
- * Dark "on" (Figma Switch 8:129 / 732:793, dark mode): a lime thumb on the always-dark ink
- * track, outlined in the themed ink so the track still has an edge against the dark paper
- * (WCAG 1.4.11). The light theme keeps the ink track and paper thumb above.
- */
-[data-theme='dark'] .tm-switch:checked {
   background: var(--tm-ink-absolute);
   border-color: var(--ink-950);
 }
 
-[data-theme='dark'] .tm-switch:checked::before {
+/*
+ * "On" (Figma Switch 8:129 / 732:793, both modes): a lime thumb on the always-dark ink track.
+ * The track is outlined in the themed ink so it still has an edge against the dark paper
+ * (WCAG 1.4.11); in light the outline and the track are the same ink.
+ */
+.tm-switch:checked::before {
   background: var(--lime-500);
 }
 

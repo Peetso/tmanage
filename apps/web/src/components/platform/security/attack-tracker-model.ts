@@ -133,24 +133,6 @@ export function signalLabel(ruleKey: string): MessageKey {
   return SIGNAL_LABEL[ruleKey] ?? 'AttackTracker.signalOther';
 }
 
-// ── Totals ─────────────────────────────────────────────────────────────────
-
-export interface TrackTotals {
-  readonly refused: number;
-  readonly throttled: number;
-}
-
-/** The Refused and Slowed down tiles: the sums over the sources read (exact on the last page). */
-export function loadedTotals(tracks: readonly TrackSummary[]): TrackTotals {
-  return tracks.reduce(
-    (sum, track) => ({
-      refused: sum.refused + track.refused,
-      throttled: sum.throttled + track.throttled,
-    }),
-    { refused: 0, throttled: 0 },
-  );
-}
-
 /** The source the detail shows: the one picked if it is still listed, else the worst (first). */
 export function selectedTrack(
   tracks: readonly TrackSummary[],

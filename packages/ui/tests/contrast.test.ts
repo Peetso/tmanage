@@ -211,9 +211,14 @@ describe('the danger word (`--tm-danger-text`, SEC-TRACKER)', () => {
   });
 });
 
-describe('the dark switch, on (Figma 8:129 / 732:793)', () => {
-  it('draws a lime thumb that stands out from its ink track', () => {
+describe('the switch, on (Figma 8:129 / 732:793)', () => {
+  it('draws a lime thumb that stands out from its ink track, in both themes', () => {
     expect(contrastRatio(colorDark.lime, ABSOLUTE_INK)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+    expect(contrastRatio(colorLight.lime['500'], ABSOLUTE_INK)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+
+  it('shows the ink track against the light paper', () => {
+    expect(contrastRatio(ABSOLUTE_INK, colorLight.paper['0'])).toBeGreaterThanOrEqual(AA_NON_TEXT);
   });
 
   it('outlines the ink track in the themed ink, visible on the dark paper', () => {

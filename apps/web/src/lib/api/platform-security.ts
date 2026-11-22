@@ -104,6 +104,16 @@ export interface TrackPage {
   readonly from: string;
   readonly total: number;
   readonly counts: Readonly<Record<TrackFilter, number>>;
+  /**
+   * The four tiles over every source of the window (`from` up to the snapshot), whatever the
+   * search, the chip or the page; like the counts, the newest 1,000 sources (see `truncated`).
+   */
+  readonly windowTotals: {
+    readonly sources: number;
+    readonly gotIn: number;
+    readonly refused: number;
+    readonly throttled: number;
+  };
   readonly nextCursor: string | null;
   readonly truncated: boolean;
 }

@@ -7,6 +7,7 @@ import type { NetworkAccessView, TrackPage } from '../src/lib/api/platform-secur
 import {
   DOOR,
   PLATFORM_ME,
+  QUIET_WINDOW_TOTALS,
   TRACKER_NOW,
   TRACKS,
   trackDetail,
@@ -26,6 +27,8 @@ const PAGE: TrackPage = {
   from: '2026-11-15T12:00:00.000Z',
   total: 8,
   counts: { all: 8, critical: 1, high: 2, vpn: 2, tor: 1, hosting: 3, known_tester: 1 },
+  // The window holds more than this page: the tiles must read the API's sums, not the rows.
+  windowTotals: { sources: 64, gotIn: 2, refused: 4100, throttled: 900 },
   nextCursor: null,
   truncated: false,
 };
@@ -78,13 +81,14 @@ function setup(options: { door?: NetworkAccessView; page?: TrackPage } = {}) {
 const detailHeading = () => screen.findByRole('heading', { level: 2, name: '89.187.162.18' });
 
 describe('Attack tracker (SEC-TRACKER)', () => {
-  it('shows the week: the four totals, the worst source open and the nav item current (840:1578)', async () => {
+  it('shows the week: the four window totals, the worst source open and the nav item current (840:1578)', async () => {
     const { calls } = setup();
     await detailHeading();
     const tiles = document.querySelector('.tm-at-tiles') as HTMLElement;
-    expect(within(tiles).getByText('8')).toBeTruthy();
-    expect(within(tiles).getByText('333')).toBeTruthy();
-    expect(within(tiles).getByText('57')).toBeTruthy();
+    expect(within(tiles).getByText('64')).toBeTruthy();
+    expect(within(tiles).getByText('2')).toBeTruthy();
+    expect(within(tiles).getByText('4,100')).toBeTruthy();
+    expect(within(tiles).getByText('900')).toBeTruthy();
     expect(screen.getByText('Last 7 days')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Attack tracker' }).getAttribute('aria-current')).toBe(
       'page',
@@ -217,6 +221,7 @@ describe('Attack tracker (SEC-TRACKER)', () => {
         tracks: [],
         total: 0,
         counts: { all: 0, critical: 0, high: 0, vpn: 0, tor: 0, hosting: 0, known_tester: 0 },
+        windowTotals: QUIET_WINDOW_TOTALS,
       },
     });
     expect(await screen.findByText('No attacks in the last 7 days')).toBeTruthy();

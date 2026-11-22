@@ -216,6 +216,22 @@ const COUNTS: TrackPage['counts'] = {
   known_tester: 1,
 };
 
+/** The tiles over the whole window, as the API sums them (every source, not the page). */
+export const WINDOW_TOTALS: TrackPage['windowTotals'] = {
+  sources: COUNTS.all,
+  gotIn: COUNTS.critical,
+  refused: TRACKS.reduce((sum, track) => sum + track.refused, 0),
+  throttled: TRACKS.reduce((sum, track) => sum + track.throttled, 0),
+};
+
+/** A window with nothing in it. */
+export const QUIET_WINDOW_TOTALS: TrackPage['windowTotals'] = {
+  sources: 0,
+  gotIn: 0,
+  refused: 0,
+  throttled: 0,
+};
+
 const NAMES: Readonly<Record<Lang, readonly (readonly [string, string, string])[]>> = {
   en: [
     ['Mona Adel', 'mona@northwind.studio', 'Northwind Studio'],
@@ -497,6 +513,7 @@ export function trackerClient({
           variant === 'quiet'
             ? { all: 0, critical: 0, high: 0, vpn: 0, tor: 0, hosting: 0, known_tester: 0 }
             : COUNTS,
+        windowTotals: variant === 'quiet' ? QUIET_WINDOW_TOTALS : WINDOW_TOTALS,
         nextCursor: null,
         truncated: false,
       };

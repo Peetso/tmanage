@@ -25,7 +25,6 @@ import {
   TRACK_PERIODS,
   allowlistAction,
   allowlistEntryHolding,
-  loadedTotals,
   periodFrom,
   selectedTrack,
 } from './attack-tracker-model';
@@ -174,7 +173,8 @@ function TrackerBody({
   const q = useDebounced(query.trim());
   const from = periodFrom(period, anchor);
 
-  // The tiles read the whole window, whatever the chips and the search narrow the list to.
+  // The tiles read the whole window (the API's windowTotals), whatever the chips and the search
+  // narrow the list to; its own key keeps them steady while a chip or a search reloads the list.
   const totals = useQuery({
     queryKey: [...TRACKS_KEY, 'totals', from],
     queryFn: () => listAttackTracks(api, { from, filter: 'all', q: '' }),
@@ -272,7 +272,7 @@ function TrackerBody({
     }
   };
 
-  const tileTotals = loadedTotals(totals.data?.tracks ?? []);
+  const whole = totals.data?.windowTotals ?? null;
   const detailHeading = useId();
   const detailCard = shown ? (
     <SourceDetail
@@ -308,24 +308,24 @@ function TrackerBody({
       <dl className="tm-at-tiles">
         <Tile
           label={t('AttackTracker.tileSources')}
-          value={totals.data ? format.count(totals.data.counts.all) : null}
+          value={whole ? format.count(whole.sources) : null}
         />
         <Tile
           label={t('AttackTracker.gotInAfterFailing')}
-          value={totals.data ? format.count(totals.data.counts.critical) : null}
+          value={whole ? format.count(whole.gotIn) : null}
           capsule={
-            totals.data && totals.data.counts.critical > 0 ? (
+            whole && whole.gotIn > 0 ? (
               <StateCapsule state="blocked">{t('AttackTracker.severityCritical')}</StateCapsule>
             ) : null
           }
         />
         <Tile
           label={t('AttackTracker.refused')}
-          value={totals.data ? format.count(tileTotals.refused) : null}
+          value={whole ? format.count(whole.refused) : null}
         />
         <Tile
           label={t('AttackTracker.slowedDown')}
-          value={totals.data ? format.count(tileTotals.throttled) : null}
+          value={whole ? format.count(whole.throttled) : null}
         />
       </dl>
 
