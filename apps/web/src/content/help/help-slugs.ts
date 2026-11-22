@@ -40,6 +40,8 @@ export const HELP_SLUGS = [
   'arabic-dates-and-numbers',
   'send-for-client-approval',
   'check-an-approval-record',
+  // Plan 62-20: TManage AI (`tmanage-ai-help.ts`).
+  'tmanage-ai',
 ] as const;
 
 export type HelpSlug = (typeof HELP_SLUGS)[number];

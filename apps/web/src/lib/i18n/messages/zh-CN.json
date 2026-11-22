@@ -21424,5 +21424,17 @@
   "AiSpend.stat.testListNote.two": "{count} 个由测试支付",
   "AiSpend.stat.testListNote.few": "{count} 个由测试支付",
   "AiSpend.stat.testListNote.many": "{count} 个由测试支付",
-  "AiSpend.stat.testListNote.other": "{count} 个由测试支付"
+  "AiSpend.stat.testListNote.other": "{count} 个由测试支付",
+  "Privacy.aiHeading": "TManage AI",
+  "Privacy.aiBody": "TManage AI 是工作区内的助手，在公司所有者开启之前保持关闭。成员提问时，问题以及回答所需的记录（仅限该成员本来就能打开的记录）会发送给我们的 AI 提供商 Anthropic，由其撰写回答，且不会用于训练其模型。在“按含义搜索”开启期间，文件文本也会发送给 Voyage AI 用于建立索引。两家提供商的密钥都保存在我们的服务器上。对话仅对进行对话的成员可见；除非所有者设定其他期限，否则保留 30 天，成员可随时删除。Business Memory 只保存由公司 AI 管理人员批准的事实。助手建议的更改只有在成员确认后才会执行，并写入公司的审计日志。语音使用浏览器自带的语音功能：TManage 只接收文本框中的文字，从不接收音频，但部分浏览器会在其厂商的服务器上处理语音。",
+  "AiChat.voice.idle": "点按麦克风开始说话，说完再点按一次。发送前可以检查文字。",
+  "AiChat.voice.listening": "正在聆听…说完后再次点按麦克风。",
+  "AiChat.voice.processing": "正在记录你最后说的话…",
+  "AiChat.voice.check": "请检查文字后再发送。可以先修改。",
+  "AiChat.voice.unavailable": "此浏览器不支持语音。请改为输入问题。",
+  "AiChat.voice.cancel": "取消",
+  "AiChat.voice.reading": "正在朗读回答",
+  "AiChat.voice.stop": "停止",
+  "AiChat.voice.readAloud": "朗读此回答",
+  "AiChat.voice.stopReading": "停止朗读"
 }

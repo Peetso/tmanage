@@ -21424,5 +21424,17 @@
   "AiSpend.stat.testListNote.two": "{count} payés par Test",
   "AiSpend.stat.testListNote.few": "{count} payés par Test",
   "AiSpend.stat.testListNote.many": "{count} payés par Test",
-  "AiSpend.stat.testListNote.other": "{count} payés par Test"
+  "AiSpend.stat.testListNote.other": "{count} payés par Test",
+  "Privacy.aiHeading": "TManage AI",
+  "Privacy.aiBody": "TManage AI, l’assistant intégré à un espace de travail, reste désactivé tant que le propriétaire de l’entreprise ne l’active pas. Quand un membre lui pose une question, la question et les données nécessaires pour y répondre (uniquement celles que ce membre peut déjà ouvrir) sont envoyées à notre fournisseur d’IA, Anthropic, qui rédige la réponse et ne s’en sert pas pour entraîner ses modèles. Tant que la recherche par le sens est activée, le texte des fichiers est aussi envoyé à Voyage AI pour l’indexer. Les clés des deux fournisseurs restent sur nos serveurs. Les conversations sont privées pour le membre qui les a eues ; elles sont conservées 30 jours sauf si le propriétaire fixe une autre durée, et un membre peut en supprimer une à tout moment. Business Memory ne garde que les faits approuvés par une personne qui gère l’IA de l’entreprise. Un changement proposé par l’assistant n’est appliqué qu’après confirmation du membre, et il est inscrit au journal d’audit de l’entreprise. La voix utilise les fonctions vocales du navigateur lui-même : TManage ne reçoit que les mots de la zone de texte, jamais l’audio, même si certains navigateurs traitent la voix sur les serveurs de leur éditeur.",
+  "AiChat.voice.idle": "Touchez le micro et parlez. Touchez-le à nouveau quand vous avez fini. Vous pouvez vérifier les mots avant l’envoi.",
+  "AiChat.voice.listening": "Écoute en cours… touchez à nouveau le micro quand vous avez fini.",
+  "AiChat.voice.processing": "Transcription de vos derniers mots…",
+  "AiChat.voice.check": "Vérifiez les mots, puis envoyez. Vous pouvez d’abord les modifier.",
+  "AiChat.voice.unavailable": "La voix n’est pas disponible dans ce navigateur. Tapez plutôt votre question.",
+  "AiChat.voice.cancel": "Annuler",
+  "AiChat.voice.reading": "Lecture de la réponse à voix haute",
+  "AiChat.voice.stop": "Arrêter",
+  "AiChat.voice.readAloud": "Lire cette réponse à voix haute",
+  "AiChat.voice.stopReading": "Arrêter la lecture à voix haute"
 }

@@ -29,7 +29,7 @@ describe('Arabic legal copy', () => {
     for (const key of ['terms', 'privacy'] as const) {
       const ids = LEGAL_DOCUMENTS[key].sections.map((section) => section.id);
       // The web route appends its own sign-in section to the privacy policy (C8).
-      if (key === 'privacy') ids.push('sign-in-data');
+      if (key === 'privacy') ids.push('sign-in-data', 'tmanage-ai');
       expect(Object.keys(LEGAL_DOCUMENTS_AR[key].sections).sort()).toEqual([...ids].sort());
     }
   });

@@ -8,6 +8,7 @@
 
 import { AI_RECIPE_ARTICLES } from './ai-recipes';
 import { ARABIC_HELP_ARTICLES } from './arabic-help';
+import { TMANAGE_AI_HELP_ARTICLES } from './tmanage-ai-help';
 
 export type HelpLanguage = 'en' | 'ar';
 
@@ -1191,6 +1192,8 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
   ...AI_RECIPE_ARTICLES,
   // 57-07 (MENA): Arabic and language, and client approval by link.
   ...ARABIC_HELP_ARTICLES,
+  // Plan 62-20: TManage AI, the assistant built into the workspace.
+  ...TMANAGE_AI_HELP_ARTICLES,
 ];
 
 const BY_SLUG: ReadonlyMap<string, HelpArticle> = new Map(HELP_ARTICLES.map((a) => [a.slug, a]));

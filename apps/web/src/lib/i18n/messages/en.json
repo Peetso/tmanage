@@ -21630,5 +21630,17 @@
   "AiSpend.stat.testListNote.two": "{count} pay from Testing",
   "AiSpend.stat.testListNote.few": "{count} pay from Testing",
   "AiSpend.stat.testListNote.many": "{count} pay from Testing",
-  "AiSpend.stat.testListNote.other": "{count} pay from Testing"
+  "AiSpend.stat.testListNote.other": "{count} pay from Testing",
+  "Privacy.aiHeading": "TManage AI",
+  "Privacy.aiBody": "TManage AI, the assistant inside a workspace, is off until the company’s owner turns it on. When a member asks it something, the question and the records needed to answer it (only records that member can already open) are sent to our AI provider, Anthropic, which writes the answer and does not use it to train its models. While search by meaning is on, file text is also sent to Voyage AI to index it. The keys for both providers stay on our servers. Conversations are private to the member who had them; they are kept for 30 days unless the owner sets another period, and a member can delete one at any time. Business Memory keeps only the facts that someone who manages AI for the company approved. A change the assistant suggests runs only after the member confirms it, and it is written to the company’s audit log. Voice uses the browser’s own speech features: TManage receives only the words in the text box, never audio, though some browsers process speech on their maker’s servers.",
+  "AiChat.voice.idle": "Tap the microphone and speak. Tap again when you finish. You can check the words before sending.",
+  "AiChat.voice.listening": "Listening… tap the microphone again when you finish.",
+  "AiChat.voice.processing": "Writing down your last words…",
+  "AiChat.voice.check": "Check the words, then send. You can edit them first.",
+  "AiChat.voice.unavailable": "Voice isn’t available in this browser. Type your question instead.",
+  "AiChat.voice.cancel": "Cancel",
+  "AiChat.voice.reading": "Reading the answer aloud",
+  "AiChat.voice.stop": "Stop",
+  "AiChat.voice.readAloud": "Read this answer aloud",
+  "AiChat.voice.stopReading": "Stop reading aloud"
 }

@@ -19,7 +19,10 @@ import {
 import { ApiRequestError } from '../../lib/api/errors';
 import { creditsTone, fetchAiCredits, requestAiPack } from '../../lib/api/ai-credits';
 import { useFormCheck } from '../../lib/forms/form-check';
+import { MicButton, MicNotice } from '../voice/VoiceControls';
+import { useDictation, type DictationStatus } from '../voice/useDictation';
 import { AiChatTurn, type TurnActions } from './AiChatTurn';
+import { AnswerReaderProvider, useAnswerReader } from './AiVoice';
 import { chatReducer, EMPTY_CHAT, type ChatEntry } from './ai-chat-model';
 import { BackIcon, CloseIcon, CommentIcon, PlusIcon } from './icons';
 import { useAiText, type AiTextKey } from './use-ai-text';
@@ -81,6 +84,14 @@ export function AiChatPanel({
   const heading = useRef<HTMLHeadingElement>(null);
   const logEnd = useRef<HTMLDivElement>(null);
   const check = useFormCheck();
+  // Voice mode (62-16): dictation only fills the box; the member checks the words and sends.
+  const dictation = useDictation({ value: draft, onChange: setDraft });
+  const reader = useAnswerReader();
+  const [spoken, setSpoken] = useState(false);
+  const listening = dictation.status === 'listening' || dictation.status === 'processing';
+  useEffect(() => {
+    if (dictation.status === 'listening') setSpoken(true);
+  }, [dictation.status]);
 
   const credits = useQuery({
     queryKey: AI_CREDITS_KEY(organizationSlug),
@@ -234,16 +245,24 @@ export function AiChatPanel({
   }
 
   function newChat() {
+    reader.stop();
     dispatch({ type: 'reset' });
     setMode('chat');
     setDraft('');
     composer.current?.focus();
   }
 
+  function submitDraft() {
+    // Words still arriving are never sent: the member stops, checks them, then sends.
+    if (listening) return;
+    setSpoken(false);
+    ask(draft, helpMode);
+  }
+
   function onComposerKey(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      ask(draft, helpMode);
+      submitDraft();
     }
   }
 
@@ -259,164 +278,245 @@ export function AiChatPanel({
   const used = meter ? Math.min(meter.usedCredits, total) : 0;
 
   return (
-    // The panel listens for Escape on its own subtree so a docked panel closes like a dialog.
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-    <aside
-      className="tm-aic"
-      data-variant={variant}
-      aria-labelledby={headingId}
-      onKeyDown={onPanelKey}
-    >
-      <header className="tm-aic__header">
-        <div className="tm-aic__title-row">
-          {mode === 'history' ? (
-            <button
-              type="button"
-              className="tm-aic__icon tm-aic__back"
-              aria-label={t('AiChat.backToChat')}
-              onClick={() => setMode('chat')}
-            >
-              <BackIcon />
-            </button>
-          ) : null}
-          <h2 id={headingId} ref={heading} tabIndex={-1} className="tm-aic__title">
-            {mode === 'history' ? t('AiChat.history') : t('AiChat.title')}
-          </h2>
-          {mode === 'chat' ? <Badge>{t('AiChat.testing')}</Badge> : null}
-          <span className="tm-aic__spacer" />
-          {mode === 'chat' ? (
-            <button
-              type="button"
-              className="tm-aic__icon"
-              aria-label={t('AiChat.history')}
-              onClick={() => setMode('history')}
-            >
-              <CommentIcon />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="tm-aic__icon"
-            aria-label={t('AiChat.newChat')}
-            onClick={newChat}
-          >
-            <PlusIcon />
-          </button>
-          {onClose ? (
+    <AnswerReaderProvider value={reader}>
+      {/* The panel listens for Escape on its own subtree so a docked panel closes like a dialog. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <aside
+        className="tm-aic"
+        data-variant={variant}
+        aria-labelledby={headingId}
+        onKeyDown={onPanelKey}
+      >
+        <header className="tm-aic__header">
+          <div className="tm-aic__title-row">
+            {mode === 'history' ? (
+              <button
+                type="button"
+                className="tm-aic__icon tm-aic__back"
+                aria-label={t('AiChat.backToChat')}
+                onClick={() => setMode('chat')}
+              >
+                <BackIcon />
+              </button>
+            ) : null}
+            <h2 id={headingId} ref={heading} tabIndex={-1} className="tm-aic__title">
+              {mode === 'history' ? t('AiChat.history') : t('AiChat.title')}
+            </h2>
+            {mode === 'chat' ? <Badge>{t('AiChat.testing')}</Badge> : null}
+            <span className="tm-aic__spacer" />
+            {mode === 'chat' ? (
+              <button
+                type="button"
+                className="tm-aic__icon"
+                aria-label={t('AiChat.history')}
+                onClick={() => setMode('history')}
+              >
+                <CommentIcon />
+              </button>
+            ) : null}
             <button
               type="button"
               className="tm-aic__icon"
-              aria-label={t('AiChat.close')}
-              onClick={onClose}
+              aria-label={t('AiChat.newChat')}
+              onClick={newChat}
             >
-              <CloseIcon />
+              <PlusIcon />
             </button>
-          ) : null}
-        </div>
-        {meter ? (
-          <div className="tm-aic__meter">
-            <div
-              className="tm-aic-meter"
-              role="meter"
-              aria-label={t('AiChat.meterLabel')}
-              aria-valuemin={0}
-              aria-valuemax={total}
-              aria-valuenow={used}
-              aria-valuetext={t('AiChat.meter', {
-                used: text.number(used),
-                total: text.number(total),
-                date: text.day(meter.resetsOn),
-              })}
-              data-tone={creditsTone(used, total)}
-            >
-              <span style={{ inlineSize: `${total > 0 ? (used / total) * 100 : 100}%` }} />
-            </div>
-            <p className="tm-aic__meter-text" aria-hidden="true">
-              {t('AiChat.meter', {
-                used: text.number(used),
-                total: text.number(total),
-                date: text.day(meter.resetsOn),
-              })}
-            </p>
+            {onClose ? (
+              <button
+                type="button"
+                className="tm-aic__icon"
+                aria-label={t('AiChat.close')}
+                onClick={onClose}
+              >
+                <CloseIcon />
+              </button>
+            ) : null}
           </div>
-        ) : null}
-      </header>
+          {meter ? (
+            <div className="tm-aic__meter">
+              <div
+                className="tm-aic-meter"
+                role="meter"
+                aria-label={t('AiChat.meterLabel')}
+                aria-valuemin={0}
+                aria-valuemax={total}
+                aria-valuenow={used}
+                aria-valuetext={t('AiChat.meter', {
+                  used: text.number(used),
+                  total: text.number(total),
+                  date: text.day(meter.resetsOn),
+                })}
+                data-tone={creditsTone(used, total)}
+              >
+                <span style={{ inlineSize: `${total > 0 ? (used / total) * 100 : 100}%` }} />
+              </div>
+              <p className="tm-aic__meter-text" aria-hidden="true">
+                {t('AiChat.meter', {
+                  used: text.number(used),
+                  total: text.number(total),
+                  date: text.day(meter.resetsOn),
+                })}
+              </p>
+            </div>
+          ) : null}
+        </header>
 
-      {mode === 'history' ? (
-        <HistoryList
-          loading={conversations.isPending}
-          failed={conversations.isError}
-          items={conversations.data?.items ?? []}
-          retentionDays={conversations.data?.retentionDays ?? null}
-          onOpen={(id) => void openConversation(id)}
-          onDelete={(id) => void removeConversation(id)}
-          onRetry={() => void conversations.refetch()}
-        />
-      ) : (
-        <div className="tm-aic__body">
-          {state.entries.length === 0 ? (
-            <EmptyState
-              onExample={(key) => ask(t(key), false)}
-              onHelp={() => {
-                setHelpMode(true);
+        {mode === 'history' ? (
+          <HistoryList
+            loading={conversations.isPending}
+            failed={conversations.isError}
+            items={conversations.data?.items ?? []}
+            retentionDays={conversations.data?.retentionDays ?? null}
+            onOpen={(id) => void openConversation(id)}
+            onDelete={(id) => void removeConversation(id)}
+            onRetry={() => void conversations.refetch()}
+          />
+        ) : (
+          <div className="tm-aic__body">
+            {state.entries.length === 0 ? (
+              <EmptyState
+                onExample={(key) => ask(t(key), false)}
+                onHelp={() => {
+                  setHelpMode(true);
+                  composer.current?.focus();
+                }}
+              />
+            ) : null}
+            <div
+              className="tm-aic__log"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions text"
+            >
+              {state.entries.map((entry: ChatEntry) => (
+                <AiChatTurn key={entry.id} entry={entry} actions={actions} />
+              ))}
+              <div ref={logEnd} />
+            </div>
+          </div>
+        )}
+
+        {mode === 'chat' ? (
+          <form noValidate className="tm-aic__composer" {...check.handlers(submitDraft)}>
+            {helpMode ? (
+              <p className="tm-aic-note">
+                {t('AiChat.helpMode')}{' '}
+                <button type="button" className="tm-aic-link" onClick={() => setHelpMode(false)}>
+                  {t('AiChat.helpModeOff')}
+                </button>
+              </p>
+            ) : null}
+            <div className="tm-aic__box">
+              <label htmlFor={composerId} className="tm-visually-hidden">
+                {t('AiChat.messageLabel')}
+              </label>
+              <textarea
+                id={composerId}
+                ref={composer}
+                name="message"
+                rows={1}
+                maxLength={4000}
+                className="tm-aic__input"
+                dir="auto"
+                placeholder={helpMode ? t('AiChat.helpPlaceholder') : t('AiChat.placeholder')}
+                value={draft}
+                onChange={(event) => {
+                  setDraft(event.currentTarget.value);
+                  if (event.currentTarget.value === '') setSpoken(false);
+                }}
+                onKeyDown={onComposerKey}
+              />
+              <MicButton dictation={dictation} compact />
+              <Button
+                type="submit"
+                size="compact"
+                className="tm-aic-touch"
+                disabled={draft.trim() === '' || state.busy || listening}
+              >
+                {t('AiChat.send')}
+              </Button>
+            </div>
+            <VoiceHint
+              supported={dictation.supported}
+              status={dictation.status}
+              checking={spoken && draft.trim() !== ''}
+              empty={draft.trim() === ''}
+              reading={reader.readingId !== null}
+              onCancel={() => {
+                dictation.cancel();
+                setSpoken(false);
                 composer.current?.focus();
               }}
             />
-          ) : null}
-          <div className="tm-aic__log" role="log" aria-live="polite" aria-relevant="additions text">
-            {state.entries.map((entry: ChatEntry) => (
-              <AiChatTurn key={entry.id} entry={entry} actions={actions} />
-            ))}
-            <div ref={logEnd} />
-          </div>
-        </div>
-      )}
-
-      {mode === 'chat' ? (
-        <form
-          noValidate
-          className="tm-aic__composer"
-          {...check.handlers(() => ask(draft, helpMode))}
-        >
-          {helpMode ? (
-            <p className="tm-aic-note">
-              {t('AiChat.helpMode')}{' '}
-              <button type="button" className="tm-aic-link" onClick={() => setHelpMode(false)}>
-                {t('AiChat.helpModeOff')}
-              </button>
-            </p>
-          ) : null}
-          <div className="tm-aic__box">
-            <label htmlFor={composerId} className="tm-visually-hidden">
-              {t('AiChat.messageLabel')}
-            </label>
-            <textarea
-              id={composerId}
-              ref={composer}
-              name="message"
-              rows={1}
-              maxLength={4000}
-              className="tm-aic__input"
-              dir="auto"
-              placeholder={helpMode ? t('AiChat.helpPlaceholder') : t('AiChat.placeholder')}
-              value={draft}
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              onKeyDown={onComposerKey}
-            />
-            <Button
-              type="submit"
-              size="compact"
-              className="tm-aic-touch"
-              disabled={draft.trim() === '' || state.busy}
-            >
-              {t('AiChat.send')}
-            </Button>
-          </div>
-          <p className="tm-aic__trust">{t('AiChat.trust')}</p>
-        </form>
-      ) : null}
-    </aside>
+            {dictation.status === 'blocked' ||
+            dictation.status === 'failed' ||
+            dictation.status === 'no-microphone' ? (
+              <MicNotice dictation={dictation} />
+            ) : null}
+          </form>
+        ) : null}
+      </aside>
+    </AnswerReaderProvider>
   );
+}
+
+/**
+ * The line under the box in voice mode (Figma G3 766:43968): how to talk, "Listening…" with
+ * Cancel, "check the words, then send", or that this browser has no voice. While an answer is
+ * read aloud, and once the box holds typed words, it is the trust line.
+ */
+function VoiceHint({
+  supported,
+  status,
+  checking,
+  empty,
+  reading,
+  onCancel,
+}: {
+  readonly supported: boolean;
+  readonly status: DictationStatus;
+  readonly checking: boolean;
+  readonly empty: boolean;
+  readonly reading: boolean;
+  readonly onCancel: () => void;
+}) {
+  const { t } = useAiText();
+  if (status === 'listening' || status === 'processing') {
+    return (
+      <div className="tm-aic-voice">
+        <p className="tm-aic__trust" role="status">
+          {t(status === 'listening' ? 'AiChat.voice.listening' : 'AiChat.voice.processing')}
+        </p>
+        {status === 'listening' ? (
+          <Button
+            type="button"
+            tone="text"
+            size="compact"
+            className="tm-aic-touch"
+            onClick={onCancel}
+          >
+            {t('AiChat.voice.cancel')}
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+  if (!reading && checking) {
+    return (
+      <p className="tm-aic__trust" role="status">
+        {t('AiChat.voice.check')}
+      </p>
+    );
+  }
+  if (!reading && empty) {
+    return (
+      <p className="tm-aic__trust">
+        {t(supported ? 'AiChat.voice.idle' : 'AiChat.voice.unavailable')}
+      </p>
+    );
+  }
+  return <p className="tm-aic__trust">{t('AiChat.trust')}</p>;
 }
 
 function EmptyState({

@@ -6,6 +6,7 @@ import type { ApiClient } from '../../lib/api/client';
 import type { ChatConfirmedRoute, CopilotChatView } from '../../lib/api/ai-chat';
 import type { AiCreditsView } from '../../lib/api/ai-credits';
 import { AiChangeCard } from './AiChangeCard';
+import { ReadAloudIcon, ReadingBar, spokenText } from './AiVoice';
 import {
   answerParts,
   inAppHref,
@@ -60,7 +61,15 @@ export function AiChatTurn({
       return entry.role === 'member' ? (
         <MemberBubble text={entry.text} />
       ) : (
-        <Answer text={entry.text} organizationSlug={actions.organizationSlug} />
+        <div className="tm-aic-reply">
+          <Answer text={entry.text} organizationSlug={actions.organizationSlug} />
+          <ReadingBar id={entry.id} />
+          <ReadAloudRow
+            id={entry.id}
+            text={entry.text}
+            organizationSlug={actions.organizationSlug}
+          />
+        </div>
       );
     case 'pending':
       return (
@@ -129,14 +138,46 @@ function Answer({
   );
 }
 
-function Receipt({ view }: { readonly view: CopilotChatView }) {
+function Receipt({
+  view,
+  speak,
+}: {
+  readonly view: CopilotChatView;
+  /** The answer to offer read aloud on this line (62-16), with the entry it belongs to. */
+  readonly speak?: { readonly id: string; readonly text: string; readonly slug: string };
+}) {
   const text = useAiText();
   const tier = view.tier ? text.t(TIER_KEY[view.tier] ?? 'AiChat.tier.low') : null;
   const credits =
     view.tier === 'help' && view.chargedCredits === 0
       ? text.t('AiChat.receiptFree')
       : text.credits(view.chargedCredits);
-  return <p className="tm-aic-receipt">{tier ? `${credits} · ${tier}` : credits}</p>;
+  const line = <p className="tm-aic-receipt">{tier ? `${credits} · ${tier}` : credits}</p>;
+  if (!speak) return line;
+  return (
+    <div className="tm-aic-receipt-row">
+      {line}
+      <ReadAloudIcon id={speak.id} text={spokenText(answerParts(speak.text, speak.slug))} />
+    </div>
+  );
+}
+
+/** A past answer has no receipt: the speaker sits on its own line. */
+function ReadAloudRow({
+  id,
+  text,
+  organizationSlug,
+}: {
+  readonly id: string;
+  readonly text: string;
+  readonly organizationSlug: string;
+}) {
+  return (
+    <div className="tm-aic-receipt-row">
+      <span />
+      <ReadAloudIcon id={id} text={spokenText(answerParts(text, organizationSlug))} />
+    </div>
+  );
 }
 
 function Reply({
@@ -253,6 +294,7 @@ function Reply({
   return (
     <div className="tm-aic-reply">
       <Answer text={answer} organizationSlug={slug} />
+      <ReadingBar id={entry.id} />
       {view.withheldFigures > 0 ? (
         <InlineAlert tone="neutral">{t('AiChat.withheld')}</InlineAlert>
       ) : null}
@@ -271,7 +313,7 @@ function Reply({
           </ul>
         </nav>
       ) : null}
-      <Receipt view={view} />
+      <Receipt view={view} speak={{ id: entry.id, text: answer, slug }} />
     </div>
   );
 }

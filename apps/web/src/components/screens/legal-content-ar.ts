@@ -35,10 +35,20 @@ const SIGN_IN_SECTION_AR = {
   body: translate('ar', 'Privacy.signInBody'),
 };
 
+/** Plan 62-20: the web-only "TManage AI" section (`tmanage-ai`), in Arabic from the catalog. */
+const AI_SECTION_AR = {
+  heading: translate('ar', 'Privacy.aiHeading'),
+  body: translate('ar', 'Privacy.aiBody'),
+};
+
 export const LEGAL_DOCUMENTS_AR: Readonly<Record<LegalDoc, ArabicLegalDocument>> = {
   ...LEGAL_COPY_AR,
   privacy: {
     ...LEGAL_COPY_AR.privacy,
-    sections: { ...LEGAL_COPY_AR.privacy.sections, 'sign-in-data': SIGN_IN_SECTION_AR },
+    sections: {
+      ...LEGAL_COPY_AR.privacy.sections,
+      'sign-in-data': SIGN_IN_SECTION_AR,
+      'tmanage-ai': AI_SECTION_AR,
+    },
   },
 };

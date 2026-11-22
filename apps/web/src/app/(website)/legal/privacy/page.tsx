@@ -18,11 +18,21 @@ const SIGN_IN_SECTION = {
   body: translate('en', 'Privacy.signInBody'),
 };
 
-/** The domain's documents, with the privacy policy carrying the sign-in section at its end. */
+/**
+ * Plan 62-20: TManage AI — what is sent to Anthropic (and to Voyage while search by meaning is
+ * on), what is kept and for how long, and that voice stays in the browser.
+ */
+const AI_SECTION = {
+  id: 'tmanage-ai',
+  heading: translate('en', 'Privacy.aiHeading'),
+  body: translate('en', 'Privacy.aiBody'),
+};
+
+/** The domain's documents, with the privacy policy carrying the web-only sections at its end. */
 const LEGAL_DOCUMENTS = {
   privacy: {
     ...DOMAIN_LEGAL_DOCUMENTS.privacy,
-    sections: [...DOMAIN_LEGAL_DOCUMENTS.privacy.sections, SIGN_IN_SECTION],
+    sections: [...DOMAIN_LEGAL_DOCUMENTS.privacy.sections, SIGN_IN_SECTION, AI_SECTION],
   },
 };
 

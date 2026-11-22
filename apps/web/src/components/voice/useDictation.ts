@@ -21,6 +21,8 @@ export interface Dictation {
   start(): void;
   stop(): void;
   toggle(): void;
+  /** Stops listening and puts the box back as it was before listening began (plan 62-16). */
+  cancel(): void;
 }
 
 export interface UseDictationOptions {
@@ -41,6 +43,7 @@ export function useDictation({ value, onChange, lang }: UseDictationOptions): Di
   const [supported, setSupported] = useState(false);
   const [status, setStatus] = useState<DictationStatus>('idle');
   const recognition = useRef<SpeechRecognitionLike | null>(null);
+  const typedBefore = useRef('');
   const latest = useRef({ value, onChange });
   latest.current = { value, onChange };
 
@@ -65,6 +68,7 @@ export function useDictation({ value, onChange, lang }: UseDictationOptions): Di
     const Recognition = recognitionConstructor();
     if (!Recognition || recognition.current) return;
     const typed = latest.current.value;
+    typedBefore.current = typed;
     let settled = '';
     let problem: DictationStatus | null = null;
     const session = new Recognition();
@@ -107,5 +111,16 @@ export function useDictation({ value, onChange, lang }: UseDictationOptions): Di
     else start();
   }, [start, stop]);
 
-  return { supported, status, start, stop, toggle };
+  const cancel = useCallback(() => {
+    const active = recognition.current;
+    if (!active) return;
+    recognition.current = null;
+    active.onresult = null;
+    active.onend = null;
+    active.abort();
+    latest.current.onChange(typedBefore.current);
+    setStatus('idle');
+  }, []);
+
+  return { supported, status, start, stop, toggle, cancel };
 }

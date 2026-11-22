@@ -21426,5 +21426,17 @@
   "AiSpend.stat.testListNote.two": "{count} pagan desde Pruebas",
   "AiSpend.stat.testListNote.few": "{count} pagan desde Pruebas",
   "AiSpend.stat.testListNote.many": "{count} pagan desde Pruebas",
-  "AiSpend.stat.testListNote.other": "{count} pagan desde Pruebas"
+  "AiSpend.stat.testListNote.other": "{count} pagan desde Pruebas",
+  "Privacy.aiHeading": "TManage AI",
+  "Privacy.aiBody": "TManage AI, el asistente dentro de un espacio de trabajo, está desactivado hasta que el propietario de la empresa lo activa. Cuando un miembro le pregunta algo, la pregunta y los registros necesarios para responder (solo registros que ese miembro ya puede abrir) se envían a nuestro proveedor de IA, Anthropic, que redacta la respuesta y no los usa para entrenar sus modelos. Mientras la búsqueda por significado está activada, el texto de los archivos también se envía a Voyage AI para indexarlo. Las claves de ambos proveedores permanecen en nuestros servidores. Las conversaciones son privadas para el miembro que las tuvo; se guardan 30 días salvo que el propietario fije otro plazo, y un miembro puede eliminarlas en cualquier momento. Business Memory solo guarda los hechos que aprobó alguien que gestiona la IA de la empresa. Un cambio que sugiere el asistente solo se aplica después de que el miembro lo confirma, y queda en el registro de auditoría de la empresa. La voz usa las funciones de voz del propio navegador: TManage solo recibe las palabras del cuadro de texto, nunca audio, aunque algunos navegadores procesan la voz en los servidores de su fabricante.",
+  "AiChat.voice.idle": "Toca el micrófono y habla. Vuelve a tocarlo cuando termines. Puedes revisar las palabras antes de enviar.",
+  "AiChat.voice.listening": "Escuchando… toca el micrófono otra vez cuando termines.",
+  "AiChat.voice.processing": "Escribiendo tus últimas palabras…",
+  "AiChat.voice.check": "Revisa las palabras y luego envía. Puedes editarlas antes.",
+  "AiChat.voice.unavailable": "La voz no está disponible en este navegador. Escribe tu pregunta.",
+  "AiChat.voice.cancel": "Cancelar",
+  "AiChat.voice.reading": "Leyendo la respuesta en voz alta",
+  "AiChat.voice.stop": "Detener",
+  "AiChat.voice.readAloud": "Leer esta respuesta en voz alta",
+  "AiChat.voice.stopReading": "Dejar de leer en voz alta"
 }

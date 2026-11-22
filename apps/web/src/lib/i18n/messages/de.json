@@ -21424,5 +21424,17 @@
   "AiSpend.stat.testListNote.two": "{count} zahlen aus Test",
   "AiSpend.stat.testListNote.few": "{count} zahlen aus Test",
   "AiSpend.stat.testListNote.many": "{count} zahlen aus Test",
-  "AiSpend.stat.testListNote.other": "{count} zahlen aus Test"
+  "AiSpend.stat.testListNote.other": "{count} zahlen aus Test",
+  "Privacy.aiHeading": "TManage AI",
+  "Privacy.aiBody": "TManage AI, der Assistent in einem Arbeitsbereich, ist aus, bis der Inhaber des Unternehmens ihn einschaltet. Stellt ein Mitglied eine Frage, werden die Frage und die zur Antwort nötigen Datensätze (nur solche, die dieses Mitglied ohnehin öffnen kann) an unseren KI-Anbieter Anthropic gesendet, der die Antwort schreibt und sie nicht zum Trainieren seiner Modelle verwendet. Solange die Suche nach Bedeutung eingeschaltet ist, wird Dateitext außerdem zur Indexierung an Voyage AI gesendet. Die Schlüssel beider Anbieter bleiben auf unseren Servern. Unterhaltungen sind nur für das Mitglied sichtbar, das sie geführt hat; sie werden 30 Tage aufbewahrt, sofern der Inhaber keinen anderen Zeitraum festlegt, und ein Mitglied kann sie jederzeit löschen. Business Memory speichert nur Fakten, die eine Person freigegeben hat, die die KI des Unternehmens verwaltet. Eine vom Assistenten vorgeschlagene Änderung wird erst ausgeführt, wenn das Mitglied sie bestätigt, und sie wird im Audit-Protokoll des Unternehmens festgehalten. Sprache nutzt die eigenen Sprachfunktionen des Browsers: TManage erhält nur die Wörter im Textfeld, nie Audio, wobei manche Browser Sprache auf den Servern ihres Herstellers verarbeiten.",
+  "AiChat.voice.idle": "Tippen Sie auf das Mikrofon und sprechen Sie. Tippen Sie erneut, wenn Sie fertig sind. Sie können die Wörter vor dem Senden prüfen.",
+  "AiChat.voice.listening": "Hört zu … tippen Sie erneut auf das Mikrofon, wenn Sie fertig sind.",
+  "AiChat.voice.processing": "Ihre letzten Wörter werden notiert …",
+  "AiChat.voice.check": "Prüfen Sie die Wörter und senden Sie dann. Sie können sie vorher bearbeiten.",
+  "AiChat.voice.unavailable": "Sprache ist in diesem Browser nicht verfügbar. Tippen Sie Ihre Frage stattdessen ein.",
+  "AiChat.voice.cancel": "Abbrechen",
+  "AiChat.voice.reading": "Die Antwort wird vorgelesen",
+  "AiChat.voice.stop": "Stopp",
+  "AiChat.voice.readAloud": "Diese Antwort vorlesen",
+  "AiChat.voice.stopReading": "Vorlesen beenden"
 }
