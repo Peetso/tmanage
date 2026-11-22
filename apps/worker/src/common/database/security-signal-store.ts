@@ -17,9 +17,10 @@ import type {
  * webhook_deliveries, platform_backup_runs and platform_support_sessions (audit_events, memberships
  * and users are already held), SELECT/INSERT/UPDATE on `security_signals`, SELECT/UPDATE on
  * `platform_alert_rules`. NOT `authentication_events`: the relay never reads the security log
- * (least-privilege.db.test.ts), so `credential_stuffing` is refused and skipped (logged once)
- * until that decision changes. Every source read is bounded by an indexed time column and a
- * LIMIT; nothing here writes a source table.
+ * (least-privilege.db.test.ts). SEC-ALERTS (0404): the sign-in door's rules are evaluated by the
+ * API, which already reads that log, and only their findings (rule, SHA-256 source hash, counts)
+ * reach this store, through SELECT on `security_source_findings`. Every source read is bounded by
+ * an indexed time column and a LIMIT; nothing here writes a source table.
  * 56-21b (no new grant): the platform admin rules read `platform_support_sessions`,
  * `platform_admin_audit_events` (SELECT, 56-11 block), `ip_lookups` (SELECT, 0280 block) and
  * `users.timezone`, all already held. `failedStepUps` counts the API's `platform.step_up_failed`
@@ -33,9 +34,8 @@ const LIMIT = 100;
 
 const SQL = {
   rules: `select rule_key, enabled, threshold_json, cooldown_minutes from platform_alert_rules`,
-  failedSignIns: `select ip, count(*) as n from authentication_events
-    where occurred_at >= ? and outcome <> 'succeeded' and ip is not null
-    group by ip having count(*) >= ? order by n desc limit ${String(LIMIT)}`,
+  sourceFindings: `select source_hash, count, details_json from security_source_findings
+    where rule_key = ? and last_seen >= ? order by last_seen desc limit ${String(LIMIT)}`,
   refusedLinks: `select organization_id, ip_hash, count(*) as n from public_link_events
     where created_at >= ? and kind = 'refused' and ip_hash is not null
     group by organization_id, ip_hash having count(*) >= ? order by n desc limit ${String(LIMIT)}`,
@@ -114,6 +114,22 @@ const date = (value: unknown): Date | null =>
       ? new Date(value)
       : null;
 
+/** A finding's `details_json`: string and number values only; anything else is dropped. */
+export function parseDetails(value: unknown): Readonly<Record<string, string | number>> {
+  try {
+    const parsed: unknown = JSON.parse(String(value ?? '{}'));
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (entry): entry is [string, string | number] =>
+          typeof entry[1] === 'string' || typeof entry[1] === 'number',
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
 /** `{"count":n,"windowMinutes":m}`; a damaged row reads as disabled rather than failing the pass. */
 export function parseRule(row: Record<string, unknown>): RuleSetting {
   let threshold: Record<string, unknown> = {};
@@ -144,10 +160,11 @@ export function createSecuritySignalStore(database: WorkerDatabase): SecuritySig
     async rules() {
       return (await read(SQL.rules)).map(parseRule);
     },
-    async failedSignInsBySource(since, min) {
-      return (await read(SQL.failedSignIns, [since, min])).map((r) => ({
-        source: String(r['ip']),
-        count: num(r['n']),
+    async sourceFindings(ruleKey, since) {
+      return (await read(SQL.sourceFindings, [ruleKey, since])).map((r) => ({
+        sourceHash: String(r['source_hash']),
+        count: num(r['count']),
+        details: parseDetails(r['details_json']),
       }));
     },
     async refusedLinkCodes(since, min) {

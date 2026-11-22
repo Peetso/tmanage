@@ -15779,3 +15779,30 @@ export const aiMemberBlocks = mysqlTable(
 export type AiMemberBlockRow = typeof aiMemberBlocks.$inferSelect;
 
 Object.assign(TABLES, { ai_member_blocks: aiMemberBlocks });
+
+/**
+ * 0404 `security_source_findings` (SEC-ALERTS). The API's findings over `authentication_events`
+ * (credential stuffing, guard refusal bursts, a sign-in after failures), keyed by rule, SHA-256
+ * source hash and rule window, read by the worker detector. Counts and hashes only. GLOBAL;
+ * api SELECT, INSERT, UPDATE, DELETE (prune); worker SELECT.
+ */
+export const securitySourceFindings = mysqlTable(
+  'security_source_findings',
+  {
+    ruleKey: varchar('rule_key', { length: 48 }).notNull(),
+    sourceHash: char('source_hash', { length: 64 }).notNull(),
+    windowStart: datetime('window_start', { mode: 'date', fsp: 3 }).notNull(),
+    count: int('count').notNull().default(0),
+    detailsJson: text('details_json'),
+    firstSeen: datetime('first_seen', { mode: 'date', fsp: 3 }).notNull(),
+    lastSeen: datetime('last_seen', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ruleKey, table.sourceHash, table.windowStart] }),
+    index('ix_security_source_findings_seen').on(table.lastSeen),
+  ],
+);
+
+export type SecuritySourceFindingRow = typeof securitySourceFindings.$inferSelect;
+
+Object.assign(TABLES, { security_source_findings: securitySourceFindings });

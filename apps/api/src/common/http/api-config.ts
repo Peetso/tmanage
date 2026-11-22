@@ -316,6 +316,8 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       originTlsAddress: env.ORIGIN_TLS_PROBE_ADDRESS,
       originTlsServername: hostOf(env.WEB_PUBLIC_URL),
       realtimeSocketUrl: env.REALTIME_PUBLIC_URL ?? null,
+      // SEC-ALERTS: the `alerts` check reads `not_configured` while this list is empty.
+      alertEmailsConfigured: parseAlertEmails(env.ALERT_EMAILS).length > 0,
     },
     geoip: {
       dbPath: env.GEOIP_DB_PATH,

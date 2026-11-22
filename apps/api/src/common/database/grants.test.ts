@@ -233,6 +233,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // workspace's window) and `ai_conversations` and `ai_conversation_messages` where it deletes.
     // ---- 62-28 0396 ---- +1: the weekly digest reads a ready `ai_digest_wordings` row for the
     // reader's exact section (a read only; the API job writes it).
+    // ---- SEC-ALERTS 0404 ---- +1: the detector reads the API's `security_source_findings`
+    // (hashed sources and counts) instead of the sign-in log.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -278,6 +280,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         1 +
         2 +
         3 +
+        1 +
         1,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);

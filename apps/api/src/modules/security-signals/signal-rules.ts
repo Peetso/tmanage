@@ -28,18 +28,30 @@ const rule = (
 ): SignalRule => ({ key, severity, scope, label: { en, ar }, status: 'active' });
 
 export const SIGNAL_RULES: readonly SignalRule[] = Object.freeze([
-  {
-    ...rule(
-      'credential_stuffing',
-      'high',
-      'platform',
-      'Many failed sign-ins from one source',
-      'محاولات دخول فاشلة كثيرة من مصدر واحد',
-    ),
-    status: 'deferred',
-    deferredReason:
-      'The worker has no read on the security log by design; this rule needs an API-side or narrow-view detector.',
-  },
+  // SEC-ALERTS (0404): evaluated in the API over `authentication_events` (the worker keeps no
+  // read on the security log) and handed to the worker as hashed findings
+  // (`source-findings.ts`, `security_source_findings`). No longer deferred.
+  rule(
+    'credential_stuffing',
+    'high',
+    'platform',
+    'Many failed sign-ins from one source',
+    'محاولات دخول فاشلة كثيرة من مصدر واحد',
+  ),
+  rule(
+    'guard_refusal_burst',
+    'high',
+    'platform',
+    'Many requests refused by security checks from one source',
+    'طلبات كثيرة رفضتها فحوص الأمان من مصدر واحد',
+  ),
+  rule(
+    'sign_in_after_failures',
+    'high',
+    'platform',
+    'Successful sign-in after repeated failures from one source',
+    'تسجيل دخول ناجح بعد محاولات فاشلة متكررة من مصدر واحد',
+  ),
   rule(
     'public_link_guessing',
     'medium',

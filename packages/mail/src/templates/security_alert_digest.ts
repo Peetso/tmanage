@@ -40,6 +40,15 @@ const LABELS: Readonly<Record<string, readonly [string, string]>> = Object.freez
   backup_missed: ['No successful backup in 26 hours', 'لا نسخة احتياطية ناجحة منذ 26 ساعة'],
   audit_chain_break: ['Audit log chain check failed', 'فشل فحص سلسلة سجل التدقيق'],
   support_session_long: ['Support session open over 2 hours', 'جلسة دعم مفتوحة أكثر من ساعتين'],
+  // SEC-ALERTS (0404): the API's findings over the sign-in log.
+  guard_refusal_burst: [
+    'Many requests refused by security checks from one source',
+    'طلبات كثيرة رفضتها فحوص الأمان من مصدر واحد',
+  ],
+  sign_in_after_failures: [
+    'Successful sign-in after repeated failures from one source',
+    'تسجيل دخول ناجح بعد محاولات فاشلة متكررة من مصدر واحد',
+  ],
 });
 
 const RLM = '‏';

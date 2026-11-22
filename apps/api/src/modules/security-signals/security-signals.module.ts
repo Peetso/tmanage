@@ -10,6 +10,12 @@ import {
 } from './security-signals.controller.js';
 import { SecuritySignalsRepository } from './security-signals.repository.js';
 import { SECURITY_SIGNALS_SERVICE, SecuritySignalsService } from './security-signals.service.js';
+import {
+  SOURCE_FINDINGS_JOB,
+  SourceFindingsJob,
+  sourceFindingsJobEnabled,
+} from './source-findings-job.js';
+import { SourceFindingsRepository } from './source-findings.repository.js';
 
 /**
  * 56-23 wiring. The service is stateless, so the organization route and the platform area each
@@ -26,12 +32,25 @@ function serviceProvider(): Provider {
   };
 }
 
+/**
+ * SEC-ALERTS. The sign-in door's rules over `authentication_events`, evaluated where the read
+ * already is (`source-findings.ts`); in `SecuritySignalsModule` only, so one copy runs per process.
+ */
+function sourceFindingsJobProvider(): Provider {
+  return {
+    provide: SOURCE_FINDINGS_JOB,
+    inject: [TENANT_DATABASE],
+    useFactory: (database: TenantDatabase) =>
+      new SourceFindingsJob(new SourceFindingsRepository(database), sourceFindingsJobEnabled()),
+  };
+}
+
 @Module({})
 export class SecuritySignalsModule {
   static register(): DynamicModule {
     return {
       module: SecuritySignalsModule,
-      providers: [serviceProvider()],
+      providers: [serviceProvider(), sourceFindingsJobProvider()],
       controllers: [OrganizationSecurityEventsController],
     };
   }

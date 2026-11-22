@@ -15,9 +15,15 @@ import type { Mailer } from '@tmanage/mail';
  * `subject_key` the subject id, the source hash or `-`. A second pass in the same window only
  * raises `count` and `last_seen`, so a storm is one row, not hundreds. Sources are read-only
  * here; a raw IP is hashed (SHA-256) before it is stored and never leaves this process.
- * Impossible travel is deferred (no GeoIP database is bundled) and has no evaluator. Credential
- * stuffing is deferred too (the worker has no read on `authentication_events`, by design): a
- * deferred rule is never attempted, even when its row says enabled, so it logs nothing.
+ * Impossible travel is deferred (no GeoIP database is bundled) and has no evaluator; a deferred
+ * rule is never attempted, even when its row says enabled, so it logs nothing.
+ *
+ * SEC-ALERTS (2026-11-22, 0404): the sign-in door's rules (`credential_stuffing`,
+ * `guard_refusal_burst`, `sign_in_after_failures`) are evaluated by the API, which already reads
+ * `authentication_events`; the worker still has no read on that log (least privilege, D07). It
+ * reads the API's findings (`security_source_findings`: rule, SHA-256 source hash, counts) and
+ * turns each into a signal here. The threshold is applied by the API (it also fires on velocity
+ * and on the throttle's own refusal), so a finding is taken as found, not re-filtered.
  *
  * 56-21b adds four platform rules over the platform admins' own trail (`platform_support_sessions`,
  * `platform_admin_audit_events`, the 0280 `ip_lookups` cache): a burst of support sessions, a
@@ -29,7 +35,10 @@ import type { Mailer } from '@tmanage/mail';
  * ## Notify
  *
  * - **Batching** — nothing is mailed while the last digest is younger than 15 minutes; pending
- *   rows wait for the next window and leave together (alert-storm rule D).
+ *   rows wait for the next window and leave together (alert-storm rule D). **Except `high`**
+ *   (SEC-ALERTS): a pending high-severity row is mailed on the pass that finds it, so an attack
+ *   reaches `ALERT_EMAILS` within minutes, not at the next digest window. The cooldown still
+ *   applies to it, so a storm is one mail per (rule, scope, subject) per cooldown.
  * - **Cooldown** — a pending row whose (rule, scope, subject) was mailed within the rule's
  *   `cooldown_minutes` is marked `suppressed`, not mailed again.
  * - **Audience** — `ALERT_EMAILS` get one platform digest of everything; each organization's
@@ -37,7 +46,12 @@ import type { Mailer } from '@tmanage/mail';
  *   and never another organization's.
  */
 
-export const SECURITY_DETECTOR_INTERVAL_MS = 5 * 60 * 1000;
+/**
+ * SEC-ALERTS: 2 minutes (was 5). With the API's 1-minute findings pass, a credential-stuffing run
+ * or a CSRF burst is mailed within ~3 minutes (target: 5, SECURITY-INCIDENT-2026-11-21). Every
+ * rule read is an indexed, bounded window, so the shorter tick costs little.
+ */
+export const SECURITY_DETECTOR_INTERVAL_MS = 2 * 60 * 1000;
 export const DIGEST_INTERVAL_MS = 15 * 60 * 1000;
 export const PENDING_BATCH = 200;
 export const DIGEST_TEMPLATE_KEY = 'security_alert_digest';
@@ -104,11 +118,17 @@ export interface ChainRow {
 /** The statements the detector needs. `security-signal-store.ts` over the pool; faked in tests. */
 export interface SecuritySignalStore {
   rules(): Promise<readonly RuleSetting[]>;
-  /** Failed sign-ins per raw source IP since `since`, `>= min`. The IP is hashed by the caller. */
-  failedSignInsBySource(
+  /** SEC-ALERTS: the API's findings for one rule seen since `since` (hashed source, counts). */
+  sourceFindings(
+    ruleKey: string,
     since: Date,
-    min: number,
-  ): Promise<readonly { source: string; count: number }[]>;
+  ): Promise<
+    readonly {
+      sourceHash: string;
+      count: number;
+      details: Readonly<Record<string, string | number>>;
+    }[]
+  >;
   refusedLinkCodes(
     since: Date,
     min: number,
@@ -236,6 +256,19 @@ const orgBurst =
       count: row.count,
     }));
 
+/** SEC-ALERTS: one signal candidate per API finding of `ruleKey` inside the rule's window. */
+const fromFindings =
+  (ruleKey: string): Rule['detect'] =>
+  async (store, setting, now) =>
+    (await store.sourceFindings(ruleKey, since(now, setting))).map((row) => ({
+      organizationId: null,
+      subjectType: 'source',
+      subjectId: null,
+      sourceHash: row.sourceHash,
+      count: row.count,
+      details: row.details,
+    }));
+
 const DAY_MINUTES = 1_440;
 const NEW_COUNTRY_LOOKBACK_MS = 90 * DAY_MINUTES * MINUTE_MS;
 const OFF_HOURS_END = 6;
@@ -347,22 +380,17 @@ const PLATFORM_ADMIN_RULES: readonly Rule[] = [
 
 /** v1 catalog; labels and the API's validation live in `modules/security-signals/signal-rules.ts`. */
 export const DETECTOR_RULES: readonly Rule[] = [
-  {
-    key: 'credential_stuffing',
+  ...['credential_stuffing', 'guard_refusal_burst', 'sign_in_after_failures'].map((key): Rule => ({
+    key,
     severity: 'high',
-    // The worker keeps no read on `authentication_events` (least privilege, 56-23); 0266 turns
-    // the seeded row off. The evaluator stays for an API-side or narrow-view detector.
-    deferred:
-      'worker has no read on the security log by design; needs an API-side or narrow-view detector',
-    detect: async (store, setting, now) =>
-      (await store.failedSignInsBySource(since(now, setting), setting.count)).map((row) => ({
-        organizationId: null,
-        subjectType: 'source',
-        subjectId: null,
-        sourceHash: sourceHash(row.source),
-        count: row.count,
-      })),
-  },
+    // The 0404 rows; kept as code defaults so a missing row never suppresses a finding.
+    defaults: {
+      count: key === 'guard_refusal_burst' ? 4 : key === 'sign_in_after_failures' ? 3 : 5,
+      windowMinutes: key === 'sign_in_after_failures' ? 60 : 10,
+      cooldownMinutes: 60,
+    },
+    detect: fromFindings(key),
+  })),
   {
     key: 'public_link_guessing',
     severity: 'medium',
@@ -547,10 +575,11 @@ export async function dispatchSignals(
 ): Promise<{ mailed: number; suppressed: number }> {
   const { store } = deps;
   const last = await store.lastDigestAt();
-  if (last !== null && now.getTime() - last.getTime() < DIGEST_INTERVAL_MS) {
-    return { mailed: 0, suppressed: 0 };
-  }
-  const pending = await store.pendingSignals(PENDING_BATCH);
+  // Inside the digest window only `high` rows leave (at once); the rest wait for the window.
+  const highOnly = last !== null && now.getTime() - last.getTime() < DIGEST_INTERVAL_MS;
+  const pending = (await store.pendingSignals(PENDING_BATCH)).filter(
+    (signal) => !highOnly || signal.severity === 'high',
+  );
   if (pending.length === 0) return { mailed: 0, suppressed: 0 };
 
   const rules = effectiveSettings(await store.rules());

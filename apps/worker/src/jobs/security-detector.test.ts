@@ -19,7 +19,8 @@ function fakeStore(n: number, over: Partial<SecuritySignalStore> = {}) {
   const at = <R>(row: R) => (n >= T ? [row] : []);
   const store: SecuritySignalStore = {
     rules: () => Promise.resolve(DETECTOR_RULES.map((r) => setting(r.key, true))),
-    failedSignInsBySource: () => Promise.resolve(at({ source: '203.0.113.9', count: n })),
+    sourceFindings: () =>
+      Promise.resolve(at({ sourceHash: 'f'.repeat(64), count: n, details: {} })),
     refusedLinkCodes: () => Promise.resolve(at({ organizationId: ORG, ipHash: 'h', count: n })),
     saturatedBuckets: () => Promise.resolve(at({ bucketKey: 'sign_in:ip:m:x', count: n })),
     auditBursts: () => Promise.resolve(at({ organizationId: ORG, actorUserId: ORG, count: n })),
@@ -96,15 +97,38 @@ describe('security detector rules', () => {
   });
 
   it('skips a deferred rule without an error even when its row is enabled', async () => {
-    const read = vi.fn(() => Promise.reject(new Error('SELECT command denied')));
     const onRuleError = vi.fn();
-    const on = () => Promise.resolve([setting('credential_stuffing', true)]);
-    const { store, upserts } = fakeStore(T, { rules: on, failedSignInsBySource: read });
+    const on = () => Promise.resolve([setting('impossible_travel', true)]);
+    const { store, upserts } = fakeStore(T, { rules: on });
     await runSecurityDetector({ ...deps(store, []), onRuleError });
-    expect(read).not.toHaveBeenCalled();
     expect(onRuleError).not.toHaveBeenCalled();
-    expect(upserts.filter((s) => s.ruleKey === 'credential_stuffing')).toHaveLength(0);
+    expect(upserts.filter((s) => s.ruleKey === 'impossible_travel')).toHaveLength(0);
   });
+
+  // SEC-ALERTS: the sign-in door's rules come from the API's hashed findings, never from the log.
+  it.each(['credential_stuffing', 'guard_refusal_burst', 'sign_in_after_failures'])(
+    '%s turns an API finding into a high platform signal keyed by the source hash',
+    async (key) => {
+      const read = vi.fn((ruleKey: string) =>
+        Promise.resolve(
+          ruleKey === key
+            ? [{ sourceHash: 'a'.repeat(64), count: 4, details: { peak10s: 4 } }]
+            : [],
+        ),
+      );
+      // A finding below the stored count still becomes a signal: the API applied the threshold.
+      const { store, upserts } = fakeStore(0, { sourceFindings: read });
+      await runSecurityDetector(deps(store, []));
+      const row = upserts.find((s) => s.ruleKey === key);
+      expect(row).toMatchObject({
+        organizationId: null,
+        severity: 'high',
+        subjectKey: 'a'.repeat(64),
+        count: 4,
+      });
+      expect(read).toHaveBeenCalledWith(key, expect.any(Date));
+    },
+  );
 });
 
 describe('security alert dispatch', () => {
@@ -129,7 +153,7 @@ describe('security alert dispatch', () => {
     const pending = { ruleKey: 'permission_churn', scopeKey: ORG, subjectKey: ORG };
     const recent = fakeStore(0, {
       lastDigestAt: () => Promise.resolve(ago(5)),
-      pendingSignals: () => Promise.resolve([signal('a', ORG, 'high')]),
+      pendingSignals: () => Promise.resolve([signal('a', ORG, 'low')]),
     });
     expect((await runSecurityDetector(deps(recent.store, sent))).mailed).toBe(0);
     const cooling = fakeStore(0, {
@@ -141,6 +165,39 @@ describe('security alert dispatch', () => {
     expect(result).toMatchObject({ mailed: 0, suppressed: 1 });
     expect(sent).toEqual([]);
     expect(cooling.store.markNotified).toHaveBeenCalledWith(['a'], 'suppressed', NOW);
+  });
+});
+
+describe('SEC-ALERTS immediate high alerts', () => {
+  const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000);
+
+  it('mails a high signal at once inside the digest window and holds the low one', async () => {
+    const sent: string[] = [];
+    const marked: string[][] = [];
+    const { store } = fakeStore(0, {
+      lastDigestAt: () => Promise.resolve(ago(2)),
+      pendingSignals: () => Promise.resolve([signal('h', null, 'high'), signal('l', null, 'low')]),
+      markNotified: vi.fn((ids: readonly string[]) => Promise.resolve(void marked.push([...ids]))),
+    });
+    const result = await runSecurityDetector(deps(store, sent));
+    expect(sent).toEqual(['ops@platform.test']);
+    expect(result.mailed).toBe(1);
+    expect(marked).toEqual([['h']]);
+  });
+
+  it('still dedupes an immediate high signal by its cooldown', async () => {
+    const sent: string[] = [];
+    const { store } = fakeStore(0, {
+      lastDigestAt: () => Promise.resolve(ago(2)),
+      pendingSignals: () => Promise.resolve([signal('h', ORG, 'high')]),
+      notifiedSince: () =>
+        Promise.resolve([
+          { ruleKey: 'permission_churn', scopeKey: ORG, subjectKey: ORG, notifiedAt: ago(2) },
+        ]),
+    });
+    const result = await runSecurityDetector(deps(store, sent));
+    expect(sent).toEqual([]);
+    expect(result.suppressed).toBe(1);
   });
 });
 

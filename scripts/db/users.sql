@@ -2015,6 +2015,13 @@ GRANT UPDATE, DELETE ON `tmanage`.`security_signals`            TO 'tmanage_app'
 GRANT UPDATE ON `tmanage`.`platform_alert_rules`                TO 'tmanage_app'@'%';
 GRANT SELECT, INSERT, UPDATE ON `tmanage`.`security_signals`    TO 'tmanage_worker'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`platform_alert_rules`        TO 'tmanage_worker'@'%';
+-- 0404 (SEC-ALERTS) `security_source_findings` (global): the API's source-findings job reads the
+-- sign-in log with the app's existing database-wide SELECT, upserts its findings (INSERT, UPDATE)
+-- and prunes rows older than two days (DELETE). The worker detector reads the findings (SELECT
+-- only): a rule key, a SHA-256 source hash and counts, never a raw address, user id or log row.
+-- This is how `credential_stuffing` runs without the relay ever reading `authentication_events`.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`security_source_findings` TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`security_source_findings`            TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`public_link_events`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`rate_limit_buckets`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`webhook_deliveries`                  TO 'tmanage_worker'@'%';

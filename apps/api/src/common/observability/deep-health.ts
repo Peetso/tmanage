@@ -32,6 +32,9 @@ import { readGrowthHealth } from './growth-health.repository.js';
 import type { GrowthCheckState } from './growth-health.js';
 import type { BackupCheckState } from './backup-health.js';
 import { readLeaderHealth } from './leader-health.repository.js';
+import { evaluateAlertsHealth } from './alerts-health.js';
+import { readAlertsHealth } from './alerts-health.repository.js';
+import type { AlertsCheckState } from './alerts-health.js';
 import type { LeaderCheck } from './leader-health.js';
 import { ALERT_NOTIFIER } from './alerts.js';
 import type { AlertNotifier } from './alerts.js';
@@ -77,6 +80,9 @@ import type { OriginTlsCheck } from './origin-tls.js';
  *   read-only turns, `/mcp` tool calls, guard refusals) has lost a row since boot, `rows_lost`
  *   (with each source's state) once one has (`audit-loss.ts`). States only; the counts are in the
  *   error log lines. Reported only, never a 503: the events were decided and served already.
+ * - **alerts** — SEC-ALERTS: can a security signal reach a person (`alerts-health.ts`):
+ *   `not_configured` when `ALERT_EMAILS` is empty, `degraded` when a pending signal has waited past
+ *   the digest window (the last send failed or nothing sends), else `ok`. Reported only.
  *
  * `fail` on database, migrations, worker or schema makes the answer 503 — the status code is what a
  * monitor matches on. `not_configured` is reported but is not a failure: a shared host that
@@ -125,6 +131,7 @@ export interface DeepHealthReport {
     readonly leader: LeaderCheck;
     readonly mail: MailCheck;
     readonly audit_log: AuditLogCheck;
+    readonly alerts: AlertsCheckState;
   };
   readonly checkedAt: string;
 }
@@ -147,6 +154,8 @@ export interface DeepHealthConfig {
   readonly originTlsServername?: string | undefined;
   /** 51-06. The API's `realtimeSocketUrl`: set only when the in-process socket is attached. */
   readonly realtimeSocketUrl?: string | null | undefined;
+  /** SEC-ALERTS. `ALERT_EMAILS` holds at least one address; absent = `alerts: not_configured`. */
+  readonly alertEmailsConfigured?: boolean | undefined;
 }
 
 /** The readings the verdict is computed from — injected so the unit suite needs no database. */
@@ -181,6 +190,7 @@ export async function evaluateDeepHealth(
   leader: LeaderCheck = { state: 'not_configured' },
   mail: MailCheck = { state: 'not_configured' },
   auditLog: AuditLogCheck = new AuditLossCounter().check(),
+  alerts: AlertsCheckState = 'not_configured',
 ): Promise<DeepHealthReport> {
   let database: CheckState = 'ok';
   let migrations: CheckState = 'ok';
@@ -216,7 +226,7 @@ export async function evaluateDeepHealth(
   const realtime = config.realtimeSocketUrl ? 'ok' : 'not_configured';
 
   // By design only these four decide the 503; origin_tls, backups, growth, scanner, realtime,
-  // leader, mail and audit_log report (a refused mailbox login is an alert, not an outage of the app).
+  // leader, mail, audit_log and alerts report (a refused mailbox login is an alert, not an outage of the app).
   const failed = [database, migrations, worker, schema].includes('fail');
   return {
     status: failed ? 'fail' : 'ok',
@@ -233,6 +243,7 @@ export async function evaluateDeepHealth(
       leader,
       mail,
       audit_log: auditLog,
+      alerts,
     },
     checkedAt: now.toISOString(),
   };
@@ -363,6 +374,12 @@ export class DeepHealthController {
       const growth = await readGrowthHealth(this.database, new Date(now));
       const leader = await readLeaderHealth(this.database, new Date(now));
       const mailCheck = this.mailLoginCheck();
+      const configured = this.config.alertEmailsConfigured === true;
+      const alerts = evaluateAlertsHealth(
+        configured,
+        configured ? await readAlertsHealth(this.database, new Date(now)) : null,
+        new Date(now),
+      );
       this.cached = {
         at: now,
         report: await evaluateDeepHealth(
@@ -376,6 +393,7 @@ export class DeepHealthController {
           leader,
           mailCheckOf(mailCheck?.latest() ?? null, mailCheck !== null),
           this.auditLoss.check(),
+          alerts,
         ),
       };
     }

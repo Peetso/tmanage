@@ -41,6 +41,7 @@ describe('evaluateDeepHealth', () => {
           state: 'ok',
           sources: { ai_turn: 'ok', mcp_tool_call: 'ok', auth_guard_refusal: 'ok' },
         },
+        alerts: 'not_configured',
       },
       checkedAt: NOW.toISOString(),
     });
