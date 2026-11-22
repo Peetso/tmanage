@@ -76,6 +76,15 @@
   --tm-hover-edge: var(--ink-500);
   --tm-hover-lime: var(--lime-600);
   --tm-ink-absolute-hover: #232521;
+
+  /*
+   * Danger as *words* (SEC-TRACKER, Figma variable text/danger = danger/700): the Attack
+   * tracker's "Got in 1" figure. `--danger-600` is a border-and-glyph colour (4.23:1 on paper,
+   * see `--tm-on-tone`), so a word set in red needs its own darker step: #B42318 is 6.6:1 on
+   * `--paper-0`. Re-bound for dark and high contrast below; `tests/contrast.test.ts` reads
+   * these three values from this file and holds each at AA.
+   */
+  --tm-danger-text: #b42318;
 }
 
 /*
@@ -93,6 +102,16 @@
   --tm-hover-surface: var(--paper-250);
   --tm-hover-edge: var(--ink-500);
   --tm-hover-lime: var(--lime-600);
+  --tm-danger-text: #ff8a92;
+}
+
+/* The high-contrast danger word (Figma danger/700, high-contrast mode); dark keeps its own. */
+[data-contrast='high'] {
+  --tm-danger-text: #8f1c14;
+}
+
+[data-theme='dark'][data-contrast='high'] {
+  --tm-danger-text: #ff8a92;
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────────── */
@@ -1044,6 +1063,20 @@
 .tm-switch:checked {
   background: var(--ink-950);
   border-color: var(--ink-950);
+}
+
+/*
+ * Dark "on" (Figma Switch 8:129 / 732:793, dark mode): a lime thumb on the always-dark ink
+ * track, outlined in the themed ink so the track still has an edge against the dark paper
+ * (WCAG 1.4.11). The light theme keeps the ink track and paper thumb above.
+ */
+[data-theme='dark'] .tm-switch:checked {
+  background: var(--tm-ink-absolute);
+  border-color: var(--ink-950);
+}
+
+[data-theme='dark'] .tm-switch:checked::before {
+  background: var(--lime-500);
 }
 
 /*

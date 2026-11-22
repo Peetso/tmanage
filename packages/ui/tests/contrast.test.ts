@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { AA_NON_TEXT, AA_NORMAL_TEXT, contrastRatio, meetsAA } from '../src/a11y/contrast.js';
 import { colorDark, colorLight } from '../src/tokens/tokens.js';
@@ -175,5 +178,45 @@ describe('the tinted glyphs and borders, which are non-text and need 3:1', () =>
       AA_NON_TEXT,
     );
     expect(contrastRatio(colorDark.ink, colorDark.canvas)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+});
+
+describe('the danger word (`--tm-danger-text`, SEC-TRACKER)', () => {
+  /**
+   * Read from the style sheet itself, so a change to the value there is measured here: the light
+   * value (`:root`), the dark value (`[data-theme='dark']`) and the high-contrast value.
+   */
+  const css = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../src/styles/components.css'),
+    'utf8',
+  );
+  const values = [...css.matchAll(/--tm-danger-text:\s*(#[0-9a-f]{6})/giu)].map((m) => m[1] ?? '');
+  const [light, dark, high] = values;
+
+  it('is declared for light, dark and high contrast', () => {
+    expect(values).toHaveLength(4);
+    expect(values[3]).toBe(dark);
+  });
+
+  it.each([
+    ['light, on paper', light, colorLight.paper['0']],
+    ['light, on the selected row', light, colorLight.lime['100']],
+    ['high contrast, on paper', high, colorLight.paper['0']],
+    ['high contrast, on the selected row', high, colorLight.lime['100']],
+    ['dark, on the card', dark, colorDark.surface2],
+    ['dark, on paper', dark, colorDark.surface1],
+    ['dark, on the selected row', dark, colorDark.limePlane],
+  ])('%s meets AA for normal text', (_name, fg, bg) => {
+    expect(contrastRatio(fg ?? '', bg)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+  });
+});
+
+describe('the dark switch, on (Figma 8:129 / 732:793)', () => {
+  it('draws a lime thumb that stands out from its ink track', () => {
+    expect(contrastRatio(colorDark.lime, ABSOLUTE_INK)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
+
+  it('outlines the ink track in the themed ink, visible on the dark paper', () => {
+    expect(contrastRatio(colorDark.ink, colorDark.surface1)).toBeGreaterThanOrEqual(AA_NON_TEXT);
   });
 });
