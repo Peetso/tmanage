@@ -38,6 +38,7 @@ function touched(): { calls: string[]; options: AiEmployeesServiceOptions } {
     repository: {},
     memberships: {},
     accounts: { insertUser: spy('insertUser') },
+    agentKeys: {},
     enabled: false,
   } as unknown as AiEmployeesServiceOptions;
   return { calls, options };
@@ -73,6 +74,10 @@ describe('switch off: every route is 404 and nothing runs', () => {
       (s) => s.changeSponsor(CONTEXT, PRINCIPAL, ID, { version: 1, sponsorMembershipId: ID }),
     ],
     ['retire', (s) => s.retire(CONTEXT, PRINCIPAL, ID, { version: 1 })],
+    ['listKeys', (s) => s.listKeys(CONTEXT, PRINCIPAL, ID)],
+    ['createKey', (s) => s.createKey(CONTEXT, PRINCIPAL, ID, { name: 'k', lifetimeDays: 30 })],
+    ['rotateKey', (s) => s.rotateKey(CONTEXT, PRINCIPAL, ID, ID, { name: 'k', lifetimeDays: 30 })],
+    ['revokeKey', (s) => s.revokeKey(CONTEXT, PRINCIPAL, ID, ID)],
   ];
 
   for (const [name, call] of routes) {
@@ -101,9 +106,9 @@ describe('switch off: every route is 404 and nothing runs', () => {
 });
 
 describe('absent from AI discovery in both states', () => {
-  it('no registry op is an /ai-employees route; all 8 routes are NEVER', () => {
+  it('no registry op is an /ai-employees route; all 12 routes are NEVER', () => {
     expect(OPS.filter((op) => op.path.includes(PATH))).toEqual([]);
-    expect(NEVER.filter((entry) => entry.path.includes(PATH))).toHaveLength(8);
+    expect(NEVER.filter((entry) => entry.path.includes(PATH))).toHaveLength(12);
     expect(
       NEVER.filter((entry) => entry.path.includes(PATH)).every(
         (entry) => entry.reason === 'ai_employee_admin',

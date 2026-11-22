@@ -38,6 +38,8 @@ export interface InsertPersonalAccessTokenInput {
   readonly scopes?: string;
   /** R13 s3. JSON list of IPs / CIDR ranges, or null for any address. */
   readonly ipAllowlistJson?: string | null;
+  /** 60-05 (0401). The person who made an AI employee's agent key; absent for a person's own. */
+  readonly createdByMembershipId?: string;
 }
 
 /** R13 s3. One live token in the organization, with its creator's name — the owner overview. */
@@ -136,6 +138,9 @@ export class PersonalAccessTokensRepository {
       expiresAt: input.expiresAt,
       ...(input.scopes === undefined ? {} : { scopes: input.scopes }),
       ...(input.ipAllowlistJson === undefined ? {} : { ipAllowlistJson: input.ipAllowlistJson }),
+      ...(input.createdByMembershipId === undefined
+        ? {}
+        : { createdByMembershipId: input.createdByMembershipId }),
       createdAt: sql`current_timestamp(3)`,
     });
     const rows = await db
@@ -175,6 +180,53 @@ export class PersonalAccessTokensRepository {
         ),
       );
     return result[0].affectedRows;
+  }
+
+  /**
+   * 60-05 rotation: end one of a membership's live tokens no later than `until` (the 24-hour
+   * overlap). A token already ending sooner keeps its earlier end. Returns rows changed.
+   */
+  async endNoLaterThan(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+    tokenId: string,
+    until: Date,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .update(personalAccessTokens)
+      .set({ expiresAt: until })
+      .where(
+        and(
+          eq(personalAccessTokens.organizationId, context.organizationId),
+          eq(personalAccessTokens.membershipId, membershipId),
+          eq(personalAccessTokens.id, tokenId),
+          isNull(personalAccessTokens.revokedAt),
+          or(isNull(personalAccessTokens.expiresAt), gt(personalAccessTokens.expiresAt, until)),
+        ),
+      );
+    return result[0].affectedRows;
+  }
+
+  /** 60-05: how many of a membership's tokens are live at `at` (not revoked, not expired). */
+  async countLiveForMembership(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+    at: Date,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: personalAccessTokens.id })
+      .from(personalAccessTokens)
+      .where(
+        and(
+          eq(personalAccessTokens.organizationId, context.organizationId),
+          eq(personalAccessTokens.membershipId, membershipId),
+          isNull(personalAccessTokens.revokedAt),
+          or(isNull(personalAccessTokens.expiresAt), gt(personalAccessTokens.expiresAt, at)),
+        ),
+      );
+    return rows.length;
   }
 
   /**

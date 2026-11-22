@@ -12,6 +12,7 @@ import {
   AI_EMPLOYEE_AUDIT,
   AiEmployeesService,
 } from '../src/modules/ai-employees/ai-employees.service.js';
+import { AgentKeysService } from '../src/modules/personal-access-tokens/agent-keys.js';
 import { InviteeAccountsRepository } from '../src/modules/tenancy/invitee-accounts.repository.js';
 import { MemberBulkRoleRepository } from '../src/modules/tenancy/member-bulk-role.repository.js';
 import { MembershipsRepository } from '../src/modules/tenancy/memberships.repository.js';
@@ -90,6 +91,7 @@ beforeAll(async () => {
     repository: new AiEmployeesRepository(),
     memberships: new MembershipsRepository(),
     accounts: new InviteeAccountsRepository(),
+    agentKeys: new AgentKeysService(),
     enabled: true,
   });
 }, 180_000);

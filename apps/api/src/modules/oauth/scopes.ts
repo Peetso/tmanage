@@ -20,6 +20,15 @@ export const KNOWN_SCOPES: readonly string[] = Object.freeze([
   SCOPE_BILLING,
 ]);
 
+/**
+ * 60-05 (plan 60 v2 §4.5) — the only scope an AI employee's credential holds. Deliberately NOT in
+ * {@link KNOWN_SCOPES}: every human path (consent, token create, the company token policy) knows
+ * only those four, so a person can never ask for it, and an agent credential parses to no human
+ * scope at all (`parseStoredScopes` keeps known scopes only), so it reaches no human route. Only
+ * the agent contract (60-06) accepts it.
+ */
+export const SCOPE_AGENT = 'tmanage:agent';
+
 /** The default a client gets when it asks for none: read plus everyday write (§4.2). */
 export const DEFAULT_SCOPES: readonly string[] = Object.freeze([SCOPE_READ, SCOPE_WRITE]);
 

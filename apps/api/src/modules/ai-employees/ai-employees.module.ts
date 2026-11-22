@@ -3,6 +3,7 @@ import type { DynamicModule } from '@nestjs/common';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { AgentKeysService } from '../personal-access-tokens/agent-keys.js';
 import { InviteeAccountsRepository } from '../tenancy/invitee-accounts.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { AI_EMPLOYEES_SERVICE, AiEmployeesController } from './ai-employees.controller.js';
@@ -35,6 +36,7 @@ export class AiEmployeesModule {
               repository: new AiEmployeesRepository(),
               memberships: new MembershipsRepository(),
               accounts: new InviteeAccountsRepository(),
+              agentKeys: new AgentKeysService(),
               enabled: aiEmployeesEnabled(process.env),
             }),
         },

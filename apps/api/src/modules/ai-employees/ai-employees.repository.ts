@@ -105,6 +105,20 @@ export class AiEmployeesRepository {
       .for('update');
   }
 
+  /**
+   * DA-1 (write skew on "at most 3 live credentials"): a key create or rotate takes the AI
+   * employee's row `FOR UPDATE` first, so two creates for one AI employee run one after the
+   * other and each count sees the other's key. `false` when the id is not this workspace's.
+   */
+  async lockById(runner: TenantQueryRunner, context: TenantContext, id: string): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: aiEmployees.id })
+      .from(aiEmployees)
+      .where(and(eq(aiEmployees.organizationId, context.organizationId), eq(aiEmployees.id, id)))
+      .for('update');
+    return rows.length > 0;
+  }
+
   /** AI employees that are not retired (the beta cap counts these). */
   async countLive(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
     const rows = await tenantDrizzle(runner)

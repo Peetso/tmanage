@@ -1363,6 +1363,23 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'ai_employee',
     clause: '§12 60-03 — an AI employee was retired; its membership is offboarded, history kept',
   },
+  // ---- 60-05 · agent keys (plan 60 v2 §4.5) ----
+  /**
+   * An agent key was made for an AI employee. Metadata: the lifetime in days and whether an IP
+   * allowlist applies — never the key, its hash or its prefix.
+   */
+  'ai_employee.key_created': {
+    objectType: 'ai_employee',
+    clause: '§12 60-05 — a person made an agent key for an AI employee (shown once)',
+  },
+  'ai_employee.key_rotated': {
+    objectType: 'ai_employee',
+    clause: '§12 60-05 — a person rotated an agent key (the old one ends within 24 hours)',
+  },
+  'ai_employee.key_revoked': {
+    objectType: 'ai_employee',
+    clause: '§12 60-05 — a person revoked an agent key (immediately)',
+  },
   // ---- 62-27 (B05) · signals engine ----
   'work_signal_settings.updated': {
     objectType: 'organization',
@@ -2219,6 +2236,9 @@ const AUDIT_ACTION_LABELS = {
   'ai_employee.resumed': 'Resumed an AI employee',
   'ai_employee.sponsor_changed': "Changed an AI employee's sponsor",
   'ai_employee.retired': 'Retired an AI employee',
+  'ai_employee.key_created': 'Made an agent key for an AI employee',
+  'ai_employee.key_rotated': "Rotated an AI employee's agent key",
+  'ai_employee.key_revoked': "Revoked an AI employee's agent key",
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

@@ -12,6 +12,7 @@ import {
 import type { TenantContext } from '../src/common/database/tenant-context.js';
 import { AiEmployeesRepository } from '../src/modules/ai-employees/ai-employees.repository.js';
 import { AiEmployeesService } from '../src/modules/ai-employees/ai-employees.service.js';
+import { AgentKeysService } from '../src/modules/personal-access-tokens/agent-keys.js';
 import type { AiEmployeeView } from '../src/modules/ai-employees/ai-employees.service.js';
 import { ApprovalsRepository } from '../src/modules/approvals/approvals.repository.js';
 import { AuditEventsRepository } from '../src/modules/audit/audit-events.repository.js';
@@ -107,6 +108,7 @@ beforeAll(async () => {
     repository: new AiEmployeesRepository(),
     memberships: new MembershipsRepository(),
     accounts: new InviteeAccountsRepository(),
+    agentKeys: new AgentKeysService(),
     enabled: true,
   });
   // Sponsored by the manager, so case 6 can offboard the sponsor without touching the owner.

@@ -7,6 +7,8 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { ApiError } from '../../common/http/errors.js';
+import { AgentKeysService } from '../personal-access-tokens/agent-keys.js';
+import { MemoryTokens } from '../personal-access-tokens/test-fakes.js';
 import { parseHire, parseUpdate } from './ai-employees.input.js';
 import {
   AiEmployeesRepository,
@@ -142,6 +144,10 @@ class MemoryRepository extends AiEmployeesRepository {
   override async list(): Promise<readonly AiEmployeeRecord[]> {
     return [...this.rows.values()];
   }
+  override async lockById(_r: TenantQueryRunner, _c: TenantContext, id: string): Promise<boolean> {
+    this.locks += 1;
+    return this.rows.has(id);
+  }
   override async findById(
     _r: TenantQueryRunner,
     _c: TenantContext,
@@ -172,6 +178,7 @@ function harness(enabled = true) {
   const createdMembers: { id: string; role: string }[] = [];
   const offboarded: string[] = [];
   const scope: AiEmployeeHireScope = { identity: RUNNER, tenant: RUNNER };
+  const tokens = new MemoryTokens(T0);
   const options: AiEmployeesServiceOptions = {
     database: {
       transaction: (async (_c: TenantContext, work: (tx: TenantQueryRunner) => Promise<unknown>) =>
@@ -221,6 +228,7 @@ function harness(enabled = true) {
         repository.pendingName = user.displayName;
       },
     },
+    agentKeys: new AgentKeysService(tokens),
     enabled,
     now: () => T0,
   };
@@ -231,6 +239,7 @@ function harness(enabled = true) {
     users,
     createdMembers,
     offboarded,
+    tokens,
   };
 }
 
@@ -442,5 +451,96 @@ describe('60-03 lifecycle', () => {
     });
     expect(view.workingHours).toEqual([{ day: 1, start: '09:00', end: '17:30' }]);
     expect(view.timezone).toBe('Asia/Riyadh');
+  });
+});
+
+describe('60-05 agent keys', () => {
+  const KEY = { name: 'Mat on Claude', lifetimeDays: 30 };
+  const SPONSOR_ONLY = (): TenantContext =>
+    ({ ...contextOf(), capabilities: ['people.view'] }) as unknown as TenantContext;
+  const STRANGER = (): TenantContext =>
+    ({
+      ...contextOf(),
+      membershipId: LEFT_M,
+      capabilities: ['people.view'],
+    }) as unknown as TenantContext;
+
+  it('makes keys on the AI membership, shows each once, caps live keys at 3, audited', async () => {
+    const h = harness();
+    const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    const first = await h.service.createKey(contextOf(), OWNER, hired.id, KEY);
+    expect(first.token).toMatch(/^tmanage_pat_/);
+    expect(h.tokens.rows[0]).toMatchObject({
+      membershipId: hired.membershipId,
+      scopes: 'tmanage:agent',
+      createdByMembershipId: OWNER_M,
+    });
+    await h.service.createKey(contextOf(), OWNER, hired.id, KEY);
+    await h.service.createKey(contextOf(), OWNER, hired.id, KEY);
+    const fourth = await refusal(h.service.createKey(contextOf(), OWNER, hired.id, KEY));
+    expect([fourth.status, fourth.auditCode]).toEqual([409, 'ai_employee:credential_limit']);
+    const listed = await h.service.listKeys(contextOf(), OWNER, hired.id);
+    expect(listed).toMatchObject({ limit: 3, live: 3, canCreate: false });
+    expect(JSON.stringify(listed)).not.toContain(first.token);
+    expect(h.audits.filter((a) => a.action === AI_EMPLOYEE_AUDIT.keyCreated)).toHaveLength(3);
+  });
+
+  it('the sponsor may bind without the manage capability; anyone else may not', async () => {
+    const h = harness();
+    const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    await expect(h.service.createKey(SPONSOR_ONLY(), OWNER, hired.id, KEY)).resolves.toMatchObject({
+      live: true,
+    });
+    for (const call of [
+      h.service.listKeys(STRANGER(), OWNER, hired.id),
+      h.service.createKey(STRANGER(), OWNER, hired.id, KEY),
+    ]) {
+      const error = await refusal(call);
+      expect([error.status, error.auditCode]).toEqual([403, 'ai_employee:not_sponsor']);
+    }
+  });
+
+  it('rotation replaces a live key inside the cap and ends the old one within 24 hours', async () => {
+    const h = harness();
+    const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    const keys: { id: string }[] = [];
+    for (let i = 0; i < 3; i += 1)
+      keys.push(await h.service.createKey(contextOf(), OWNER, hired.id, KEY));
+    const rotated = await h.service.rotateKey(contextOf(), OWNER, hired.id, keys[0]!.id, KEY);
+    expect(rotated.id).not.toBe(keys[0]!.id);
+    const old = h.tokens.rows.find((row) => row.id === keys[0]!.id);
+    expect(old?.expiresAt?.getTime()).toBe(T0.getTime() + 24 * 60 * 60 * 1000);
+    const missing = await refusal(h.service.rotateKey(contextOf(), OWNER, hired.id, 'k-none', KEY));
+    expect(missing.auditCode).toBe('ai_employee:key_not_found');
+    expect(h.audits.at(-1)).toMatchObject({
+      action: AI_EMPLOYEE_AUDIT.keyRotated,
+      metadata: { replaced_key_id: keys[0]!.id },
+    });
+  });
+
+  it('revokes at once, also after retirement; a retired AI employee gets no new key', async () => {
+    const h = harness();
+    const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    const key = await h.service.createKey(contextOf(), OWNER, hired.id, KEY);
+    await h.service.retire(contextOf(), OWNER, hired.id, { version: 1 });
+    const blocked = await refusal(h.service.createKey(contextOf(), OWNER, hired.id, KEY));
+    expect(blocked.auditCode).toBe('ai_employee:retired');
+    await h.service.revokeKey(contextOf(), OWNER, hired.id, key.id);
+    expect(h.tokens.rows[0]?.revokedAt).toEqual(T0);
+    const twice = await refusal(h.service.revokeKey(contextOf(), OWNER, hired.id, key.id));
+    expect(twice.auditCode).toBe('ai_employee:key_not_found');
+    expect(h.audits.at(-1)?.action).toBe(AI_EMPLOYEE_AUDIT.keyRevoked);
+  });
+
+  it('refuses a bad body before any write, and an AI-assistant channel entirely', async () => {
+    const h = harness();
+    const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    const bad = await refusal(
+      h.service.createKey(contextOf(), OWNER, hired.id, { name: 'x', lifetimeDays: 365 }),
+    );
+    expect(bad.status).toBe(400);
+    const channel = await refusal(h.service.createKey(contextOf(true), OWNER, hired.id, KEY));
+    expect(channel.status).toBe(403);
+    expect(h.tokens.rows).toHaveLength(0);
   });
 });

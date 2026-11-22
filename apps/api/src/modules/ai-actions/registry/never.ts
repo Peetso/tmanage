@@ -1427,6 +1427,27 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/retire',
     reason: 'ai_employee_admin',
   },
+  // 60-05: an AI employee's agent keys, people only (an agent never mints its own key).
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/keys',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/keys',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/keys/:keyId/rotate',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/keys/:keyId',
+    reason: 'ai_employee_admin',
+  },
   { method: 'GET', path: '/v1/platform/ai/test-list/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/ai/test-list/:organizationId', reason: 'platform_admin' },
   {

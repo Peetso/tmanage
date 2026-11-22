@@ -4,6 +4,7 @@ import {
   aiEmployeeStateMachine,
   aiRoleDecision,
   AI_EMPLOYEES_PER_WORKSPACE,
+  AI_EMPLOYEE_MAX_LIVE_CREDENTIALS,
   customRoleKey,
   effectiveCapabilitySet,
   isPlatformSupportRole,
@@ -24,6 +25,12 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
+import {
+  parseAgentKeyRequest,
+  type AgentKeysService,
+  type AgentKeyView,
+  type CreatedAgentKeyView,
+} from '../personal-access-tokens/agent-keys.js';
 import type { InviteeAccountsRepository } from '../tenancy/invitee-accounts.repository.js';
 import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import {
@@ -70,7 +77,20 @@ export const AI_EMPLOYEE_AUDIT = {
   resumed: 'ai_employee.resumed',
   sponsorChanged: 'ai_employee.sponsor_changed',
   retired: 'ai_employee.retired',
+  keyCreated: 'ai_employee.key_created',
+  keyRotated: 'ai_employee.key_rotated',
+  keyRevoked: 'ai_employee.key_revoked',
 } as const;
+
+/** 60-05: an AI employee's agent keys as the screens list them. */
+export interface AgentKeyListView {
+  readonly keys: readonly AgentKeyView[];
+  /** The cap on live credentials per AI employee and how many are live now. */
+  readonly limit: number;
+  readonly live: number;
+  /** AR-9: whether the caller may make one more key now. */
+  readonly canCreate: boolean;
+}
 
 export interface WorkingWindowView {
   readonly day: number;
@@ -129,6 +149,8 @@ export interface AiEmployeesServiceOptions {
     'createAiMember' | 'requireById' | 'transitionStatus'
   >;
   readonly accounts: Pick<InviteeAccountsRepository, 'insertUser'>;
+  /** 60-05: agent keys, through the module that owns `personal_access_tokens` (AR-7). */
+  readonly agentKeys: AgentKeysService;
   /**
    * The server switch (`TMANAGE_AI_EMPLOYEES=on`, {@link aiEmployeesEnabled}). Required, so no
    * caller can forget it; while `false` every route is the calm 404 of a feature that does not
@@ -203,6 +225,33 @@ function readWindows(stored: string | null, timezone: string): readonly WorkingW
     start: minuteText(w.startMinute),
     end: minuteText(w.endMinute),
   }));
+}
+
+function ownerOf(row: AiEmployeeRecord): { membershipId: string; userId: string } {
+  return { membershipId: row.membershipId, userId: row.userId };
+}
+
+function credentialLimit(): ApiError {
+  return conflict(
+    'ai_employee:credential_limit',
+    `An AI employee can have at most ${AI_EMPLOYEE_MAX_LIVE_CREDENTIALS} live keys or connections.`,
+  );
+}
+
+/**
+ * 60-05 "who may bind" (plan 60 v2 §4.5): only the AI employee's sponsor, or a member holding
+ * `ai_employee.manage`, may see, make, rotate or revoke its keys.
+ */
+function requireMayBind(context: TenantContext, row: AiEmployeeRecord): void {
+  if (context.membershipId === row.sponsorMembershipId) return;
+  if (context.capabilities.includes(MANAGE)) return;
+  throw new ApiError(
+    403,
+    'forbidden',
+    'Only the sponsor or someone who manages AI employees can do this.',
+    undefined,
+    'ai_employee:not_sponsor',
+  );
 }
 
 export class AiEmployeesService {
@@ -431,6 +480,161 @@ export class AiEmployeesService {
       });
       return { status: 'retired', retiredAt: at, retiredByMembershipId: context.membershipId };
     });
+  }
+
+  // ---- 60-05 · agent keys (plan 60 v2 §4.5) ----
+
+  /** The AI employee's keys. The sponsor or a holder of `ai_employee.manage` only. */
+  async listKeys(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+  ): Promise<AgentKeyListView> {
+    this.requireEnabled();
+    requirePersonSession(context, principal);
+    const at = this.now();
+    return this.options.database.read(context, async (db) => {
+      const row = await this.find(db, context, id);
+      requireMayBind(context, row);
+      const keys = await this.options.agentKeys.list(db, context, ownerOf(row), at);
+      const live = keys.filter((key) => key.live).length;
+      return {
+        keys,
+        limit: AI_EMPLOYEE_MAX_LIVE_CREDENTIALS,
+        live,
+        canCreate: row.status !== 'retired' && live < AI_EMPLOYEE_MAX_LIVE_CREDENTIALS,
+      };
+    });
+  }
+
+  /** Make an agent key (shown once). At most 3 live credentials per AI employee. */
+  async createKey(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    body: unknown,
+  ): Promise<CreatedAgentKeyView> {
+    this.requireEnabled();
+    requirePersonSession(context, principal);
+    const parsed = parseAgentKeyRequest(body);
+    if (!parsed.ok) throw validation(parsed.issues);
+    const request = parsed.value;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.lockedForKeys(tx, context, id);
+      const live = await this.options.agentKeys.countLive(tx, context, ownerOf(row), at);
+      if (live >= AI_EMPLOYEE_MAX_LIVE_CREDENTIALS) throw credentialLimit();
+      const created = await this.options.agentKeys.mint(
+        tx,
+        context,
+        ownerOf(row),
+        request,
+        context.membershipId,
+        at,
+      );
+      await this.options.audit.record(tx, context, {
+        action: AI_EMPLOYEE_AUDIT.keyCreated,
+        result: 'allowed',
+        objectId: row.id,
+        actorUserId: context.userId,
+        metadata: {
+          key_id: created.id,
+          lifetime_days: request.lifetimeDays,
+          network_limited: request.ipAllowlistJson !== null,
+        },
+      });
+      return created;
+    });
+  }
+
+  /** Rotate: a new key now; the old one ends within 24 hours (never later than it would). */
+  async rotateKey(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    keyId: string,
+    body: unknown,
+  ): Promise<CreatedAgentKeyView> {
+    this.requireEnabled();
+    requirePersonSession(context, principal);
+    const parsed = parseAgentKeyRequest(body);
+    if (!parsed.ok) throw validation(parsed.issues);
+    const request = parsed.value;
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      const row = await this.lockedForKeys(tx, context, id);
+      const old = await this.options.agentKeys.find(tx, context, ownerOf(row), keyId);
+      const oldLive =
+        old !== null && old.revokedAt === null && (old.expiresAt === null || old.expiresAt > at);
+      if (!oldLive) throw notFound('ai_employee:key_not_found');
+      // The rotated key is being replaced, so it does not count against the cap.
+      const live = await this.options.agentKeys.countLive(tx, context, ownerOf(row), at);
+      if (live - 1 >= AI_EMPLOYEE_MAX_LIVE_CREDENTIALS) throw credentialLimit();
+      await this.options.agentKeys.endWithinOverlap(tx, context, ownerOf(row), keyId, at);
+      const created = await this.options.agentKeys.mint(
+        tx,
+        context,
+        ownerOf(row),
+        request,
+        context.membershipId,
+        at,
+      );
+      await this.options.audit.record(tx, context, {
+        action: AI_EMPLOYEE_AUDIT.keyRotated,
+        result: 'allowed',
+        objectId: row.id,
+        actorUserId: context.userId,
+        metadata: {
+          key_id: created.id,
+          replaced_key_id: keyId,
+          lifetime_days: request.lifetimeDays,
+        },
+      });
+      return created;
+    });
+  }
+
+  /** Revoke now. Allowed in every status, a retired AI employee included. */
+  async revokeKey(
+    context: TenantContext,
+    principal: Principal,
+    id: string,
+    keyId: string,
+  ): Promise<void> {
+    this.requireEnabled();
+    requirePersonSession(context, principal);
+    const at = this.now();
+    await this.options.database.transaction(context, async (tx) => {
+      const row = await this.find(tx, context, id);
+      requireMayBind(context, row);
+      if (!(await this.options.agentKeys.revoke(tx, context, ownerOf(row), keyId, at))) {
+        throw notFound('ai_employee:key_not_found');
+      }
+      await this.options.audit.record(tx, context, {
+        action: AI_EMPLOYEE_AUDIT.keyRevoked,
+        result: 'allowed',
+        objectId: row.id,
+        actorUserId: context.userId,
+        metadata: { key_id: keyId },
+      });
+    });
+  }
+
+  /** The row locked first (DA-1), the caller allowed to bind, the AI employee not retired. */
+  private async lockedForKeys(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+  ): Promise<AiEmployeeRecord> {
+    if (!(await this.options.repository.lockById(tx, context, id.toLowerCase()))) {
+      throw notFound('ai_employee:not_found');
+    }
+    const row = await this.find(tx, context, id);
+    requireMayBind(context, row);
+    if (row.status === 'retired') {
+      throw conflict('ai_employee:retired', 'A retired AI employee cannot get a new key.');
+    }
+    return row;
   }
 
   /** Off: 404 before anything else runs, so the surface does not exist for any caller. */

@@ -73,6 +73,10 @@ const EXEMPT = new Map([
     'No web consumer yet: 60-03 AI employees routes (…/ai-employees); the People list, hire wizard and profile screens (S1–S6) are designed in Figma first and built in 60-07.',
   ],
   [
+    'AgentKeyListView',
+    'No web consumer yet: 60-05 agent-key routes (…/ai-employees/:aiEmployeeId/keys); the AI employee keys screen is designed in Figma first and built in 60-07.',
+  ],
+  [
     'AiEmployeeView',
     'No web consumer yet: 60-03 AI employee profile and edit routes; the profile screen (S6) is designed in Figma first and built in 60-07.',
   ],
