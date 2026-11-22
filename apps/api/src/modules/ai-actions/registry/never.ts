@@ -1637,6 +1637,22 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/platform/alerts/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/alerts/:ruleKey', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/security-signals/', reason: 'platform_admin' },
+  // SEC-ALERTS items 6 and 7: the attack tracker and the sign-in door's allowlist and policy.
+  // Platform security administration; an AI never reads attack traces or opens the door.
+  { method: 'GET', path: '/v1/platform/security/attack-tracks/', reason: 'platform_admin' },
+  { method: 'GET', path: '/v1/platform/security/attack-tracks/:trackId', reason: 'platform_admin' },
+  { method: 'GET', path: '/v1/platform/security/network-access/', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/security/network-access/policy', reason: 'platform_admin' },
+  {
+    method: 'POST',
+    path: '/v1/platform/security/network-access/allowlist',
+    reason: 'platform_admin',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/platform/security/network-access/allowlist/:id',
+    reason: 'platform_admin',
+  },
   // R44 L2 (0332): an owner marks a signal reviewed; 56-06 the blocked-files queue and its
   // delete-now. Security triage an AI must not drive.
   {
