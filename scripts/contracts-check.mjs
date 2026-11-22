@@ -73,10 +73,6 @@ const EXEMPT = new Map([
     'No web consumer yet: 60-03 AI employees routes (…/ai-employees); the People list, hire wizard and profile screens (S1–S6) are designed in Figma first and built in 60-07.',
   ],
   [
-    'AiSettingsView',
-    'No web consumer yet: 62-17 Settings > AI routes (GET/PATCH …/copilot/settings); lane W builds AiSettingsScreen against them next.',
-  ],
-  [
     'AgentKeyListView',
     'No web consumer yet: 60-05 agent-key routes (…/ai-employees/:aiEmployeeId/keys); the AI employee keys screen is designed in Figma first and built in 60-07.',
   ],
@@ -405,6 +401,10 @@ const WEB_EXEMPT = new Map([
   [
     'BusinessFactEdit',
     'Plan 62 Business Memory: the request body of `PATCH …/business-memory/facts/:factId`, not a response; the API parses it once in `parseEdit` (IP-2).',
+  ],
+  [
+    'AiSettingsPatch',
+    'Plan 62-17 Settings > AI: the request body of `PATCH …/copilot/settings`, not a response; the API parses it once in `parseAiSettingsPatch` (IP-2).',
   ],
   [
     'AiBudgetUpdate',

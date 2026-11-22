@@ -5202,3 +5202,17 @@ type _aiPackGrant = Assert<Exact<ApiAiPackGrantView, WebAiPackGrantView>>;
 type _aiPackRequestQueue = Assert<Exact<ApiAiPackRequestQueueView, WebAiPackRequestQueueView>>;
 type _aiTestListEntry = Assert<Exact<ApiAiTestListEntryView, WebAiTestListEntryView>>;
 type _aiTestList = Assert<Exact<ApiAiTestListView, WebAiTestListView>>;
+
+import type {
+  AiBlockedMemberEntry as ApiAiBlockedMemberEntry,
+  AiSettingsView as ApiAiSettingsView,
+  AiShareChoice as ApiAiShareChoice,
+} from '../../apps/api/src/modules/copilot/ai-settings.service.js';
+import type {
+  AiBlockedMemberEntry as WebAiBlockedMemberEntry,
+  AiSettingsView as WebAiSettingsView,
+  AiShareChoice as WebAiShareChoice,
+} from '../../apps/web/src/lib/api/ai-settings.js';
+type _aiBlockedMember = Assert<Exact<ApiAiBlockedMemberEntry, WebAiBlockedMemberEntry>>;
+type _aiSettings = Assert<Exact<ApiAiSettingsView, WebAiSettingsView>>;
+type _aiShareChoice = Assert<Exact<ApiAiShareChoice, WebAiShareChoice>>;

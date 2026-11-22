@@ -351,3 +351,115 @@
     min-inline-size: 44px;
   }
 }
+
+/* Settings (62-17, Figma G1 v2 786:48751). */
+.tm-ais-set {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-ais-set__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: var(--s5);
+}
+
+.tm-ais-set__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-ais-set__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-ais-set__subtitle {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-ais-set__legendless > legend {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-ais-set__text {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-ais-set__line,
+.tm-ais-set__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-ais-set__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: var(--s5);
+}
+
+.tm-ais-set__blocked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-ais-set__member {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+}
+
+.tm-ais-set__avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: var(--r-capsule);
+  background: var(--line-300);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-ais-set__who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+@media (max-width: 767px) {
+  .tm-ais-set__touch.tm-button,
+  .tm-ais-set__actions .tm-button {
+    min-block-size: 44px;
+  }
+}

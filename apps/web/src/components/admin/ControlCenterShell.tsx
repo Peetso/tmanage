@@ -338,7 +338,7 @@ const GROUPS: readonly SectionGroup[] = [
         id: 'ai',
         labelKey: ccKey('ControlCenter.ai'),
         fallback: 'AI',
-        href: '/admin/ai/memory',
+        href: '/admin/ai',
         capability: 'ai.manage',
       },
     ],

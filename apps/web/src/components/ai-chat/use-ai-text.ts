@@ -11,7 +11,11 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 /** Every key the TManage AI screens draw (plan 62, slices 62-15…62-19 and Business Memory). */
 export type AiTextKey = Extract<
   MessageKey,
-  `AiChat.${string}` | `AiUsage.${string}` | `AiSpend.${string}` | `BusinessMemory.${string}`
+  | `AiChat.${string}`
+  | `AiUsage.${string}`
+  | `AiSpend.${string}`
+  | `AiSettings.${string}`
+  | `BusinessMemory.${string}`
 >;
 
 /** `{name}` placeholders filled from `values`; a missing value leaves the placeholder. */
