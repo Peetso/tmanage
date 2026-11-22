@@ -15806,3 +15806,59 @@ export const securitySourceFindings = mysqlTable(
 export type SecuritySourceFindingRow = typeof securitySourceFindings.$inferSelect;
 
 Object.assign(TABLES, { security_source_findings: securitySourceFindings });
+
+/**
+ * 0405 `network_block_lists` (SEC-ALERTS item 7). One row per free anonymous-network list (X4BNet
+ * VPN and data-centre ranges, the Tor exit list, IP2Proxy LITE PX1): source, licence, the version
+ * in force and the last refresh. GLOBAL; worker SELECT, INSERT, UPDATE; api SELECT.
+ */
+export const networkBlockLists = mysqlTable('network_block_lists', {
+  listKey: varchar('list_key', { length: 32 }).notNull().primaryKey(),
+  sourceUrl: varchar('source_url', { length: 255 }).notNull(),
+  licence: varchar('licence', { length: 190 }).notNull(),
+  activeVersion: char('active_version', { length: 16 }),
+  rangeCount: int('range_count').notNull().default(0),
+  fetchedAt: datetime('fetched_at', { mode: 'date', fsp: 3 }),
+  lastAttemptAt: datetime('last_attempt_at', { mode: 'date', fsp: 3 }),
+  lastError: varchar('last_error', { length: 255 }),
+});
+
+/**
+ * 0405 `network_block_ranges`. The merged ranges of each list version as 32-hex-character keys
+ * (`packages/domain/src/security/ip-ranges.ts`). GLOBAL; worker SELECT, INSERT, DELETE; api
+ * SELECT (one indexed point lookup per gated request).
+ */
+export const networkBlockRanges = mysqlTable(
+  'network_block_ranges',
+  {
+    listKey: varchar('list_key', { length: 32 }).notNull(),
+    version: char('version', { length: 16 }).notNull(),
+    rangeStart: char('range_start', { length: 32 }).notNull(),
+    rangeEnd: char('range_end', { length: 32 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.listKey, table.version, table.rangeStart] })],
+);
+
+/**
+ * 0405 `network_access_allowlist`. Addresses, CIDRs and ASNs the anonymous-network refusal never
+ * applies to (our own testers). GLOBAL; api SELECT, INSERT, DELETE (platform admins, audited).
+ */
+export const networkAccessAllowlist = mysqlTable(
+  'network_access_allowlist',
+  {
+    id: char('id', { length: 36 }).notNull().primaryKey(),
+    kind: varchar('kind', { length: 8 }).notNull(),
+    value: varchar('value', { length: 64 }).notNull(),
+    note: varchar('note', { length: 190 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_network_access_allowlist_value').on(table.kind, table.value)],
+);
+
+export type NetworkAccessAllowlistRow = typeof networkAccessAllowlist.$inferSelect;
+
+Object.assign(TABLES, {
+  network_block_lists: networkBlockLists,
+  network_block_ranges: networkBlockRanges,
+  network_access_allowlist: networkAccessAllowlist,
+});

@@ -106,6 +106,8 @@ one credential, so a one-user install sets only the database connection.
 | `GEOIP_ASN_DB_PATH` | no |  | no |  |  |
 | `GEOIP_TOR_EXIT_LIST_URL` | no |  | no |  |  |
 | `GEOIP_RETENTION_DAYS` | no | `400` | no |  | Days an IP-cache row is kept after it was last seen; default 400. |
+| `IP2PROXY_LITE_TOKEN` | no |  | yes |  | The free IP2Proxy LITE download token for the open-proxy block list (SEC-ALERTS item 7). |
+| `NETWORK_ACCESS_ALLOWLIST` | no |  | no |  | Addresses, CIDRs or AS numbers never refused as VPN or data centre (comma list; SEC-ALERTS item 7). |
 | `PUBLIC_SIGNUP` | no | `true` | no |  |  |
 | `RATE_LIMIT_AUTH_MAX_REQUESTS` | no | `4` | no |  | The sign-in abuse control's budgets, one shared window, one number per key: `RATE_LIMIT_AUTH_MAX_REQUESTS` bounds source+account (one address grinding one account), `RATE_LIMIT_AUTH_MAX_PER_SOURCE` bounds the address across every account it names, and `RATE_LIMIT_AUTH_MAX_GLOBAL` bounds every address together — the one an attacker rotating addresses cannot evade. |
 | `RATE_LIMIT_AUTH_WINDOW_SECONDS` | no | `300` | no |  |  |

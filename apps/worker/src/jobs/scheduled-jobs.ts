@@ -29,6 +29,7 @@ import { createFinanceFactsStore } from '../common/database/finance-facts-store.
 import { createRotationStore } from '../common/database/field-cipher-rotation-store.js';
 import { createGrowthRollupStore } from '../common/database/growth-rollup-store.js';
 import { createIpLookupSweepStore } from '../common/database/ip-lookup-sweeper-store.js';
+import { createNetworkBlockListStore } from '../common/database/network-block-lists-store.js';
 import { createNotificationDigestStore } from '../common/database/notification-digest-store.js';
 import { createAiConversationPurgeStore } from '../common/database/ai-conversation-purge-store.js';
 import { createSecurityReportPurgeStore } from '../common/database/security-report-purge-store.js';
@@ -65,6 +66,7 @@ import {
 } from './finance-facts-rebuild.js';
 import { GROWTH_TICK_MS, growthRunDue, runGrowthRollup } from './growth-rollup.js';
 import { IP_LOOKUP_SWEEP_INTERVAL_MS, sweepIpLookups } from './ip-lookup-sweeper.js';
+import { NETWORK_BLOCK_LISTS_TICK_MS, refreshNetworkBlockLists } from './network-block-lists.js';
 import { DIGEST_INTERVAL_MS, sweepNotificationDigests } from './notification-digest.js';
 import { SECURITY_DETECTOR_INTERVAL_MS, runSecurityDetector } from './security-detector.js';
 import {
@@ -99,6 +101,7 @@ export interface ScheduledJobEnv extends OffsiteBackupEnv, CampaignTransportEnv 
   readonly AUDIT_ANCHOR_KEY?: string | undefined;
   readonly FIELD_CIPHER_KEYS?: string | undefined;
   readonly GEOIP_RETENTION_DAYS?: number | undefined;
+  readonly IP2PROXY_LITE_TOKEN?: string | undefined;
 }
 
 export const SCHEDULED_JOB_NAMES = [
@@ -109,6 +112,7 @@ export const SCHEDULED_JOB_NAMES = [
   'security-report-purge',
   'ai-conversation-purge',
   'ip-lookup-sweep',
+  'network-block-lists',
   'notification-digest',
   'growth-rollup',
   'finance-facts',
@@ -150,6 +154,7 @@ export function createScheduledJobs(
   const reports = createSecurityReportPurgeStore(database);
   const conversations = createAiConversationPurgeStore(database);
   const ipLookups = createIpLookupSweepStore(database);
+  const blockLists = createNetworkBlockListStore(database);
   const digests = createNotificationDigestStore(database);
   const digestMailer = new DigestMailer(mail.notice('digest'), env.WEB_PUBLIC_URL);
   // LANE-Q: the outreach sender's own stack (person mailboxes, unsubscribe headers), from env.
@@ -228,6 +233,21 @@ export function createScheduledJobs(
             : { retentionDays: env.GEOIP_RETENTION_DAYS }),
         });
         return r.deleted > 0 ? `${String(r.deleted)} row(s) removed` : null;
+      },
+    },
+    {
+      // SEC-ALERTS item 7: the free VPN / data-centre / Tor / open-proxy lists the sign-in door
+      // refuses, beside the ip-lookup sweep. Hourly tick; each list is fetched only when due.
+      name: 'network-block-lists',
+      intervalMs: NETWORK_BLOCK_LISTS_TICK_MS,
+      run: async () => {
+        const outcomes = await refreshNetworkBlockLists({ store: blockLists, env });
+        const moved = outcomes.filter((o) => o.status === 'refreshed' || o.status === 'failed');
+        return moved.length > 0
+          ? moved
+              .map((o) => `${o.key} ${o.status}${o.ranges ? ` (${String(o.ranges)})` : ''}`)
+              .join('; ')
+          : null;
       },
     },
     {

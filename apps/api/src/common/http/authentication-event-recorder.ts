@@ -43,6 +43,8 @@ export const GUARD_REFUSAL_ACTIONS = {
   session: 'session_guard',
   /** A cookie-authenticated mutation refused by the CSRF check — `CsrfGuard`, 04 §3. */
   csrf: 'csrf_guard',
+  /** SEC-ALERTS item 7. A sign-in door refused from a VPN, proxy, Tor or data-centre address. */
+  network: 'network_guard',
 } as const;
 
 /**
@@ -71,6 +73,12 @@ export interface GuardRefusal {
   readonly ip?: string | null;
   readonly userAgent?: string | null;
   readonly correlationId: string;
+  /**
+   * SEC-ALERTS item 7. The network door's layer scores (fixed `net.*` tokens and a 0–100
+   * score, never request content), stored in the existing automation columns (0280).
+   */
+  readonly automationScore?: number;
+  readonly automationReasons?: readonly string[];
 }
 
 /**
@@ -131,6 +139,8 @@ export class DatabaseAuthenticationEventRecorder implements AuthenticationEventR
           ip: refusal.ip ?? null,
           userAgent: refusal.userAgent ?? null,
           correlationId: refusal.correlationId,
+          automationScore: refusal.automationScore ?? null,
+          automationReasons: refusal.automationReasons ?? null,
         }),
     );
   }

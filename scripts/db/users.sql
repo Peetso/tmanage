@@ -2022,6 +2022,13 @@ GRANT SELECT, UPDATE ON `tmanage`.`platform_alert_rules`        TO 'tmanage_work
 -- This is how `credential_stuffing` runs without the relay ever reading `authentication_events`.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`security_source_findings` TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`security_source_findings`            TO 'tmanage_worker'@'%';
+-- 0405 (SEC-ALERTS item 7) the anonymous-network lists. The worker's daily refresh downloads the
+-- free lists, writes a new version of ranges (INSERT), switches `active_version` (UPDATE) and
+-- drops the old version (DELETE); it reads its own state (SELECT). The API reads both with its
+-- database-wide SELECT. The allowlist is the API's alone (platform admins add and remove, audited).
+GRANT SELECT, INSERT, UPDATE ON `tmanage`.`network_block_lists`  TO 'tmanage_worker'@'%';
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`network_block_ranges` TO 'tmanage_worker'@'%';
+GRANT INSERT, DELETE ON `tmanage`.`network_access_allowlist`     TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`public_link_events`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`rate_limit_buckets`                  TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`webhook_deliveries`                  TO 'tmanage_worker'@'%';

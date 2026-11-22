@@ -532,6 +532,9 @@ export * from './security/password-policy.js';
 // Public link manager (Settings · Public links) — 56-07p
 export * from './security/public-link-manager.js';
 
+// IP ranges as fixed-width keys (block lists, allowlist) — SEC-ALERTS item 7
+export * from './security/ip-ranges.js';
+
 // Client invoices: totals, payments, aging, credit notes, amount in words — 52-09 (R18-a)
 export * from './money/invoicing.js';
 export * from './money/amount-in-words.js';

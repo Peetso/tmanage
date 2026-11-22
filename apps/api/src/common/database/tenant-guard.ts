@@ -1654,6 +1654,12 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // source address belongs to no company. Written by the API job on `identityTransaction`, read by
   // the worker detector.
   'security_source_findings',
+  // 0405 (SEC-ALERTS item 7). The free anonymous-network lists, their ranges and the platform
+  // allowlist. GLOBAL: an address belongs to no company. The lists are written by the worker's
+  // daily refresh; the allowlist by platform admins on `identityTransaction`.
+  'network_block_lists',
+  'network_block_ranges',
+  'network_access_allowlist',
 ]);
 
 export function isTenantTable(name: string): boolean {

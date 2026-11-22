@@ -29,6 +29,7 @@ export const SECRET_ENV_KEYS: ReadonlySet<string> = new Set([
   'SMTP_SUPPORT_PASS',
   'BACKUP_OCI_ACCESS_KEY_ID',
   'BACKUP_OCI_SECRET_ACCESS_KEY',
+  'IP2PROXY_LITE_TOKEN',
 ]);
 
 /**

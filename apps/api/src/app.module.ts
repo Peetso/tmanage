@@ -207,6 +207,8 @@ import { PublicFormsModule } from './modules/public-forms/public-forms.module.js
 import { QuotesModule } from './modules/quotes/quotes.module.js';
 import { SecurityReportsModule } from './modules/security-reports/security-reports.module.js';
 import { OutreachPublicModule } from './modules/outreach/outreach.module.js';
+import { NetworkAccessModule } from './modules/identity/network-access/network-access.module.js';
+import { NetworkAccessGuard } from './modules/identity/network-access/network-access.guard.js';
 import { SecuritySignalsModule } from './modules/security-signals/security-signals.module.js';
 import { FinanceModule } from './modules/finance/finance.module.js';
 import { TimeModule } from './modules/time/time.module.js';
@@ -1029,6 +1031,8 @@ export class AppModule {
         SecuritySignalsModule.register({
           pepper: options.config.publicLinkPepper ?? options.config.csrfSecret,
         }),
+        // SEC-ALERTS item 7. The sign-in door's service and `/v1/platform/security/network-access`.
+        NetworkAccessModule.register(),
         // 52-23. Settings → Finance: profile, tax rates, manual FX, readiness under `/finance`;
         // global DOCUMENT_SEQUENCES (gapless numbers) for the issuing modules that follow.
         FinanceModule.register(),
@@ -1272,6 +1276,9 @@ export class AppModule {
         // 56-05. First: an anonymous route over its durable budget is a 429 + Retry-After before
         // any session, CSRF or tenant work. Routes behind a session are passed straight through.
         { provide: APP_GUARD, useClass: DurableThrottleGuard },
+        // SEC-ALERTS item 7. After the throttle: no sign-in, sign-up, password reset, OAuth start or
+        // portal sign-in from a VPN, proxy, Tor or data-centre address (`NETWORK_GATED_ROUTES`).
+        { provide: APP_GUARD, useClass: NetworkAccessGuard },
         { provide: APP_GUARD, useClass: SessionAuthGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
         { provide: APP_GUARD, useClass: TenantContextGuard },

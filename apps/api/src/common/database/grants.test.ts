@@ -235,6 +235,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // reader's exact section (a read only; the API job writes it).
     // ---- SEC-ALERTS 0404 ---- +1: the detector reads the API's `security_source_findings`
     // (hashed sources and counts) instead of the sign-in log.
+    // ---- SEC-ALERTS 0405 ---- +2: the block-list refresh reads its own `network_block_lists`
+    // and `network_block_ranges` state.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -281,7 +283,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         2 +
         3 +
         1 +
-        1,
+        1 +
+        2,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });

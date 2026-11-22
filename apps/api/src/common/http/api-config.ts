@@ -164,6 +164,8 @@ export interface ApiConfig extends SessionServiceOptions {
     readonly torExitListUrl?: string | undefined;
     /** Days an `ip_lookups` row is kept after it was last seen (worker sweep). Default 400. */
     readonly retentionDays: number;
+    /** SEC-ALERTS item 7. `NETWORK_ACCESS_ALLOWLIST`, added to the database allowlist. */
+    readonly networkAccessAllowlist?: string | undefined;
   };
 }
 
@@ -235,6 +237,7 @@ export interface ApiConfigSource {
   readonly GEOIP_ASN_DB_PATH?: string | undefined;
   readonly GEOIP_TOR_EXIT_LIST_URL?: string | undefined;
   readonly GEOIP_RETENTION_DAYS?: number | undefined;
+  readonly NETWORK_ACCESS_ALLOWLIST?: string | undefined;
 }
 
 /**
@@ -324,6 +327,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       asnDbPath: env.GEOIP_ASN_DB_PATH,
       torExitListUrl: env.GEOIP_TOR_EXIT_LIST_URL,
       retentionDays: env.GEOIP_RETENTION_DAYS ?? 400,
+      networkAccessAllowlist: env.NETWORK_ACCESS_ALLOWLIST,
     },
   };
 }

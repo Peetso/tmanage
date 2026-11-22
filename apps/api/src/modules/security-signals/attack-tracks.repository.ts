@@ -54,6 +54,19 @@ export interface AttackTrackStore {
   audit(input: PlatformAuditInput): Promise<void>;
 }
 
+/** `automation_reasons_json` (a JSON column: mysql2 returns it parsed, a string on MariaDB). */
+function reasonList(value: unknown): readonly string[] | null {
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : null;
+}
+
 export class AttackTrackRepository implements AttackTrackStore {
   constructor(private readonly database: TenantDatabase) {}
 
@@ -97,7 +110,8 @@ export class AttackTrackRepository implements AttackTrackStore {
     const rows = await this.identity(
       ['authentication_events'],
       uuidv7(),
-      `select ip, user_id, action, outcome, reason, user_agent, occurred_at
+      `select ip, user_id, action, outcome, reason, user_agent, occurred_at,
+          automation_score, automation_reasons_json
         from authentication_events
         where ip in (${marks(ips.length)}) and occurred_at >= ?
         order by occurred_at desc limit ${String(ROW_LIMIT)}`,
@@ -111,6 +125,8 @@ export class AttackTrackRepository implements AttackTrackStore {
       reason: text(r['reason']),
       userAgent: text(r['user_agent']),
       occurredAt: toDate(r['occurred_at']),
+      automationScore: r['automation_score'] === null ? null : Number(r['automation_score']),
+      automationReasons: reasonList(r['automation_reasons_json']),
     }));
   }
 

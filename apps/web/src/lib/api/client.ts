@@ -390,6 +390,10 @@ export class ApiClient {
       // `csrf_failed` either way, and sending nothing loses the chance to say which of the
       // two situations this is. It is sent when present and left off when absent.
       if (csrfToken !== undefined) headers.set(CSRF_HEADER, csrfToken);
+      // SEC-ALERTS item 7: the sign-in door compares the browser's time zone with the address's
+      // country (a Cairo clock behind a Frankfurt address is a VPN). Two short public values,
+      // sent on writes only; absent outside a browser.
+      for (const [name, value] of clientEnvironmentHeaders()) headers.set(name, value);
     }
 
     let response: Response;
@@ -454,3 +458,21 @@ async function readJson(response: Response): Promise<unknown> {
 /** Re-exported so a screen imports one module rather than two. */
 export type { ApiRequestError };
 export { NetworkError } from './errors';
+
+/** SEC-ALERTS item 7. The browser's IANA time zone and language, when there is a browser. */
+function clientEnvironmentHeaders(): [string, string][] {
+  const out: [string, string][] = [];
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (typeof zone === 'string' && zone.length > 0 && zone.length <= 64) {
+      out.push(['x-client-time-zone', zone]);
+    }
+  } catch {
+    // No Intl time zone support: the door treats the time zone as unknown.
+  }
+  if (typeof navigator !== 'undefined' && typeof navigator.language === 'string') {
+    const language = navigator.language.slice(0, 35);
+    if (/^[A-Za-z0-9-]+$/u.test(language)) out.push(['x-client-language', language]);
+  }
+  return out;
+}

@@ -32,6 +32,9 @@ export const CORS_ALLOWED_HEADERS = [
   'idempotency-key',
   // R4 slice 4: a credentialed `fetch` of a large original (pdf.js range loading) sends `Range`.
   'range',
+  // SEC-ALERTS item 7: the browser's time zone and language for the sign-in door (layer B).
+  'x-client-time-zone',
+  'x-client-language',
 ] as const;
 
 // B3: `x-scan-status` labels a file downloaded before its virus scan (`not_scanned`).

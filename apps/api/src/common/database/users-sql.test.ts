@@ -249,6 +249,13 @@ describe('the grants and the schema agree', () => {
       runtime_leases:
         'DC-3 0384 worker-written only: the leader lease is claimed, renewed and released on the ' +
         'worker credential; the API only reads the holder tag for /healthz/deep (database-wide read)',
+      // ---- SEC-ALERTS 0405 ----
+      network_block_lists:
+        'SEC-ALERTS 0405 worker-written only: the daily block-list refresh records each list; the ' +
+        'API only reads the active versions for the sign-in door (database-wide read)',
+      network_block_ranges:
+        'SEC-ALERTS 0405 worker-written only: the refresh stores published VPN / data-centre / Tor ' +
+        'ranges; the API only looks an address up (database-wide read)',
     };
     for (const table of schemaTables) {
       const writable = privilegesOn('tmanage_app', table);
@@ -391,6 +398,9 @@ describe('the runtime user is actually least-privilege', () => {
     // chat history, deleted on purpose once the workspace's window has passed.
     purgeTables.add('ai_conversations');
     purgeTables.add('ai_conversation_messages');
+    // ---- SEC-ALERTS 0405 ---- the block-list refresh drops the previous version of a published
+    // VPN / data-centre list once the new one is active; network ranges, never work a person made.
+    purgeTables.add('network_block_ranges');
     for (const grant of grantsFor('tmanage_worker')) {
       if (purgeTables.has(grant.table)) continue;
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');

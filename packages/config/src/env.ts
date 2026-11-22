@@ -668,6 +668,17 @@ export const envSchema = z
     GEOIP_TOR_EXIT_LIST_URL: optionalTrimmed(),
     /** R12. Days an IP-cache row is kept after it was last seen; default 400. */
     GEOIP_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(400),
+    /**
+     * The free IP2Proxy LITE download token for the open-proxy block list (SEC-ALERTS item 7).
+     * Unset = the PX1 list is skipped (logged once); the other free lists still run.
+     * A secret: never logged, never stored in the database.
+     */
+    IP2PROXY_LITE_TOKEN: optionalTrimmed(),
+    /**
+     * Addresses, CIDRs or AS numbers never refused as VPN or data centre (comma list; SEC-ALERTS
+     * item 7). Added to the platform allowlist in the database.
+     */
+    NETWORK_ACCESS_ALLOWLIST: optionalTrimmed(),
     PUBLIC_SIGNUP: z
       .string()
       .optional()

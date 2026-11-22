@@ -110,6 +110,10 @@ export const PLATFORM_AUDIT_ACTIONS = [
   // ---- SEC-ALERTS item 6 ---- the attack tracker's reads (a hash prefix, never an address).
   'platform.attack_tracks_viewed',
   'platform.attack_track_viewed',
+  // ---- SEC-ALERTS item 7 ---- the sign-in door's allowlist and policy switch.
+  'platform.network_allowlist_added',
+  'platform.network_allowlist_removed',
+  'platform.network_access_policy_updated',
   // ---- 56-21b platform access review ----
   'platform.access_review_recorded',
   // ---- R14-d ---- a refused platform step-up (feeds `platform_step_up_failures`).

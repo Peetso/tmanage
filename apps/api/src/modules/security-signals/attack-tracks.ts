@@ -59,6 +59,9 @@ export interface TrackAuthRow {
   readonly reason: string | null;
   readonly userAgent: string | null;
   readonly occurredAt: Date;
+  /** SEC-ALERTS item 7: the network door's layer tokens (`net.*`) and score, on its refusals. */
+  readonly automationScore?: number | null;
+  readonly automationReasons?: readonly string[] | null;
 }
 
 export interface TrackStep {
@@ -70,6 +73,9 @@ export interface TrackStep {
   readonly userId: string | null;
   readonly userAgent: string | null;
   readonly count?: number;
+  /** The door's layer readings of a `network_guard` step (`net.a.list:x4b_datacenter`, …). */
+  readonly layers?: readonly string[];
+  readonly score?: number;
 }
 
 export interface TrackSummary {
@@ -112,6 +118,9 @@ export function authStep(row: TrackAuthRow): TrackStep {
     reason: row.reason,
     userId: row.userId,
     userAgent: row.userAgent,
+    ...(row.action === 'network_guard' && row.automationReasons
+      ? { layers: row.automationReasons, score: row.automationScore ?? 0 }
+      : {}),
   };
 }
 
