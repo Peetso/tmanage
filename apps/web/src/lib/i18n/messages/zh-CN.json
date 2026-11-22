@@ -21193,6 +21193,8 @@
   "AuditActionLabel.ai_employee.key_created": "为 AI 员工创建了代理密钥",
   "AuditActionLabel.ai_employee.key_rotated": "轮换了 AI 员工的代理密钥",
   "AuditActionLabel.ai_employee.key_revoked": "撤销了 AI 员工的代理密钥",
+  "AuditActionLabel.ai_employee.project_excluded": "将项目对 AI 员工隐藏",
+  "AuditActionLabel.ai_employee.project_included": "允许 AI 员工再次读取项目",
   "ControlCenter.ai": "AI",
   "AiUsage.tab.label": "TManage AI 页面",
   "AiUsage.tab.settings": "设置",

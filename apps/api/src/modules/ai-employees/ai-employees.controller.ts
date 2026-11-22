@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
 } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
@@ -15,6 +16,7 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import type { CreatedAgentKeyView } from '../personal-access-tokens/agent-keys.js';
 import type {
   AgentKeyListView,
+  ExcludedProjectListView,
   AiEmployeeListView,
   AiEmployeeView,
   AiEmployeesService,
@@ -37,6 +39,9 @@ export const AI_EMPLOYEES_SERVICE = Symbol.for('tmanage.AiEmployeesService');
  *   `DELETE :aiEmployeeId/keys/:keyId`: agent keys. The guard asks `people.view`; the service
  *   decides "who may bind" (the sponsor, or a holder of `ai_employee.manage`), because a sponsor
  *   need not hold the manage capability.
+ * - Project exclusion (M5, S8): `GET excluded-projects` (`people.view`), `PUT|DELETE
+ *   excluded-projects/:projectId` (`ai_employee.manage`). Static segments, so they never match
+ *   `:aiEmployeeId`.
  */
 @Controller('v1/organizations/:orgSlug/ai-employees')
 export class AiEmployeesController {
@@ -49,6 +54,36 @@ export class AiEmployeesController {
     @CurrentPrincipal() principal: Principal,
   ): Promise<AiEmployeeListView> {
     return this.service.list(context, principal);
+  }
+
+  @Get('excluded-projects')
+  @RequireCapability('people.view')
+  listExcludedProjects(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<ExcludedProjectListView> {
+    return this.service.listExcludedProjects(context, principal);
+  }
+
+  @Put('excluded-projects/:projectId')
+  @RequireCapability('ai_employee.manage')
+  excludeProject(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<ExcludedProjectListView> {
+    return this.service.excludeProject(context, principal, projectId);
+  }
+
+  @Delete('excluded-projects/:projectId')
+  @HttpCode(204)
+  @RequireCapability('ai_employee.manage')
+  includeProject(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<void> {
+    return this.service.includeProject(context, principal, projectId);
   }
 
   @Get(':aiEmployeeId')

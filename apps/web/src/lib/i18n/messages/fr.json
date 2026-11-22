@@ -21193,6 +21193,8 @@
   "AuditActionLabel.ai_employee.key_created": "A créé une clé d’agent pour un employé IA",
   "AuditActionLabel.ai_employee.key_rotated": "A renouvelé la clé d’agent d’un employé IA",
   "AuditActionLabel.ai_employee.key_revoked": "A révoqué la clé d’agent d’un employé IA",
+  "AuditActionLabel.ai_employee.project_excluded": "A tenu un projet à l’écart des employés IA",
+  "AuditActionLabel.ai_employee.project_included": "A de nouveau permis aux employés IA de lire un projet",
   "ControlCenter.ai": "IA",
   "AiUsage.tab.label": "Pages de TManage AI",
   "AiUsage.tab.settings": "Paramètres",

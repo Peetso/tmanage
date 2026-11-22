@@ -1399,6 +1399,17 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'ai_employee',
     clause: '§12 60-05 — a person revoked an agent key (immediately)',
   },
+  // ---- plan 60 v2 M5 · project exclusion ----
+  /** A person kept a project away from every AI employee. Object: the project. */
+  'ai_employee.project_excluded': {
+    objectType: 'project',
+    clause: '§12 60 M5 — a person kept a project away from every AI employee',
+  },
+  /** A person let AI employees read a project again. Object: the project. */
+  'ai_employee.project_included': {
+    objectType: 'project',
+    clause: '§12 60 M5 — a person let AI employees read a project again',
+  },
   // ---- 62-27 (B05) · signals engine ----
   'work_signal_settings.updated': {
     objectType: 'organization',
@@ -2261,6 +2272,8 @@ const AUDIT_ACTION_LABELS = {
   'ai_employee.key_created': 'Made an agent key for an AI employee',
   'ai_employee.key_rotated': "Rotated an AI employee's agent key",
   'ai_employee.key_revoked': "Revoked an AI employee's agent key",
+  'ai_employee.project_excluded': 'Kept a project away from AI employees',
+  'ai_employee.project_included': 'Let AI employees read a project again',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

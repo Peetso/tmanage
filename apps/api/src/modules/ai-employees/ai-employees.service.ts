@@ -51,6 +51,7 @@ import type {
   AiEmployeeChange,
   AiEmployeeRecord,
   AiEmployeesRepository,
+  ExcludedProjectRecord,
 } from './ai-employees.repository.js';
 
 /**
@@ -81,7 +82,23 @@ export const AI_EMPLOYEE_AUDIT = {
   keyCreated: 'ai_employee.key_created',
   keyRotated: 'ai_employee.key_rotated',
   keyRevoked: 'ai_employee.key_revoked',
+  projectExcluded: 'ai_employee.project_excluded',
+  projectIncluded: 'ai_employee.project_included',
 } as const;
+
+/** Project exclusion (plan 60 v2 M5, S8): the projects no AI employee may read. */
+export interface ExcludedProjectView {
+  readonly projectId: string;
+  readonly name: string;
+  readonly setByMembershipId: string;
+  readonly createdAt: string;
+}
+
+export interface ExcludedProjectListView {
+  readonly projects: readonly ExcludedProjectView[];
+  /** AR-9: whether the caller may add or remove an exclusion. */
+  readonly canEdit: boolean;
+}
 
 /** 60-05: an AI employee's agent keys as the screens list them. */
 export interface AgentKeyListView {
@@ -214,6 +231,15 @@ export function readWindows(
     start: minuteText(w.startMinute),
     end: minuteText(w.endMinute),
   }));
+}
+
+function excludedProjectView(row: ExcludedProjectRecord): ExcludedProjectView {
+  return {
+    projectId: row.projectId,
+    name: row.name,
+    setByMembershipId: row.setByMembershipId,
+    createdAt: row.createdAt.toISOString(),
+  };
 }
 
 function ownerOf(row: AiEmployeeRecord): { membershipId: string; userId: string } {
@@ -468,6 +494,86 @@ export class AiEmployeesService {
         metadata: { membership_id: current.membershipId, previous_status: current.status },
       });
       return { status: 'retired', retiredAt: at, retiredByMembershipId: context.membershipId };
+    });
+  }
+
+  // ---- project exclusion (plan 60 v2 M5, §4.6 step 6) ----
+
+  /** The projects the workspace keeps away from every AI employee. */
+  async listExcludedProjects(
+    context: TenantContext,
+    principal: Principal,
+  ): Promise<ExcludedProjectListView> {
+    this.requireEnabled();
+    requirePersonSession(context, principal);
+    return this.options.database.read(context, async (db) => ({
+      projects: (await this.options.repository.listExcludedProjects(db, context)).map(
+        excludedProjectView,
+      ),
+      canEdit: context.capabilities.includes(MANAGE),
+    }));
+  }
+
+  /**
+   * Keep one project away from every AI employee. Idempotent: excluding it twice is one row and
+   * one audit event. The agent gate removes it from every AI employee's projects on its next call.
+   */
+  async excludeProject(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<ExcludedProjectListView> {
+    this.requireEnabled();
+    requirePersonSession(context, principal);
+    const id = projectId.toLowerCase();
+    const at = this.now();
+    return this.options.database.transaction(context, async (tx) => {
+      // DA-1: one writer at a time per workspace, so check-then-insert cannot race (insert-only
+      // grant, no upsert).
+      await this.options.repository.lockOrganization(tx, context);
+      if (!(await this.options.repository.projectExists(tx, context, id))) {
+        throw notFound('ai_employee:project_not_found');
+      }
+      if (!(await this.options.repository.isProjectExcluded(tx, context, id))) {
+        await this.options.repository.excludeProject(tx, context, id, context.membershipId, at);
+        await this.options.audit.record(tx, context, {
+          action: AI_EMPLOYEE_AUDIT.projectExcluded,
+          result: 'allowed',
+          objectId: id,
+          actorUserId: context.userId,
+          metadata: {},
+        });
+      }
+      return {
+        projects: (await this.options.repository.listExcludedProjects(tx, context)).map(
+          excludedProjectView,
+        ),
+        canEdit: true,
+      };
+    });
+  }
+
+  /** Let AI employees read the project again (their own project memberships still decide). */
+  async includeProject(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<void> {
+    this.requireEnabled();
+    requirePersonSession(context, principal);
+    const id = projectId.toLowerCase();
+    await this.options.database.transaction(context, async (tx) => {
+      await this.options.repository.lockOrganization(tx, context);
+      if (!(await this.options.repository.includeProject(tx, context, id))) {
+        throw notFound('ai_employee:project_not_excluded');
+      }
+      await this.options.audit.record(tx, context, {
+        action: AI_EMPLOYEE_AUDIT.projectIncluded,
+        result: 'allowed',
+        objectId: id,
+        actorUserId: context.userId,
+        metadata: {},
+      });
     });
   }
 

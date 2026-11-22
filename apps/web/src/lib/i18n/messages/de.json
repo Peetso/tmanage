@@ -21193,6 +21193,8 @@
   "AuditActionLabel.ai_employee.key_created": "Hat einen Agentenschlüssel für KI-Mitarbeitende erstellt",
   "AuditActionLabel.ai_employee.key_rotated": "Hat den Agentenschlüssel von KI-Mitarbeitenden erneuert",
   "AuditActionLabel.ai_employee.key_revoked": "Hat den Agentenschlüssel von KI-Mitarbeitenden widerrufen",
+  "AuditActionLabel.ai_employee.project_excluded": "Hat ein Projekt für KI-Mitarbeitende gesperrt",
+  "AuditActionLabel.ai_employee.project_included": "Hat ein Projekt für KI-Mitarbeitende wieder freigegeben",
   "ControlCenter.ai": "KI",
   "AiUsage.tab.label": "Seiten von TManage AI",
   "AiUsage.tab.settings": "Einstellungen",

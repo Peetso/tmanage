@@ -79,6 +79,14 @@ export interface AiEmployeeStamp {
   readonly allowedTaskTypesJson: string | null;
 }
 
+/** One project the workspace keeps away from AI employees (0402). */
+export interface ExcludedProjectRecord {
+  readonly projectId: string;
+  readonly name: string;
+  readonly setByMembershipId: string;
+  readonly createdAt: Date;
+}
+
 export interface NewAiEmployee {
   readonly id: string;
   readonly membershipId: string;
@@ -418,6 +426,95 @@ export class AiEmployeesRepository {
       .from(aiExcludedProjects)
       .where(eq(aiExcludedProjects.organizationId, context.organizationId));
     return rows.map((row) => row.projectId);
+  }
+
+  /** Project exclusion (M5): the excluded projects with their names, by name. */
+  async listExcludedProjects(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly ExcludedProjectRecord[]> {
+    return tenantDrizzle(runner)
+      .select({
+        projectId: aiExcludedProjects.projectId,
+        name: projects.name,
+        setByMembershipId: aiExcludedProjects.setByMembershipId,
+        createdAt: aiExcludedProjects.createdAt,
+      })
+      .from(aiExcludedProjects)
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.organizationId, aiExcludedProjects.organizationId),
+          eq(projects.id, aiExcludedProjects.projectId),
+        ),
+      )
+      .where(eq(aiExcludedProjects.organizationId, context.organizationId))
+      .orderBy(asc(projects.name), asc(projects.id));
+  }
+
+  /** Whether the project is one of this workspace's (any status: an archived one may stay excluded). */
+  async projectExists(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.organizationId, context.organizationId), eq(projects.id, projectId)))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  async isProjectExcluded(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ projectId: aiExcludedProjects.projectId })
+      .from(aiExcludedProjects)
+      .where(
+        and(
+          eq(aiExcludedProjects.organizationId, context.organizationId),
+          eq(aiExcludedProjects.projectId, projectId),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  /** Insert-only (the grant is INSERT, DELETE): the caller checked it is not there under a lock. */
+  async excludeProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    setByMembershipId: string,
+    at: Date,
+  ): Promise<void> {
+    await tenantDrizzle(runner).insert(aiExcludedProjects).values({
+      organizationId: context.organizationId,
+      projectId,
+      setByMembershipId,
+      createdAt: at,
+    });
+  }
+
+  /** `true` when a row was removed. */
+  async includeProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .delete(aiExcludedProjects)
+      .where(
+        and(
+          eq(aiExcludedProjects.organizationId, context.organizationId),
+          eq(aiExcludedProjects.projectId, projectId),
+        ),
+      );
+    return result[0].affectedRows > 0;
   }
 
   /** 60-06: id and name of the given projects of this workspace, in name order. */

@@ -21399,6 +21399,8 @@
   "AuditActionLabel.ai_employee.key_created": "Made an agent key for an AI employee",
   "AuditActionLabel.ai_employee.key_rotated": "Rotated an AI employee's agent key",
   "AuditActionLabel.ai_employee.key_revoked": "Revoked an AI employee's agent key",
+  "AuditActionLabel.ai_employee.project_excluded": "Kept a project away from AI employees",
+  "AuditActionLabel.ai_employee.project_included": "Let AI employees read a project again",
   "ControlCenter.ai": "AI",
   "AiUsage.tab.label": "TManage AI pages",
   "AiUsage.tab.settings": "Settings",

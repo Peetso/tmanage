@@ -144,6 +144,48 @@ class MemoryRepository extends AiEmployeesRepository {
   override async list(): Promise<readonly AiEmployeeRecord[]> {
     return [...this.rows.values()];
   }
+  readonly projectIds = new Set(['0190a000-0000-7000-8000-0000000000f1']);
+  readonly excluded = new Map<string, { setBy: string; at: Date }>();
+  override async projectExists(
+    _r: TenantQueryRunner,
+    _c: TenantContext,
+    id: string,
+  ): Promise<boolean> {
+    return this.projectIds.has(id);
+  }
+  override async isProjectExcluded(
+    _r: TenantQueryRunner,
+    _c: TenantContext,
+    id: string,
+  ): Promise<boolean> {
+    return this.excluded.has(id);
+  }
+  override async excludeProject(
+    _r: TenantQueryRunner,
+    _c: TenantContext,
+    id: string,
+    setBy: string,
+    at: Date,
+  ): Promise<void> {
+    this.excluded.set(id, { setBy, at });
+  }
+  override async includeProject(
+    _r: TenantQueryRunner,
+    _c: TenantContext,
+    id: string,
+  ): Promise<boolean> {
+    return this.excluded.delete(id);
+  }
+  override async listExcludedProjects(): Promise<
+    readonly { projectId: string; name: string; setByMembershipId: string; createdAt: Date }[]
+  > {
+    return [...this.excluded].map(([projectId, v]) => ({
+      projectId,
+      name: 'Launch',
+      setByMembershipId: v.setBy,
+      createdAt: v.at,
+    }));
+  }
   override async lockById(_r: TenantQueryRunner, _c: TenantContext, id: string): Promise<boolean> {
     this.locks += 1;
     return this.rows.has(id);
@@ -542,5 +584,44 @@ describe('60-05 agent keys', () => {
     const channel = await refusal(h.service.createKey(contextOf(true), OWNER, hired.id, KEY));
     expect(channel.status).toBe(403);
     expect(h.tokens.rows).toHaveLength(0);
+  });
+});
+
+describe('project exclusion (plan 60 v2 M5)', () => {
+  const PROJECT = '0190a000-0000-7000-8000-0000000000f1';
+
+  it('excludes once (idempotent, one audit row), lists, includes again, audited', async () => {
+    const h = harness();
+    const first = await h.service.excludeProject(contextOf(), OWNER, PROJECT.toUpperCase());
+    expect(first.projects).toEqual([
+      {
+        projectId: PROJECT,
+        name: 'Launch',
+        setByMembershipId: OWNER_M,
+        createdAt: T0.toISOString(),
+      },
+    ]);
+    await h.service.excludeProject(contextOf(), OWNER, PROJECT);
+    expect(h.repository.excluded.size).toBe(1);
+    expect(h.audits.filter((a) => a.action === AI_EMPLOYEE_AUDIT.projectExcluded)).toHaveLength(1);
+    expect(h.repository.locks).toBeGreaterThan(0);
+    const listed = await h.service.listExcludedProjects(contextOf(), OWNER);
+    expect(listed.canEdit).toBe(true);
+    await h.service.includeProject(contextOf(), OWNER, PROJECT);
+    expect(h.repository.excluded.size).toBe(0);
+    expect(h.audits.at(-1)?.action).toBe(AI_EMPLOYEE_AUDIT.projectIncluded);
+  });
+
+  it('refuses an unknown or other-workspace project, a project not excluded, and an AI channel', async () => {
+    const h = harness();
+    const unknown = await refusal(
+      h.service.excludeProject(contextOf(), OWNER, '0190a000-0000-7000-8000-0000000000f9'),
+    );
+    expect([unknown.status, unknown.auditCode]).toEqual([404, 'ai_employee:project_not_found']);
+    const notExcluded = await refusal(h.service.includeProject(contextOf(), OWNER, PROJECT));
+    expect(notExcluded.auditCode).toBe('ai_employee:project_not_excluded');
+    const channel = await refusal(h.service.excludeProject(contextOf(true), OWNER, PROJECT));
+    expect(channel.status).toBe(403);
+    expect(h.repository.excluded.size).toBe(0);
   });
 });

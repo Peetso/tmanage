@@ -21399,6 +21399,8 @@
   "AuditActionLabel.ai_employee.key_created": "أنشأ مفتاح وكيل لموظف بالذكاء الاصطناعي",
   "AuditActionLabel.ai_employee.key_rotated": "جدّد مفتاح وكيل لموظف بالذكاء الاصطناعي",
   "AuditActionLabel.ai_employee.key_revoked": "ألغى مفتاح وكيل لموظف بالذكاء الاصطناعي",
+  "AuditActionLabel.ai_employee.project_excluded": "أبعد مشروعًا عن الموظفين بالذكاء الاصطناعي",
+  "AuditActionLabel.ai_employee.project_included": "سمح للموظفين بالذكاء الاصطناعي بقراءة مشروع مجددًا",
   "ControlCenter.ai": "الذكاء الاصطناعي",
   "AiUsage.tab.label": "صفحات TManage AI",
   "AiUsage.tab.settings": "الإعدادات",
