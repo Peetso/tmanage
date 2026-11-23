@@ -22,6 +22,9 @@ const SHEET: Timesheet = {
   decisionNote: null,
   totalMinutes: 60,
   billableMinutes: 60,
+  measuredMinutes: 60,
+  handMinutes: 0,
+  pendingMinutes: 0,
   locked: false,
   groups: [
     {
