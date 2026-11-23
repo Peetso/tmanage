@@ -44,7 +44,7 @@ export interface PlatformAuditRequestContext {
  * `optionalReason`): who from the actor, IP and device from the request context.
  */
 export function platformAuditFor(
-  actor: Pick<PlatformAdminActor, 'account'>,
+  actor: Pick<PlatformAdminActor, 'account' | 'via'>,
   context: PlatformAuditRequestContext,
   fields: Omit<PlatformAuditInput, 'actorUserId' | 'actorEmail' | 'correlationId'>,
 ): PlatformAuditInput {
@@ -54,12 +54,25 @@ export function platformAuditFor(
     correlationId: context.correlationId,
     ip: context.ip,
     userAgent: context.userAgent,
+    ...viaOf(actor),
     ...fields,
   };
 }
 
+/**
+ * ADR-0015 point 9 / F10: the AI client and pending action of an AI-run platform request, read
+ * from the actor the guard proved (never from the request body). Empty for a person's own click.
+ */
+export function viaOf(
+  actor: Pick<PlatformAdminActor, 'via'>,
+): Pick<PlatformAuditInput, 'aiClientName' | 'aiPendingActionId'> {
+  const via = actor.via;
+  if (via === undefined) return {};
+  return { aiClientName: via.clientName.slice(0, 190), aiPendingActionId: via.pendingActionId };
+}
+
 export interface PlatformAuditRecordInput {
-  readonly actor: Pick<PlatformAdminActor, 'account'>;
+  readonly actor: Pick<PlatformAdminActor, 'account' | 'via'>;
   readonly action: string;
   readonly targetType: PlatformAuditInput['targetType'];
   readonly targetId: string | null;
@@ -105,6 +118,7 @@ export class PlatformAuditService {
       afterJson: redactedJson(input.after),
       ip: origin.ip,
       userAgent: origin.userAgent,
+      ...viaOf(input.actor),
     };
   }
 

@@ -114,6 +114,8 @@ export interface PlatformAdminAccount {
 export interface PlatformStepUp {
   readonly expiresAt: Date;
   readonly mfaVerified: boolean;
+  /** When the person stepped up (ADR-0015 F11: the consent page asks for a fresh one). */
+  readonly createdAt?: Date;
 }
 
 export interface PlatformAuditInput {
@@ -142,6 +144,13 @@ export interface PlatformAuditInput {
   readonly afterJson?: string | null;
   readonly ip?: string | null;
   readonly userAgent?: string | null;
+  /**
+   * ADR-0015 point 9 / F9 / F10 (0408): the AI client the action was run for ("TManage AI" or an
+   * OAuth client's name) and the approved pending AI action it executed. With a `reason`, a set
+   * `aiClientName` records that the AI drafted the reason and the person approved it.
+   */
+  readonly aiClientName?: string | null;
+  readonly aiPendingActionId?: string | null;
 }
 
 export interface PlatformAuditEventRow {
@@ -256,9 +265,12 @@ export const SQL = {
       (select count(*) from user_mfa_factors f
          where f.user_id = u.id and f.confirmed_at is not null and f.disabled_at is null) as factors
     from users u where lower(u.email) in (${Array.from({ length: count }, () => '?').join(', ')})`,
-  liveStepUp: `select expires_at, mfa_verified from platform_admin_step_ups
+  liveStepUp: `select expires_at, mfa_verified, created_at from platform_admin_step_ups
     where user_id = ? and session_id = ? and expires_at > now(3)
     order by expires_at desc limit 1`,
+  // ADR-0015 F1: the browser session an AI grant is bound to is still signed in.
+  sessionLive: `select 1 as live from sessions
+    where id = ? and user_id = ? and revoked_at is null and expires_at > now(3) limit 1`,
   insertStepUp: `insert into platform_admin_step_ups
       (id, user_id, session_id, mfa_verified, expires_at, created_at)
     values (?, ?, ?, ?, date_add(now(3), interval ? minute), current_timestamp(3))`,
@@ -455,9 +467,24 @@ export class PlatformAdminRepository {
         const rows = await db.query<Row[]>(SQL.liveStepUp, [userId, sessionId]);
         const row = rows[0];
         const expiresAt = row ? date(row['expires_at']) : null;
-        return row && expiresAt ? { expiresAt, mfaVerified: num(row['mfa_verified']) === 1 } : null;
+        const createdAt = row ? date(row['created_at']) : null;
+        return row && expiresAt
+          ? {
+              expiresAt,
+              mfaVerified: num(row['mfa_verified']) === 1,
+              ...(createdAt ? { createdAt } : {}),
+            }
+          : null;
       },
     );
+  }
+
+  /** ADR-0015 F1: whether this browser session is still signed in (not revoked, not expired). */
+  async isSessionLive(userId: string, sessionId: string, correlationId: string): Promise<boolean> {
+    return this.database.identityRead({ correlationId, tables: ['sessions'] }, async (db) => {
+      const rows = await db.query<Row[]>(SQL.sessionLive, [sessionId, userId]);
+      return rows.length > 0;
+    });
   }
 
   /** Record a step-up and its audit row in one transaction; returns the server-stamped expiry. */
@@ -737,8 +764,8 @@ async function insertAudit(
 export const PLATFORM_AUDIT_INSERT_SQL = `insert into platform_admin_audit_events
     (id, actor_user_id, actor_email, action, target_type, target_id, target_label,
      organization_id, reason, correlation_id, created_at, support_session_id, before_json,
-     after_json, ip, user_agent)
-  values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), ?, ?, ?, ?, ?)`;
+     after_json, ip, user_agent, ai_client_name, ai_pending_action_id)
+  values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), ?, ?, ?, ?, ?, ?, ?)`;
 
 /** Write one platform audit row on a runner the caller holds (identity or tenant transaction). */
 export async function insertPlatformAudit(
@@ -761,5 +788,7 @@ export async function insertPlatformAudit(
     audit.afterJson ?? null,
     audit.ip ?? null,
     audit.userAgent ?? null,
+    audit.aiClientName ?? null,
+    audit.aiPendingActionId ?? null,
   ]);
 }

@@ -57,6 +57,24 @@ export interface InternalGrantPayload {
    * Absent only on a grant minted by the approve page, where the member approved in person.
    */
   readonly scopes?: string;
+  /**
+   * ADR-0015 part 2 (point 7b, review F2/F3). The browser session the person stepped up in, set by
+   * the server from request state only — never from a header, a body or model output:
+   * - the in-app chat: the chat request's own cookie session;
+   * - the approve page and a card confirm: the **approving** request's cookie session;
+   * - an OAuth grant holding `tmanage:platform`: the session recorded at consent.
+   * A personal access token never sets it. Without it `PlatformAdminGuard` refuses the grant, and
+   * `TenantContextGuard` keeps the bound-token refusal on every `@NoTenant()` platform route.
+   */
+  readonly stepUpSessionId?: string;
+  /**
+   * F1. The end of an external grant's platform window (epoch ms, `PLATFORM_AI_SCOPE_MINUTES`
+   * after consent). Absent for the in-app chat and the approve page, which act inside the
+   * person's own live request.
+   */
+  readonly platformUntil?: number;
+  /** F10. The pending AI action an approved run executes, for the platform audit row. */
+  readonly pendingActionId?: string;
 }
 
 interface StoredGrant {

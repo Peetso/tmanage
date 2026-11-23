@@ -1,6 +1,6 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { NoTenant, Public } from '../../common/http/decorators.js';
-import { KNOWN_SCOPES } from './scopes.js';
+import { CONSENT_SCOPES } from './scopes.js';
 import { OAUTH_SERVICE } from './oauth.tokens.js';
 import type { OAuthService } from './oauth.service.js';
 
@@ -33,7 +33,7 @@ export class OAuthMetadataController {
     return {
       resource: this.oauth.resourceUri,
       authorization_servers: [this.oauth.issuerUrl],
-      scopes_supported: KNOWN_SCOPES,
+      scopes_supported: CONSENT_SCOPES,
       bearer_methods_supported: ['header'],
     };
   }
@@ -55,7 +55,7 @@ export class OAuthMetadataController {
       token_endpoint_auth_methods_supported: ['none'],
       client_id_metadata_document_supported: true,
       authorization_response_iss_parameter_supported: true,
-      scopes_supported: KNOWN_SCOPES,
+      scopes_supported: CONSENT_SCOPES,
     };
   }
 }

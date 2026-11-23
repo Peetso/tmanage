@@ -35,7 +35,13 @@ interface Attempt {
   allowlist: string;
   account?: Partial<PlatformAdminAccount>;
   stepUp?: boolean;
-  scheme?: 'cookie' | 'personal_access_token';
+  scheme?: 'cookie' | 'personal_access_token' | 'ai_grant';
+  /** ADR-0015: the internal grant's server-set binding (scheme `ai_grant`). */
+  grant?: { stepUpSessionId?: string; platformUntil?: number; pendingActionId?: string };
+  /** Whether the bound browser session is still live (signed in, not revoked). */
+  sessionLive?: boolean;
+  /** Records the session id the step-up was looked up for. */
+  stepUpFor?: string[];
   route?: Route;
   /** A `platform_admins` row for the person; omitted = none. */
   row?: Partial<PlatformAdminRecord> | null;
@@ -71,8 +77,11 @@ async function attempt(o: Attempt): Promise<Outcome> {
     : null;
   const lookup: PlatformAdminLookup = {
     findAccount: async () => account,
-    findLiveStepUp: async () =>
-      o.stepUp ? { expiresAt: new Date(Date.now() + 600_000), mfaVerified: true } : null,
+    findLiveStepUp: async (_userId, sessionId) => {
+      o.stepUpFor?.push(sessionId);
+      return o.stepUp ? { expiresAt: new Date(Date.now() + 600_000), mfaVerified: true } : null;
+    },
+    isSessionLive: async () => o.sessionLive ?? true,
     ...(o.legacyLookup
       ? {}
       : {
@@ -90,6 +99,15 @@ async function attempt(o: Attempt): Promise<Outcome> {
   const state = ensureRequestState(request);
   state.session = { sessionId: 's', userId: USER };
   state.authScheme = o.scheme ?? 'cookie';
+  if (o.grant !== undefined) {
+    state.aiGrant = {
+      grantId: 'g-1',
+      clientId: 'tmanage-ai',
+      clientName: 'TManage AI',
+      opId: 'platform.orgs.suspend',
+      ...o.grant,
+    };
+  }
   const [controller, method] = ROUTES[o.route ?? 'suspend'];
   const handler = (controller as { prototype: Record<string, unknown> }).prototype[method];
   const context = {
@@ -261,5 +279,81 @@ describe('56-21 two-step sign-in for platform staff', () => {
       platformTwoStepRequired({ NODE_ENV: 'production', PLATFORM_STAFF_TWO_STEP: 'optional' }),
     ).toBe(false);
     expect(platformTwoStepRequired({ PLATFORM_STAFF_TWO_STEP: 'Required' })).toBe(true);
+  });
+
+  describe('ADR-0015 — an AI request (internal grant) bound to a stepped-up session', () => {
+    const admin = { allowlist: 'peter@example.com', scheme: 'ai_grant' as const };
+
+    it('refuses a grant without a binding, and a PAT, with the 404', async () => {
+      expect(await attempt({ ...admin, stepUp: true, grant: {} })).toMatchObject({ status: 404 });
+      expect(
+        await attempt({ ...admin, stepUp: true, grant: { stepUpSessionId: '' } }),
+      ).toMatchObject({ status: 404 });
+      expect(
+        await attempt({
+          allowlist: 'peter@example.com',
+          scheme: 'personal_access_token',
+          stepUp: true,
+          grant: { stepUpSessionId: 'browser-1' },
+        }),
+      ).toMatchObject({ status: 404 });
+    });
+
+    it('refuses a bound grant when the admin has no live step-up', async () => {
+      expect(
+        await attempt({ ...admin, stepUp: false, grant: { stepUpSessionId: 'browser-1' } }),
+      ).toEqual({ status: 403, code: 'reauthentication_required' });
+    });
+
+    it('refuses when the bound session ended or the platform window is over (F1)', async () => {
+      const bound = { stepUpSessionId: 'browser-1' };
+      expect(await attempt({ ...admin, stepUp: true, sessionLive: false, grant: bound })).toEqual({
+        status: 403,
+        code: 'reauthentication_required',
+      });
+      expect(
+        await attempt({
+          ...admin,
+          stepUp: true,
+          grant: { ...bound, platformUntil: Date.now() - 1 },
+        }),
+      ).toEqual({ status: 403, code: 'reauthentication_required' });
+      // `me` is exempt for the person's own screen, never for an AI grant.
+      expect(await attempt({ ...admin, route: 'me', stepUp: false, grant: bound })).toMatchObject({
+        status: 403,
+      });
+    });
+
+    it('still needs the route permission', async () => {
+      expect(
+        await attempt({
+          allowlist: '',
+          scheme: 'ai_grant',
+          row: { preset: 'support', permissions: ['platform.orgs.view'] },
+          stepUp: true,
+          grant: { stepUpSessionId: 'browser-1' },
+        }),
+      ).toMatchObject({ status: 403, code: 'platform_permission_missing' });
+    });
+
+    it('admits a bound, live grant: step-up read for the bound session, actor carries the AI', async () => {
+      const stepUpFor: string[] = [];
+      const outcome = await attempt({
+        ...admin,
+        stepUp: true,
+        stepUpFor,
+        grant: {
+          stepUpSessionId: 'browser-1',
+          platformUntil: Date.now() + 60_000,
+          pendingActionId: 'pa-1',
+        },
+      });
+      expect(admitted(outcome)).toBe(true);
+      expect(stepUpFor).toEqual(['browser-1']);
+      expect(outcome).toMatchObject({
+        sessionId: 'browser-1',
+        via: { clientId: 'tmanage-ai', clientName: 'TManage AI', pendingActionId: 'pa-1' },
+      });
+    });
   });
 });

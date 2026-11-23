@@ -1,3 +1,8 @@
+import {
+  AI_PLATFORM_RIGHTS,
+  aiPlatformRightsProvider,
+  type AiPlatformRights,
+} from './platform-rights.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   Controller,
@@ -40,6 +45,7 @@ import {
   McpOAuthAuthenticator,
   mcpInsufficientScope,
   mcpOAuthAccessFor,
+  type McpOAuthAccess,
   mcpResourceUri,
   mcpUnauthenticated,
 } from './mcp-auth.js';
@@ -217,6 +223,20 @@ function toolsProfile(raw: IncomingMessage | undefined): CatalogProfile {
     : 'compact';
 }
 
+/**
+ * ADR-0015 F1/F2: the step-up binding an `/mcp` request's inner calls carry, or `undefined`. A
+ * personal access token never has one; an OAuth grant only with `tmanage:platform` recorded at
+ * consent and only before the end of its own platform window.
+ */
+export function platformBindingOf(
+  isPat: boolean,
+  oauth: Pick<McpOAuthAccess, 'platform'> | undefined,
+  now: number,
+): { readonly stepUpSessionId: string; readonly until: number } | undefined {
+  if (isPat || oauth?.platform === undefined) return undefined;
+  return oauth.platform.until > now ? oauth.platform : undefined;
+}
+
 @NoTenant()
 @Controller('mcp')
 export class McpEndpointController {
@@ -250,6 +270,10 @@ export class McpEndpointController {
     @Optional()
     @Inject(PENDING_AI_ACTIONS_SERVICE)
     private readonly approvals?: Pick<PendingAiActionsService, 'request' | 'check'>,
+    /** ADR-0015 part 2: the account's platform rights. Absent only in unit tests (none listed). */
+    @Optional()
+    @Inject(AI_PLATFORM_RIGHTS)
+    private readonly platformRights?: AiPlatformRights,
   ) {}
 
   @Post()
@@ -308,6 +332,14 @@ export class McpEndpointController {
 
     // The principal the outer request proved — the one every inner call will act as. Captured now,
     // before the transport takes over the reply, so the grant minter below can run per inner call.
+    // ADR-0015 F1/F2: only an OAuth grant holding `tmanage:platform` inside its own window binds
+    // the inner calls to the consent's stepped-up browser session; a personal access token never
+    // does, so its catalogue lists no platform op and the platform guard refuses its inner calls.
+    const platformBinding = platformBindingOf(isPat, oauth, Date.now());
+    const platformPermissions =
+      platformBinding !== undefined && this.platformRights !== undefined
+        ? await this.platformRights.permissionsFor(state.session.userId, state.correlationId)
+        : undefined;
     const principal: Omit<InternalGrantPayload, 'opId'> = {
       grantId: oauth?.grantId ?? state.session.sessionId,
       userId: state.session.userId,
@@ -316,6 +348,12 @@ export class McpEndpointController {
       clientId: oauth?.clientId ?? state.session.sessionId,
       clientName: oauth?.clientName ?? 'AI assistant',
       scopes,
+      ...(platformBinding !== undefined && platformPermissions !== undefined
+        ? {
+            stepUpSessionId: platformBinding.stepUpSessionId,
+            platformUntil: platformBinding.until,
+          }
+        : {}),
     };
 
     const webOrigin = this.config.webPublicUrl;
@@ -323,6 +361,9 @@ export class McpEndpointController {
       profile: toolsProfile(request.raw),
       scopes,
       capabilities: workspace.capabilities,
+      ...(principal.stepUpSessionId !== undefined && platformPermissions !== undefined
+        ? { platformPermissions }
+        : {}),
       orgSlug: workspace.orgSlug,
       baseUrl: IN_PROCESS_BASE_URL,
       fetch: inProcessFetch(this.adapterHost.httpAdapter.getInstance<InjectCapable>(), {
@@ -405,6 +446,7 @@ export class McpEndpointModule {
       module: McpEndpointModule,
       providers: [
         aiAccessSwitchesProvider,
+        aiPlatformRightsProvider,
         {
           provide: MCP_WORKSPACE_RESOLVER,
           inject: [TENANT_DATABASE],

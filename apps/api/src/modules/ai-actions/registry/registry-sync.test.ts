@@ -4,6 +4,7 @@ import type { Capability } from '@tmanage/domain';
 import {
   AI_SCOPES,
   NEVER,
+  isPlatformOp,
   OPS,
   OP_SENSITIVITY,
   RISK_CLASSES,
@@ -14,6 +15,8 @@ import {
   routeKey,
 } from './index.js';
 import { IS_PUBLIC, REQUIRED_CAPABILITY, SKIPS_TENANT } from '../../../common/http/decorators.js';
+import { PLATFORM_ADMIN_GUARD_MARK } from '../../../common/http/guards/bound-token-allowlist.js';
+import { PLATFORM_PERMISSION_METADATA } from '../../platform-admin/require-platform-permission.decorator.js';
 
 // `import.meta.glob` is typed by a global `ImportMeta` augmentation that ships with docx's
 // declarations (R5), so this file no longer declares its own (that was a duplicate identifier);
@@ -45,6 +48,19 @@ const PATH_METADATA = 'path';
 const METHOD_METADATA = 'method';
 /** `RequestMethod` enum order. Only the first five occur across the 710 routes. */
 const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS', 'HEAD', 'SEARCH'];
+const GUARDS_METADATA = '__guards__';
+
+/** Whether a `@UseGuards` list holds `PlatformAdminGuard` (it carries the mark, ADR-0015 F4). */
+function holdsPlatformAdminGuard(guards: unknown): boolean {
+  return (
+    Array.isArray(guards) &&
+    guards.some(
+      (guard) =>
+        typeof guard === 'function' &&
+        (guard as unknown as Record<symbol, unknown>)[PLATFORM_ADMIN_GUARD_MARK] === true,
+    )
+  );
+}
 
 /** The number of live routes at the time slice S1 classified them (plan §2). A canary: when the
  *  API genuinely gains or loses a route this is updated in the same change that classifies it.
@@ -260,6 +276,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
 // SEC-TRACKER: +4 NEVER (network-access blocklist add and remove; source-labels add and remove),
 // platform security administration.
 // AI-PANEL: +2 NEVER (GET ai/panel and GET ai/activity), the member's own AI panel.
+// ADR-0015 part 2 (AI platform admin): no route added. 236 platform routes (and keys/status,
+// keys/rotate) move from NEVER to `platform.*` ops; step-up (K1) and the content file download
+// (K4) stay NEVER, and org support-session GET becomes an op.
 const EXPECTED_ROUTE_COUNT = 1627;
 // 60-03: +8 NEVER (ai-employees list, get, hire, edit, pause, resume, sponsor, retire).
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
@@ -272,6 +291,10 @@ interface LiveRoute {
   readonly capability: Capability | null;
   readonly isPublic: boolean;
   readonly skipsTenant: boolean;
+  /** ADR-0015: the route (or its controller) is behind `PlatformAdminGuard`. */
+  readonly platformGuarded: boolean;
+  /** Its `@RequirePlatformPermission`, `null` when it has none (any platform admin). */
+  readonly platformPermission: string | null;
   readonly source: string;
 }
 
@@ -317,6 +340,13 @@ function enumerateLiveRoutes(): LiveRoute[] {
           capability,
           isPublic: Reflect.getMetadata(IS_PUBLIC, handler) === true || classPublic,
           skipsTenant: Reflect.getMetadata(SKIPS_TENANT, handler) === true || classSkipsTenant,
+          platformGuarded:
+            holdsPlatformAdminGuard(Reflect.getMetadata(GUARDS_METADATA, handler)) ||
+            holdsPlatformAdminGuard(Reflect.getMetadata(GUARDS_METADATA, ctor)),
+          platformPermission:
+            (Reflect.getMetadata(PLATFORM_PERMISSION_METADATA, handler) as string | undefined) ??
+            (Reflect.getMetadata(PLATFORM_PERMISSION_METADATA, ctor) as string | undefined) ??
+            null,
           source: `${modulePath} ${handlerName}`,
         });
       }
@@ -368,21 +398,54 @@ describe('AI action registry sync (T-REG-01)', () => {
     expect(mismatches, `capability drift:\n${mismatches.join('\n')}`).toEqual([]);
   });
 
-  it('never exposes a public or tenant-less route as an op (architecture B3)', () => {
+  it('never exposes a public or tenant-less route as an op (architecture B3, ADR-0015)', () => {
+    // The one exception is a `platform.*` op on a PlatformAdminGuard route: the platform guard
+    // (rules 1–5, a live step-up bound to the person's session) is its gate, not a tenant.
     const leaked: string[] = [];
     for (const op of OPS) {
       const live = liveByKey.get(routeKey(op.method, op.path));
-      if (live && (live.isPublic || live.skipsTenant)) leaked.push(op.id);
+      if (live === undefined) continue;
+      const platform = isPlatformOp(op) && live.platformGuarded && !live.isPublic;
+      if ((live.isPublic || live.skipsTenant) && !platform) leaked.push(op.id);
+      if (isPlatformOp(op) && !live.platformGuarded) leaked.push(`${op.id} (not platform-guarded)`);
     }
     expect(leaked, `ops referencing ungated routes:\n${leaked.join('\n')}`).toEqual([]);
   });
 
-  it('withholds every public and tenant-less route via NEVER', () => {
+  it("mirrors each platform op's permission from the live route (ADR-0015 drift detector)", () => {
+    const mismatches: string[] = [];
+    for (const op of OPS.filter(isPlatformOp)) {
+      const live = liveByKey.get(routeKey(op.method, op.path));
+      if (!live) continue;
+      if ((op.platformPermission ?? null) !== live.platformPermission)
+        mismatches.push(`${op.id}: op=${op.platformPermission} live=${live.platformPermission}`);
+    }
+    expect(mismatches, `platform permission drift:\n${mismatches.join('\n')}`).toEqual([]);
+  });
+
+  it('covers every platform route: a platform op, or NEVER for K1/K4 only (ADR-0015 F7)', () => {
+    const wrong: string[] = [];
+    for (const route of liveRoutes.filter((r) => r.platformGuarded)) {
+      const key = routeKey(route.method, route.path);
+      const op = opByRouteKey.get(key);
+      const never = neverByKey.get(key);
+      if (op !== undefined && isPlatformOp(op)) continue;
+      if (never?.reason === 'platform_step_up' || never?.reason === 'platform_binary_transport')
+        continue;
+      wrong.push(`${route.method} ${route.path}: ${op?.id ?? never?.reason ?? 'unclassified'}`);
+    }
+    expect(wrong, `platform routes outside the AI path:\n${wrong.join('\n')}`).toEqual([]);
+    expect(NEVER.filter((n) => (n.reason as string) === 'platform_admin')).toEqual([]);
+  });
+
+  it('withholds every public and tenant-less route via NEVER (platform ops excepted)', () => {
     const exposedByOmission: string[] = [];
     for (const route of liveRoutes) {
       if (!route.isPublic && !route.skipsTenant) continue;
-      if (!neverByKey.has(routeKey(route.method, route.path)))
-        exposedByOmission.push(`${route.method} ${route.path}`);
+      const key = routeKey(route.method, route.path);
+      const op = opByRouteKey.get(key);
+      if (op !== undefined && isPlatformOp(op) && route.platformGuarded) continue;
+      if (!neverByKey.has(key)) exposedByOmission.push(`${route.method} ${route.path}`);
     }
     expect(
       exposedByOmission,

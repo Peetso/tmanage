@@ -11,6 +11,14 @@ export const SCOPE_READ = 'tmanage:read';
 export const SCOPE_WRITE = 'tmanage:write';
 export const SCOPE_MANAGE = 'tmanage:manage';
 export const SCOPE_BILLING = 'tmanage:billing';
+/**
+ * ADR-0015 part 2 (point 8, review F1/F11). The external MCP's platform admin scope. Offered on
+ * the consent page only to a platform admin right after a fresh step-up, off by default, with its
+ * own short window (`PLATFORM_AI_SCOPE_MINUTES`). It is not a registry scope: it adds the
+ * step-up binding that lets a grant reach `platform.*` ops at all; the tenant scopes still decide
+ * read versus change. A personal access token never carries it (`PAT_SCOPES`).
+ */
+export const SCOPE_PLATFORM = 'tmanage:platform';
 
 /** Every scope TManage recognises, in the fixed display order the consent page uses. */
 export const KNOWN_SCOPES: readonly string[] = Object.freeze([
@@ -19,6 +27,13 @@ export const KNOWN_SCOPES: readonly string[] = Object.freeze([
   SCOPE_MANAGE,
   SCOPE_BILLING,
 ]);
+
+/**
+ * ADR-0015: every scope an OAuth client may ask for and a consent may grant — the four tenant
+ * scopes plus `tmanage:platform`. Kept apart from {@link KNOWN_SCOPES}, which personal access
+ * tokens and the company token policy use, so a PAT can never be issued the platform scope (F2).
+ */
+export const CONSENT_SCOPES: readonly string[] = Object.freeze([...KNOWN_SCOPES, SCOPE_PLATFORM]);
 
 /**
  * 60-05 (plan 60 v2 §4.5) — the only scope an AI employee's credential holds. Deliberately NOT in
@@ -33,7 +48,7 @@ export const SCOPE_AGENT = 'tmanage:agent';
 export const DEFAULT_SCOPES: readonly string[] = Object.freeze([SCOPE_READ, SCOPE_WRITE]);
 
 export function isKnownScope(scope: string): boolean {
-  return KNOWN_SCOPES.includes(scope);
+  return CONSENT_SCOPES.includes(scope);
 }
 
 /**
@@ -52,12 +67,12 @@ export function parseScopes(raw: unknown): readonly string[] {
     if (!isKnownScope(scope)) throw new InvalidScopeError(`Unknown scope: ${scope}`);
   }
   if (requested.size === 0) return DEFAULT_SCOPES;
-  return KNOWN_SCOPES.filter((scope) => requested.has(scope));
+  return CONSENT_SCOPES.filter((scope) => requested.has(scope));
 }
 
 /** The canonical stored/returned form: space-delimited, in display order. */
 export function scopesToString(scopes: readonly string[]): string {
-  return KNOWN_SCOPES.filter((scope) => scopes.includes(scope)).join(' ');
+  return CONSENT_SCOPES.filter((scope) => scopes.includes(scope)).join(' ');
 }
 
 /** `invalid_scope` per RFC 6749 §4.1.2.1 / §5.2. */

@@ -125,6 +125,22 @@ describe('56-21 two-person approvals', () => {
     expect(view.status).toBe('approved');
   });
 
+  it("refuses an admin's AI approving the same admin's request (ADR-0015 F7)", async () => {
+    const service = new PlatformGovernanceService(
+      harness({ row: approval() }).store,
+      null,
+      () => NOW,
+    );
+    // The AI acts as the person who approved its card: the actor is still alice, so the
+    // different-admin rule holds whether the request or the decision came through an AI.
+    const viaAi: PlatformAdminActor = {
+      ...actor('alice'),
+      via: { clientId: 'tmanage-ai', clientName: 'TManage AI', pendingActionId: 'pa-1' },
+    };
+    expect(await code(service.decide(viaAi, APPROVAL, 'approved', {}, ctx))).toBe('403');
+    expect(await code(service.decide(viaAi, APPROVAL, 'rejected', {}, ctx))).toBe('403');
+  });
+
   it('will not decide an expired request', async () => {
     const expired = approval({ expiresAt: new Date(NOW.getTime() - 1) });
     const service = new PlatformGovernanceService(harness({ row: expired }).store, null, () => NOW);

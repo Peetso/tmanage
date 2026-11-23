@@ -49,6 +49,7 @@ const SCOPE_READ = 'tmanage:read';
 const SCOPE_WRITE = 'tmanage:write';
 const SCOPE_MANAGE = 'tmanage:manage';
 const SCOPE_BILLING = 'tmanage:billing';
+const SCOPE_PLATFORM = 'tmanage:platform';
 
 /** The four rows, in the design's order. */
 const SCOPE_ROWS: ReadonlyArray<{
@@ -82,6 +83,17 @@ const SCOPE_ROWS: ReadonlyArray<{
     optIn: true,
   },
 ];
+
+/**
+ * ADR-0015 F11: the platform admin row, shown only to a platform admin (`view.platform.offered`),
+ * never pre-ticked, and tickable only once `view.platform.ready` (fresh step-up, two-step on).
+ */
+const PLATFORM_ROW = {
+  scope: SCOPE_PLATFORM,
+  title: k('Consent.scope.platform.title'),
+  body: k('Consent.scope.platform.body'),
+  optIn: true,
+} as const;
 
 const NEVER_KEYS: readonly MessageKey[] = [
   k('Consent.never.signIn'),
@@ -195,16 +207,29 @@ function ConsentDecision({
   const [failed, setFailed] = useState(false);
   const [chosen, setChosen] = useState<ReadonlySet<string>>(
     () =>
-      // Every scope on; billing is dropped below (`granted`) where the role cannot grant it.
-      new Set([SCOPE_READ, SCOPE_WRITE, SCOPE_MANAGE, SCOPE_BILLING, ...view.requestedScopes]),
+      // Every tenant scope on; billing is dropped below (`granted`) where the role cannot grant it.
+      // Platform admin is never on by default (ADR-0015 F11), whatever the client asked for.
+      new Set(
+        [SCOPE_READ, SCOPE_WRITE, SCOPE_MANAGE, SCOPE_BILLING, ...view.requestedScopes].filter(
+          (scope) => scope !== SCOPE_PLATFORM,
+        ),
+      ),
   );
 
   const workspace = workspaces.find((org) => org.id === workspaceId) ?? workspaces[0];
   const billingAllowed = workspace !== undefined && BILLING_ROLES.has(workspace.role);
+  const platformOffered = view.platform?.offered === true;
+  const platformReady = platformOffered && view.platform?.ready === true;
   const granted = useMemo(
-    () => [...chosen].filter((scope) => scope !== SCOPE_BILLING || billingAllowed),
-    [chosen, billingAllowed],
+    () =>
+      [...chosen].filter(
+        (scope) =>
+          (scope !== SCOPE_BILLING || billingAllowed) &&
+          (scope !== SCOPE_PLATFORM || platformReady),
+      ),
+    [chosen, billingAllowed, platformReady],
   );
+  const scopeRows = platformOffered ? [...SCOPE_ROWS, PLATFORM_ROW] : SCOPE_ROWS;
 
   const allow = useMutation({
     mutationFn: () => {
@@ -330,10 +355,12 @@ function ConsentDecision({
         {fill(t(k('Consent.abilities')), { app: client.name })}
       </h2>
       <ul className="tm-consent__scopes">
-        {SCOPE_ROWS.map((row) => {
+        {scopeRows.map((row) => {
           const id = `tm-consent-scope-${row.scope.replace(':', '-')}`;
           const locked = row.scope === SCOPE_READ;
-          const unavailable = row.scope === SCOPE_BILLING && !billingAllowed;
+          const unavailable =
+            (row.scope === SCOPE_BILLING && !billingAllowed) ||
+            (row.scope === SCOPE_PLATFORM && !platformReady);
           return (
             <li key={row.scope} className="tm-consent__scope">
               <input
@@ -356,6 +383,9 @@ function ConsentDecision({
                 </label>
                 <span id={`${id}-body`} className="tm-consent__scope-body">
                   {t(row.body)}
+                  {row.scope === SCOPE_PLATFORM && !platformReady
+                    ? ` ${t(k('Consent.scope.platform.stepUp'))}`
+                    : null}
                 </span>
               </span>
             </li>

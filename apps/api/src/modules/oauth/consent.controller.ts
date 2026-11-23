@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  Optional,
   Post,
   Query,
   Req,
@@ -25,9 +26,14 @@ import type { AuthenticatedSession } from '../identity/session.service.js';
 import {
   type ConsentTickets,
   describeClient,
+  PLATFORM_CONSENT_CHECK,
+  platformAiScopeMinutes,
+  platformWindowEnd,
   resolveGrantedScopes,
   type ConsentClientView,
+  type PlatformConsentCheck,
 } from './consent.js';
+import { SCOPE_PLATFORM } from './scopes.js';
 import { OAuthError, type OAuthService, type ValidatedAuthorize } from './oauth.service.js';
 import { OAUTH_SERVICE } from './oauth.tokens.js';
 
@@ -62,8 +68,16 @@ interface DecisionBody extends ConsentParams {
 
 export interface ConsentView {
   readonly client: ConsentClientView;
-  /** What the client asked for, in display order. The page pre-ticks these. */
+  /**
+   * What the client asked for, in display order. The page pre-ticks these. Never
+   * `tmanage:platform` (ADR-0015 F11: off by default, the person ticks it).
+   */
   readonly requestedScopes: readonly string[];
+  /**
+   * F11: whether the page shows the platform switch (`offered`: a platform admin) and whether it
+   * can be ticked now (`ready`: two-step on and a fresh step-up in this session).
+   */
+  readonly platform: { readonly offered: boolean; readonly ready: boolean };
   /** Bound to this session and these parameters; the decision must send it back. */
   readonly ticket: string;
 }
@@ -94,7 +108,18 @@ export class OAuthConsentController {
     @Inject(OAUTH_SERVICE) private readonly oauth: OAuthService,
     @Inject(CONSENT_TICKETS) private readonly tickets: ConsentTickets,
     @Inject(AI_ACCESS_SWITCHES) private readonly aiAccess: AiAccessSwitches,
+    /** ADR-0015 F11. Absent (unit tests): the platform scope is never offered or granted. */
+    @Optional()
+    @Inject(PLATFORM_CONSENT_CHECK)
+    private readonly platformCheck?: PlatformConsentCheck,
   ) {}
+
+  private async platformStanding(session: AuthenticatedSession, correlationId: string) {
+    if (this.platformCheck === undefined) {
+      return { offered: false, ready: false, stepUpExpiresAt: null };
+    }
+    return this.platformCheck.standing(session.userId, session.sessionId, correlationId);
+  }
 
   @Get('v1/oauth/consent')
   @NoTenant()
@@ -107,9 +132,11 @@ export class OAuthConsentController {
     const state = this.requireCookie(request);
     noStore(reply);
     const validated = await this.validate(query, state.correlationId, request.ip);
+    const platform = await this.platformStanding(session, state.correlationId);
     return {
       client: describeClient({ ...validated, name: validated.clientName }),
-      requestedScopes: validated.scopes,
+      requestedScopes: validated.scopes.filter((scope) => scope !== SCOPE_PLATFORM),
+      platform: { offered: platform.offered, ready: platform.ready },
       ticket: this.tickets.mint(bindingOf(session, validated)),
     };
   }
@@ -135,10 +162,32 @@ export class OAuthConsentController {
       throw aiWorkspaceDisabledError();
     }
     const role = state.membership?.role ?? '';
-    const granted = resolveGrantedScopes(body?.scopes, role);
+    // ADR-0015 F11: `tmanage:platform` only for a platform admin with two-step on and a step-up
+    // in this session minutes old; decided here, on the server, at the moment of consent.
+    const wantsPlatform = Array.isArray(body?.scopes) && body.scopes.includes(SCOPE_PLATFORM);
+    const platform = wantsPlatform
+      ? await this.platformStanding(session, state.correlationId)
+      : { offered: false, ready: false, stepUpExpiresAt: null };
+    const granted = resolveGrantedScopes(body?.scopes, role, platform.ready);
     if (!granted.ok) {
-      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'consent_billing_role');
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        wantsPlatform && !platform.ready ? 'consent_platform_refused' : 'consent_billing_role',
+      );
     }
+    const platformBinding = granted.scopes.includes(SCOPE_PLATFORM)
+      ? {
+          stepUpSessionId: session.sessionId,
+          until: platformWindowEnd(
+            new Date(),
+            platformAiScopeMinutes(process.env),
+            platform.stepUpExpiresAt,
+          ),
+        }
+      : undefined;
     const { redirectUrl } = await this.oauth.grantConsent(
       context,
       {
@@ -152,6 +201,7 @@ export class OAuthConsentController {
         state: validated.state,
         // N04: re-checked after the grant commits; a session ended meanwhile revokes it (401).
         sessionId: session.sessionId,
+        ...(platformBinding !== undefined ? { platform: platformBinding } : {}),
       },
       { grantId: randomUUID() },
     );

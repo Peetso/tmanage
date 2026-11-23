@@ -69,7 +69,29 @@ describe('PlatformAuditService', () => {
       JSON.stringify({ preset: 'auditor', api_secret: '[redacted]' }),
       '198.51.100.7',
       'Safari',
+      null,
+      null,
     ]);
+  });
+
+  it('records the AI client and the pending action of an AI-run request (ADR-0015 F10)', async () => {
+    const { service, sent } = harness();
+    await service.record({
+      actor: {
+        ...actor,
+        via: { clientId: 'c-1', clientName: 'TManage AI', pendingActionId: 'pa-1' },
+      },
+      action: 'platform.team_admin_updated',
+      targetType: 'platform_admin',
+      targetId: 'a1',
+      targetLabel: 'sara@x.test',
+      organizationId: ORG,
+      reason: 'Drafted by the AI',
+      reasonRequired: true,
+      request,
+      correlationId: 'corr',
+    });
+    expect(sent[0]?.params.slice(-2)).toEqual(['TManage AI', 'pa-1']);
   });
 
   it('makes the reason optional off the destructive list and required on it', async () => {

@@ -30,7 +30,7 @@ import type {
   ToolAnnotations,
 } from '@tmanage/mcp-server';
 import type { AiActionOp, AiScope } from '../ai-actions/registry/index.js';
-import { OPS } from '../ai-actions/registry/index.js';
+import { OPS, isPlatformOp } from '../ai-actions/registry/index.js';
 import type { AiActionDetail } from '../ai-actions/registry/detail.js';
 import { waveADetails } from '../ai-actions/registry/wave-a.js';
 import { waveBDetails } from '../ai-actions/registry/wave-b.js';
@@ -40,6 +40,10 @@ import { parityDetails } from '../ai-actions/registry/parity-2026-11-23.js';
 import { securityDetails } from '../ai-actions/registry/parity-b2-security.js';
 import { filesDetails } from '../ai-actions/registry/parity-b2-files.js';
 import { workDetails } from '../ai-actions/registry/parity-b2-work.js';
+import { aPlatformDetails } from '../ai-actions/registry/parity-b3-platform-a.js';
+import { bPlatformDetails } from '../ai-actions/registry/parity-b3-platform-b.js';
+import { cPlatformDetails } from '../ai-actions/registry/parity-b3-platform-c.js';
+import { corePlatformDetails } from '../ai-actions/registry/parity-b3-platform-core.js';
 
 /** Every op detail across the three registry waves, the 52-22 read gaps and the parity batches. */
 export const allDetailsList: readonly AiActionDetail[] = [
@@ -51,6 +55,10 @@ export const allDetailsList: readonly AiActionDetail[] = [
   ...securityDetails,
   ...filesDetails,
   ...workDetails,
+  ...aPlatformDetails,
+  ...bPlatformDetails,
+  ...cPlatformDetails,
+  ...corePlatformDetails,
 ];
 
 /** The same details indexed by op id (`tool-catalog.test.ts` proves no id appears twice). */
@@ -80,6 +88,24 @@ export function capabilitySatisfied(
   opCapability: string | null,
 ): boolean {
   return opCapability === null || capabilities.has(opCapability);
+}
+
+/**
+ * ADR-0015 part 2 (point 6). A platform op is permitted only when the grant reaches the platform
+ * path at all (`platformPermissions` is set: a cookie chat request, an approve-page run, or an
+ * OAuth grant with `tmanage:platform` inside its window, never a personal access token, F2) and
+ * the account holds the op's permission (`null` = any platform admin: `GET /v1/platform/me`).
+ * Every other op is unaffected.
+ */
+export function platformSatisfied(
+  platformPermissions: ReadonlySet<string> | undefined,
+  op: Pick<AiActionOp, 'platformPermission'>,
+): boolean {
+  if (!isPlatformOp(op)) return true;
+  if (platformPermissions === undefined) return false;
+  return op.platformPermission === null || op.platformPermission === undefined
+    ? true
+    : platformPermissions.has(op.platformPermission);
 }
 
 /** The MCP tool name for an op: its dotted id with dots turned into underscores. */
@@ -269,6 +295,11 @@ export interface CatalogRequest {
   readonly profile: CatalogProfile;
   readonly scopes: Iterable<AiScope>;
   readonly capabilities: ReadonlySet<string>;
+  /**
+   * The account's platform permissions when this grant may reach the platform path (step-up
+   * bound); `undefined` for every other grant, so no `platform.*` op is ever listed (F2).
+   */
+  readonly platformPermissions?: ReadonlySet<string>;
 }
 
 /** An op is a candidate tool only if it has a detail and the grant's scope and member's capability allow it. */
@@ -279,6 +310,7 @@ function permittedOpTools(req: CatalogRequest): CatalogTool[] {
     if (detail === undefined) continue; // not yet AI-callable (no schema); skipped, not exposed.
     if (!scopeSatisfied(req.scopes, op.scope)) continue;
     if (!capabilitySatisfied(req.capabilities, op.capability)) continue;
+    if (!platformSatisfied(req.platformPermissions, op)) continue;
     tools.push(opToTool(op, detail));
   }
   return tools;

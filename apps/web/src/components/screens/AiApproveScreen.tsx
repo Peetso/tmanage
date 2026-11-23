@@ -283,6 +283,26 @@ function ApprovalBody({
             </div>
           ))}
         </dl>
+        {view.summary.platform === undefined ? null : (
+          <dl className="tm-approve__fields" aria-label={t('aiApprove.platform.title')}>
+            <div className="tm-approve__field">
+              <dt>{t('aiApprove.platform.permission')}</dt>
+              <dd>{view.summary.platform.permission ?? t('aiApprove.platform.anyAdmin')}</dd>
+            </div>
+            {view.summary.platform.reason === null ? null : (
+              <div className="tm-approve__field">
+                <dt>{t('aiApprove.platform.reason')}</dt>
+                <dd>{view.summary.platform.reason}</dd>
+              </div>
+            )}
+            {view.summary.platform.secondAdminWhenPolicyOn ? (
+              <div className="tm-approve__field">
+                <dt>{t('aiApprove.platform.secondAdmin')}</dt>
+                <dd>{t('aiApprove.platform.secondAdminBody')}</dd>
+              </div>
+            ) : null}
+          </dl>
+        )}
         {destructive ? <p className="tm-approve__warning">{t('aiApprove.warningDelete')}</p> : null}
       </section>
 

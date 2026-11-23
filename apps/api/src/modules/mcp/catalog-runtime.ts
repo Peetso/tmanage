@@ -25,6 +25,7 @@ import {
   buildToolCatalog,
   capabilitySatisfied,
   effectiveScopes,
+  platformSatisfied,
   toolNameForOp,
 } from './tool-catalog.js';
 import {
@@ -108,6 +109,12 @@ export interface CatalogRuntimeOptions {
   /** Space-delimited OAuth scopes of the grant (or {@link PAT_SCOPES}). */
   readonly scopes: string;
   readonly capabilities: ReadonlySet<string>;
+  /**
+   * ADR-0015 part 2: the account's platform permissions, set only when this grant carries a
+   * step-up binding (the cookie chat, or an OAuth grant with `tmanage:platform` in its window).
+   * `undefined` — always for a personal access token (F2) — lists no `platform.*` op.
+   */
+  readonly platformPermissions?: ReadonlySet<string>;
   /** The token's own workspace. */
   readonly orgSlug: string;
   /** The in-process base the `fetch` answers for. */
@@ -156,7 +163,13 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
   readonly catalog: Catalog;
   readonly runtime: CatalogRuntime;
 } {
-  const request = { scopes: aiScopesOf(options.scopes), capabilities: options.capabilities };
+  const request = {
+    scopes: aiScopesOf(options.scopes),
+    capabilities: options.capabilities,
+    ...(options.platformPermissions !== undefined
+      ? { platformPermissions: options.platformPermissions }
+      : {}),
+  };
   const storedField = options.storedField ?? storedFieldViaApi(options);
   const catalog = buildToolCatalog({ ...request, profile: options.profile });
   // What `find`/`describe`/`run_action` may reach: every op tool the grant may run.
@@ -170,6 +183,9 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
    * is runnable. Naming an op that exists reveals nothing: the catalogue is the same for everyone.
    */
   function refusalReason(op: AiActionOp): string | null {
+    // ADR-0015 F2: a platform op is never named to an account without platform rights here (a
+    // PAT, a non-admin, an OAuth grant outside its window): no reason, so `find` lists nothing.
+    if (!platformSatisfied(options.platformPermissions, op)) return null;
     if (isNever(op.method, op.path)) {
       return 'This can only be done by hand in TManage: it needs your own sign-in, password or a file from your device.';
     }

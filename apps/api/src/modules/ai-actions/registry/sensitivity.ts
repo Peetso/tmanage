@@ -2,6 +2,10 @@ import type { Sensitivity } from './types.js';
 import { securitySensitivity } from './parity-b2-security.js';
 import { filesSensitivity } from './parity-b2-files.js';
 import { workSensitivity } from './parity-b2-work.js';
+import { aPlatformSensitivity } from './parity-b3-platform-a.js';
+import { bPlatformSensitivity } from './parity-b3-platform-b.js';
+import { cPlatformSensitivity } from './parity-b3-platform-c.js';
+import { corePlatformSensitivity } from './parity-b3-platform-core.js';
 
 /**
  * 62-11 (plan 62 §4.3) — the sensitivity of every op that changes something (`write` and
@@ -24,6 +28,12 @@ export const OP_SENSITIVITY: Readonly<Record<string, Sensitivity>> = {
   ...securitySensitivity,
   ...filesSensitivity,
   ...workSensitivity,
+  // ADR-0015 part 2: the platform family. Never `money` or `hr` (their typed amount and workspace
+  // approval rule have no platform meaning); the fresh re-authentication is `freshReauth` (F5).
+  ...aPlatformSensitivity,
+  ...bPlatformSensitivity,
+  ...cPlatformSensitivity,
+  ...corePlatformSensitivity,
   // Parity 2026-11-23 batch 1: planning changes; no money, people or outside reach.
   'iterations.complete': 'none',
   'iterations.create': 'none',

@@ -9,7 +9,8 @@ import { GovernanceRepository } from './governance.repository.js';
 import { PlatformGovernanceService } from './governance.service.js';
 import type { RiskyPlatformAction } from './governance.service.js';
 
-const TWO_PERSON_ACTION = Symbol('tmanage.route.twoPersonAction');
+/** The route metadata key of {@link RequireTwoPersonApproval} (read by the ADR-0015 census test). */
+export const TWO_PERSON_ACTION = Symbol('tmanage.route.twoPersonAction');
 
 /** Marks a risky platform route. Use beside `@UseGuards(TwoPersonApprovalGuard)`. */
 export const RequireTwoPersonApproval = (action: RiskyPlatformAction): MethodDecorator =>

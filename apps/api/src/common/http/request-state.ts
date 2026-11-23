@@ -58,6 +58,12 @@ export interface RequestState {
     readonly clientId: string;
     readonly clientName: string;
     readonly opId: string;
+    /** ADR-0015 part 2: the stepped-up browser session an internal grant is bound to (F2/F3). */
+    readonly stepUpSessionId?: string;
+    /** F1: the end of an external grant's platform window (epoch ms). */
+    readonly platformUntil?: number;
+    /** F10: the pending AI action an approved run executes. */
+    readonly pendingActionId?: string;
   };
   /**
    * The organization and membership a personal access token is bound to (0202). Set by

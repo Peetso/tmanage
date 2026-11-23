@@ -54,6 +54,9 @@ export interface NewGrant {
   readonly membershipId: string;
   readonly userId: string;
   readonly scopes: string;
+  /** ADR-0015 F1: set only with `tmanage:platform` (the consent step-up session and window end). */
+  readonly platformStepUpSessionId?: string | null;
+  readonly platformUntil?: Date | null;
 }
 
 export interface GrantView {
@@ -64,6 +67,8 @@ export interface GrantView {
   readonly userId: string;
   readonly scopes: string;
   readonly revokedAt: Date | null;
+  readonly platformStepUpSessionId?: string | null;
+  readonly platformUntil?: Date | null;
 }
 
 export interface NewOauthClient {
@@ -192,6 +197,8 @@ export class OauthTokensRepository {
         membershipId: input.membershipId,
         userId: input.userId,
         scopes: input.scopes,
+        platformStepUpSessionId: input.platformStepUpSessionId ?? null,
+        platformUntil: input.platformUntil ?? null,
         createdAt: sql`current_timestamp(3)`,
       });
   }
@@ -207,6 +214,8 @@ export class OauthTokensRepository {
         userId: oauthGrants.userId,
         scopes: oauthGrants.scopes,
         revokedAt: oauthGrants.revokedAt,
+        platformStepUpSessionId: oauthGrants.platformStepUpSessionId,
+        platformUntil: oauthGrants.platformUntil,
       })
       .from(oauthGrants)
       .where(eq(oauthGrants.id, grantId))

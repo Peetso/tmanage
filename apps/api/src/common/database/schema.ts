@@ -232,6 +232,13 @@ export const oauthGrants = mysqlTable(
     authorizedByMembershipId: char('authorized_by_membership_id', { length: 36 }),
     /** Space-separated consented scopes, e.g. `tmanage:read tmanage:write`. */
     scopes: varchar('scopes', { length: 255 }).notNull(),
+    /**
+     * ADR-0015 F1 (0408). With `tmanage:platform`: the browser session the platform admin stepped
+     * up in at consent; every platform call re-checks its live step-up and that it is signed in.
+     */
+    platformStepUpSessionId: char('platform_step_up_session_id', { length: 36 }),
+    /** F1 (0408): the end of the grant's own platform window, fixed at consent (never refreshed). */
+    platformUntil: datetime('platform_until', { mode: 'date', fsp: 3 }),
     revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
@@ -7240,6 +7247,10 @@ export const platformAdminAuditEvents = mysqlTable(
     afterJson: text('after_json'),
     ip: varchar('ip', { length: 45 }),
     userAgent: varchar('user_agent', { length: 255 }),
+    /** ADR-0015 point 9 (0408): the AI client an AI-run action was for; NULL for a person's click. */
+    aiClientName: varchar('ai_client_name', { length: 190 }),
+    /** ADR-0015 F10 (0408): the approved pending AI action the run executed. */
+    aiPendingActionId: char('ai_pending_action_id', { length: 36 }),
   },
   (table) => [
     index('ix_platform_admin_audit_events_time').on(table.createdAt),

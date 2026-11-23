@@ -4,9 +4,13 @@ import { ensureRequestState } from '../../common/http/request-state.js';
 import {
   CONSENT_TICKET_TTL_MS,
   ConsentTickets,
+  PLATFORM_AI_SCOPE_DEFAULT_MINUTES,
   describeClient,
+  platformAiScopeMinutes,
+  platformWindowEnd,
   resolveGrantedScopes,
   type ConsentBinding,
+  type PlatformConsentStanding,
 } from './consent.js';
 import { OAuthConsentController } from './consent.controller.js';
 import type { OAuthService, ValidatedAuthorize } from './oauth.service.js';
@@ -205,5 +209,144 @@ describe('OAuthConsentController', () => {
         reply,
       ),
     ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe('ADR-0015 F1/F11 — the tmanage:platform consent scope', () => {
+  it('is refused (not dropped) unless the person is eligible right now', () => {
+    expect(resolveGrantedScopes(['tmanage:platform'], 'owner')).toEqual({ ok: false });
+    expect(resolveGrantedScopes(['tmanage:platform'], 'owner', false)).toEqual({ ok: false });
+    expect(resolveGrantedScopes(['tmanage:platform', 'tmanage:write'], 'member', true)).toEqual({
+      ok: true,
+      scopes: ['tmanage:read', 'tmanage:write', 'tmanage:platform'],
+    });
+  });
+
+  it('has its own short window: 5–240 minutes, default 60, never past the step-up', () => {
+    expect(platformAiScopeMinutes({})).toBe(PLATFORM_AI_SCOPE_DEFAULT_MINUTES);
+    expect(platformAiScopeMinutes({ PLATFORM_AI_SCOPE_MINUTES: '15' })).toBe(15);
+    for (const bad of ['4', '241', '1440', '-5', '1e3', 'soon', ''])
+      expect(platformAiScopeMinutes({ PLATFORM_AI_SCOPE_MINUTES: bad }), bad).toBe(60);
+    const now = new Date('2026-11-23T10:00:00Z');
+    expect(platformWindowEnd(now, 60, null).toISOString()).toBe('2026-11-23T11:00:00.000Z');
+    expect(platformWindowEnd(now, 60, new Date('2026-11-23T10:20:00Z')).toISOString()).toBe(
+      '2026-11-23T10:20:00.000Z',
+    );
+  });
+
+  describe('the consent controller', () => {
+    const validated: ValidatedAuthorize = {
+      clientPk: 'pk',
+      clientId: binding.clientId,
+      clientName: 'Claude',
+      verified: true,
+      redirectUri: binding.redirectUri,
+      challenge: binding.challenge,
+      scopes: ['tmanage:read', 'tmanage:platform'],
+      resource: binding.resource,
+      state: binding.state,
+    };
+    const aiOn = {
+      platformOn: async () => true,
+      organizationOn: async () => true,
+      forget: () => undefined,
+    };
+    const reply = { header: () => reply };
+    const context = { organizationId: 'org', userId: 'user-1', membershipId: 'm' } as TenantContext;
+    const session = { sessionId: 'session-a', userId: 'user-1' };
+    function request() {
+      const req = { headers: {} };
+      const state = ensureRequestState(req);
+      state.authScheme = 'cookie';
+      state.membership = { role: 'member' } as never;
+      return req;
+    }
+    function controllerWith(standing: PlatformConsentStanding | undefined) {
+      const granted: Record<string, unknown>[] = [];
+      const oauth = {
+        validateAuthorize: async () => validated,
+        grantConsent: async (_ctx: unknown, input: Record<string, unknown>) => {
+          granted.push(input);
+          return { redirectUrl: 'https://claude.ai/cb?code=c', code: 'c' };
+        },
+        buildRedirect: (uri: string) => `${uri}?error=access_denied`,
+      } as unknown as OAuthService;
+      const check = standing === undefined ? undefined : { standing: async () => standing };
+      const controller = new OAuthConsentController(
+        oauth,
+        new ConsentTickets(Buffer.alloc(32, 1)),
+        aiOn,
+        check,
+      );
+      return { controller, granted };
+    }
+
+    it('never pre-ticks it and offers it to platform admins only', async () => {
+      const plain = controllerWith(undefined);
+      const view = await plain.controller.view(session, {}, request(), reply);
+      expect(view.requestedScopes).not.toContain('tmanage:platform');
+      expect(view.platform).toEqual({ offered: false, ready: false });
+      const admin = controllerWith({ offered: true, ready: false, stepUpExpiresAt: null });
+      expect((await admin.controller.view(session, {}, request(), reply)).platform).toEqual({
+        offered: true,
+        ready: false,
+      });
+    });
+
+    it('refuses it without a fresh step-up (or to a non-admin), and grants nothing', async () => {
+      for (const standing of [
+        undefined,
+        { offered: false, ready: false, stepUpExpiresAt: null },
+        { offered: true, ready: false, stepUpExpiresAt: new Date(Date.now() + 3_600_000) },
+      ]) {
+        const { controller, granted } = controllerWith(standing);
+        const { ticket } = await controller.view(session, {}, request(), reply);
+        await expect(
+          controller.approve(
+            context,
+            session,
+            { ticket, scopes: ['tmanage:platform'] },
+            request(),
+            reply,
+          ),
+        ).rejects.toMatchObject({ status: 403 });
+        expect(granted).toEqual([]);
+      }
+    });
+
+    it('binds a granted platform scope to this session with a window that ends', async () => {
+      const stepUpEnd = new Date(Date.now() + 24 * 3_600_000);
+      const { controller, granted } = controllerWith({
+        offered: true,
+        ready: true,
+        stepUpExpiresAt: stepUpEnd,
+      });
+      const { ticket } = await controller.view(session, {}, request(), reply);
+      const before = Date.now();
+      await controller.approve(
+        context,
+        session,
+        { ticket, scopes: ['tmanage:platform'] },
+        request(),
+        reply,
+      );
+      const platform = granted[0]!['platform'] as { stepUpSessionId: string; until: Date };
+      expect(granted[0]!['scopes']).toEqual(['tmanage:read', 'tmanage:platform']);
+      expect(platform.stepUpSessionId).toBe('session-a');
+      const minutes = (platform.until.getTime() - before) / 60_000;
+      expect(minutes).toBeGreaterThan(59);
+      expect(minutes).toBeLessThanOrEqual(60.1);
+    });
+
+    it('a grant without the platform scope carries no binding', async () => {
+      const { controller, granted } = controllerWith({
+        offered: true,
+        ready: true,
+        stepUpExpiresAt: null,
+      });
+      const { ticket } = await controller.view(session, {}, request(), reply);
+      await controller.approve(context, session, { ticket, scopes: [] }, request(), reply);
+      expect(granted[0]!['platform']).toBeUndefined();
+    });
   });
 });

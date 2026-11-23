@@ -128,9 +128,10 @@ export class PendingAiActionsController {
     @Param('orgSlug') orgSlug: string,
     @Param('id') id: string,
     @AuthScheme() authScheme: string | undefined,
+    @CurrentSession() session?: AuthenticatedSession,
   ): Promise<PendingAiActionView> {
     requireCookieSession(authScheme);
-    return this.approvals.view(context, id, orgSlug);
+    return this.approvals.view(context, id, orgSlug, session?.sessionId);
   }
 
   @Post(':id/approve')
@@ -157,6 +158,8 @@ export class PendingAiActionsController {
         this.config?.sessionSecret,
       ),
       amount: parseApprovalAmount(body),
+      // ADR-0015 F3: a platform action runs bound to this approving cookie session.
+      ...(session?.sessionId !== undefined ? { sessionId: session.sessionId } : {}),
     });
   }
 

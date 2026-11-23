@@ -1,4 +1,4 @@
-import { findOpById } from '../ai-actions/registry/index.js';
+import { findOpById, isPlatformOp } from '../ai-actions/registry/index.js';
 import type { AiActionOp } from '../ai-actions/registry/index.js';
 
 /**
@@ -25,9 +25,17 @@ import type { AiActionOp } from '../ai-actions/registry/index.js';
 const UNTRUSTED =
   /(portal|client|inbound|e-?mail|mail|form|comment|message|conversation|file|document|attachment|upload|memory|knowledge|search|note|chat|wiki|feedback|submission|proof|chunk|import|intake|request|review|unfurl|inbox|approval|activity|mention|notification)/i;
 
-/** A read whose result may carry text other people wrote. */
-export function isUntrustedOp(op: Pick<AiActionOp, 'id' | 'path' | 'risk'>): boolean {
-  return op.risk === 'read' && (UNTRUSTED.test(op.id) || UNTRUSTED.test(op.path));
+/**
+ * A read whose result may carry text other people wrote. ADR-0015 F6: every platform read is
+ * untrusted by rule, not by list — platform data is written by people in every company and now
+ * reaches a principal with platform rights (OWASP LLM01 / LLM06).
+ */
+export function isUntrustedOp(
+  op: Pick<AiActionOp, 'id' | 'path' | 'risk' | 'platformPermission'>,
+): boolean {
+  if (op.risk !== 'read') return false;
+  if (isPlatformOp(op)) return true;
+  return UNTRUSTED.test(op.id) || UNTRUSTED.test(op.path);
 }
 
 /** By op id; an unknown id is untrusted (fail closed). */

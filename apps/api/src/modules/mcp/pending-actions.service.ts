@@ -1,4 +1,6 @@
 import { uuidv7 } from '@tmanage/domain';
+import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
+import { isPlatformOp } from '../ai-actions/registry/index.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -15,6 +17,7 @@ import {
   freezeConfirmAction,
   signRequestState,
   subjectFromBody,
+  platformTargetLookup,
   subjectLookupOp,
   verifyFrozenAction,
 } from './pending-actions.js';
@@ -87,7 +90,25 @@ export interface ApprovalProof {
   /** Identity's decision (`isFreshStepUp`) for this request's session and user. */
   readonly stepUpFresh: boolean;
   readonly amount: number | undefined;
+  /**
+   * ADR-0015 F3: the approving request's own cookie session, set by the controller from request
+   * state. A platform action runs bound to it (the step-up is checked at run time, not propose).
+   */
+  readonly sessionId?: string;
 }
+
+/** ADR-0015 F3: how an approved action runs. */
+export interface ApproveOptions {
+  /** The approving cookie session; a platform action runs bound to it. */
+  readonly stepUpSessionId?: string;
+}
+
+/**
+ * ADR-0015 F11 — at most this many platform proposals per person and AI client an hour, so a
+ * tricked model cannot bury the admin in cards. Counted in this process (the API runs as one).
+ */
+export const PLATFORM_PROPOSALS_PER_HOUR = 30;
+const HOUR_MS = 60 * 60 * 1000;
 
 export interface CreatedPendingAction {
   readonly id: string;
@@ -115,6 +136,12 @@ export class PendingAiActionsService {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
+  /** F11: platform proposals per `user:client`, fixed hourly window. */
+  private readonly platformProposals = createFixedWindowLimiter({
+    windowMs: HOUR_MS,
+    max: PLATFORM_PROPOSALS_PER_HOUR,
+  });
+
   /**
    * Freeze a confirm-class op for approval. Runs on the MCP path, before any tenant context, so
    * it writes under a service context for the requester's own organization; the membership and
@@ -127,6 +154,18 @@ export class PendingAiActionsService {
     correlationId: string,
   ): Promise<CreatedPendingAction> {
     const frozen = freezeConfirmAction(opId, args);
+    if (
+      isPlatformOp(frozen.op) &&
+      !this.platformProposals(`${requester.userId}:${requester.clientId}`)
+    ) {
+      throw new ApiError(
+        429,
+        'rate_limited',
+        'Too many platform changes were proposed this hour. Try again later.',
+        undefined,
+        'ai_platform_proposals_rate_limited',
+      );
+    }
     const now = this.now();
     const id = uuidv7();
     const expiresAt = new Date(now.getTime() + PENDING_AI_ACTION_TTL_MS);
@@ -171,9 +210,15 @@ export class PendingAiActionsService {
    * pending, a target the arguments only name by id (a delete) is named by reading it as the
    * member, so the page can say what will go (`Delete “Homepage direction review”`).
    */
-  async view(context: TenantContext, id: string, orgSlug?: string): Promise<PendingAiActionView> {
+  async view(
+    context: TenantContext,
+    id: string,
+    orgSlug?: string,
+    /** ADR-0015 F9: the viewing cookie session, so a platform target can be named. */
+    sessionId?: string,
+  ): Promise<PendingAiActionView> {
     const found = await this.loadOwn(context, id);
-    return this.named(context, orgSlug, found, this.toView(found));
+    return this.named(context, orgSlug, found, this.toView(found), sessionId);
   }
 
   /** `view` with its target named by {@link readSubject} when the arguments did not name it. */
@@ -182,11 +227,12 @@ export class PendingAiActionsService {
     orgSlug: string | undefined,
     found: PendingAiActionWithMember,
     view: PendingAiActionView,
+    sessionId?: string,
   ): Promise<PendingAiActionView> {
     if (orgSlug === undefined || view.status !== 'pending' || view.summary.subject !== null) {
       return view;
     }
-    const subject = await this.readSubject(context, orgSlug, found);
+    const subject = await this.readSubject(context, orgSlug, found, sessionId);
     return subject === null ? view : { ...view, summary: { ...view.summary, subject } };
   }
 
@@ -226,7 +272,12 @@ export class PendingAiActionsService {
    * the op; a second approve, an expired request or a declined one returns the current state and
    * runs nothing (`T-APR-03`). The stored args are re-verified against their hash first.
    */
-  async approve(context: TenantContext, orgSlug: string, id: string): Promise<PendingAiActionView> {
+  async approve(
+    context: TenantContext,
+    orgSlug: string,
+    id: string,
+    options: ApproveOptions = {},
+  ): Promise<PendingAiActionView> {
     const found = await this.loadOwn(context, id);
     const frozen = verifyFrozenAction(found.row.opId, found.row.argsJson, found.row.argsSha256);
     if (frozen === undefined) throw notFound();
@@ -235,7 +286,7 @@ export class PendingAiActionsService {
       this.repository.decide(tx, context, owner, id, 'approved', this.now()),
     );
     if (won === 1) {
-      const outcome = await this.runFrozen(context, orgSlug, found, frozen);
+      const outcome = await this.runFrozen(context, orgSlug, found, frozen, options);
       await this.database.transaction(context, (tx) =>
         this.repository.recordResult(tx, context, id, outcome),
       );
@@ -279,7 +330,12 @@ export class PendingAiActionsService {
         );
       }
     }
-    return this.approve(context, orgSlug, id);
+    return this.approve(
+      context,
+      orgSlug,
+      id,
+      proof.sessionId !== undefined ? { stepUpSessionId: proof.sessionId } : {},
+    );
   }
 
   /**
@@ -318,14 +374,22 @@ export class PendingAiActionsService {
     context: TenantContext,
     orgSlug: string,
     found: PendingAiActionWithMember,
+    sessionId?: string,
   ): Promise<string | null> {
     const frozen = verifyFrozenAction(found.row.opId, found.row.argsJson, found.row.argsSha256);
-    const read = frozen === undefined ? undefined : subjectLookupOp(frozen.op);
-    if (frozen === undefined || read === undefined) return null;
+    if (frozen === undefined) return null;
+    // F9: a platform target (company or person) is named by the platform read, bound to the
+    // viewing session; any other op by the registry read of the same path.
+    const platform = platformTargetLookup(frozen.op, frozen.args);
+    if (platform !== undefined && sessionId === undefined) return null;
+    const read = platform?.op ?? subjectLookupOp(frozen.op);
+    if (read === undefined) return null;
     try {
-      const pathArgs = Object.fromEntries(
-        Object.entries(frozen.args).filter(([key]) => read.path.includes(`:${key}`)),
-      );
+      const pathArgs =
+        platform?.args ??
+        Object.fromEntries(
+          Object.entries(frozen.args).filter(([key]) => read.path.includes(`:${key}`)),
+        );
       const response = await this.execute(
         buildOpRequest(read, pathArgs, orgSlug),
         {
@@ -336,6 +400,9 @@ export class PendingAiActionsService {
           clientId: found.row.clientId,
           clientName: found.row.clientName,
           opId: read.id,
+          ...(platform !== undefined && sessionId !== undefined
+            ? { stepUpSessionId: sessionId }
+            : {}),
         },
         context.correlationId,
       );
@@ -350,7 +417,14 @@ export class PendingAiActionsService {
     orgSlug: string,
     found: PendingAiActionWithMember,
     frozen: FrozenAction,
+    options: ApproveOptions = {},
   ): Promise<{ status: number; body: unknown }> {
+    // ADR-0015 F3/F10: a platform action runs as an internal grant bound to the APPROVING cookie
+    // session (its step-up is checked now, at run time) and names the pending action it executes.
+    const platform =
+      isPlatformOp(frozen.op) && options.stepUpSessionId !== undefined
+        ? { stepUpSessionId: options.stepUpSessionId, pendingActionId: found.row.id }
+        : {};
     const request = buildOpRequest(frozen.op, frozen.args, orgSlug);
     try {
       const response = await this.execute(
@@ -363,6 +437,7 @@ export class PendingAiActionsService {
           clientId: found.row.clientId,
           clientName: found.row.clientName,
           opId: frozen.op.id,
+          ...platform,
         },
         context.correlationId,
       );

@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AiActionOp } from '../ai-actions/registry/index.js';
-import { findOpById, findOpByRoute } from '../ai-actions/registry/index.js';
+import { findOpById, findOpByRoute, isPlatformOp, routeKey } from '../ai-actions/registry/index.js';
+import { PLATFORM_TWO_PERSON_ROUTES } from '../ai-actions/registry/platform-op.js';
 import type { AiActionDetail } from '../ai-actions/registry/detail.js';
 import { allDetailsById } from './tool-catalog.js';
 import { argsSha256 } from './internal-grant.js';
@@ -150,8 +151,17 @@ export function buildOpRequest(
     const search = query.toString();
     return { method: op.method, url: search === '' ? path : `${path}?${search}` };
   }
-  if (rest.length === 0) return { method: op.method, url: path };
-  return { method: op.method, url: path, body: JSON.stringify(Object.fromEntries(rest)) };
+  // A non-GET route may read some arguments from its query string (`AiActionOp.queryArgs`).
+  const inQuery = new Set(op.queryArgs ?? []);
+  const query = new URLSearchParams();
+  for (const [key, value] of rest) {
+    if (inQuery.has(key) && value !== undefined && value !== null) query.append(key, String(value));
+  }
+  const search = query.toString();
+  const url = search === '' ? path : `${path}?${search}`;
+  const body = rest.filter(([key]) => !inQuery.has(key));
+  if (body.length === 0) return { method: op.method, url };
+  return { method: op.method, url, body: JSON.stringify(Object.fromEntries(body)) };
 }
 
 /** A `pending` row past its expiry reads as `expired`, whatever the stored value says. */
@@ -192,6 +202,61 @@ export interface ApprovalSummary {
    */
   readonly subject: string | null;
   readonly fields: readonly SummaryField[];
+  /**
+   * ADR-0015 F9: present only for a platform action. Built by the server from the frozen, hashed
+   * arguments: the platform permission used, whether a second admin must approve while the
+   * two-person policy is on, and the reason the person will be recorded as giving. The reason was
+   * drafted by the AI and is approved by the person when they confirm (`reasonDraftedByAi`).
+   */
+  readonly platform?: PlatformSummary;
+}
+
+/** ADR-0015 F9: what a platform action's card and approve page show beyond the fields. */
+export interface PlatformSummary {
+  readonly permission: string | null;
+  readonly secondAdminWhenPolicyOn: boolean;
+  readonly reason: string | null;
+  readonly reasonDraftedByAi: boolean;
+}
+
+/** F9: the platform block of a frozen platform action, or `undefined` for any other op. */
+export function platformSummaryOf(
+  op: AiActionOp,
+  args: Record<string, unknown>,
+): PlatformSummary | undefined {
+  if (!isPlatformOp(op)) return undefined;
+  const raw = args['reason'];
+  const reason = typeof raw === 'string' && raw.trim() !== '' ? fieldText(raw.trim()) : null;
+  return {
+    permission: op.platformPermission ?? null,
+    secondAdminWhenPolicyOn: PLATFORM_TWO_PERSON_ROUTES.has(routeKey(op.method, op.path)),
+    reason,
+    reasonDraftedByAi: reason !== null,
+  };
+}
+
+/**
+ * F9: the platform read that names a platform action's target — the company or the person — by
+ * the server, from the frozen arguments (`organizationId` / `id` of a company, `userId`).
+ */
+export function platformTargetLookup(
+  op: AiActionOp,
+  args: Record<string, unknown>,
+): { readonly op: AiActionOp; readonly args: Record<string, unknown> } | undefined {
+  if (!isPlatformOp(op) || op.method === 'GET') return undefined;
+  const person = args['userId'];
+  if (typeof person === 'string' && op.path.includes(':userId')) {
+    const read = findOpByRoute('GET', '/v1/platform/people/:userId');
+    return read === undefined ? undefined : { op: read, args: { userId: person } };
+  }
+  const company =
+    (op.path.includes(':organizationId') ? args['organizationId'] : undefined) ??
+    (op.path.startsWith('/v1/platform/organizations/:id/') ? args['id'] : undefined);
+  if (typeof company === 'string') {
+    const read = findOpByRoute('GET', '/v1/platform/organizations/:organizationId');
+    return read === undefined ? undefined : { op: read, args: { organizationId: company } };
+  }
+  return undefined;
 }
 
 const MAX_FIELD_CHARS = 200;
@@ -270,6 +335,7 @@ export function buildApprovalSummary(
     notifies: detail.notifies,
     subject,
     fields,
+    ...(isPlatformOp(op) ? { platform: platformSummaryOf(op, args)! } : {}),
   };
 }
 

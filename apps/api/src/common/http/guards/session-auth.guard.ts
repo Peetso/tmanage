@@ -165,6 +165,15 @@ export class SessionAuthGuard implements CanActivate {
         clientId: payload.clientId,
         clientName: payload.clientName,
         opId: payload.opId,
+        // ADR-0015 part 2: copied from the in-process store only (never from the request), so the
+        // step-up binding is exactly what the minting server code decided.
+        ...(payload.stepUpSessionId !== undefined
+          ? { stepUpSessionId: payload.stepUpSessionId }
+          : {}),
+        ...(payload.platformUntil !== undefined ? { platformUntil: payload.platformUntil } : {}),
+        ...(payload.pendingActionId !== undefined
+          ? { pendingActionId: payload.pendingActionId }
+          : {}),
       };
       return true;
     }

@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { PLATFORM_PERMISSIONS } from '@tmanage/domain';
 import type { PlatformPermission, PlatformPreset } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { PLATFORM_ADMIN_GUARD_MARK } from '../../common/http/guards/bound-token-allowlist.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { isPlatformAdminEmail } from './platform-admin.access.js';
 import type { PlatformAdminAccount, PlatformStepUp } from './platform-admin.repository.js';
@@ -23,7 +24,11 @@ import { PLATFORM_PERMISSION_METADATA } from './require-platform-permission.deco
  * In order, each a refusal on its own:
  *
  * 1. **The feature is on** — the server list names someone, or the team has an active row.
- * 2. **A browser session**, not a personal access token.
+ * 2. **A browser session**, not a personal access token. ADR-0015 part 2 adds one exact
+ *    alternative: an in-process AI internal grant that carries `stepUpSessionId` (set by server
+ *    code only: the cookie chat, the approve page, an OAuth grant with `tmanage:platform`; never a
+ *    PAT). Rules 3–5 then run unchanged against that session, which must also still be signed in;
+ *    an external grant's platform window (`platformUntil`, F1) must not have ended.
  * 3. **A verified account that is on the list or on the team** (and not disabled there).
  * 4. **The route's permission** (`@RequirePlatformPermission`) — a 403
  *    `platform_permission_missing` naming the key. Checked before the step-up: stepping up
@@ -48,6 +53,12 @@ export interface PlatformAdminLookup {
   findPlatformAdmin?(userId: string, correlationId: string): Promise<PlatformAdminRecord | null>;
   /** Whether any team row is active — turns the feature on with an empty server list. */
   hasActivePlatformAdmins?(correlationId: string): Promise<boolean>;
+  /**
+   * ADR-0015 F1: whether a browser session is still signed in (not revoked, not expired). Read on
+   * every AI-grant request, so a sign-out or a revoked session ends the AI's platform reach at
+   * once. A lookup without it refuses every AI grant (fail closed).
+   */
+  isSessionLive?(userId: string, sessionId: string, correlationId: string): Promise<boolean>;
 }
 
 export const PLATFORM_ADMIN_LOOKUP = Symbol.for('tmanage.PlatformAdminLookup');
@@ -75,6 +86,15 @@ export interface PlatformAdminActor {
   readonly permissions?: readonly PlatformPermission[];
   /** Seconds left on the live step-up (0 when there is none). */
   readonly stepUpRemainingSeconds?: number;
+  /**
+   * ADR-0015 point 9 / F10: the AI client the request runs for (an internal grant), recorded on
+   * the platform audit row with the pending action it executes. Absent for a person's own click.
+   */
+  readonly via?: {
+    readonly clientId: string;
+    readonly clientName: string;
+    readonly pendingActionId: string | null;
+  };
 }
 
 const ACTORS = new WeakMap<object, PlatformAdminActor>();
@@ -132,8 +152,68 @@ function notFound(auditCode: string): ApiError {
   return new ApiError(404, 'not_found', MESSAGES.notFound, undefined, auditCode);
 }
 
+/** Who the account is on the platform (rule 3), shared by the guard and the AI catalogue (AR-8). */
+export type ResolvedPlatformAdmin =
+  | {
+      readonly ok: true;
+      readonly account: PlatformAdminAccount;
+      readonly source: PlatformAdminSource;
+      readonly preset: PlatformPreset;
+      readonly permissions: readonly PlatformPermission[];
+      readonly row: PlatformAdminRecord | null;
+    }
+  | { readonly ok: false; readonly auditCode: string };
+
+/**
+ * Rule 3: a verified account on the server list (always `super_admin`, every key) or with an
+ * active team row (its preset or custom list). The same decision the guard makes, so the AI
+ * catalogue (ADR-0015 point 6) lists a platform op exactly when the guard would let it through.
+ */
+export async function resolvePlatformAdmin(
+  allowlist: readonly string[],
+  lookup: PlatformAdminLookup,
+  userId: string,
+  correlationId: string,
+): Promise<ResolvedPlatformAdmin> {
+  const account = await lookup.findAccount(userId, correlationId);
+  if (!account || !account.emailVerified)
+    return { ok: false, auditCode: 'platform_admin_not_listed' };
+  const onList = isPlatformAdminEmail(allowlist, account.email);
+  const row = lookup.findPlatformAdmin
+    ? await lookup.findPlatformAdmin(userId, correlationId)
+    : null;
+  if (onList) {
+    // The server list always wins: a disabled or narrower team row cannot lock out the bootstrap.
+    return {
+      ok: true,
+      account,
+      source: 'env',
+      preset: 'super_admin',
+      permissions: [...PLATFORM_PERMISSIONS],
+      row,
+    };
+  }
+  if (row && row.status === 'active') {
+    return {
+      ok: true,
+      account,
+      source: 'db',
+      preset: row.preset,
+      permissions: row.permissions,
+      row,
+    };
+  }
+  return {
+    ok: false,
+    auditCode: row ? 'platform_admin_disabled_row' : 'platform_admin_not_listed',
+  };
+}
+
 @Injectable()
 export class PlatformAdminGuard implements CanActivate {
+  /** ADR-0015 F4: lets `TenantContextGuard` find this guard on a route's own metadata. */
+  static readonly [PLATFORM_ADMIN_GUARD_MARK] = true;
+
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(PLATFORM_ADMIN_ALLOWLIST) private readonly allowlist: readonly string[],
@@ -158,30 +238,22 @@ export class PlatformAdminGuard implements CanActivate {
     if (!session) {
       throw new ApiError(401, 'unauthenticated', MESSAGES.unauthenticated, undefined, 'no_session');
     }
-    if (state.authScheme !== 'cookie') throw notFound('platform_admin_token_refused');
-
-    const account = await this.lookup.findAccount(session.userId, state.correlationId);
-    if (!account || !account.emailVerified) throw notFound('platform_admin_not_listed');
-
-    const onList = isPlatformAdminEmail(this.allowlist, account.email);
-    const row = this.lookup.findPlatformAdmin
-      ? await this.lookup.findPlatformAdmin(session.userId, state.correlationId)
-      : null;
-    let source: PlatformAdminSource;
-    let preset: PlatformPreset;
-    let permissions: readonly PlatformPermission[];
-    if (onList) {
-      // The server list always wins: a disabled or narrower team row cannot lock out the bootstrap.
-      source = 'env';
-      preset = 'super_admin';
-      permissions = [...PLATFORM_PERMISSIONS];
-    } else if (row && row.status === 'active') {
-      source = 'db';
-      preset = row.preset;
-      permissions = row.permissions;
-    } else {
-      throw notFound(row ? 'platform_admin_disabled_row' : 'platform_admin_not_listed');
+    // Rule 2, and the ADR-0015 exception: a step-up-bound internal grant (server-set binding).
+    const grant = state.authScheme === 'ai_grant' ? state.aiGrant : undefined;
+    const boundSession = grant?.stepUpSessionId;
+    if (state.authScheme !== 'cookie' && (boundSession === undefined || boundSession === '')) {
+      throw notFound('platform_admin_token_refused');
     }
+    const stepUpSessionId = boundSession ?? session.sessionId;
+
+    const resolved = await resolvePlatformAdmin(
+      this.allowlist,
+      this.lookup,
+      session.userId,
+      state.correlationId,
+    );
+    if (!resolved.ok) throw notFound(resolved.auditCode);
+    const { account, source, preset, permissions, row } = resolved;
 
     const required = this.reflector.getAllAndOverride<PlatformPermission | undefined>(
       PLATFORM_PERMISSION_METADATA,
@@ -189,15 +261,28 @@ export class PlatformAdminGuard implements CanActivate {
     );
     if (required && !permissions.includes(required)) throw platformPermissionMissing(required);
 
-    const stepUp = await this.lookup.findLiveStepUp(
+    let stepUp = await this.lookup.findLiveStepUp(
       session.userId,
-      session.sessionId,
+      stepUpSessionId,
       state.correlationId,
     );
-    const exempt = this.reflector.getAllAndOverride<boolean>(STEP_UP_EXEMPT, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    if (grant !== undefined) {
+      // F1: an external grant's platform window, and the bound session itself, end the reach
+      // early (a sign-out, a revoked or expired session) — checked live, never a copied expiry.
+      const windowOver = grant.platformUntil !== undefined && grant.platformUntil <= Date.now();
+      const live = this.lookup.isSessionLive
+        ? await this.lookup.isSessionLive(session.userId, stepUpSessionId, state.correlationId)
+        : false;
+      if (windowOver || !live) stepUp = null;
+    }
+    // `me` and `step-up` are exempt for the person's own screen only; an AI grant always needs
+    // the live step-up it is bound to (ADR-0015 F1), so an expired window reaches nothing.
+    const exempt =
+      grant === undefined &&
+      this.reflector.getAllAndOverride<boolean>(STEP_UP_EXEMPT, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true;
     // 56-21: platform staff must have two-step sign-in. `me` and `step-up` stay open so the
     // screen can say what is missing; everything else is refused until it is turned on.
     if (!exempt && this.twoStepRequired && !account.mfaEnabled) {
@@ -223,13 +308,24 @@ export class PlatformAdminGuard implements CanActivate {
 
     ACTORS.set(request, {
       account,
-      sessionId: session.sessionId,
+      // The browser session the person stepped up in: their own, or the one an AI grant is bound
+      // to (a support visit started by the AI belongs to that browser session, F8).
+      sessionId: stepUpSessionId,
       stepUp,
       source,
       adminId: row?.id ?? null,
       preset,
       permissions,
       stepUpRemainingSeconds: stepUpRemainingSeconds(stepUp, new Date()),
+      ...(grant !== undefined
+        ? {
+            via: {
+              clientId: grant.clientId,
+              clientName: grant.clientName,
+              pendingActionId: grant.pendingActionId ?? null,
+            },
+          }
+        : {}),
     });
     return true;
   }

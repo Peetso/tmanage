@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, Inject, Param, Post, Req } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import {
   Ctx,
@@ -8,6 +8,8 @@ import {
 } from '../../common/http/decorators.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { AuthenticatedSession } from '../identity/session.service.js';
+import { requestState } from '../../common/http/request-state.js';
+import { bindChatStepUpSession } from './chat-step-up-session.js';
 import { offeredTo } from '../search/commands.controller.js';
 import { parseConfirmBody, type AiChangeService } from './ai-change.service.js';
 import { parseChatBody, type CopilotChatService } from './copilot-chat.service.js';
@@ -40,7 +42,11 @@ export class CopilotChatController {
     @CurrentPrincipal() principal: Principal,
     @Param('orgSlug') orgSlug: string,
     @Body() body: Readonly<Record<string, unknown>> | null,
+    @Req() request: object,
+    @CurrentSession() session?: AuthenticatedSession,
   ) {
+    // ADR-0015 F3: the turn's platform calls are bound to this request's own cookie session.
+    bindChatStepUpSession(context, requestState(request)?.authScheme, session?.sessionId);
     const input = parseChatBody(body ?? null);
     return this.service.chat(context, { orgSlug, commands: offeredTo(principal, context) }, input);
   }
@@ -53,8 +59,11 @@ export class CopilotChatController {
     @Param('orgSlug') orgSlug: string,
     @Body() body: Readonly<Record<string, unknown>> | null,
     @Headers('x-reauth-token') reauthToken: string | undefined,
+    @Req() request: object,
     @CurrentSession() session?: AuthenticatedSession,
   ) {
+    // ADR-0015 F3: a confirmed platform change runs bound to the confirming cookie session.
+    bindChatStepUpSession(context, requestState(request)?.authScheme, session?.sessionId);
     return this.changes.confirm(context, orgSlug, parseConfirmBody(body ?? null), {
       reauthToken,
       sessionId: session?.sessionId,

@@ -13,7 +13,7 @@
  * input/output schemas, redaction profiles, titles, descriptions and examples
  * to each op; this slice fixes only id, method, path, capability, risk and scope.
  */
-import type { Capability } from '@tmanage/domain';
+import type { Capability, PlatformPermission } from '@tmanage/domain';
 
 /** HTTP methods the API actually serves (no ALL/OPTIONS/HEAD among the 710 routes). */
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
@@ -65,7 +65,14 @@ export const NEVER_REASONS = [
   'oauth',
   'org_creation_or_account',
   'org_security_manage',
-  'platform_admin',
+  // ADR-0015 part 2 (F7). The two platform routes that stay out of the AI surface, each for a
+  // stated K-reason; the old blanket `platform_admin` reason is gone (count 0, registry-sync).
+  // K1: `POST /v1/platform/step-up` is the human factor itself (the password and two-step code a
+  // person types); an AI principal that could step up would remove the control the path relies on.
+  'platform_step_up',
+  // K4: a binary file stream (a company file's bytes) is transport, not an action; the AI reads the
+  // same file's facts through the JSON platform read and the person opens the download link.
+  'platform_binary_transport',
   'policy_definitions',
   // 55-21. The clients' own usability-event ingestion: session-bound measurement, not an action.
   'product_telemetry',
@@ -183,6 +190,33 @@ export interface AiActionOp {
    * stored state by {@link callNeedsConfirmWithState}, never from the call's arguments.
    */
   readonly confirmWhenStored?: ConfirmWhenStored;
+  /**
+   * ADR-0015 part 2 (point 5). Present only on a `platform.*` op (`/v1/platform/*`, guarded by
+   * `PlatformAdminGuard`): the route's own `@RequirePlatformPermission`, or `null` for the one
+   * route that needs none (`GET /v1/platform/me`). `registry-sync.test.ts` checks it against the
+   * route exactly as it checks `capability`. The catalogue lists such an op only for an account
+   * that holds the permission AND reaches the platform path through a step-up-bound grant
+   * (`isPlatformOp`, `tool-catalog.ts`).
+   */
+  readonly platformPermission?: PlatformPermission | null;
+  /**
+   * ADR-0015 F5. The change is approved only with a fresh re-authentication (the money/HR
+   * `x-reauth-token`, minutes, not the platform step-up's hours), on the card and on the approve
+   * page alike (`changeGateFor`). Set for the platform changes that can harm every company or hand
+   * out power.
+   */
+  readonly freshReauth?: true;
+  /**
+   * Arguments a non-GET route reads from its query string rather than its body (a platform
+   * moderation route's `?kind=`). `buildOpRequest` sends them as the query; every other argument
+   * that is not a path param is the JSON body, as before.
+   */
+  readonly queryArgs?: readonly string[];
+}
+
+/** ADR-0015 part 2: whether an op belongs to the platform family (`/v1/platform/*`). */
+export function isPlatformOp(op: Pick<AiActionOp, 'platformPermission'>): boolean {
+  return op.platformPermission !== undefined;
 }
 
 /**

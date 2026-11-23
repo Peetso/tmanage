@@ -6,7 +6,7 @@ import { AI_APPS_OFF_FLAG, organizationAiAccessOn } from './ai-access.js';
 import type { AiAccessSwitches } from './ai-access.js';
 import { GrantsRepository } from './grants.repository.js';
 import { OauthTokensRepository } from './oauth-tokens.repository.js';
-import { KNOWN_SCOPES } from './scopes.js';
+import { CONSENT_SCOPES } from './scopes.js';
 import { knownAiAppOf, openUrlOf } from './known-clients.js';
 import type { KnownAiApp } from './known-clients.js';
 
@@ -83,7 +83,7 @@ export function isAiOwner(role: string | undefined): boolean {
 /** The stored space-separated scopes as a list in the canonical display order. Pure. */
 export function orderedScopes(stored: string): string[] {
   const present = new Set(stored.split(/\s+/).filter(Boolean));
-  return KNOWN_SCOPES.filter((scope) => present.has(scope));
+  return CONSENT_SCOPES.filter((scope) => present.has(scope));
 }
 
 export class ConnectedAppsService {

@@ -127,6 +127,7 @@ export interface AiUndoView {
 /** The pending AI actions a confirm-class card item is approved through. */
 export interface ChangeApprovals {
   approve(context: TenantContext, orgSlug: string, id: string): Promise<void>;
+  // ADR-0015 F3: the adapter binds a platform run to the confirming cookie session itself.
   outcome(
     context: TenantContext,
     id: string,

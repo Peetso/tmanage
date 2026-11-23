@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { KNOWN_SCOPES, SCOPE_BILLING, SCOPE_READ } from './scopes.js';
+import { CONSENT_SCOPES, SCOPE_BILLING, SCOPE_PLATFORM, SCOPE_READ } from './scopes.js';
 
 /**
  * The consent page's server-side rules (MCP connector S9) — pure, so each one is unit-tested.
@@ -96,15 +96,66 @@ function publisherFor(clientId: string): string | null {
 export function resolveGrantedScopes(
   chosen: unknown,
   role: string,
+  /** ADR-0015 F11: the person is a platform admin with two-step on and a fresh step-up now. */
+  platformEligible = false,
 ): { readonly ok: true; readonly scopes: readonly string[] } | { readonly ok: false } {
   const picked = new Set<string>([SCOPE_READ]);
   if (Array.isArray(chosen)) {
     for (const value of chosen) {
-      if (typeof value === 'string' && KNOWN_SCOPES.includes(value)) picked.add(value);
+      if (typeof value === 'string' && CONSENT_SCOPES.includes(value)) picked.add(value);
     }
   }
   if (picked.has(SCOPE_BILLING) && !BILLING_GRANTING_ROLES.has(role)) return { ok: false };
-  return { ok: true, scopes: KNOWN_SCOPES.filter((scope) => picked.has(scope)) };
+  // F11: refused rather than dropped, like billing, so a page that offered it in error is noticed.
+  if (picked.has(SCOPE_PLATFORM) && !platformEligible) return { ok: false };
+  return { ok: true, scopes: CONSENT_SCOPES.filter((scope) => picked.has(scope)) };
+}
+
+/**
+ * ADR-0015 F1 — the external platform scope's own window, separate from the browser step-up's
+ * 24 hours: `PLATFORM_AI_SCOPE_MINUTES`, a whole number from 5 to 240, default 60.
+ */
+export const PLATFORM_AI_SCOPE_DEFAULT_MINUTES = 60;
+export const PLATFORM_AI_SCOPE_MAX_MINUTES = 240;
+const PLATFORM_AI_SCOPE_MIN_MINUTES = 5;
+
+export function platformAiScopeMinutes(env: Readonly<Record<string, string | undefined>>): number {
+  const raw = (env['PLATFORM_AI_SCOPE_MINUTES'] ?? '').trim();
+  const minutes = /^\d{1,3}$/u.test(raw) ? Number(raw) : PLATFORM_AI_SCOPE_DEFAULT_MINUTES;
+  return minutes >= PLATFORM_AI_SCOPE_MIN_MINUTES && minutes <= PLATFORM_AI_SCOPE_MAX_MINUTES
+    ? minutes
+    : PLATFORM_AI_SCOPE_DEFAULT_MINUTES;
+}
+
+/** F11: the consent's step-up must be this fresh (minutes, not the browser window's hours). */
+export const PLATFORM_CONSENT_STEP_UP_FRESH_MS = 10 * 60 * 1000;
+
+/** What the consent page may offer about `tmanage:platform`, decided by the server (F11). */
+export interface PlatformConsentStanding {
+  /** The person is a platform admin: the page shows the switch (off by default). */
+  readonly offered: boolean;
+  /** Two-step is on where required and the step-up in this session is fresh: it can be ticked. */
+  readonly ready: boolean;
+  /** The live step-up's own end, which also caps the platform window. */
+  readonly stepUpExpiresAt: Date | null;
+}
+
+/** Port: the platform standing of the consenting person in this browser session. */
+export interface PlatformConsentCheck {
+  standing(
+    userId: string,
+    sessionId: string,
+    correlationId: string,
+  ): Promise<PlatformConsentStanding>;
+}
+
+export const PLATFORM_CONSENT_CHECK = Symbol.for('tmanage.OAuthPlatformConsentCheck');
+
+/** F1: the window end — the scope's minutes from now, never past the step-up's own end. */
+export function platformWindowEnd(now: Date, minutes: number, stepUpExpiresAt: Date | null): Date {
+  const own = now.getTime() + minutes * 60_000;
+  const cap = stepUpExpiresAt?.getTime() ?? own;
+  return new Date(Math.min(own, cap));
 }
 
 /** Whether a member in this role can grant billing — the page greys the switch out otherwise. */

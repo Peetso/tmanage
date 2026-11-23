@@ -84,3 +84,60 @@ export function boundTokenAllowedOnNoTenantRoute(
   const key = routeKeyOf(reflector, context);
   return key !== undefined && BOUND_TOKEN_NO_TENANT_ALLOWLIST.has(key);
 }
+
+/**
+ * ADR-0015 part 2, review F4 — the one exception to the deny-by-default rule above, in exact form:
+ * the request is an in-process **internal grant** (`authScheme` `ai_grant`), the grant carries a
+ * `stepUpSessionId` (set by server code only: the cookie chat, the approve page, or an OAuth grant
+ * with `tmanage:platform`; never a personal access token, F2), and the matched handler's
+ * controller or handler is guarded by `PlatformAdminGuard`, read from the route's own guard
+ * metadata — never a `/v1/platform` string match on the URL. `PlatformAdminGuard` then re-runs
+ * rules 1–5 against the stepped-up session. Everything else stays as the allowlist decides.
+ */
+export const PLATFORM_ADMIN_GUARD_MARK = Symbol.for('tmanage.guard.platformAdmin');
+
+/** Nest's `GUARDS_METADATA` (`@nestjs/common/constants`). */
+const GUARDS_METADATA = '__guards__';
+
+function hasPlatformGuard(guards: unknown): boolean {
+  return (
+    Array.isArray(guards) &&
+    guards.some(
+      (guard) =>
+        typeof guard === 'function' &&
+        (guard as unknown as Record<symbol, unknown>)[PLATFORM_ADMIN_GUARD_MARK] === true,
+    )
+  );
+}
+
+/** Whether the matched route is behind `PlatformAdminGuard` (handler or controller guards). */
+export function guardedByPlatformAdmin(reflector: Reflector, context: ExecutionContext): boolean {
+  const handler = context.getHandler() as unknown;
+  const controller = context.getClass() as unknown;
+  return (
+    (typeof handler === 'function' && hasPlatformGuard(reflector.get(GUARDS_METADATA, handler))) ||
+    (typeof controller === 'function' &&
+      hasPlatformGuard(reflector.get(GUARDS_METADATA, controller)))
+  );
+}
+
+/** The request facts the F4 exception reads (a subset of the request state). */
+export interface PlatformGrantFacts {
+  readonly authScheme?: string;
+  readonly aiGrant?: { readonly stepUpSessionId?: string };
+}
+
+/** F4: may this step-up-bound internal grant reach this `@NoTenant()` platform route? */
+export function platformGrantAllowedOnNoTenantRoute(
+  reflector: Reflector,
+  context: ExecutionContext,
+  state: PlatformGrantFacts,
+): boolean {
+  const bound = state.aiGrant?.stepUpSessionId;
+  return (
+    state.authScheme === 'ai_grant' &&
+    typeof bound === 'string' &&
+    bound !== '' &&
+    guardedByPlatformAdmin(reflector, context)
+  );
+}

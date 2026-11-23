@@ -25,6 +25,10 @@ import { billingAssistantOps } from './billing-assistant.js';
 import { securityOps } from './parity-b2-security.js';
 import { filesOps } from './parity-b2-files.js';
 import { workOps } from './parity-b2-work.js';
+import { aPlatformOps } from './parity-b3-platform-a.js';
+import { bPlatformOps } from './parity-b3-platform-b.js';
+import { cPlatformOps } from './parity-b3-platform-c.js';
+import { corePlatformOps } from './parity-b3-platform-core.js';
 
 export * from './types.js';
 export { OP_SENSITIVITY } from './sensitivity.js';
@@ -6401,6 +6405,11 @@ export const OPS: readonly AiActionOp[] = [
   ...securityOps,
   ...filesOps,
   ...workOps,
+  // ADR-0015 part 2: the platform admin family (`platform-op.ts` decides risk, scope and F5).
+  ...aPlatformOps,
+  ...bPlatformOps,
+  ...cPlatformOps,
+  ...corePlatformOps,
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',

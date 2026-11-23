@@ -6,8 +6,11 @@ import { IS_PUBLIC, SKIPS_TENANT } from '../decorators.js';
 import {
   BOUND_TOKEN_NO_TENANT_ALLOWLIST,
   boundTokenRouteKey,
+  platformGrantAllowedOnNoTenantRoute,
   routeKeyOf,
 } from './bound-token-allowlist.js';
+import { PlatformOrganizationsController } from '../../../modules/platform-admin/organizations/organizations.controller.js';
+import { OrganizationsController } from '../../../modules/tenancy/organizations.controller.js';
 
 // `import.meta.glob` is typed by a global `ImportMeta` augmentation that ships with docx's
 // declarations (R5), so this file no longer declares its own (that was a duplicate identifier);
@@ -101,5 +104,41 @@ describe('bound-token allowlist for @NoTenant routes (F01 part b)', () => {
       expect(signedInNoTenant).toContain(key);
       expect(BOUND_TOKEN_NO_TENANT_ALLOWLIST.has(key)).toBe(false);
     }
+  });
+});
+
+describe('ADR-0015 F4 — a step-up-bound AI grant on a tenant-less platform route', () => {
+  function contextOf(controller: object, method: string): ExecutionContext {
+    const handler = (controller as { prototype: Record<string, unknown> }).prototype[method];
+    return { getHandler: () => handler, getClass: () => controller } as unknown as ExecutionContext;
+  }
+  const suspend = contextOf(PlatformOrganizationsController, 'suspend');
+
+  it('passes only an internal grant with a server-set binding on a PlatformAdminGuard route', () => {
+    const bound = { authScheme: 'ai_grant', aiGrant: { stepUpSessionId: 'browser-1' } };
+    expect(platformGrantAllowedOnNoTenantRoute(reflector, suspend, bound)).toBe(true);
+    for (const state of [
+      { authScheme: 'ai_grant', aiGrant: {} },
+      { authScheme: 'ai_grant', aiGrant: { stepUpSessionId: '' } },
+      { authScheme: 'personal_access_token', aiGrant: { stepUpSessionId: 'browser-1' } },
+      { authScheme: 'oauth_access_token', aiGrant: { stepUpSessionId: 'browser-1' } },
+      { authScheme: 'cookie' },
+    ]) {
+      expect(
+        platformGrantAllowedOnNoTenantRoute(reflector, suspend, state),
+        JSON.stringify(state),
+      ).toBe(false);
+    }
+  });
+
+  it('never opens a tenant-less route that is not platform-guarded', () => {
+    const bound = { authScheme: 'ai_grant', aiGrant: { stepUpSessionId: 'browser-1' } };
+    expect(
+      platformGrantAllowedOnNoTenantRoute(
+        reflector,
+        contextOf(OrganizationsController, 'addressAvailability'),
+        bound,
+      ),
+    ).toBe(false);
   });
 });

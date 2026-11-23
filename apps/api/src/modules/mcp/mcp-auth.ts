@@ -7,7 +7,7 @@ import {
   OAUTH_IDENTITY_TABLES,
   OauthTokensRepository,
 } from '../oauth/oauth-tokens.repository.js';
-import { SCOPE_READ, insufficientScopeChallenge } from '../oauth/scopes.js';
+import { SCOPE_PLATFORM, SCOPE_READ, insufficientScopeChallenge } from '../oauth/scopes.js';
 import { findOauthClientName } from './mcp-oauth-clients.repository.js';
 
 /**
@@ -114,6 +114,11 @@ export interface McpOAuthAccess {
   readonly scopes: string;
   readonly clientId: string;
   readonly clientName: string;
+  /**
+   * ADR-0015 F1: the grant's platform binding, present only when it holds `tmanage:platform` and
+   * recorded a consent step-up session. The endpoint still checks the window end on every call.
+   */
+  readonly platform?: { readonly stepUpSessionId: string; readonly until: number };
 }
 
 const oauthAccessByRequest = new WeakMap<RequestState, McpOAuthAccess>();
@@ -173,6 +178,13 @@ export class McpOAuthAuthenticator implements McpOAuthTokenAuthenticator {
       (db) => findOauthClientName(db, grant.clientPk),
     );
     const held = new Set(grant.scopes.split(/\s+/));
+    const platform =
+      held.has(SCOPE_PLATFORM) &&
+      typeof grant.platformStepUpSessionId === 'string' &&
+      grant.platformStepUpSessionId !== '' &&
+      grant.platformUntil instanceof Date
+        ? { stepUpSessionId: grant.platformStepUpSessionId, until: grant.platformUntil.getTime() }
+        : undefined;
     return {
       grantId: grant.id,
       userId: grant.userId,
@@ -184,6 +196,7 @@ export class McpOAuthAuthenticator implements McpOAuthTokenAuthenticator {
         .join(' '),
       clientId: grant.clientPk,
       clientName: clientName ?? 'AI app',
+      ...(platform !== undefined ? { platform } : {}),
     };
   }
 }

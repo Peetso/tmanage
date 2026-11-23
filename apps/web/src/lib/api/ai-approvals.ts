@@ -32,6 +32,17 @@ export interface AiApprovalSummary {
   /** What the action is about (a work item's title, an invitee's email); null when unknown. */
   readonly subject: string | null;
   readonly fields: readonly AiApprovalField[];
+  /**
+   * ADR-0015 F9: only on a Platform admin action. The platform permission used, whether another
+   * admin must also approve while the two-person rule is on, and the reason the AI drafted, which
+   * the person approves as theirs.
+   */
+  readonly platform?: {
+    readonly permission: string | null;
+    readonly secondAdminWhenPolicyOn: boolean;
+    readonly reason: string | null;
+    readonly reasonDraftedByAi: boolean;
+  };
 }
 
 export interface AiApprovalView {

@@ -30,7 +30,7 @@
  */
 import { z } from 'zod';
 import type { AiActionOp, ConfirmWhen } from './registry/index.js';
-import { OPS } from './registry/index.js';
+import { OPS, isPlatformOp } from './registry/index.js';
 import type { AiActionDetail } from './registry/detail.js';
 import { waveADetails } from './registry/wave-a.js';
 import { waveBDetails } from './registry/wave-b.js';
@@ -349,6 +349,9 @@ export function buildAiOpenApiDocument(options: OpenApiOptions = {}): OpenApiDoc
   for (const op of OPS) {
     const detail = detailsById.get(op.id);
     if (detail === undefined) continue; // not AI-callable yet (no schema) — mirror the MCP catalog.
+    // ADR-0015 F2/F4: a platform op is reachable only through a step-up-bound in-process grant,
+    // never by a token sent to REST, so this public document (for REST clients) does not list it.
+    if (isPlatformOp(op)) continue;
     const openApiPath = toOpenApiPath(op.path);
     const methods = byPath.get(openApiPath) ?? {};
     methods[op.method.toLowerCase()] = buildOperation(op, detail);

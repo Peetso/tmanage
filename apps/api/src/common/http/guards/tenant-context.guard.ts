@@ -11,7 +11,10 @@ import {
   SESSION_SERVICE,
   TENANT_DATABASE,
 } from '../tokens.js';
-import { boundTokenAllowedOnNoTenantRoute } from './bound-token-allowlist.js';
+import {
+  boundTokenAllowedOnNoTenantRoute,
+  platformGrantAllowedOnNoTenantRoute,
+} from './bound-token-allowlist.js';
 import type { TenantContext, TenantQueryRunner } from '../../database/tenant-context.js';
 import {
   AI_ACCESS_SWITCHES,
@@ -189,7 +192,11 @@ export class TenantContextGuard implements CanActivate {
       // token (PAT, OAuth token, internal grant) is refused on all of them except the few the AI
       // connector needs (`bound-token-allowlist.ts`). A cookie session is unaffected.
       if (isBoundTokenScheme(state.authScheme)) {
-        if (!boundTokenAllowedOnNoTenantRoute(this.reflector, context)) {
+        // ADR-0015 F4: plus a step-up-bound internal grant on a `PlatformAdminGuard` route.
+        if (
+          !boundTokenAllowedOnNoTenantRoute(this.reflector, context) &&
+          !platformGrantAllowedOnNoTenantRoute(this.reflector, context, state)
+        ) {
           throw new ApiError(
             403,
             'forbidden',

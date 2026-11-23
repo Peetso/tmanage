@@ -1,3 +1,5 @@
+import { platformRightsFrom } from '../mcp/platform-rights.js';
+import { PlatformAdminRepository } from '../platform-admin/platform-admin.repository.js';
 import { Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
@@ -258,7 +260,13 @@ export class CopilotModule {
               allowance: (context) => wired.allowance.forBudget(context),
               budget: wired.budget,
               clientFor: envClients(),
-              surface: inProcessSurface(() => host.httpAdapter.getInstance<InjectCapable>()),
+              surface: inProcessSurface(
+                () => host.httpAdapter.getInstance<InjectCapable>(),
+                platformRightsFrom(
+                  config?.platformAdminEmails ?? [],
+                  new PlatformAdminRepository(database),
+                ),
+              ),
               freezeApproval: pendingFreezer(pending),
               conversations,
               audit: new DatabaseAiAudit(database),
@@ -317,7 +325,13 @@ export class CopilotModule {
             return new AiChangeService({
               database,
               standing: databaseStanding(database),
-              surface: inProcessSurface(() => host.httpAdapter.getInstance<InjectCapable>()),
+              surface: inProcessSurface(
+                () => host.httpAdapter.getInstance<InjectCapable>(),
+                platformRightsFrom(
+                  config?.platformAdminEmails ?? [],
+                  new PlatformAdminRepository(database),
+                ),
+              ),
               budget: wired.budget,
               audit,
               approvals: pendingApprovals(pending),

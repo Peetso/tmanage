@@ -4,6 +4,8 @@ import { FeatureFlagsRepository } from '../admin/feature-flags.repository.js';
 import { resolveFlags } from '../admin/feature-flags.service.js';
 import { liveMcpSurface } from '../mcp/catalog-runtime.js';
 import { internalGrants } from '../mcp/internal-grant.js';
+import type { AiPlatformRights } from '../mcp/platform-rights.js';
+import { chatStepUpSessionOf } from './chat-step-up-session.js';
 import type {
   PendingActionRequester,
   PendingAiActionsService,
@@ -132,9 +134,13 @@ export function databaseStanding(
  */
 export function inProcessSurface(
   app: () => InjectCapable,
+  /** ADR-0015 part 2: the account's platform rights; absent, no platform op is ever listed. */
+  platformRights?: AiPlatformRights,
 ): (input: ChatSurfaceInput) => ChatSurface {
   return (input) => {
     const { context } = input;
+    // F3: the request's own cookie session (bound by the controller), never a model argument.
+    const stepUpSessionId = chatStepUpSessionOf(context);
     const base = inProcessFetch(app(), {
       mintGrant: (opId) =>
         internalGrants.mint({
@@ -145,6 +151,7 @@ export function inProcessSurface(
           ...TMANAGE_AI_CLIENT,
           opId,
           scopes: input.scopes,
+          ...(stepUpSessionId !== undefined ? { stepUpSessionId } : {}),
         }),
       correlationId: context.correlationId,
     });
@@ -156,16 +163,28 @@ export function inProcessSurface(
       headers.set('idempotency-key', key);
       return base(target, { ...init, headers });
     };
-    const { catalog, runtime } = liveMcpSurface({
-      profile: 'compact',
-      scopes: input.scopes,
-      capabilities: new Set(context.capabilities),
-      orgSlug: input.orgSlug,
-      baseUrl: IN_PROCESS_BASE_URL,
-      fetch: keyed,
-    });
+    // The platform rights are read once per surface, on its first tool call.
+    let surface: ReturnType<typeof liveMcpSurface> | undefined;
+    async function live(): Promise<ReturnType<typeof liveMcpSurface>> {
+      if (surface !== undefined) return surface;
+      const platformPermissions =
+        stepUpSessionId !== undefined && platformRights !== undefined
+          ? await platformRights.permissionsFor(context.userId, context.correlationId)
+          : undefined;
+      surface = liveMcpSurface({
+        profile: 'compact',
+        scopes: input.scopes,
+        capabilities: new Set(context.capabilities),
+        ...(platformPermissions !== undefined ? { platformPermissions } : {}),
+        orgSlug: input.orgSlug,
+        baseUrl: IN_PROCESS_BASE_URL,
+        fetch: keyed,
+      });
+      return surface;
+    }
     return {
       async runTool(name, args) {
+        const { catalog, runtime } = await live();
         const tool = catalog.tools.find((candidate) => candidate.name === name);
         if (tool === undefined) return { isError: true, data: `Unknown tool: ${name}` };
         return runtime.runTool(tool, args);
@@ -208,7 +227,14 @@ export function pendingApprovals(
 ): ChangeApprovals {
   return {
     async approve(context, orgSlug, id) {
-      await service.approve(context, orgSlug, id);
+      // ADR-0015 F3: a platform change runs bound to the confirming request's cookie session.
+      const stepUpSessionId = chatStepUpSessionOf(context);
+      await service.approve(
+        context,
+        orgSlug,
+        id,
+        stepUpSessionId !== undefined ? { stepUpSessionId } : {},
+      );
     },
     outcome: (context, id) => service.check(requesterOf(context), id, context.correlationId),
   };

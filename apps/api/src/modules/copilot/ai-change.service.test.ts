@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import { OPS } from '../ai-actions/registry/index.js';
+import { allDetailsById } from '../mcp/tool-catalog.js';
+import { MAX_CARD_FIELDS } from './ai-preview.js';
 import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { createTenantContext, type TenantContext } from '../../common/database/tenant-context.js';
@@ -795,7 +799,20 @@ describe('prompt injection corpus (62-12, first half)', () => {
 });
 
 describe('AI tamper review 2026-11-23: the card hides no field that would run', () => {
-  it('a change with more fields than one card shows is refused, not proposed, nothing runs', async () => {
+  it('every change op fits one card, so no field can run unseen', () => {
+    // MAX_CARD_FIELDS went from 12 to 24 for the platform admin changes (ADR-0015 part 2). The
+    // chat still refuses a change whose card would hide a field (fail closed); this sweep keeps
+    // every op's input within one card, so that refusal is never what stands between a field and
+    // the member's eyes.
+    const wide = OPS.filter((op) => op.risk !== 'read').flatMap((op) => {
+      const input = allDetailsById.get(op.id)?.input;
+      const count = input instanceof z.ZodObject ? Object.keys(input.shape).length : 0;
+      return count > MAX_CARD_FIELDS ? [`${op.id}: ${count}`] : [];
+    });
+    expect(wide).toEqual([]);
+  });
+
+  it('a 15-field change now shows every field on its card', async () => {
     const wide = {
       workItemId: 'wi_1',
       freq: 'weekly',
@@ -816,11 +833,11 @@ describe('AI tamper review 2026-11-23: the card hides no field that would run', 
     const env = setup([
       route('tasks', 'medium'),
       runAction('t1', 'work_items.recurrence.set', wide),
-      text('I could not.'),
+      text('Here is the card.'),
     ]);
     const view = await env.turn('make it repeat');
-    expect(view.card).toBeNull();
-    expect(view.toolCalls).toEqual([{ opId: 'work_items.recurrence.set', outcome: 'refused' }]);
     expect(env.ws.calls.map((c) => c.opId)).not.toContain('work_items.recurrence.set');
+    const shown = (view.card?.items[0]?.changes ?? []).length;
+    expect(shown).toBe(Object.keys(wide).length - 1);
   });
 });

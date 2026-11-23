@@ -19,7 +19,8 @@ import { routeKey } from './types.js';
 /**
  * Routes the AI connector never exposes, with the reason each is withheld (plan §2):
  * authentication, sessions, MFA and passwords; personal access tokens and the `/mcp`
- * endpoint itself; Google auth; setup, sign-up and the public site; platform admin and
+ * endpoint itself; Google auth; setup, sign-up and the public site; the platform step-up and a
+ * company file's raw bytes (ADR-0015 part 2: every other platform route is a `platform.*` op);
  * account-scoped routes that are not org-bound; invitation accept/register and org creation;
  * the public upload-part route; `org.security.manage` (IP allowlist, security alerts); admin
  * security settings and audit-retention policy; role and policy *definitions*; automation
@@ -222,37 +223,6 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/password-resets/completions', reason: 'auth' },
   { method: 'POST', path: '/v1/email-confirmations/', reason: 'auth' },
   { method: 'POST', path: '/v1/email-confirmations/completions', reason: 'auth' },
-  { method: 'GET', path: '/v1/platform/audit', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/companies', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/companies/:organizationId', reason: 'platform_admin' },
-  {
-    method: 'POST',
-    path: '/v1/platform/companies/:organizationId/reactivation',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/companies/:organizationId/suspension',
-    reason: 'platform_admin',
-  },
-  // Wave 9 S8 (F07): the platform-wide maintenance banner moved off the tenant admin route.
-  { method: 'POST', path: '/v1/platform/maintenance/', reason: 'platform_admin' },
-  {
-    method: 'POST',
-    path: '/v1/platform/maintenance/:windowId/unpublish',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/me', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/overview', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/people', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/people/:userId/password-reset', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/people/:userId/sign-out', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/settings', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/settings/public-signup', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/settings/ai-access', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/step-up', reason: 'platform_admin' },
-  // R37: the owner's guided connect-app setup (platform.settings.edit).
-  { method: 'GET', path: '/v1/platform/connect-setup/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/public/sign-up/', reason: 'signup' },
   { method: 'POST', path: '/v1/public/sign-up/', reason: 'signup' },
   { method: 'GET', path: '/v1/public/site/changelog', reason: 'public_site' },
@@ -405,530 +375,22 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/me/privacy/deletion/cancel',
     reason: 'org_creation_or_account',
   },
-  // ---- platform-admin v2 · verifier: every Platform admin route (PA-02..PA-10) ----
-  // Operator-only surfaces behind the platform guard and step-up: an assistant never drives them.
-  // The banner read (`support-session`) and the public announcement read are not AI tools either.
-  { method: 'GET', path: '/v1/platform/activity/access/sign-ins', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/activity/access/sessions', reason: 'platform_admin' },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/activity/access/sessions/:sessionId',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/activity/access/step-ups', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/activity/access/suspicious', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/activity/actions/', reason: 'platform_admin' },
-  {
-    method: 'GET',
-    path: '/v1/platform/activity/actions/:organizationId/:eventId',
-    reason: 'platform_admin',
-  },
-  { method: 'POST', path: '/v1/platform/activity/exports/', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/activity/exports/', reason: 'platform_admin' },
-  {
-    method: 'GET',
-    path: '/v1/platform/activity/exports/:jobId/download',
-    reason: 'platform_admin',
-  },
-  { method: 'DELETE', path: '/v1/platform/activity/exports/:jobId', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/activity/platform/', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/activity/support-sessions/', reason: 'platform_admin' },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/comments',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/comments/:kind/:commentId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/platform/organizations/:id/content/comments/:kind/:commentId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:id/content/comments/:kind/:commentId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/comments/:kind/:commentId/restore',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/organizations/:id/content/', reason: 'platform_admin' },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/conversations',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/conversations/:conversationId/messages',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/messages/:messageId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/platform/organizations/:id/content/messages/:messageId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:id/content/messages/:messageId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/messages/:messageId/restore',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/decisions',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/decisions/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/platform/organizations/:id/content/decisions/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:id/content/decisions/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/decisions/:itemId/restore',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/organizations/:id/content/docs', reason: 'platform_admin' },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/docs/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/platform/organizations/:id/content/docs/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:id/content/docs/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/docs/:itemId/restore',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/organizations/:id/content/files', reason: 'platform_admin' },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/files/:fileId',
-    reason: 'platform_admin',
-  },
+  // ---- ADR-0015 part 2 (F7): every other Platform admin route is a `platform.*` op ----
+  // K1: the step-up is the human factor itself (password and two-step code a person types).
+  { method: 'POST', path: '/v1/platform/step-up', reason: 'platform_step_up' },
+  // K4: the raw bytes of a company file. The AI reads the file's facts with
+  // `platform.content.files.get`; the person opens the download from Platform admin.
   {
     method: 'GET',
     path: '/v1/platform/organizations/:id/content/files/:fileId/download',
-    reason: 'platform_admin',
+    reason: 'platform_binary_transport',
   },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/deliverables/:deliverableId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:id/content/files/:fileId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/files/:fileId/restore',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/meetings',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/meetings/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/platform/organizations/:id/content/meetings/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:id/content/meetings/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/meetings/:itemId/restore',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/requests',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/requests/:requestId/messages',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/request-messages/:messageId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:id/content/request-messages/:messageId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/request-messages/:messageId/restore',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/organizations/:id/content/trash', reason: 'platform_admin' },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/trash/:kind/:itemId/restore',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/work-items',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:id/content/work-items/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/platform/organizations/:id/content/work-items/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:id/content/work-items/:itemId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/content/work-items/:itemId/restore',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/members',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/members',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/platform/organizations/:organizationId/members/:membershipId/role',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/members/:membershipId/offboard',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/invitations',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/invitations/:invitationId/revoke',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/search', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/organizations', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/organizations', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/organizations/deleted', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/organizations/:organizationId', reason: 'platform_admin' },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/audit',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/platform/organizations/:organizationId/profile',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/platform/organizations/:organizationId/logo',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:organizationId/logo',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/settings',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/platform/organizations/:organizationId/settings/:key',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/policies',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/platform/organizations/:organizationId/policies',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/flags',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/platform/organizations/:organizationId/flags/:flagKey',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/plan',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/platform/organizations/:organizationId/plan',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/platform/organizations/:organizationId/limits',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/storage',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/storage/recount',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:organizationId/storage/connections/:connectionId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/suspension',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/reactivation',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/ownership-transfer',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/deletion',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/restore',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/purge',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/archive',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/unarchive',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/policy-refresh',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/people/:userId', reason: 'platform_admin' },
-  { method: 'PATCH', path: '/v1/platform/people/:userId', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/people/:userId/sessions', reason: 'platform_admin' },
-  // R12: a person's sign-in trail (addresses, places, devices) — a security export, never AI.
-  {
-    method: 'GET',
-    path: '/v1/platform/people/:userId/sign-in-trail.csv',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/people/:userId/sessions/:sessionId',
-    reason: 'platform_admin',
-  },
-  { method: 'POST', path: '/v1/platform/people/:userId/two-step/reset', reason: 'platform_admin' },
-  {
-    method: 'PUT',
-    path: '/v1/platform/people/:userId/two-step/required',
-    reason: 'platform_admin',
-  },
-  { method: 'POST', path: '/v1/platform/people/:userId/disable', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/people/:userId/enable', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/people/:userId/organizations', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/people/:userId/access', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/people/:userId/actions', reason: 'platform_admin' },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/members/:membershipId/permissions',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/platform/organizations/:organizationId/members/:membershipId/permissions/overrides',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/members/:membershipId/effective-permissions',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'GET',
-    path: '/v1/platform/organizations/:organizationId/roles/',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/roles/',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/platform/organizations/:organizationId/roles/:roleId',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:organizationId/roles/:roleId/clone',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/organizations/:organizationId/roles/:roleId',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/announcements/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/announcements/', reason: 'platform_admin' },
-  { method: 'PATCH', path: '/v1/platform/announcements/:id', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/announcements/:id/publish', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/announcements/:id/unpublish', reason: 'platform_admin' },
-  { method: 'DELETE', path: '/v1/platform/announcements/:id', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/flags/', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/flags/:flagKey/organizations', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/flags/:flagKey', reason: 'platform_admin' },
-  // EMAILBUILD: the people who sign tips (platform settings card).
-  { method: 'GET', path: '/v1/platform/mail-people/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/mail-people/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/mail-people/import', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/mail-people/:personId', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/mail-people/:personId/test', reason: 'platform_admin' },
-  // EMAILBUILD2: the Tips and reminders switch and the Feature news card (platform settings).
-  { method: 'GET', path: '/v1/platform/person-mail/', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/person-mail/switch', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/person-mail/news', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/person-mail/news/:newsId/send', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/settings/billing-mode', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/settings/beta-banner', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/settings/retention', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/settings/support-defaults', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/settings/integrations', reason: 'platform_admin' },
-  {
-    method: 'PUT',
-    path: '/v1/platform/settings/integrations/:integration',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/organizations/:id/support-session',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/support-sessions', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/support-sessions/:id', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/support-sessions/:id/extend', reason: 'platform_admin' },
-  { method: 'DELETE', path: '/v1/platform/support-sessions/:id', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/team/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/team/', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/team/presets', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/team/presets/:preset', reason: 'platform_admin' },
-  { method: 'PATCH', path: '/v1/platform/team/:adminId', reason: 'platform_admin' },
-  { method: 'DELETE', path: '/v1/platform/team/:adminId', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/maintenance/', reason: 'platform_admin' },
-  { method: 'PATCH', path: '/v1/platform/maintenance/:windowId', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/maintenance/:windowId/publish', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/maintenance/:windowId/end', reason: 'platform_admin' },
+  // The public announcement read is a public-site route.
   { method: 'GET', path: '/public/site/announcements', reason: 'public_site' },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/support-session', reason: 'platform_admin' },
-  // 55-21. The cross-tenant usability scoreboard is a platform-admin read.
-  { method: 'GET', path: '/v1/platform/ease-scoreboard', reason: 'platform_admin' },
-  // 51-11. SPF / DKIM / DMARC verdicts for the sending domain (platform admin read).
-  { method: 'GET', path: '/v1/platform/email-deliverability', reason: 'platform_admin' },
   // 55-21. The web and portal clients' own usability events: a session-bound measurement feed,
   // never an AI-driven tool (an AI caller would pollute the measurement).
   { method: 'POST', path: '/v1/organizations/:orgSlug/events', reason: 'product_telemetry' },
   { method: 'POST', path: '/v1/organizations/:orgSlug/portal/events', reason: 'product_telemetry' },
-  // 56-02. Platform admin → Settings → Keys: keyring status and queueing a key rotation.
-  { method: 'GET', path: '/v1/platform/keys/status', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/keys/rotate', reason: 'platform_admin' },
   // 52-26. The portal's signature code and the signature itself: the signer's own act.
   {
     method: 'POST',
@@ -940,14 +402,6 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/signature-requests/:signatureRequestId/sign',
     reason: 'esign_signature',
   },
-  // 57-02. Platform admin → the plan ladder: list the plan versions and publish a new one.
-  { method: 'GET', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },
-  // 56-32. Platform → Health: the host capacity gauges and the "move to KVM" trigger.
-  { method: 'GET', path: '/v1/platform/health/capacity', reason: 'platform_admin' },
-  // 56-31. Platform → E-mail health: lane counts (never addresses) and the lane pause.
-  { method: 'GET', path: '/v1/platform/mail/health', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/mail/lanes/:lane/pause', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/public/form-proof/', reason: 'public_site' },
   // 52-20. Public intake forms: the anonymous door. The publish switch and the triage of what
   // visitors sent are ops since 52-22 (`work_forms.*`, `finance-documents.ts`).
@@ -978,16 +432,9 @@ export const NEVER: readonly NeverEntry[] = [
   // 57-02 PLANWEB. The published plan ladder for the pricing page: anonymous, read-only, empty in
   // the beta; nothing an AI acts on.
   { method: 'GET', path: '/v1/public/plan-versions', reason: 'public_site' },
-  { method: 'GET', path: '/v1/platform/pricing-survey/', reason: 'platform_admin' },
   // 57-08 REFERRAL. The owner's invite link (view, create the code): owner-only, never an AI's to
-  // create or share. The partner codes and totals are platform-only.
-  { method: 'GET', path: '/v1/platform/referrals/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/referrals/partners', reason: 'platform_admin' },
-  // 62-A3 (B14). The platform's monthly hosting and mail unit costs (platform.settings.edit).
-  { method: 'GET', path: '/v1/platform/settings/unit-costs/', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/settings/unit-costs/', reason: 'platform_admin' },
-  // 62-07. The workspace's AI credits and pack request (never an AI tool); the platform's AI test
-  // list and credit-pack grants (platform.settings.edit).
+  // create or share.
+  // 62-07. The workspace's AI credits and pack request (never an AI tool).
   { method: 'GET', path: '/v1/organizations/:orgSlug/ai/credits/', reason: 'ai_credits' },
   {
     method: 'POST',
@@ -1116,108 +563,16 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/keys/:keyId',
     reason: 'ai_employee_admin',
   },
-  { method: 'GET', path: '/v1/platform/ai/test-list/', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/ai/test-list/:organizationId', reason: 'platform_admin' },
-  {
-    method: 'POST',
-    path: '/v1/platform/ai/test-list/:organizationId/packs',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/ai/test-list/:organizationId/pack-requests/:requestId/decline',
-    reason: 'platform_admin',
-  },
-  // 62-08. Platform settings → AI budget: caps, Sonnet switch, pause/resume, reserve release.
-  { method: 'GET', path: '/v1/platform/settings/ai-budget/', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/settings/ai-budget/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/settings/ai-budget/pause', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/settings/ai-budget/resume', reason: 'platform_admin' },
-  {
-    method: 'POST',
-    path: '/v1/platform/settings/ai-budget/reserve-release',
-    reason: 'platform_admin',
-  },
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },
   { method: 'GET', path: '/v1/public/portal-sign-in/links/:token', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/links/:token/consume', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/links/:token/not-you', reason: 'auth' },
-  // 56-17. The anonymous vulnerability report door and the confidential platform triage.
+  // 56-17. The anonymous vulnerability report door.
   { method: 'POST', path: '/v1/public/security-reports/', reason: 'public_site' },
-  { method: 'GET', path: '/v1/platform/security-reports/', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/security-reports/:id', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/security-reports/:id', reason: 'platform_admin' },
   // LANE-Q. The public "Book a walkthrough" door: a visitor's own request, never the AI's.
   { method: 'POST', path: '/v1/public/walkthrough-requests/', reason: 'public_site' },
   { method: 'GET', path: '/v1/public/trial-invites/:token', reason: 'signup' },
-  { method: 'GET', path: '/v1/platform/outreach/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/outreach/import', reason: 'platform_admin' },
-  {
-    method: 'POST',
-    path: '/v1/platform/outreach/campaigns/:campaignId/start',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/outreach/campaigns/:campaignId/pause',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/outreach/campaigns/:campaignId/stop',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/outreach/recipients/:recipientId/bounced',
-    reason: 'platform_admin',
-  },
-  { method: 'GET', path: '/v1/platform/alerts/', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/alerts/:ruleKey', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/security-signals/', reason: 'platform_admin' },
-  // SEC-ALERTS items 6 and 7: the attack tracker and the sign-in door's allowlist and policy.
-  // Platform security administration; an AI never reads attack traces or opens the door.
-  { method: 'GET', path: '/v1/platform/security/attack-tracks/', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/security/attack-tracks/:trackId', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/security/network-access/', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/security/network-access/policy', reason: 'platform_admin' },
-  {
-    method: 'POST',
-    path: '/v1/platform/security/network-access/allowlist',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/security/network-access/allowlist/:id',
-    reason: 'platform_admin',
-  },
-  // SEC-TRACKER (0406): block a source at the sign-in door, and the known-tester label. Platform
-  // security administration; an AI never blocks an address or relabels attack traffic.
-  {
-    method: 'POST',
-    path: '/v1/platform/security/network-access/blocklist',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/platform/security/network-access/blocklist/:id',
-    reason: 'platform_admin',
-  },
-  { method: 'POST', path: '/v1/platform/security/source-labels/', reason: 'platform_admin' },
-  { method: 'DELETE', path: '/v1/platform/security/source-labels/:id', reason: 'platform_admin' },
-  // 56-21b. The monthly platform access review and its evidence row: super admins only.
-  { method: 'GET', path: '/v1/platform/team/access-review/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/team/access-review/record', reason: 'platform_admin' },
-  // 56-21 (R46 L2). Quarterly confirm, the two-person approvals and owner notices: platform only.
-  { method: 'POST', path: '/v1/platform/team/access-review/confirm', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/approvals', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/approvals', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/approvals/policy', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/approvals/:id/approve', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/approvals/:id/reject', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/owner-notices', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/owner-notices', reason: 'platform_admin' },
   // 52-01. The running timer and presence moved to ops in R18-b (`finance-time.ts`, `time.*`).
   // FIX-2026-11-10. Automatic time tracking: the person's own activity heartbeat, switch, current
   // task, the owner's policy, and the team time view (everyone's state and time). Activity of the
@@ -1297,10 +652,6 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/chat/:conversationId/archive',
     reason: 'session',
   },
-  // R13 slice 5 (57-14). Platform growth rollups and their CSV: cross-tenant aggregates for the
-  // platform admin, never an AI tool.
-  { method: 'GET', path: '/v1/platform/activity/growth/', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/activity/growth/export.csv', reason: 'platform_admin' },
   // r46 L1 (53-09): the repeat editor's live preview of an UNSAVED rule. It writes nothing, but it
   // is a POST and the read-only catalogue is GET-only; an AI reads a saved rule's dates through
   // `work_items.recurrence.preview.list` instead.
@@ -1354,13 +705,6 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/public/integrations/github/:hookId', reason: 'public_intake' },
   { method: 'POST', path: '/v1/public/inbound-email/webhook', reason: 'public_intake' },
   { method: 'POST', path: '/v1/public/inbound-email/bounces', reason: 'public_intake' },
-  // ---- R18-f · 56-13 incident register ---- platform-only: legal clocks and breach records.
-  { method: 'GET', path: '/v1/platform/incidents/', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/incidents/', reason: 'platform_admin' },
-  { method: 'PUT', path: '/v1/platform/incidents/:id', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/incidents/:id/publish', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/incidents/:id/unpublish', reason: 'platform_admin' },
-  { method: 'POST', path: '/v1/platform/incidents/:id/resolve', reason: 'platform_admin' },
   // ---- R18-e · 56-25 organization sign-in policy ---- security administration, never an AI op.
   {
     method: 'PUT',
@@ -1392,20 +736,6 @@ export const NEVER: readonly NeverEntry[] = [
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/finance/einvoicing/certificate',
     reason: 'finance_settings',
-  },
-  // R39 55-17: the platform team's support inbox is platform admin (the member's own support
-  // threads are ops since parity batch 2).
-  { method: 'GET', path: '/v1/platform/support/threads/', reason: 'platform_admin' },
-  { method: 'GET', path: '/v1/platform/support/threads/:threadId', reason: 'platform_admin' },
-  {
-    method: 'POST',
-    path: '/v1/platform/support/threads/:threadId/messages',
-    reason: 'platform_admin',
-  },
-  {
-    method: 'POST',
-    path: '/v1/platform/support/threads/:threadId/status',
-    reason: 'platform_admin',
   },
   // 54-01. The connector framework: install stores a third-party credential in the vault (K1);
   // the list, state and uninstall are ops since parity batch 2.

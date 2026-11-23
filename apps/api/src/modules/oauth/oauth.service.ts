@@ -13,7 +13,7 @@ import { assertCimdUrl, CimdError, type CimdFetcher } from './cimd-fetcher.js';
 import { GrantsRepository } from './grants.repository.js';
 import { verifyPkceS256 } from './pkce.js';
 import { matchesRegisteredRedirect } from './redirect-uri.js';
-import { parseScopes, scopesToString } from './scopes.js';
+import { SCOPE_PLATFORM, parseScopes, scopesToString } from './scopes.js';
 import type { AiAccessSwitches } from './ai-access.js';
 
 /**
@@ -446,6 +446,12 @@ export class OAuthService {
        * optional only so the protocol-core tests can mint a grant without a session store.
        */
       readonly sessionId?: string;
+      /**
+       * ADR-0015 F1/F11: present only when the consent granted `tmanage:platform` (the controller
+       * checked the person is a platform admin with a fresh step-up): the stepped-up session and
+       * the end of the grant's own platform window.
+       */
+      readonly platform?: { readonly stepUpSessionId: string; readonly until: Date };
     },
     ids: { grantId: string },
   ): Promise<{ redirectUrl: string; code: string }> {
@@ -457,7 +463,17 @@ export class OAuthService {
         clientPk: input.clientPk,
         membershipId: input.membershipId,
         userId: input.userId,
-        scopes: scopesToString(input.scopes),
+        scopes: scopesToString(
+          input.platform === undefined
+            ? input.scopes.filter((scope) => scope !== SCOPE_PLATFORM)
+            : input.scopes,
+        ),
+        ...(input.platform !== undefined
+          ? {
+              platformStepUpSessionId: input.platform.stepUpSessionId,
+              platformUntil: input.platform.until,
+            }
+          : {}),
       });
       await this.repo.insertCode(tx, {
         codeHash: hashToken(code),

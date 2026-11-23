@@ -588,10 +588,15 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.objectives.update',
     title: 'Update project objectives',
     description: 'Update project objectives.',
-    input: bodyArgs(['objectiveId'], { status: f.shortText().optional() }),
+    // The route is `…/projects/:projectId/objectives/:objectiveId`: both ids bind the path (without
+    // projectId the request could never be built; AI tamper review 2026-11-23).
+    input: bodyArgs(['projectId', 'objectiveId'], { status: f.shortText().optional() }),
     redact: 'standard',
     examples: [
-      { summary: 'Update project objectives', args: { objectiveId: 'obj_1', status: 'open' } },
+      {
+        summary: 'Update project objectives',
+        args: { projectId: 'proj_1', objectiveId: 'obj_1', status: 'open' },
+      },
     ],
   }),
   det({

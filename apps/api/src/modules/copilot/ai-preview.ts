@@ -20,6 +20,8 @@ import type { CardWarning } from './packs/billing.js';
  *   sensitivity: "run at once" covers only everyday `write`-scope changes.
  * - `money` and `hr` also need a fresh step-up, the amount typed by the member (money) and the
  *   workspace's approval rule; they are never run at once and never confirmed by voice (62-16).
+ * - ADR-0015 F5: a platform op marked `freshReauth` also needs the fresh step-up (no typed amount,
+ *   no workspace approval rule).
  * - An op without an undo says "cannot be undone" on its card.
  *
  * Part 2 adds the card itself ({@link buildCardItem}: built by server code from the registry, the
@@ -50,7 +52,7 @@ export interface AiChangeGateInput {
 
 /** The gate of one change, or `null` for a read (reads never need one). */
 export function changeGateFor(
-  op: Pick<AiActionOp, 'id' | 'risk' | 'scope' | 'method'>,
+  op: Pick<AiActionOp, 'id' | 'risk' | 'scope' | 'method' | 'freshReauth'>,
   input: AiChangeGateInput,
 ): AiChangeGate | null {
   if (op.risk === 'read') return null;
@@ -66,7 +68,8 @@ export function changeGateFor(
   return {
     sensitivity,
     card: !runsAtOnce,
-    stepUp: sensitive,
+    // ADR-0015 F5: the riskiest platform changes ask for the password again, like money and HR.
+    stepUp: sensitive || op.freshReauth === true,
     typedAmount: sensitivity === 'money',
     approvalRule: sensitive,
     cannotBeUndone: !input.hasUndo,
@@ -97,7 +100,13 @@ export function validateChange(opId: string, rawArgs: unknown): ValidatedChange 
   return { op, title: detail.title, args, argsSha256: argsSha256({ opId, args }) };
 }
 
-const MAX_CARD_FIELDS = 12;
+/**
+ * The fields one card lists. 24 (was 12): the platform admin changes of ADR-0015 part 2 (settings,
+ * incidents, announcements) carry more than 12; a change with more than this is refused, not
+ * shown partly (AI tamper review 2026-11-23). `platform-admin-ai.test.ts` holds every platform
+ * change input within it.
+ */
+export const MAX_CARD_FIELDS = 24;
 const MAX_VALUE_CHARS = 200;
 
 /** One line of a card: a field, its value now (when the target was read) and after the change. */
