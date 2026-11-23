@@ -408,7 +408,7 @@
 }
 
 .tm-web-ag-approval__views span {
-  padding: 0 var(--s2);
+  padding: 0 var(--inset-capsule);
   border-radius: var(--r-capsule);
 }
 

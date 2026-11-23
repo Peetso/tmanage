@@ -144,7 +144,7 @@
   min-inline-size: 0;
   min-block-size: var(--orb-compact);
   max-inline-size: 100%;
-  padding-inline: var(--s3);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);

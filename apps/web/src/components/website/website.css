@@ -378,7 +378,8 @@ a.tm-web-orb--outline:hover {
 /* "Nav · Desktop app" (Figma 412:6686): the lime-subtle capsule. */
 .tm-web-nav__link--accent {
   min-block-size: 0;
-  padding: var(--s1) var(--s3);
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--lime-100);
   color: var(--ink-950);
@@ -1522,7 +1523,8 @@ a.tm-web-orb--outline:hover {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--orb-compact);
-  padding-inline: var(--s3);
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -1868,8 +1870,9 @@ a.tm-web-orb--outline:hover {
     line-height: var(--t-heading-card-line);
   }
 
+  /* Density v2 rule 1: text 24px from a card edge on a phone as well (it sat 20px). */
   .tm-web-visual {
-    padding: var(--s5);
+    padding: var(--inset-card);
     border-radius: var(--r-card);
   }
 
@@ -1879,7 +1882,7 @@ a.tm-web-orb--outline:hover {
   }
 
   .tm-web-link-card {
-    padding: var(--s5);
+    padding: var(--inset-card);
   }
 
   .tm-web-object {

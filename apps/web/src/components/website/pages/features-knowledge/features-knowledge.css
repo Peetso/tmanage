@@ -343,7 +343,7 @@
 .tm-fk-window__url {
   max-inline-size: 100%;
   overflow: hidden;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -397,7 +397,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s2);
-  padding: var(--s4);
+  padding: var(--inset-card);
   border-radius: var(--r-compact);
   background: var(--paper-150);
 }
@@ -549,7 +549,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  padding: var(--s4);
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-0);
@@ -799,7 +799,7 @@
   }
 
   .tm-fk-ink {
-    padding: var(--s8) var(--s4);
+    padding: var(--s8) var(--inset-card);
     border-radius: var(--r-card);
   }
 

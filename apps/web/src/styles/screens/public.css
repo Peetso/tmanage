@@ -419,7 +419,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s2);
-  padding: var(--s5);
+  /* Density v2 rule 1 (ADR-0016): text 24px from a card edge, `--inset-card`. */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -455,7 +456,8 @@
 
 .tm-pub-card__eyebrow {
   font-family: var(--font-mono);
-  font-size: 10px;
+  /* Density v2 rule 4: nothing below 11px (it was 10). */
+  font-size: var(--t-app-overline);
   line-height: 14px;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -614,7 +616,8 @@
   border: 2px solid currentColor;
   border-radius: var(--r-capsule);
   color: var(--ink-800);
-  font-size: 9px;
+  /* Density v2 rule 4: nothing below 11px (it was 9). */
+  font-size: var(--t-app-overline);
   line-height: 1;
 }
 
@@ -829,7 +832,8 @@
 
 .tm-pub-preview__tag {
   margin-inline-start: auto;
-  padding: 5px var(--s3);
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding: 5px var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
   font-size: var(--t-app-overline);
@@ -974,11 +978,12 @@
 }
 
 .tm-pub-plan__badge {
-  padding: var(--s1) 11px;
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--pub-ink);
   color: #b7ff57;
-  font-size: 10px;
+  font-size: var(--t-app-overline);
   line-height: 14px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1167,7 +1172,8 @@
 }
 
 .tm-pub-chips li {
-  padding: var(--s2) 14px;
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding: var(--s2) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
@@ -1285,7 +1291,8 @@
 .tm-pub-components {
   display: flex;
   flex-direction: column;
-  padding: var(--s2) var(--s5);
+  /* With the rows' own 8px, text sits 24px from the card edge (rule 1). */
+  padding: var(--s4) var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -1472,10 +1479,12 @@
 }
 
 .tm-pub-tag {
-  padding: 3px 9px;
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding: 3px var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
-  font-size: 10px;
+  /* Density v2 rule 4: nothing below 11px (it was 10). */
+  font-size: var(--t-app-overline);
   line-height: 14px;
   font-weight: 600;
   text-transform: uppercase;

@@ -82,7 +82,7 @@ ol.tm-cp-three {
   display: grid;
   flex: 1;
   align-content: center;
-  padding: var(--s4);
+  padding: var(--inset-card);
   border-radius: var(--r-card);
   background: var(--paper-150);
   color: var(--ink-950);
@@ -256,7 +256,7 @@ ol.tm-cp-three {
 .tm-cp-url {
   min-inline-size: 0;
   overflow: hidden;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -362,7 +362,7 @@ ol.tm-cp-three {
   align-items: center;
   gap: var(--s4);
   margin-block-start: var(--s5);
-  padding: var(--s4) var(--s5);
+  padding: var(--inset-card);
   border-radius: var(--r-card);
   background: var(--paper-150);
 }
@@ -450,7 +450,7 @@ ol.tm-cp-three {
 .tm-cp-mono-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--s2);
+  padding: 0 var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);

@@ -22,7 +22,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--s3);
-  padding: var(--s5);
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);

@@ -363,7 +363,7 @@
     align-items: flex-start;
     gap: var(--s3);
     inline-size: auto;
-    padding: var(--s5);
+    padding: var(--inset-card);
     border-radius: var(--r-card);
   }
 

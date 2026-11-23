@@ -807,7 +807,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--s4);
-  padding: var(--s5) var(--s6);
+  padding: var(--inset-card) var(--s6);
   border-radius: var(--r-card);
   background: var(--paper-0);
   color: var(--ink-950);

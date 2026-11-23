@@ -224,12 +224,15 @@
 .tm-pt-tag {
   display: inline-flex;
   align-items: center;
+  /* Its own height, not the row's: a stretched tag put its text 17px from a 38px-high end. */
+  align-self: center;
   gap: var(--s1);
-  padding: var(--s1) var(--s3);
+  /* Density v2 rules 1 and 4: text 16px from the rounded ends, nothing below 11px (it was 10). */
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -315,7 +318,8 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: var(--s2) 14px var(--s2) var(--s2);
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding: var(--s2) var(--inset-capsule) var(--s2) var(--s2);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
   font-size: var(--t-caption);
@@ -332,7 +336,8 @@
   flex-direction: column;
   gap: 14px;
   min-inline-size: 0;
-  padding: 22px;
+  /* Density v2 rule 1 (ADR-0016): text 24px from a card edge, `--inset-card`. */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -403,7 +408,8 @@
 
 .tm-pt-feature__due {
   margin-inline-start: auto;
-  padding: 6px 14px;
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding: 6px var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
   color: var(--tm-paper-absolute);
@@ -440,7 +446,8 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: var(--s6) 22px;
+  /* Density v2 rule 1 (ADR-0016): text 24px from a card edge, `--inset-card`. */
+  padding: var(--inset-card);
   border-radius: var(--r-sheet);
   background: var(--tm-ink-absolute);
   color: var(--tm-paper-absolute);
@@ -672,7 +679,8 @@
 
 .tm-pt-metric__pill {
   margin-block-start: var(--s3);
-  padding: 3px 10px;
+  /* Density v2 rule 1: text 16px from a capsule's rounded ends, `--inset-capsule`. */
+  padding: 3px var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
   color: var(--tm-on-lime);
@@ -837,7 +845,7 @@
   justify-content: center;
   gap: var(--s1);
   min-block-size: 96px;
-  padding: 18px var(--s6);
+  padding: var(--inset-card);
   border-radius: var(--r-card);
 }
 
@@ -903,7 +911,8 @@
   display: flex;
   align-items: center;
   gap: var(--s6);
-  padding: 22px 28px;
+  /* Density v2 rule 1 (ADR-0016): text 24px from a card edge, `--inset-card`. */
+  padding: var(--inset-card) 28px;
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-sheet);
   background: var(--paper-0);
@@ -1029,7 +1038,8 @@
   flex-direction: column;
   gap: 14px;
   block-size: 100%;
-  padding: 22px;
+  /* Density v2 rule 1 (ADR-0016): text 24px from a card edge, `--inset-card`. */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-sheet);
   background: var(--paper-0);
@@ -1194,7 +1204,8 @@
   display: flex;
   align-items: center;
   gap: var(--s4);
-  padding: 18px;
+  /* Density v2 rule 1 (ADR-0016): text 24px from a card edge, `--inset-card`. */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -1202,7 +1213,7 @@
 }
 
 .tm-pt-person-card--lead {
-  padding: 18px var(--s6);
+  padding: var(--inset-card);
   border: 2px solid var(--ink-950);
 }
 
@@ -1294,7 +1305,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 18px var(--s5);
+  /* Density v2 rule 1 (ADR-0016): text 24px from a card edge, `--inset-card`. */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -1516,7 +1528,7 @@
   .tm-pt-action {
     flex-wrap: wrap;
     gap: var(--s4);
-    padding: 18px var(--s5);
+    padding: var(--inset-card);
   }
 
   .tm-pt-action__orb {
@@ -1551,7 +1563,7 @@
   }
 
   .tm-pt-feature {
-    padding: 22px;
+    padding: var(--inset-card);
     border-radius: var(--r-sheet);
   }
 

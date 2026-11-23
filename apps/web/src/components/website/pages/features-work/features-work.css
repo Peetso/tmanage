@@ -101,7 +101,7 @@
 }
 
 .tm-fw-seg > span {
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   color: var(--ink-650);
 }
@@ -114,7 +114,7 @@
 .tm-fw-flag {
   display: inline-flex;
   align-items: center;
-  padding-inline: var(--s2);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--warning-600);
   border-radius: var(--r-capsule);
   color: var(--warning-600);
@@ -261,7 +261,7 @@
   flex: 1;
   min-inline-size: 0;
   margin: var(--s4) var(--s4) var(--s4) 0;
-  padding: var(--s5);
+  padding: var(--inset-card);
   border-radius: var(--r-card);
   background: var(--paper-50);
 }
@@ -288,7 +288,7 @@
   align-items: center;
   gap: var(--s3);
   margin-block-start: var(--s3);
-  padding: var(--s2) var(--s3);
+  padding: var(--s2) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--web-ink);
   color: var(--web-on-ink);
@@ -494,7 +494,7 @@
   grid-row: 2;
   min-inline-size: 0;
   margin-block-start: calc(var(--s3) * -1);
-  padding: var(--s5);
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -555,7 +555,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: var(--s5);
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -811,7 +811,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: var(--s2);
-  padding: var(--s4);
+  padding: var(--inset-card);
   border-radius: var(--r-card);
   background: var(--web-ink);
   color: var(--web-on-ink);
@@ -1032,7 +1032,7 @@
 }
 
 .tm-fw-timeline__today {
-  padding: var(--s1) var(--s2);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--web-ink);
   color: var(--web-on-ink);
@@ -1433,7 +1433,7 @@
   }
 
   .tm-fw-hero__visual {
-    padding: var(--s4);
+    padding: var(--inset-card);
     border-radius: var(--r-card);
   }
 
@@ -1479,7 +1479,7 @@
   }
 
   .tm-fw-ink {
-    padding: var(--s8) var(--s5);
+    padding: var(--s8) var(--inset-card);
     border-radius: var(--r-card);
   }
 

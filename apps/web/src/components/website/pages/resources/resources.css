@@ -61,7 +61,7 @@
   position: absolute;
   inset-block-start: 50%;
   inset-inline-end: var(--s3);
-  padding: 0 var(--s2);
+  padding: 0 var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-150);
   font-family: var(--font-mono);
@@ -679,7 +679,7 @@
   }
 
   .tm-web-res-news__panel {
-    padding: var(--s8) var(--s5);
+    padding: var(--s8) var(--inset-card);
     border-radius: var(--r-card);
   }
 

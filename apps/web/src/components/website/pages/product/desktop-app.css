@@ -90,7 +90,7 @@
   box-sizing: border-box;
   inline-size: 100%;
   max-inline-size: 600px;
-  padding: var(--s4);
+  padding: var(--inset-card);
   border: 1px solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-50);
@@ -180,7 +180,7 @@
 
 @media (max-width: 767px) {
   .tm-dl__card {
-    padding: var(--s5);
+    padding: var(--inset-card);
     border-radius: var(--r-sheet);
   }
 

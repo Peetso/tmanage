@@ -258,7 +258,7 @@
 }
 
 .tm-web-help-tip {
-  padding: var(--s4);
+  padding: var(--inset-card);
   border-radius: var(--r-card);
   background: var(--paper-150);
   color: var(--ink-650);
@@ -270,7 +270,7 @@
   flex-direction: column;
   gap: var(--s3);
   margin: 0;
-  padding: var(--s4);
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-150);
