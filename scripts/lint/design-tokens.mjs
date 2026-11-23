@@ -36,7 +36,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASELINE = join(ROOT, 'docs/architecture/baselines/design-tokens.json');
 const SCAN_ROOTS = ['apps/web/src', 'packages/ui/src/styles'];
 /** The files that define the tokens; a literal there is the token itself. */
-const TOKEN_FILES = new Set(['packages/ui/src/styles/tokens.css', 'packages/ui/src/styles/density.css']);
+const TOKEN_FILES = new Set([
+  'packages/ui/src/styles/tokens.css',
+  'packages/ui/src/styles/density.css',
+]);
 
 const SIZE_PROPERTY =
   /^(?:font-size|(?:min-|max-)?(?:height|block-size)|padding(?:-[a-z-]+)?|margin(?:-[a-z-]+)?|gap|row-gap|column-gap)$/;
@@ -115,7 +118,8 @@ export function findLiterals(css) {
     const literals = sizeLiterals(d.value);
     if (literals.length === 0) continue;
     // A custom property counts only when it holds a size, not a shadow or a gradient stop list.
-    if (custom && !/^(?:calc\()?[\s\d.+*/()-]*(?:px|rem)[\s\d.+*/()pxrem-]*\)?$/.test(d.value)) continue;
+    if (custom && !/^(?:calc\()?[\s\d.+*/()-]*(?:px|rem)[\s\d.+*/()pxrem-]*\)?$/.test(d.value))
+      continue;
     found.push({ ...d, category: categoryOf(d.property), literals });
   }
   return found;
@@ -185,7 +189,8 @@ export function report(perFile) {
       const first = f.literals[0].px;
       if (f.category === 'font-size') {
         fontSizes.set(first, (fontSizes.get(first) ?? 0) + 1);
-        if (/title|(?:^|[\s,>])h1\b/.test(f.selector)) titleSizes.set(first, (titleSizes.get(first) ?? 0) + 1);
+        if (/title|(?:^|[\s,>])h1\b/.test(f.selector))
+          titleSizes.set(first, (titleSizes.get(first) ?? 0) + 1);
       }
       if (f.category === 'height') heights.set(first, (heights.get(first) ?? 0) + 1);
     }
@@ -207,7 +212,9 @@ function readBaseline() {
 }
 
 function writeBaseline(files) {
-  const sortedFiles = Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)));
+  const sortedFiles = Object.fromEntries(
+    Object.entries(files).sort(([a], [b]) => a.localeCompare(b)),
+  );
   const total = Object.values(sortedFiles).reduce((a, b) => a + b, 0);
   const body = {
     $comment:
@@ -232,7 +239,12 @@ function main(argv) {
   const refIndex = argv.indexOf('--ref');
   const ref = refIndex >= 0 ? argv[refIndex + 1] : undefined;
   const explicit = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== '--ref');
-  const files = explicit.length > 0 ? explicit.map((f) => rel(resolve(f))).filter((f) => f.endsWith('.css') && !TOKEN_FILES.has(f)) : filesAt(ref);
+  const files =
+    explicit.length > 0
+      ? explicit
+          .map((f) => rel(resolve(f)))
+          .filter((f) => f.endsWith('.css') && !TOKEN_FILES.has(f))
+      : filesAt(ref);
   const perFile = scan(files, ref);
 
   if (argv.includes('--report')) {
@@ -242,9 +254,15 @@ function main(argv) {
       console.log(`design-tokens report${ref ? ` at ${ref}` : ''}`);
       console.log(`  CSS files: ${summary.files}, with literals: ${summary.filesWithLiterals}`);
       console.log(`  hard-coded sizes: ${summary.total}`, summary.byCategory);
-      console.log(`  distinct font sizes (${summary.distinctFontSizes.length}): ${summary.distinctFontSizes.join(', ')}`);
-      console.log(`  distinct heights (${summary.distinctHeights.length}): ${summary.distinctHeights.join(', ')}`);
-      console.log(`  distinct title font sizes (${summary.distinctTitleSizes.length}): ${summary.distinctTitleSizes.join(', ')}`);
+      console.log(
+        `  distinct font sizes (${summary.distinctFontSizes.length}): ${summary.distinctFontSizes.join(', ')}`,
+      );
+      console.log(
+        `  distinct heights (${summary.distinctHeights.length}): ${summary.distinctHeights.join(', ')}`,
+      );
+      console.log(
+        `  distinct title font sizes (${summary.distinctTitleSizes.length}): ${summary.distinctTitleSizes.join(', ')}`,
+      );
     }
     return 0;
   }
@@ -258,23 +276,32 @@ function main(argv) {
     const hasBaseline = existsSync(BASELINE);
     const grown = hasBaseline ? violations(perFile, baseline) : [];
     if (grown.length > 0) {
-      for (const g of grown) console.error(`  ${g.file}: ${g.found.length} > baseline ${g.allowed}`);
-      console.error('design-tokens: refusing to raise the baseline (needs an ADR). Use tokens instead.');
+      for (const g of grown)
+        console.error(`  ${g.file}: ${g.found.length} > baseline ${g.allowed}`);
+      console.error(
+        'design-tokens: refusing to raise the baseline (needs an ADR). Use tokens instead.',
+      );
       return 1;
     }
     writeBaseline(counts(perFile));
-    console.log(`design-tokens: baseline written, ${report(perFile).total} literals in ${Object.keys(counts(perFile)).length} files.`);
+    console.log(
+      `design-tokens: baseline written, ${report(perFile).total} literals in ${Object.keys(counts(perFile)).length} files.`,
+    );
     return 0;
   }
 
   const bad = violations(perFile, baseline);
   if (bad.length === 0) {
     const total = [...perFile.values()].reduce((n, f) => n + f.length, 0);
-    console.log(`design-tokens: OK (${perFile.size} files, ${total} literals, none above the baseline).`);
+    console.log(
+      `design-tokens: OK (${perFile.size} files, ${total} literals, none above the baseline).`,
+    );
     return 0;
   }
   for (const { file, allowed, found } of bad) {
-    console.error(`${file}: ${found.length} hard-coded sizes, baseline allows ${allowed}. Use a token:`);
+    console.error(
+      `${file}: ${found.length} hard-coded sizes, baseline allows ${allowed}. Use a token:`,
+    );
     for (const f of found.slice(0, 40)) {
       console.error(`  ${file}:${f.line}  ${f.property}: ${f.value}`);
     }

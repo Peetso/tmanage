@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { categoryOf, declarations, findLiterals, sizeLiterals, violations } from './design-tokens.mjs';
+import {
+  categoryOf,
+  declarations,
+  findLiterals,
+  sizeLiterals,
+  violations,
+} from './design-tokens.mjs';
 
 describe('design-tokens lint (ADR-0016)', () => {
   it('fails on a planted 9px label and a 15px-padded button in a file with no baseline', () => {
