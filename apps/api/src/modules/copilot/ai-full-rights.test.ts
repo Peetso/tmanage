@@ -74,10 +74,9 @@ describe('the in-app chat runs with the member’s full rights (owner 2026-11-23
     const { run, fetched } = surface(CHAT_FULL_SCOPES, NO_MANAGE);
     for (const id of ['invitations.create', 'invitations.list', 'client_organizations.list']) {
       const described = await run(META_TOOL_NAMES.describe, { action_id: id });
-      expect(described, id).toMatchObject({
-        isError: true,
-        data: `Unknown or not permitted action: ${id}`,
-      });
+      // Fix lane A 2026-11-23: the refusal names the missing right, not "unknown or not permitted".
+      expect(described.isError, id).toBe(true);
+      expect(String(described.data), id).toContain(`Not allowed here: ${id}. Your role`);
     }
     const ran = await run(META_TOOL_NAMES.run, { action_id: 'invitations.create', args: INVITE });
     expect(ran).toMatchObject({ isError: true });

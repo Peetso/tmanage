@@ -3,6 +3,8 @@ import { Logger } from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { canonicalizeArgs } from '../mcp/internal-grant.js';
+import { argumentIssues } from '../mcp/action-errors.js';
+import { allDetailsById } from '../mcp/tool-catalog.js';
 import type { CommandDefinition } from '../search/command-match.js';
 import {
   AiClientError,
@@ -1470,10 +1472,23 @@ export class CopilotChatService {
       return refused(`${opId} changes data and cannot be proposed here. Nothing was changed.`);
     }
     const change = validateChange(opId, rawArgs);
-    if (change === null) return refused(`Invalid arguments for ${opId}. Nothing was changed.`);
+    if (change === null) {
+      // Fix lane A 2026-11-23: the schema's own reason, so the model can correct the call.
+      const issues = argumentIssues(allDetailsById.get(opId), rawArgs);
+      return refused(
+        `Invalid arguments for ${opId}${issues === null ? '' : `: ${issues}`}. Nothing was changed.`,
+      );
+    }
     // The member may run it at all: the surface's own permitted list, as `run_action` decides.
     const described = await surface.runTool(META_TOOL_NAMES.describe, { action_id: opId });
-    if (described.isError === true) return refused(`Unknown or not permitted action: ${opId}`);
+    if (described.isError === true) {
+      // The runtime's reason (unknown action, or why it is not allowed here).
+      return refused(
+        typeof described.data === 'string'
+          ? `${described.data} Nothing was changed.`
+          : `Unknown or not permitted action: ${opId}`,
+      );
+    }
     // The target as it is now: the card's "before", and whether the change could be undone.
     const current = await currentValues(surface, change);
     // The taint rule: after an untrusted read, nothing runs at once.

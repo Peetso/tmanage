@@ -12,6 +12,7 @@ import {
   callNeedsConfirmWithState,
   findOpById,
   isNever,
+  isPlatformOp,
 } from '../ai-actions/registry/index.js';
 import type { AiActionOp, AiScope, StoredFieldLookup } from '../ai-actions/registry/index.js';
 import {
@@ -35,10 +36,22 @@ import {
   buildOpRequest,
   capResult,
   pendingApproval,
+  subjectLookupOp,
 } from './pending-actions.js';
 import type { PendingActionRequester, PendingAiActionsService } from './pending-actions.service.js';
 import { ApiError } from '../../common/http/errors.js';
 import { redactFinanceResult } from '../ai-actions/registry/finance-time.js';
+import { pathParamNames } from '../ai-actions/openapi.js';
+import {
+  apiFailureMessage,
+  confirmationNote,
+  confirmationOf,
+  inputJsonSchema,
+  invalidArgumentsMessage,
+  sentVersion,
+  validExamples,
+  versionOfBody,
+} from './action-errors.js';
 
 /**
  * **The live `/mcp` tool surface — the S5 catalogue wired to S6 execution.**
@@ -200,12 +213,50 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     return null;
   }
 
+  /**
+   * Fix 11 (live test 2026-11-23 §4). The reason a named op is not runnable, for `run_action` and
+   * `describe` only: they answer an id the AI already holds. `find` keeps listing no platform op
+   * to an account without platform rights here (ADR-0015 F2), so this never feeds `not_allowed`.
+   */
+  function notAllowedReason(op: AiActionOp): string {
+    if (isPlatformOp(op) && !platformSatisfied(options.platformPermissions, op)) {
+      return options.platformPermissions === undefined
+        ? 'This is a platform-admin action: it needs a platform-scoped connection (tmanage:platform) and a fresh sign-in check by a platform admin. A personal access token never reaches it.'
+        : `Your platform role does not include the permission "${op.platformPermission ?? ''}".`;
+    }
+    return refusalReason(op) ?? 'This action is not available over this connection.';
+  }
+
+  /**
+   * Fix 1. After a 409 on a call that sent a version: the record's current version, read with the
+   * member's own `GET` on the same path (only when that read is in this grant's catalogue).
+   */
+  async function currentVersionAfterConflict(
+    op: AiActionOp,
+    args: Record<string, unknown>,
+  ): Promise<number | null> {
+    if (sentVersion(args) === null) return null;
+    const read = subjectLookupOp(op);
+    if (read === undefined || !permitted.has(read.id)) return null;
+    const ids = Object.fromEntries(
+      pathParamNames(read.path)
+        .filter((name) => name !== 'orgSlug')
+        .map((name) => [name, args[name]] as const),
+    );
+    try {
+      const built = buildOpRequest(read, ids, options.orgSlug);
+      const response = await options.fetch(`${options.baseUrl}${built.url}`, { method: 'GET' });
+      return response.ok ? versionOfBody(await response.text()) : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function runOp(opId: string, rawArgs: Record<string, unknown>): Promise<RunResult> {
     const op = findOpById(opId);
     if (op === undefined) return { isError: true, data: `Unknown action: ${opId}` };
     if (!permitted.has(opId)) {
-      const reason = refusalReason(op) ?? 'This action is not available over this connection.';
-      return { isError: true, data: `Not permitted: ${opId}. ${reason}` };
+      return { isError: true, data: `Not permitted: ${opId}. ${notAllowedReason(op)}` };
     }
     if (!grantCoversOp(options.scopes, op)) {
       return { isError: true, data: `insufficient_scope: ${opId} needs ${op.scope}` };
@@ -214,8 +265,9 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     // tool, `run_action`, a resource read), the arguments pass the op's own strict schema here, in
     // the one funnel every inner request goes through. Unknown keys are refused, not forwarded.
     const parsed = allDetailsById.get(opId)?.input.safeParse(rawArgs);
-    if (parsed === undefined || !parsed.success) {
-      return { isError: true, data: `Invalid arguments for ${opId}.` };
+    if (parsed === undefined) return { isError: true, data: `Unknown action: ${opId}` };
+    if (!parsed.success) {
+      return { isError: true, data: invalidArgumentsMessage(opId, parsed.error, rawArgs) };
     }
     const args = parsed.data as Record<string, unknown>;
     // N07: a `write` op whose arguments reach a client (`confirmWhen`) is refused like a confirm op;
@@ -227,7 +279,7 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     } catch (error) {
       // A missing or dot-segment path argument: nothing is sent.
       if (error instanceof PendingActionRefusedError) {
-        return { isError: true, data: `Invalid arguments for ${opId}.` };
+        return { isError: true, data: `Invalid arguments for ${opId}: ${error.message}.` };
       }
       throw error;
     }
@@ -237,10 +289,13 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
         ? { headers: { 'content-type': 'application/json' }, body: built.body }
         : {}),
     });
-    const raw = capResult(await response.text());
+    const text = await response.text();
     if (!response.ok) {
-      return { isError: true, data: `The action failed (HTTP ${response.status}).` };
+      const current =
+        response.status === 409 ? await currentVersionAfterConflict(op, args) : undefined;
+      return { isError: true, data: apiFailureMessage(opId, response.status, text, current) };
     }
+    const raw = capResult(text);
     // R18-b: the `finance` profile drops cost, margin and bank-detail keys without finance.manage.
     const data =
       allDetailsById.get(opId)?.redact === 'finance'
@@ -313,23 +368,39 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
 
   function find(args: Record<string, unknown>): RunResult {
     const limit = typeof args['limit'] === 'number' ? args['limit'] : 20;
-    const searchable = [...permitted.values()].map((t) => ({
-      opId: t.opId!,
-      title: t.title,
-      description: t.description,
-    }));
+    const searchable = [...permitted.values()].map((t) => {
+      const descriptionAr = allDetailsById.get(t.opId!)?.descriptionAr;
+      return {
+        opId: t.opId!,
+        title: t.title,
+        description: t.description,
+        ...(descriptionAr !== undefined ? { descriptionAr } : {}),
+      };
+    });
     const query = String(args['query'] ?? '');
-    const matches = rankActions(searchable, query, limit).map((t) => ({
-      action_id: t.opId,
-      title: t.title,
-      description: t.description,
-    }));
+    const matches = rankActions(searchable, query, limit).map((t) => {
+      const op = findOpById(t.opId);
+      const confirmation = op === undefined ? null : confirmationOf(op);
+      // Fix 11: a confirm-class op says so in its find line, not only in describe.
+      return {
+        action_id: t.opId,
+        title: t.title,
+        description:
+          confirmation === null ? t.description : `${t.description} ${confirmationNote(op!)}`,
+        ...(confirmation !== null ? { needs_confirmation: confirmation } : {}),
+      };
+    });
     // Actions that match but this account cannot run here, with the reason, so the AI says why
     // instead of claiming the action does not exist.
     const blocked = rankActions(
       [...allDetailsById.entries()]
         .filter(([opId]) => !permitted.has(opId))
-        .map(([opId, detail]) => ({ opId, title: detail.title, description: detail.description })),
+        .map(([opId, detail]) => ({
+          opId,
+          title: detail.title,
+          description: detail.description,
+          ...(detail.descriptionAr !== undefined ? { descriptionAr: detail.descriptionAr } : {}),
+        })),
       query,
       5,
     ).flatMap((t) => {
@@ -346,11 +417,25 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
 
   function describe(args: Record<string, unknown>): RunResult {
     const id = String(args['action_id'] ?? '');
-    const tool = permitted.get(id);
     const op = findOpById(id);
-    if (tool === undefined || op === undefined) {
-      return { isError: true, data: `Unknown or not permitted action: ${id}` };
+    const detail = allDetailsById.get(id);
+    // Fix 11: an id that does not exist is told apart from one this account cannot run here.
+    if (op === undefined) {
+      return {
+        isError: true,
+        data: `Unknown action: ${id}. Use tmanage_find_actions to find the right action id.`,
+      };
     }
+    if (detail === undefined) {
+      return { isError: true, data: `Not allowed here: ${id}. The AI cannot call it yet.` };
+    }
+    const tool = permitted.get(id);
+    if (tool === undefined) {
+      return { isError: true, data: `Not allowed here: ${id}. ${notAllowedReason(op)}` };
+    }
+    const confirmation = confirmationOf(op);
+    // Fix 2: the real input schema (types, required, enums, formats, lengths) and the examples
+    // that pass it, not only the argument names.
     return {
       summary: tool.title,
       data: {
@@ -358,7 +443,12 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
         title: tool.title,
         description: tool.description,
         risk: op.risk,
+        ...(confirmation !== null
+          ? { needs_confirmation: confirmation, confirmation: confirmationNote(op) }
+          : {}),
         arguments: Object.keys(tool.inputSchema),
+        input_schema: inputJsonSchema(detail.input),
+        examples: validExamples(detail),
       },
     };
   }
@@ -377,7 +467,12 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
           if (parsed === undefined) return { isError: true, data: `Unknown action: ${id}` };
           // Not runnable here: runOp answers with the reason (owner setting, access, right).
           if (!permitted.has(id)) return runOp(id, {});
-          if (!parsed.success) return { isError: true, data: `Invalid arguments for ${id}.` };
+          if (!parsed.success) {
+            return {
+              isError: true,
+              data: invalidArgumentsMessage(id, parsed.error, args['args'] ?? {}),
+            };
+          }
           return runOp(id, parsed.data as Record<string, unknown>);
         }
         case 'tmanage_check_approval':

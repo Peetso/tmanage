@@ -195,7 +195,9 @@ export function planToolCall(name: string, input: JsonObject): ChatToolPlan {
 function planRun(input: JsonObject): ChatToolPlan {
   const actionId = String(input['action_id'] ?? '');
   const op = findOpById(actionId);
-  if (op === undefined) return refuse(null, `Unknown or not permitted action: ${actionId}`);
+  if (op === undefined) {
+    return refuse(null, `Unknown action: ${actionId}. Use find to look up the right action id.`);
+  }
   if (isAiSelfOp(op)) return refuse(op.id, `Not permitted from the assistant: ${op.id}`);
   let args: unknown;
   try {
