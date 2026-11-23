@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ApiClient } from '../src/lib/api/client';
 import type { AiSettingsView } from '../src/lib/api/ai-settings';
 import { AiSettingsScreen } from '../src/components/ai-admin/AiSettingsScreen';
+import { ARABIC_STORY } from './support/arabic';
 import { withStubbedNetwork } from './support/vr-fixtures';
 
 /**
@@ -108,6 +109,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const On: Story = {};
+
+/** 770:45397: the same page in Arabic. */
+export const OnArabic: Story = { ...ARABIC_STORY };
 
 export const Off: Story = {
   args: { client: client({ status: 200, body: { ...VIEW, aiEnabled: false } }) },

@@ -1,0 +1,574 @@
+/*
+ * AI panel with two tabs (Figma 851:906): the tab bar, tab 2 "Your AI" and the "not on" state.
+ * Tokens only (UX-11), logical properties only (UX-14) so Arabic mirrors, 44 px targets on a
+ * phone (UX-5, Figma 860:906 / 860:1021). Tab 1 is the chat panel's own styles (ai-chat.css).
+ */
+
+.tm-aip p,
+.tm-aip h2,
+.tm-aip h3,
+.tm-aip h4,
+.tm-aip dl,
+.tm-aip dd {
+  margin: 0;
+}
+
+/* ── Header and tabs ────────────────────────────────────────────────── */
+
+.tm-aip-header {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s2);
+  padding: var(--s3) var(--s5) 0;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aip-header--title {
+  align-items: center;
+  padding-block: var(--s4);
+}
+
+.tm-aip-header__end,
+.tm-aip-header--title > .tm-aic__icon {
+  align-self: center;
+}
+
+.tm-aip-header__back {
+  display: none;
+  align-self: center;
+}
+
+.tm-aip-tabs {
+  display: flex;
+  gap: var(--s4);
+}
+
+.tm-aip-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 40px;
+  padding: var(--s2) var(--s3) var(--s3);
+  border: 0;
+  border-block-end: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  cursor: pointer;
+}
+
+.tm-aip-tab[aria-selected='true'] {
+  border-block-end-color: var(--ink-950);
+  color: var(--ink-950);
+  font-weight: 500;
+}
+
+.tm-aip-tab:hover {
+  color: var(--ink-950);
+}
+
+.tm-aip-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-micro);
+}
+
+.tm-aip-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+.tm-aip-panel[hidden] {
+  display: none;
+}
+
+/* ── Tab 2 body ─────────────────────────────────────────────────────── */
+
+.tm-aip-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s6);
+  min-block-size: 0;
+  padding: var(--s5);
+  overflow-y: auto;
+}
+
+.tm-aip-footer {
+  padding: var(--s3) var(--s5) var(--s4);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-aip-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-aip-section__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aip-section__title {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-aip-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-aip-muted,
+.tm-aip-note {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-aip-muted {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-aip-spacer {
+  flex: 1;
+}
+
+.tm-aip-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.tm-aip-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-micro);
+}
+
+/* The panel's capsules are the Figma Capsule: the word alone, no glyph. */
+.tm-aip-capsule .tm-state-capsule__glyph {
+  display: none;
+}
+
+/* The waiting count: warning border, ink digit (T3), on the tab and the heading alike. */
+.tm-aip-count {
+  min-inline-size: 28px;
+  justify-content: center;
+  padding-inline: var(--s2);
+  color: var(--ink-950);
+}
+
+/* ── Cards (approvals, apps, review) ────────────────────────────────── */
+
+.tm-aip-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-aip-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aip-card__title {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 400;
+}
+
+.tm-aip-app .tm-aip-card__title {
+  flex: none;
+}
+
+.tm-aip-card__subject {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-aip-fields {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--s6);
+  row-gap: var(--s1);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-aip-fields__row {
+  display: contents;
+}
+
+.tm-aip-fields dt {
+  color: var(--ink-650);
+}
+
+.tm-aip-fields dd {
+  color: var(--ink-950);
+}
+
+.tm-aip-card__actions,
+.tm-aip-app__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-block-start: var(--s1);
+}
+
+.tm-aip-app__actions {
+  /* Fix 1: Open and Manage, a spacer, Disconnect alone at the far end; no gap on the row. */
+  gap: 0;
+}
+
+.tm-aip-card__result {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aip-app__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  border: var(--b-quiet) solid var(--line-700);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-950);
+}
+
+.tm-aip-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-aip-review__lock {
+  display: inline-grid;
+  place-items: center;
+}
+
+.tm-aip-review__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-aip-dialog {
+  box-sizing: border-box;
+  inline-size: min(360px, calc(100vw - var(--s8)));
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--ink-950) 16%, transparent);
+}
+
+.tm-aip-dialog::backdrop {
+  background: color-mix(in srgb, var(--ink-950) 32%, transparent);
+}
+
+.tm-aip-dialog__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-block-end: var(--s4);
+}
+
+.tm-aip-dialog__title {
+  flex: 1;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 400;
+}
+
+/* ── Activity ───────────────────────────────────────────────────────── */
+
+.tm-aip-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-aip-day__label {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-aip-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding-block: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aip-row:last-child {
+  border-block-end: 0;
+}
+
+.tm-aip-row__icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 16px;
+  block-size: 20px;
+  color: var(--ink-950);
+}
+
+.tm-aip-row__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-aip-row__title {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  overflow-wrap: anywhere;
+}
+
+.tm-aip-row__source {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-aip-row__end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s1);
+}
+
+.tm-aip-row__time {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 600;
+}
+
+.tm-aip-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-aip-skeleton__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-aip-spinner {
+  inline-size: 12px;
+  block-size: 12px;
+  border: 2px solid var(--ink-950);
+  border-block-start-color: transparent;
+  border-radius: var(--r-capsule);
+  animation: tm-aip-spin 900ms linear infinite;
+}
+
+@keyframes tm-aip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-aip-spinner {
+    animation: none;
+  }
+}
+
+.tm-aip-skeleton__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding-block-end: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aip-skeleton__row > i {
+  block-size: 10px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+}
+
+.tm-aip-skeleton__row > i:nth-child(1) {
+  inline-size: 16px;
+}
+
+.tm-aip-skeleton__row > i:nth-child(2) {
+  flex: 1;
+  max-inline-size: 180px;
+}
+
+.tm-aip-skeleton__row > i:nth-child(3) {
+  inline-size: 48px;
+  margin-inline-start: auto;
+}
+
+/* ── Connect your AI ────────────────────────────────────────────────── */
+
+.tm-aip-connect {
+  gap: var(--s4);
+}
+
+.tm-aip-connect__title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 400;
+}
+
+.tm-aip-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding-block-end: var(--s5);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aip-step__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 400;
+}
+
+.tm-aip-step__num {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 34px;
+  block-size: 24px;
+  border: var(--b-quiet) solid var(--line-700);
+  border-radius: var(--r-capsule);
+  font-size: var(--t-caption);
+}
+
+.tm-aip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-aip-chip {
+  min-block-size: 32px;
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--ink-650);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  cursor: pointer;
+}
+
+.tm-aip-chip[aria-pressed='true'] {
+  border-color: var(--lime-600);
+  background: var(--lime-100);
+}
+
+.tm-aip-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aip-wait {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+/* ── TManage AI not on ──────────────────────────────────────────────── */
+
+.tm-aip-off {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s10) var(--s5);
+  text-align: center;
+}
+
+.tm-aip-off__line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+/* ── Phone: Back at the start, 44 px targets (Figma 860:906, 860:1021) ── */
+
+@media (max-width: 767px) {
+  .tm-aip-header {
+    padding-inline: var(--s3) var(--s5);
+  }
+
+  .tm-aip-header__back {
+    display: inline-flex;
+  }
+
+  .tm-aip-header__end {
+    display: none;
+  }
+
+  .tm-aip-tab {
+    min-block-size: 44px;
+  }
+
+  .tm-aip-touch.tm-button,
+  .tm-aip-chip {
+    min-block-size: 44px;
+  }
+
+  .tm-aip .tm-info-button {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+  }
+}

@@ -27,6 +27,9 @@ import { hidePanel, showPanel, usePanelState } from './panel-store';
 import { useAiPanelT } from './use-ai-panel-t';
 import { AiChatPanel, AI_CONVERSATIONS_KEY } from '../ai-chat/AiChatPanel';
 import { listAiConversations } from '../../lib/api/ai-chat';
+import { aiPanelKey, getAiPanel } from '../../lib/api/ai-panel';
+import { AiPanel } from './AiPanel';
+import { defaultTab, panelLayout } from './ai-panel-model';
 import './ai-panel.css';
 
 /** Which popover is open, and where: under the top-bar button, or under the panel's Switch. */
@@ -37,6 +40,8 @@ type Popover =
   | { readonly kind: 'window'; readonly site: AssistantSite };
 
 const NONE: Popover = { kind: 'none' };
+/** How often the panel looks for a new connection while step 3 waits (as Settings › AI assistant). */
+const WAIT_FOR_CONNECTION_MS = 8_000;
 const EXPLAINED_KEY = 'tmanage.ai-panel.window-explained';
 
 function windowExplained(siteKey: string): boolean {
@@ -101,15 +106,29 @@ export function AiPanelLauncher({
     queryFn: () => getConnectedApps(api, organizationSlug),
     enabled: wanted,
   });
-  // Plan 62-15: a workspace with TManage AI (on the test list, flag on) answers this read; any
-  // other answers 404 and the button keeps its own-AI behaviour below.
+  const [aiOpen, setAiOpen] = useState(false);
+  // AI panel with two tabs (Figma 851:906): one read lays the panel out (gap 4). While nothing is
+  // connected and the panel is open, it is read again so step 3 turns into the connected view.
+  const panelView = useQuery({
+    queryKey: aiPanelKey(organizationSlug),
+    queryFn: () => getAiPanel(api, organizationSlug),
+    retry: false,
+    staleTime: 30_000,
+    refetchInterval: (query) =>
+      aiOpen && query.state.data?.apps.length === 0 ? WAIT_FOR_CONNECTION_MS : false,
+  });
+  const layout = panelView.data ? panelLayout(panelView.data) : null;
+  // Plan 62-15 fallback: if the panel read fails, a workspace with TManage AI still answers this
+  // read and opens the chat; any other keeps the own-AI behaviour below.
   const tmanageAi = useQuery({
     queryKey: AI_CONVERSATIONS_KEY(organizationSlug),
     queryFn: () => listAiConversations(api, organizationSlug),
     retry: false,
     staleTime: 5 * 60_000,
+    enabled: panelView.isError,
   });
-  const [aiOpen, setAiOpen] = useState(false);
+  const chatOnly = layout === 'tmanage-only' || (panelView.isError && tmanageAi.isSuccess);
+  const twoWays = layout === 'tabs' || layout === 'own-only';
   const choices = useMemo(() => assistantChoices(view.data?.apps ?? []), [view.data]);
   const storageKey = rememberKey(organizationSlug, view.data?.viewerName ?? '');
   const address = connectorAddress(deploymentAddress());
@@ -141,7 +160,7 @@ export function AiPanelLauncher({
   }, [pending, view.data, choices, storageKey, open]);
 
   function press() {
-    if (tmanageAi.isSuccess) {
+    if (chatOnly || twoWays) {
       setAiOpen((open) => !open);
       return;
     }
@@ -267,7 +286,26 @@ export function AiPanelLauncher({
         />
       ) : null}
 
-      {aiOpen
+      {aiOpen && twoWays && panelView.data && (layout === 'tabs' || layout === 'own-only')
+        ? createPortal(
+            <AiPanel
+              api={api}
+              organizationSlug={organizationSlug}
+              layout={layout}
+              view={panelView.data}
+              initialTab={defaultTab(panelView.data)}
+              address={address}
+              onRetry={() => void panelView.refetch()}
+              onClose={() => {
+                setAiOpen(false);
+                anchor.current?.querySelector('button')?.focus();
+              }}
+            />,
+            document.body,
+          )
+        : null}
+
+      {aiOpen && chatOnly
         ? createPortal(
             <AiChatPanel
               organizationSlug={organizationSlug}

@@ -145,7 +145,7 @@ export function MicNotice({
       </InlineAlert>
     );
   }
-  if (status === 'no-microphone' || status === 'failed') {
+  if (status === 'no-microphone' || status === 'failed' || status === 'language') {
     return (
       <InlineAlert tone="warning" title={t('Voice.failedTitle')} live className="tm-mic-alert">
         {status === 'no-microphone' ? t('Voice.noMicBody') : t('Voice.failedBody')}

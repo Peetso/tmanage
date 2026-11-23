@@ -12,7 +12,7 @@ import {
 
 /** idle → listening (live words) → processing (settling the last words) → idle. */
 export type DictationStatus =
-  'idle' | 'listening' | 'processing' | 'blocked' | 'no-microphone' | 'failed';
+  'idle' | 'listening' | 'processing' | 'blocked' | 'no-microphone' | 'language' | 'failed';
 
 export interface Dictation {
   /** False until mounted, and for good where the browser has no speech recognition. */

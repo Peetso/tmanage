@@ -5,8 +5,8 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Badge,
   Button,
-  Checkbox,
   Field,
   InlineAlert,
   Radio,
@@ -54,6 +54,11 @@ import './ai-admin.css';
  * 787:53287). The company switch works at once (turning it off asks first); the rest is one form
  * the owner saves. The API is owner only and decides every rule again (IP-2, AR-9).
  *
+ * AI panel pass (2026-11-23): laid out as Figma G1 770:44997 (on) / 770:46185 (off): the Testing
+ * badge and lead, "Your own AI" then "TManage AI" (switch in the card), the provider line, the form
+ * as one card of rows (two choice rows, row switches, the share select and retention on the
+ * right), Save changes and Cancel under it.
+ *
  * AI-TWO-WAYS (plan 62 §Decision, Peter 2026-11-23): the two directions are always two cards side
  * by side. "Your own AI" (MCP) never depends on the settings read; "TManage AI for your company"
  * is drawn in every state of it — loaded, not on the test list (404), not the owner (403), loading
@@ -84,7 +89,8 @@ export function AiSettingsScreen({
       section="ai"
       crumbs={[tOr(ccKey('ControlCenter.ai'), 'AI')]}
       title={t('AiSettings.title')}
-      description={t('AiSettings.lead')}
+      titleMeta={<Badge>{t('AiChat.testing')}</Badge>}
+      description={t('AiSettings.leadTesting')}
       client={api}
     >
       <AiAdminTabs organizationSlug={organizationSlug} current="settings" />
@@ -94,7 +100,8 @@ export function AiSettingsScreen({
         // AI-TWO-WAYS: whatever the TManage AI read answers, both directions stay on the page.
         <div className="tm-ais-set">
           <div className="tm-ais-set__cards">
-            <CompanyCard>
+            <OwnAiCard api={api} organizationSlug={organizationSlug} />
+            <CompanyCard control={null}>
               {settings.isPending ? (
                 <div className="tm-ais-set__loading" aria-busy="true">
                   <p className="tm-visually-hidden" role="status">
@@ -107,7 +114,6 @@ export function AiSettingsScreen({
                 <CompanyProblem error={settings.error} onRetry={() => void settings.refetch()} />
               )}
             </CompanyCard>
-            <OwnAiCard api={api} organizationSlug={organizationSlug} />
           </div>
         </div>
       )}
@@ -115,14 +121,34 @@ export function AiSettingsScreen({
   );
 }
 
-/** "TManage AI for your company": the same card in every state of the settings read. */
-function CompanyCard({ children }: { readonly children: ReactNode }) {
-  const { t } = useAiText();
+/**
+ * "TManage AI" (Figma 770:45020): the title with its switch at the far end, what it is, then the
+ * state below. The same card in every state of the settings read.
+ */
+function CompanyCard({
+  control,
+  credits,
+  children,
+}: {
+  readonly control: ReactNode;
+  readonly credits?: number;
+  readonly children: ReactNode;
+}) {
+  const { t, number } = useAiText();
   return (
     <section className="tm-ais-set__card" aria-labelledby="ai-set-company">
-      <h2 id="ai-set-company" className="tm-ais-set__title">
-        {t('AiSettings.company.title')}
-      </h2>
+      <div className="tm-ais-set__head">
+        <h2 id="ai-set-company" className="tm-ais-set__title">
+          {t('AiSettings.company.cardTitle')}
+        </h2>
+        <span className="tm-aia-spacer" />
+        {control}
+      </div>
+      <p className="tm-ais-set__text">
+        {credits === undefined
+          ? t('AiSettings.company.bodyNoCredits')
+          : t('AiSettings.company.body', { credits: number(credits) })}
+      </p>
       {children}
     </section>
   );
@@ -145,7 +171,7 @@ function CompanyProblem({
   if (error instanceof ApiRequestError && error.status === 404) {
     return (
       <Switch
-        label={t('AiSettings.company.off')}
+        label={t('AiSettings.company.offEveryone')}
         hint={t('AiSettings.notAvailable')}
         checked={false}
         disabled
@@ -230,19 +256,33 @@ function SettingsBody({
         </InlineAlert>
       ) : null}
       <div className="tm-ais-set__cards">
-        <CompanyCard>
-          <div ref={switchRef}>
-            <Switch
-              label={t(view.aiEnabled ? 'AiSettings.company.on' : 'AiSettings.company.off')}
-              hint={t('AiSettings.company.note')}
-              checked={view.aiEnabled}
-              disabled={toggle.isPending}
-              onChange={() => {
-                if (view.aiEnabled) setConfirmOff(true);
-                else toggle.mutate(true);
-              }}
-            />
-          </div>
+        <OwnAiCard api={api} organizationSlug={organizationSlug} />
+        <CompanyCard
+          credits={view.credits.workspaceCredits}
+          control={
+            <div ref={switchRef} className="tm-ais-set__switch">
+              <Switch
+                label={t('AiSettings.company.switchLabel')}
+                checked={view.aiEnabled}
+                disabled={toggle.isPending}
+                onChange={() => {
+                  if (view.aiEnabled) setConfirmOff(true);
+                  else toggle.mutate(true);
+                }}
+              />
+            </div>
+          }
+        >
+          {view.aiEnabled ? (
+            <Link
+              className="tm-ais-set__link"
+              href={`/${encodeURIComponent(organizationSlug)}/admin/ai/usage`}
+            >
+              {t('AiSettings.company.seeUsage')}
+            </Link>
+          ) : (
+            <p className="tm-ais-set__text">{t('AiSettings.company.offEveryone')}</p>
+          )}
           {toggle.isError && !confirmOff ? (
             <InlineAlert tone="danger" live>
               {t('AiSettings.saveError')}
@@ -250,14 +290,21 @@ function SettingsBody({
           ) : null}
           <ReadinessNotice organizationSlug={organizationSlug} readiness={view.readiness} />
         </CompanyCard>
-        <OwnAiCard api={api} organizationSlug={organizationSlug} />
       </div>
-      <p className="tm-aia-muted">
-        {t(
-          view.providers.includes('voyage')
-            ? 'AiSettings.providersWithVoyage'
-            : 'AiSettings.providers',
-        )}
+      {/* Figma 770:45056: one bordered line with an ⓘ glyph; off, it says what switching on opens. */}
+      <p className="tm-ais-set__provider">
+        <span className="tm-ais-set__provider-glyph" aria-hidden="true">
+          ⓘ
+        </span>
+        <span>
+          {view.aiEnabled
+            ? t(
+                view.providers.includes('voyage')
+                  ? 'AiSettings.providerLineVoyage'
+                  : 'AiSettings.providerLine',
+              )
+            : t('AiSettings.offLine')}
+        </span>
       </p>
       {view.aiEnabled ? (
         <SettingsForm
@@ -312,7 +359,11 @@ function SettingsBody({
   );
 }
 
-/** "Your own AI": the member's own MCP connection, managed under Connected apps. */
+/**
+ * "Your own AI" (Figma 770:45001): the member's own assistant over the TManage connector, with
+ * "Connected" when one is, and the way to manage or connect it. Never depends on the TManage AI
+ * settings read (AI-TWO-WAYS).
+ */
 function OwnAiCard({
   api,
   organizationSlug,
@@ -327,25 +378,27 @@ function OwnAiCard({
     retry: false,
   });
   const mine = apps.data?.apps.find((app) => app.mine) ?? null;
+  const slug = encodeURIComponent(organizationSlug);
   return (
     <section className="tm-ais-set__card" aria-labelledby="ai-set-own">
-      <h2 id="ai-set-own" className="tm-ais-set__title">
-        {t('AiSettings.own.title')}
-      </h2>
-      <div className="tm-ais-set__line">
-        <span className="tm-ais-set__text">
-          {mine ? t('AiSettings.own.through', { name: mine.clientName }) : t('AiSettings.own.none')}
-        </span>
-        {mine ? <StateCapsule state="done">{t('AiSettings.own.connected')}</StateCapsule> : null}
+      <div className="tm-ais-set__head">
+        <h2 id="ai-set-own" className="tm-ais-set__title">
+          {t('AiSettings.own.title')}
+        </h2>
         <span className="tm-aia-spacer" />
-        <Link
-          href={`/${encodeURIComponent(organizationSlug)}/settings/connected-apps`}
-          className="tm-button tm-button--text tm-button--compact"
-        >
-          {t(mine ? 'AiSettings.own.manage' : 'AiSettings.own.connect')}
-        </Link>
+        {mine ? (
+          <StateCapsule state="done" className="tm-ais-set__capsule">
+            {t('AiSettings.own.connected')}
+          </StateCapsule>
+        ) : null}
       </div>
-      <p className="tm-aia-muted">{t('AiSettings.own.note')}</p>
+      <p className="tm-ais-set__text">{t('AiSettings.own.body')}</p>
+      <Link
+        className="tm-ais-set__link"
+        href={mine ? `/${slug}/settings/connected-apps` : `/${slug}/settings/ai-assistant`}
+      >
+        {t(mine ? 'AiSettings.own.manageConnection' : 'AiSettings.own.pointerLink')}
+      </Link>
     </section>
   );
 }
@@ -392,131 +445,141 @@ function SettingsForm({
   }
 
   const options = shareOptions(view);
+  const formId = useId();
   return (
     <>
       <form
         noValidate
-        className="tm-ais-set__card"
+        id={formId}
+        className="tm-ais-set__card tm-ais-set__form"
         aria-labelledby="ai-set-scope"
         {...check.handlers(() => {
           if (dirty && days !== null && !save.isPending) save.mutate();
         })}
       >
-        <h2 id="ai-set-scope" className="tm-ais-set__title">
-          {t('AiSettings.form.title')}
-        </h2>
-        <RadioGroup legend={t('AiSettings.form.title')} className="tm-ais-set__legendless">
+        <RadioGroup
+          legend={<span id="ai-set-scope">{t('AiSettings.form.title')}</span>}
+          className="tm-ais-set__scope"
+        >
           <Radio
+            className="tm-ais-set__option"
             label={t('AiSettings.form.readOnly')}
+            hint={t('AiSettings.form.readOnlyHint')}
             checked={draft.writeScope === 'read'}
             onChange={() => change(withScope(draft, 'read'))}
           />
           <Radio
-            label={t('AiSettings.form.readWrite')}
+            className="tm-ais-set__option"
+            label={t('AiSettings.form.readWriteTitle')}
+            hint={t('AiSettings.form.readWriteHint')}
             checked={draft.writeScope === 'read_write'}
             onChange={() => change(withScope(draft, 'read_write'))}
           />
         </RadioGroup>
-        <hr className="tm-aia-divider" />
-        <Checkbox
-          label={t('AiSettings.form.runAtOnce')}
+        <Switch
+          className="tm-ais-set__row"
+          label={t('AiSettings.form.runAtOnceTitle')}
+          hint={
+            draft.writeScope === 'read'
+              ? t('AiSettings.form.runAtOnceNeeds')
+              : t('AiSettings.form.runAtOnceHint')
+          }
           checked={draft.runAtOnce}
           disabled={draft.writeScope === 'read'}
-          {...(draft.writeScope === 'read' ? { hint: t('AiSettings.form.runAtOnceNeeds') } : {})}
           onChange={(event) => change({ ...draft, runAtOnce: event.target.checked })}
         />
-        <Checkbox
-          label={t('AiSettings.form.fileReading')}
+        <Switch
+          className="tm-ais-set__row"
+          label={t('AiSettings.form.fileReadingTitle')}
+          hint={t('AiSettings.form.fileReadingHint')}
           checked={draft.fileReading}
           onChange={(event) => change({ ...draft, fileReading: event.target.checked })}
         />
-        <hr className="tm-aia-divider" />
-        <div className="tm-ais-set__fields">
-          <Select
-            label={t('AiSettings.form.share')}
-            name="share"
-            value={String(draft.memberSharePercent)}
-            hint={t('AiSettings.form.shareHint', {
-              member: number(memberCreditsAt(view, draft.memberSharePercent)),
-              total: number(view.credits.workspaceCredits),
-            })}
-            onChange={(event) =>
-              change({ ...draft, memberSharePercent: Number(event.target.value) })
-            }
-          >
-            {options.map((percent) => (
-              <option key={percent} value={percent}>
-                {t('AiSettings.form.shareOption', { percent: number(percent) })}
-              </option>
-            ))}
-          </Select>
-          <Field
-            label={t('AiSettings.form.retention')}
-            name="retention"
-            inputMode="numeric"
-            dir="ltr"
-            autoComplete="off"
-            required
-            value={draft.retention}
-            hint={t('AiSettings.form.retentionHint')}
-            onChange={(event) => change({ ...draft, retention: event.target.value })}
-            {...(retentionError === undefined ? {} : { error: retentionError })}
-          />
-        </div>
-        <hr className="tm-aia-divider" />
-        <div className="tm-ais-set__line">
-          <h3 className="tm-ais-set__subtitle">{t('AiSettings.blocked.title')}</h3>
-          <span className="tm-aia-spacer" />
-          <span ref={blockButton}>
-            <Button
-              type="button"
-              tone="outline"
-              size="compact"
-              className="tm-ais-set__touch"
-              onClick={() => setBlocking(true)}
-            >
-              {t('AiSettings.blocked.add')}
-            </Button>
-          </span>
-        </div>
-        {draft.blocked.length === 0 ? (
-          <p className="tm-aia-muted">{t('AiSettings.blocked.empty')}</p>
-        ) : (
-          <ul className="tm-ais-set__blocked">
-            {draft.blocked.map((entry) => (
-              <li key={entry.membershipId} className="tm-ais-set__member">
-                <span className="tm-ais-set__avatar" aria-hidden="true">
-                  {initials(entry.displayName)}
-                </span>
-                <span className="tm-ais-set__who">
-                  <span className="tm-ais-set__text">{entry.displayName}</span>
-                  <span className="tm-aia-muted">
-                    {entry.blockedAt
-                      ? t('AiSettings.blocked.since', { date: day(entry.blockedAt) })
-                      : t('AiSettings.blocked.pending')}
+        <Select
+          className="tm-ais-set__row"
+          label={t('AiSettings.form.share')}
+          name="share"
+          value={String(draft.memberSharePercent)}
+          hint={t('AiSettings.form.shareRowHint')}
+          onChange={(event) => change({ ...draft, memberSharePercent: Number(event.target.value) })}
+        >
+          {options.map((percent) => (
+            <option key={percent} value={percent}>
+              {t('AiSettings.form.shareCredits', {
+                percent: number(percent),
+                credits: number(memberCreditsAt(view, percent)),
+              })}
+            </option>
+          ))}
+        </Select>
+        <div className="tm-ais-set__row tm-ais-set__row--list">
+          <div className="tm-ais-set__line">
+            <h3 className="tm-ais-set__subtitle">{t('AiSettings.blocked.title')}</h3>
+            <span className="tm-aia-spacer" />
+            <span ref={blockButton}>
+              <Button
+                type="button"
+                tone="outline"
+                size="compact"
+                className="tm-ais-set__touch"
+                onClick={() => setBlocking(true)}
+              >
+                {t('AiSettings.blocked.add')}
+              </Button>
+            </span>
+          </div>
+          {draft.blocked.length === 0 ? (
+            <p className="tm-aia-muted">{t('AiSettings.blocked.empty')}</p>
+          ) : (
+            <ul className="tm-ais-set__blocked">
+              {draft.blocked.map((entry) => (
+                <li key={entry.membershipId} className="tm-ais-set__member">
+                  <span className="tm-ais-set__avatar" aria-hidden="true">
+                    {initials(entry.displayName)}
                   </span>
-                </span>
-                <Button
-                  type="button"
-                  tone="text"
-                  size="compact"
-                  className="tm-ais-set__touch"
-                  aria-label={t('AiSettings.blocked.allowFor', { name: entry.displayName })}
-                  onClick={() =>
-                    change({
-                      ...draft,
-                      blocked: draft.blocked.filter(
-                        (row) => row.membershipId !== entry.membershipId,
-                      ),
-                    })
-                  }
-                >
-                  {t('AiSettings.blocked.allow')}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+                  <span className="tm-ais-set__who">
+                    <span className="tm-ais-set__text">{entry.displayName}</span>
+                    <span className="tm-aia-muted">
+                      {entry.blockedAt
+                        ? t('AiSettings.blocked.since', { date: day(entry.blockedAt) })
+                        : t('AiSettings.blocked.pending')}
+                    </span>
+                  </span>
+                  <Button
+                    type="button"
+                    tone="text"
+                    size="compact"
+                    className="tm-ais-set__touch"
+                    aria-label={t('AiSettings.blocked.allowFor', { name: entry.displayName })}
+                    onClick={() =>
+                      change({
+                        ...draft,
+                        blocked: draft.blocked.filter(
+                          (row) => row.membershipId !== entry.membershipId,
+                        ),
+                      })
+                    }
+                  >
+                    {t('AiSettings.blocked.allow')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <Field
+          className="tm-ais-set__row"
+          label={t('AiSettings.form.retentionTitle')}
+          name="retention"
+          inputMode="numeric"
+          dir="ltr"
+          autoComplete="off"
+          required
+          value={draft.retention}
+          hint={t('AiSettings.form.retentionRowHint')}
+          onChange={(event) => change({ ...draft, retention: event.target.value })}
+          {...(retentionError === undefined ? {} : { error: retentionError })}
+        />
         {save.isError ? (
           <InlineAlert tone="danger" live>
             {save.error instanceof ApiRequestError && save.error.status === 400
@@ -524,24 +587,24 @@ function SettingsForm({
               : t('AiSettings.saveError')}
           </InlineAlert>
         ) : null}
-        <div className="tm-ais-set__actions">
-          <p className="tm-aia-muted" role="status">
-            {dirty ? t('AiSettings.form.unsaved') : ''}
-          </p>
-          <span className="tm-aia-spacer" />
-          <Button
-            type="button"
-            tone="text"
-            disabled={!dirty || save.isPending}
-            onClick={() => change(draftOf(view))}
-          >
-            {t('AiSettings.form.cancel')}
-          </Button>
-          <Button type="submit" tone="ink" disabled={!dirty} loading={save.isPending}>
-            {t('AiSettings.form.save')}
-          </Button>
-        </div>
       </form>
+      {/* Figma 770:45228: Save changes (Ink) and Cancel under the card, at the start. */}
+      <div className="tm-ais-set__actions">
+        <Button type="submit" form={formId} tone="ink" disabled={!dirty} loading={save.isPending}>
+          {t('AiSettings.form.save')}
+        </Button>
+        <Button
+          type="button"
+          tone="text"
+          disabled={!dirty || save.isPending}
+          onClick={() => change(draftOf(view))}
+        >
+          {t('AiSettings.form.cancel')}
+        </Button>
+        <p className="tm-aia-muted" role="status">
+          {dirty ? t('AiSettings.form.unsaved') : ''}
+        </p>
+      </div>
       {blocking ? (
         <BlockMemberDialog
           api={api}

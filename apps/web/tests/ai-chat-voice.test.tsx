@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import { AiChatPanel } from '../src/components/ai-chat/AiChatPanel';
@@ -168,5 +168,38 @@ describe('TManage AI voice mode (62-16)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(screen.queryByText('Reading the answer aloud')).toBeNull();
     expect(cancel).toHaveBeenCalled();
+  });
+
+  it('dictates in the language picked in the composer chip, saved for next time (878:976)', async () => {
+    (window as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition = FakeRecognition;
+    window.localStorage.removeItem('tm.voice.dictationLanguage.northstar');
+    mount();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Dictation language: English (US)' }),
+    );
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search languages' }), {
+      target: { value: 'egypt' },
+    });
+    fireEvent.click(screen.getByRole('radio', { name: /Arabic \(Egypt\)/ }), { detail: 1 });
+    expect(window.localStorage.getItem('tm.voice.dictationLanguage.northstar')).toBe('ar-EG');
+    fireEvent.click(screen.getByRole('button', { name: 'Talk instead of typing' }));
+    expect(FakeRecognition.last!.lang).toBe('ar-EG');
+    window.localStorage.removeItem('tm.voice.dictationLanguage.northstar');
+  });
+
+  it('in the desktop app the chip is disabled with why, and no microphone is drawn', async () => {
+    (window as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition = FakeRecognition;
+    (window as { tmanageDesktop?: unknown }).tmanageDesktop = {};
+    try {
+      mount();
+      const chip = await screen.findByRole('button', { name: /Dictation language/ });
+      await waitFor(() => expect(chip.getAttribute('aria-disabled')).toBe('true'));
+      expect(screen.queryByRole('button', { name: 'Talk instead of typing' })).toBeNull();
+      expect(
+        screen.getByText('Voice isn’t in the desktop app yet. Type your question instead.'),
+      ).toBeTruthy();
+    } finally {
+      delete (window as { tmanageDesktop?: unknown }).tmanageDesktop;
+    }
   });
 });

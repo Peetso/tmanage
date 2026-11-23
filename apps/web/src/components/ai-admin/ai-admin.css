@@ -470,3 +470,236 @@
   flex-direction: column;
   gap: var(--s3);
 }
+
+/* ── Settings laid out as Figma G1 770:44997 / 770:46185 (AI panel pass, 2026-11-23) ─────────── */
+
+.tm-ais-set__cards > .tm-ais-set__card {
+  gap: var(--s3);
+  padding: var(--s6);
+}
+
+.tm-ais-set__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-ais-set__head .tm-ais-set__title {
+  font-weight: 500;
+}
+
+.tm-ais-set__capsule .tm-state-capsule__glyph {
+  color: var(--success-600);
+}
+
+/* The card's switch carries its name for a screen reader; the card title names it on screen. */
+.tm-ais-set__switch .tm-choice__label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-ais-set__link {
+  align-self: flex-start;
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tm-ais-set__link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-micro);
+}
+
+.tm-ais-set__provider {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-ais-set__provider-glyph {
+  flex: none;
+  color: var(--ink-650);
+}
+
+.tm-ais-set__form {
+  gap: 0;
+  padding: var(--s6);
+}
+
+/* "What TManage AI may do": two bordered choice rows, the chosen one in ink with a check. */
+.tm-ais-set__scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0 0 var(--s5);
+  border: 0;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-ais-set__scope > .tm-radio-group__legend {
+  padding: 0 0 var(--s4);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 400;
+}
+
+.tm-ais-set__option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s4);
+  padding-inline-end: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+
+.tm-ais-set__option:has(input:checked) {
+  border-color: var(--ink-950);
+}
+
+.tm-ais-set__option:has(input:checked)::after {
+  content: '✓';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: var(--s4);
+  transform: translateY(-50%);
+  color: var(--ink-950);
+}
+
+.tm-ais-set__option:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+/* The radio is the native control (keyboard and name); the row is its picture. */
+.tm-ais-set__option .tm-radio {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tm-ais-set__option .tm-choice__label {
+  font-size: var(--t-ui-md);
+}
+
+.tm-ais-set__option .tm-choice__hint {
+  margin: 0;
+  padding: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+}
+
+/* Rows: the words at the start, the control at the end (switch, select, field). */
+.tm-ais-set__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--s6);
+  row-gap: var(--s1);
+  align-items: center;
+  padding-block: var(--s5);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-ais-set__form > .tm-ais-set__row:last-of-type {
+  border-block-end: 0;
+  padding-block-end: 0;
+}
+
+.tm-ais-set__row.tm-choice .tm-choice__row {
+  display: contents;
+}
+
+.tm-ais-set__row.tm-choice .tm-switch {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.tm-ais-set__row.tm-choice .tm-choice__label,
+.tm-ais-set__row .tm-field__label {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: var(--t-ui-md);
+  font-weight: 400;
+}
+
+.tm-ais-set__row .tm-choice__hint,
+.tm-ais-set__row .tm-field__hint {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-ais-set__row > .tm-field__control,
+.tm-ais-set__row > .tm-select {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  inline-size: 320px;
+  max-inline-size: 40vw;
+}
+
+.tm-ais-set__row > .tm-select .tm-select__control {
+  inline-size: 100%;
+}
+
+.tm-ais-set__row .tm-field__error {
+  grid-column: 1 / -1;
+}
+
+.tm-ais-set__row--list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s3);
+}
+
+.tm-ais-set__row--list .tm-ais-set__subtitle {
+  font-weight: 400;
+}
+
+.tm-ais-set__row--list .tm-ais-set__member {
+  background: transparent;
+  padding-inline: 0;
+}
+
+@media (max-width: 767px) {
+  .tm-ais-set__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-ais-set__row > .tm-field__control,
+  .tm-ais-set__row > .tm-select {
+    grid-column: 1;
+    grid-row: auto;
+    inline-size: 100%;
+    max-inline-size: none;
+  }
+
+  .tm-ais-set__row.tm-choice {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

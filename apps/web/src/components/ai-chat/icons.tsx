@@ -1,6 +1,7 @@
 /**
  * The 16 px line icons of the TManage AI panel (Figma Icon/Comment 459:22217, Icon/Plus 167:313,
- * Icon/Close 459:22325, Icon/Layers 459:22178, Icon/Mic 732:848, Icon/Lock, Icon/Pencil, Icon/File).
+ * Icon/Close 459:22325, Icon/Layers 459:22178, Icon/Mic 732:848, Icon/Lock, Icon/Pencil, Icon/File,
+ * Icon/Trash, Icon/Eye, Icon/Circle).
  * Stroke is `currentColor`, so the semantic text colour of the control paints them; all are
  * decorative (`aria-hidden`), the control carries the name.
  */
@@ -71,5 +72,25 @@ export const FileIcon = () => (
 export const BackIcon = () => (
   <Svg>
     <path d="M10 3L5 8l5 5" />
+  </Svg>
+);
+export const TrashIcon = () => (
+  <Svg>
+    <path d="M2.5 4h11" />
+    <path d="M6 4V2.5h4V4" />
+    <path d="M4 4l.75 9.5h6.5L12 4" />
+  </Svg>
+);
+/** Activity: the AI read something (Figma Icon/Eye). */
+export const EyeIcon = () => (
+  <Svg>
+    <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
+    <circle cx="8" cy="8" r="2" />
+  </Svg>
+);
+/** Activity: the AI asked and the request waits (Figma Icon/Circle). */
+export const CircleIcon = () => (
+  <Svg>
+    <circle cx="8" cy="8" r="5" />
   </Svg>
 );

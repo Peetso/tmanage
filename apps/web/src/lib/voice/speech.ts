@@ -107,11 +107,13 @@ export function appendDictation(typed: string, spoken: string): string {
   return /\s$/.test(typed) ? `${typed}${words}` : `${typed} ${words}`;
 }
 
-export type DictationProblem = 'blocked' | 'no-microphone' | 'failed' | 'none';
+export type DictationProblem = 'blocked' | 'no-microphone' | 'language' | 'failed' | 'none';
 
 /**
  * What a recognition error means to the person. A refused permission is "blocked" (the browser
- * or the device setting said no); silence and a deliberate stop are not problems at all.
+ * or the device setting said no); silence and a deliberate stop are not problems at all. A language
+ * the browser's speech service cannot hear is its own kind (Fable dictation build rule 7), so the
+ * member is told to pick another language rather than that voice failed.
  */
 export function dictationProblem(code: string): DictationProblem {
   switch (code) {
@@ -120,6 +122,8 @@ export function dictationProblem(code: string): DictationProblem {
       return 'blocked';
     case 'audio-capture':
       return 'no-microphone';
+    case 'language-not-supported':
+      return 'language';
     case 'no-speech':
     case 'aborted':
       return 'none';

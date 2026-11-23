@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Avatar, Button, LiveAnnouncer, LoadingRegion, Skeleton, SkipLink } from '@tmanage/ui';
+import {
+  Avatar,
+  Button,
+  Field,
+  LiveAnnouncer,
+  LoadingRegion,
+  Skeleton,
+  SkipLink,
+} from '@tmanage/ui';
+import { ApiRequestError } from '../../lib/api/errors';
+import { reauthenticate } from '../../lib/api/passkeys';
+import { parseTypedAmount } from '../ai-chat/ai-chat-model';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { decideAiApproval, getAiApproval } from '../../lib/api/ai-approvals';
 import type { AiApprovalView } from '../../lib/api/ai-approvals';
@@ -57,8 +68,18 @@ export function AiApproveScreen({
   });
 
   const decide = useMutation({
-    mutationFn: (decision: 'approve' | 'decline') =>
-      decideAiApproval(api, orgSlug, approvalId, decision),
+    // A money or HR action (`confirmation: 'step_up'`) is refused by the server without a fresh
+    // step-up and, when it names an amount, the amount typed back (API lane AI-PANEL-API).
+    mutationFn: async ({ decision, stepUp }: Decision) => {
+      if (decision === 'decline' || stepUp === undefined) {
+        return decideAiApproval(api, orgSlug, approvalId, decision);
+      }
+      const reauthToken = await reauthenticate(api, { password: stepUp.password });
+      return decideAiApproval(api, orgSlug, approvalId, 'approve', {
+        reauthToken,
+        ...(stepUp.amount === undefined ? {} : { amount: stepUp.amount }),
+      });
+    },
     onSuccess: (view) => queryClient.setQueryData(queryKey, view),
   });
 
@@ -85,7 +106,13 @@ export function AiApproveScreen({
               now={now}
               busy={decide.isPending}
               failed={decide.isError}
-              onDecide={(decision) => decide.mutate(decision)}
+              stepUpFailed={
+                decide.error instanceof ApiRequestError &&
+                (decide.error.status === 401 || decide.error.code === 'reauthentication_required')
+              }
+              onDecide={(decision, stepUp) =>
+                decide.mutate(stepUp === undefined ? { decision } : { decision, stepUp })
+              }
             />
           )}
         </main>
@@ -105,15 +132,26 @@ function BrandLockup() {
   );
 }
 
+interface StepUp {
+  readonly password: string;
+  readonly amount?: number;
+}
+
+interface Decision {
+  readonly decision: 'approve' | 'decline';
+  readonly stepUp?: StepUp;
+}
+
 interface ApprovalBodyProps {
   view: AiApprovalView;
   now: () => number;
   busy: boolean;
   failed: boolean;
-  onDecide: (decision: 'approve' | 'decline') => void;
+  stepUpFailed: boolean;
+  onDecide: (decision: 'approve' | 'decline', stepUp?: StepUp) => void;
 }
 
-function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) {
+function ApprovalBody({ view, now, busy, failed, stepUpFailed, onDecide }: ApprovalBodyProps) {
   const t = useT();
   const lookup = useCatalogLookup();
   const formatters = useDisplayFormatters();
@@ -129,6 +167,29 @@ function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) 
   const status = view.status === 'pending' && msLeft <= 0 ? 'expired' : view.status;
   const destructive = view.summary.destructive;
   const subject = subjectLine(lookup, view.summary.subject, destructive);
+  const stepUp = view.confirmation === 'step_up';
+  const [typed, setTyped] = useState('');
+  const [password, setPassword] = useState('');
+  const [wrongAmount, setWrongAmount] = useState(false);
+
+  function approve() {
+    if (!stepUp) {
+      onDecide('approve');
+      return;
+    }
+    let amount: number | undefined;
+    if (view.amount !== null) {
+      const value = parseTypedAmount(typed);
+      if (value === null || value !== view.amount) {
+        setWrongAmount(true);
+        return;
+      }
+      amount = value;
+    }
+    setWrongAmount(false);
+    if (password === '') return;
+    onDecide('approve', amount === undefined ? { password } : { password, amount });
+  }
 
   if (status !== 'pending') {
     const time = view.decidedAt
@@ -203,7 +264,37 @@ function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) 
         <p className="tm-approve__note">{t('aiApprove.singleUse')}</p>
       </div>
 
-      {failed ? (
+      {stepUp ? (
+        <div className="tm-approve__stepup">
+          {view.amount !== null ? (
+            <Field
+              label={t('AiChat.card.typeAmount')}
+              name="amount"
+              inputMode="decimal"
+              autoComplete="off"
+              dir="ltr"
+              required
+              value={typed}
+              onChange={(event) => setTyped(event.currentTarget.value)}
+              {...(wrongAmount ? { error: t('AiChat.card.wrongAmount') } : {})}
+            />
+          ) : null}
+          <p className="tm-approve__kind">{t('AiChat.card.stepUpTitle')}</p>
+          <p className="tm-approve__note">{t('AiChat.card.stepUpBody')}</p>
+          <Field
+            label={t('AiChat.card.password')}
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(event) => setPassword(event.currentTarget.value)}
+            {...(stepUpFailed ? { error: t('AiChat.card.stepUpFailed') } : {})}
+          />
+        </div>
+      ) : null}
+
+      {failed && !stepUpFailed ? (
         <p className="tm-approve__warning" role="alert">
           {t('aiApprove.decideError')}
         </p>
@@ -217,7 +308,7 @@ function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) 
           tone={destructive ? 'destructive' : 'ink'}
           className={destructive ? 'tm-approve__confirm--danger' : undefined}
           disabled={busy}
-          onClick={() => onDecide('approve')}
+          onClick={approve}
         >
           {busy
             ? t('aiApprove.working')

@@ -23,9 +23,19 @@ import { useFormCheck } from '../../lib/forms/form-check';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
 import { useDictation, type DictationStatus } from '../voice/useDictation';
 import { AiChatTurn, type TurnActions } from './AiChatTurn';
+import { DictationLanguagePicker } from './DictationLanguagePicker';
+import {
+  appLanguageTag,
+  dictationBlock,
+  isDesktopApp,
+  languageNameKey,
+  readDictationChoice,
+  saveDictationChoice,
+  type DictationBlock,
+} from './dictation-language';
 import { AnswerReaderProvider, useAnswerReader } from './AiVoice';
 import { chatReducer, EMPTY_CHAT, type ChatEntry } from './ai-chat-model';
-import { BackIcon, CloseIcon, CommentIcon, PlusIcon } from './icons';
+import { CloseIcon, CommentIcon, MicIcon, PlusIcon, TrashIcon } from './icons';
 import { OwnAiPointer } from './OwnAiPointer';
 import { useAiText, type AiTextKey } from './use-ai-text';
 import './ai-chat.css';
@@ -42,8 +52,17 @@ const EXAMPLES: readonly AiTextKey[] = [
 
 export interface AiChatPanelProps {
   readonly organizationSlug: string;
-  /** `docked`: the side panel beside the app (phone: full width); `page`: the /copilot page. */
-  readonly variant?: 'docked' | 'page';
+  /**
+   * `docked`: the side panel beside the app (phone: full width); `page`: the /copilot page;
+   * `tab`: tab 1 of the two-tab AI panel (Figma 857:906), whose tab bar carries the title and Close.
+   */
+  readonly variant?: 'docked' | 'page' | 'tab';
+  /** With `variant="tab"`: the tab panel's id and the id of the tab that names it. */
+  readonly tabPanel?: {
+    readonly id: string;
+    readonly labelledBy: string;
+    readonly hidden: boolean;
+  };
   readonly onClose?: () => void;
   readonly initialQuestion?: string;
   readonly client?: ApiClient;
@@ -70,6 +89,7 @@ export function AiChatPanel({
   onClose,
   initialQuestion,
   client,
+  tabPanel,
 }: AiChatPanelProps) {
   const api = useMemo(() => client ?? browserApiClient(), [client]);
   const text = useAiText();
@@ -86,8 +106,24 @@ export function AiChatPanel({
   const heading = useRef<HTMLHeadingElement>(null);
   const logEnd = useRef<HTMLDivElement>(null);
   const check = useFormCheck();
-  // Voice mode (62-16): dictation only fills the box; the member checks the words and sends.
-  const dictation = useDictation({ value: draft, onChange: setDraft });
+  // Voice mode (62-16): dictation only fills the box; the member checks the words and sends. The
+  // language is the member's choice (Figma §Dictation), the app language until they pick one.
+  const appTag = appLanguageTag(text.locale);
+  const [chosenTag, setChosenTag] = useState<string | null>(null);
+  useEffect(() => setChosenTag(readDictationChoice(organizationSlug)), [organizationSlug]);
+  const dictationTag = chosenTag ?? appTag;
+  const heard = useDictation({ value: draft, onChange: setDraft, lang: dictationTag });
+  // The desktop app's browser has no speech service behind its recognition API, so it is off there.
+  // Both are known only after mount, so the server render and the first client render agree.
+  const [desktopApp, setDesktopApp] = useState<boolean | null>(null);
+  useEffect(() => setDesktopApp(isDesktopApp()), []);
+  const dictation = desktopApp ? { ...heard, supported: false } : heard;
+  const block: DictationBlock =
+    desktopApp === null ? null : dictationBlock(heard.supported, desktopApp);
+  function chooseDictation(tag: string) {
+    setChosenTag(tag);
+    saveDictationChoice(organizationSlug, tag);
+  }
   const reader = useAnswerReader();
   const [spoken, setSpoken] = useState(false);
   const listening = dictation.status === 'listening' || dictation.status === 'processing';
@@ -285,75 +321,50 @@ export function AiChatPanel({
   const total = meter ? meter.allowanceCredits + meter.packCreditsThisMonth : 0;
   const used = meter ? Math.min(meter.usedCredits, total) : 0;
 
+  const inTab = variant === 'tab';
+  const Root = inTab ? 'div' : 'aside';
+  const rootLabel = inTab
+    ? {
+        role: 'tabpanel',
+        id: tabPanel?.id,
+        'aria-labelledby': tabPanel?.labelledBy,
+        hidden: tabPanel?.hidden,
+      }
+    : { 'aria-labelledby': headingId };
+
   return (
     <AnswerReaderProvider value={reader}>
       {/* The panel listens for Escape on its own subtree so a docked panel closes like a dialog. */}
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
-      <aside
-        className="tm-aic"
-        data-variant={variant}
-        aria-labelledby={headingId}
-        onKeyDown={onPanelKey}
-      >
+      <Root className="tm-aic" data-variant={variant} {...rootLabel} onKeyDown={onPanelKey}>
         <header className="tm-aic__header">
-          <div className="tm-aic__title-row">
-            {mode === 'history' ? (
-              <button
-                type="button"
-                className="tm-aic__icon tm-aic__back"
-                aria-label={t('AiChat.backToChat')}
-                onClick={() => setMode('chat')}
-              >
-                <BackIcon />
-              </button>
-            ) : null}
-            <h2 id={headingId} ref={heading} tabIndex={-1} className="tm-aic__title">
-              {mode === 'history' ? t('AiChat.history') : t('AiChat.title')}
-            </h2>
-            {mode === 'chat' ? <Badge>{t('AiChat.testing')}</Badge> : null}
-            <span className="tm-aic__spacer" />
-            {mode === 'chat' ? (
-              // Figma 789:50401: the icon stays; its name shows on a delayed hover and on focus.
-              <Tooltip
-                content={t('AiChat.history')}
-                delayMs={MOTION_DELAY_TOOLTIP_MS}
-                placement="bottom"
-              >
+          {inTab ? (
+            // Figma 857:906: the tab carries the title; this row keeps Testing, Past conversations
+            // and New chat, and the meter row stays under it.
+            <div className="tm-aic__title-row">
+              <Badge>{t('AiChat.testing')}</Badge>
+              <span className="tm-aic__spacer" />
+              <HeaderTools onHistory={() => setMode('history')} onNewChat={newChat} />
+            </div>
+          ) : (
+            <div className="tm-aic__title-row">
+              <h2 id={headingId} ref={heading} tabIndex={-1} className="tm-aic__title">
+                {t('AiChat.title')}
+              </h2>
+              <Badge>{t('AiChat.testing')}</Badge>
+              <span className="tm-aic__spacer" />
+              <HeaderTools onHistory={() => setMode('history')} onNewChat={newChat} />
+              {onClose ? (
                 <button
                   type="button"
                   className="tm-aic__icon"
-                  aria-label={t('AiChat.history')}
-                  onClick={() => setMode('history')}
+                  aria-label={t('AiChat.close')}
+                  onClick={onClose}
                 >
-                  <CommentIcon />
+                  <CloseIcon />
                 </button>
-              </Tooltip>
-            ) : null}
-            <Tooltip
-              content={t('AiChat.newChat')}
-              delayMs={MOTION_DELAY_TOOLTIP_MS}
-              placement="bottom"
-            >
-              <button
-                type="button"
-                className="tm-aic__icon"
-                aria-label={t('AiChat.newChat')}
-                onClick={newChat}
-              >
-                <PlusIcon />
-              </button>
-            </Tooltip>
-            {onClose ? (
-              <button
-                type="button"
-                className="tm-aic__icon"
-                aria-label={t('AiChat.close')}
-                onClick={onClose}
-              >
-                <CloseIcon />
-              </button>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          )}
           {meter ? (
             <div className="tm-aic__meter">
               <div
@@ -392,6 +403,10 @@ export function AiChatPanel({
             onOpen={(id) => void openConversation(id)}
             onDelete={(id) => void removeConversation(id)}
             onRetry={() => void conversations.refetch()}
+            onBack={() => {
+              setMode('chat');
+              composer.current?.focus();
+            }}
           />
         ) : (
           <div className="tm-aic__body">
@@ -419,7 +434,8 @@ export function AiChatPanel({
           </div>
         )}
 
-        {mode === 'chat' ? (
+        {/* Figma 789:50401: the message box stays under Past conversations too. */}
+        {
           <form noValidate className="tm-aic__composer" {...check.handlers(submitDraft)}>
             {helpMode ? (
               <p className="tm-aic-note">
@@ -449,18 +465,36 @@ export function AiChatPanel({
                 }}
                 onKeyDown={onComposerKey}
               />
-              <MicButton dictation={dictation} compact />
-              <Button
-                type="submit"
-                size="compact"
-                className="tm-aic-touch"
-                disabled={draft.trim() === '' || state.busy || listening}
-              >
-                {t('AiChat.send')}
-              </Button>
+              {/* §Dictation fix 2: the text across the top, the controls together at the end. */}
+              <div className="tm-aic__controls">
+                <DictationLanguagePicker
+                  value={dictationTag}
+                  appTag={appTag}
+                  onChange={chooseDictation}
+                  blocked={block}
+                  locked={listening}
+                />
+                {dictation.supported ? (
+                  <MicButton dictation={dictation} compact />
+                ) : block !== null ? (
+                  // Drawn but off where voice cannot run; the chip beside it says why.
+                  <span className="tm-aic__mic-off" aria-hidden="true">
+                    <MicIcon />
+                  </span>
+                ) : null}
+                <Button
+                  type="submit"
+                  size="compact"
+                  className="tm-aic-touch"
+                  disabled={draft.trim() === '' || state.busy || listening}
+                >
+                  {t('AiChat.send')}
+                </Button>
+              </div>
             </div>
             <VoiceHint
-              supported={dictation.supported}
+              block={block}
+              language={t(languageNameKey(dictationTag) as AiTextKey)}
               status={dictation.status}
               checking={spoken && draft.trim() !== ''}
               empty={draft.trim() === ''}
@@ -477,26 +511,28 @@ export function AiChatPanel({
               <MicNotice dictation={dictation} />
             ) : null}
           </form>
-        ) : null}
-      </aside>
+        }
+      </Root>
     </AnswerReaderProvider>
   );
 }
 
 /**
- * The line under the box in voice mode (Figma G3 766:43968): how to talk, "Listening…" with
- * Cancel, "check the words, then send", or that this browser has no voice. While an answer is
- * read aloud, and once the box holds typed words, it is the trust line.
+ * The line under the box in voice mode (Figma G3 766:43968; §Dictation 869:906): "Listening…" with
+ * Cancel, "check the words, then send", that voice cannot run here (this browser, or the desktop
+ * app), or that the browser cannot hear the chosen language. Otherwise it is the trust line.
  */
 function VoiceHint({
-  supported,
+  block,
+  language,
   status,
   checking,
   empty,
   reading,
   onCancel,
 }: {
-  readonly supported: boolean;
+  readonly block: DictationBlock;
+  readonly language: string;
   readonly status: DictationStatus;
   readonly checking: boolean;
   readonly empty: boolean;
@@ -524,6 +560,13 @@ function VoiceHint({
       </div>
     );
   }
+  if (status === 'language') {
+    return (
+      <p className="tm-aic__trust" role="status">
+        {t('AiChat.dictation.notHeard', { language })}
+      </p>
+    );
+  }
   if (!reading && checking) {
     return (
       <p className="tm-aic__trust" role="status">
@@ -531,14 +574,53 @@ function VoiceHint({
       </p>
     );
   }
-  if (!reading && empty) {
+  if (!reading && empty && block !== null) {
     return (
       <p className="tm-aic__trust">
-        {t(supported ? 'AiChat.voice.idle' : 'AiChat.voice.unavailable')}
+        {t(
+          block === 'desktop-app'
+            ? 'AiChat.dictation.unavailableDesktop'
+            : 'AiChat.voice.unavailable',
+        )}
       </p>
     );
   }
   return <p className="tm-aic__trust">{t('AiChat.trust')}</p>;
+}
+
+/** Past conversations and New chat, each named on a delayed hover and on focus (789:50401). */
+function HeaderTools({
+  onHistory,
+  onNewChat,
+}: {
+  readonly onHistory: () => void;
+  readonly onNewChat: () => void;
+}) {
+  const { t } = useAiText();
+  return (
+    <>
+      <Tooltip content={t('AiChat.history')} delayMs={MOTION_DELAY_TOOLTIP_MS} placement="bottom">
+        <button
+          type="button"
+          className="tm-aic__icon"
+          aria-label={t('AiChat.history')}
+          onClick={onHistory}
+        >
+          <CommentIcon />
+        </button>
+      </Tooltip>
+      <Tooltip content={t('AiChat.newChat')} delayMs={MOTION_DELAY_TOOLTIP_MS} placement="bottom">
+        <button
+          type="button"
+          className="tm-aic__icon"
+          aria-label={t('AiChat.newChat')}
+          onClick={onNewChat}
+        >
+          <PlusIcon />
+        </button>
+      </Tooltip>
+    </>
+  );
 }
 
 function EmptyState({
@@ -593,6 +675,7 @@ function HistoryList({
   onOpen,
   onDelete,
   onRetry,
+  onBack,
 }: {
   readonly loading: boolean;
   readonly failed: boolean;
@@ -601,68 +684,93 @@ function HistoryList({
   readonly onOpen: (id: string) => void;
   readonly onDelete: (id: string) => void;
   readonly onRetry: () => void;
+  readonly onBack: () => void;
 }) {
   const text = useAiText();
   const { t } = text;
-  if (loading) {
-    return (
-      <div className="tm-aic__body">
+  const heading = useRef<HTMLHeadingElement>(null);
+  // Opening the list moves focus to its heading, so a keyboard user lands on it.
+  useEffect(() => heading.current?.focus(), []);
+  const now = new Date();
+  return (
+    <div className="tm-aic__body tm-aic-history-view">
+      <h3 ref={heading} tabIndex={-1} className="tm-aic-history__heading">
+        {t('AiChat.history')}
+      </h3>
+      {loading ? (
         <p className="tm-aic-reading" role="status">
           {t('AiChat.historyLoading')}
         </p>
-      </div>
-    );
-  }
-  if (failed) {
-    return (
-      <div className="tm-aic__body">
-        <InlineAlert tone="danger" live>
-          {t('AiChat.historyFailed')}
-        </InlineAlert>
-        <div className="tm-aic-actions">
-          <Button tone="outline" size="compact" className="tm-aic-touch" onClick={onRetry}>
-            {t('AiChat.tryAgain')}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="tm-aic__body">
-      {retentionDays !== null ? (
-        <p className="tm-aic-note">
-          {t('AiChat.historyNote', { days: text.number(retentionDays) })}
-        </p>
-      ) : null}
-      {items.length === 0 ? (
-        <p className="tm-aic-empty__body">{t('AiChat.historyEmpty')}</p>
+      ) : failed ? (
+        <>
+          <InlineAlert tone="danger" live>
+            {t('AiChat.historyFailed')}
+          </InlineAlert>
+          <div className="tm-aic-actions">
+            <Button tone="outline" size="compact" className="tm-aic-touch" onClick={onRetry}>
+              {t('AiChat.tryAgain')}
+            </Button>
+          </div>
+        </>
       ) : (
-        <ul className="tm-aic-history">
-          {items.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className="tm-aic-history__open"
-                onClick={() => onOpen(item.id)}
-              >
-                <span className="tm-aic-history__title" dir="auto">
-                  {item.title}
-                </span>
-                <span className="tm-aic-note">{text.day(item.lastMessageAt)}</span>
-              </button>
-              <Button
-                tone="text"
-                size="compact"
-                className="tm-aic-touch"
-                aria-label={t('AiChat.deleteConversation', { title: item.title })}
-                onClick={() => onDelete(item.id)}
-              >
-                {t('AiChat.delete')}
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {retentionDays !== null ? (
+            <p className="tm-aic-note">
+              {t('AiChat.historyNote', { days: text.number(retentionDays) })}
+            </p>
+          ) : null}
+          {items.length === 0 ? (
+            <p className="tm-aic-empty__body">{t('AiChat.historyEmpty')}</p>
+          ) : (
+            <ul className="tm-aic-history">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className="tm-aic-history__open"
+                    onClick={() => onOpen(item.id)}
+                  >
+                    <span className="tm-aic-history__title" dir="auto">
+                      {item.title}
+                    </span>
+                    <span className="tm-aic-note">
+                      {historyWhen(text, item.lastMessageAt, now)}
+                    </span>
+                  </button>
+                  <Tooltip
+                    content={t('AiChat.delete')}
+                    delayMs={MOTION_DELAY_TOOLTIP_MS}
+                    placement="bottom"
+                  >
+                    <button
+                      type="button"
+                      className="tm-aic__icon"
+                      aria-label={t('AiChat.deleteConversation', { title: item.title })}
+                      onClick={() => onDelete(item.id)}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </Tooltip>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
+      <div className="tm-aic-actions">
+        <Button tone="text" size="compact" className="tm-aic-touch" onClick={onBack}>
+          {t('AiChat.backToChat')}
+        </Button>
+      </div>
     </div>
   );
+}
+
+/** "Today, 10:42", "Yesterday", or "18 Nov" (Figma 789:50401). */
+function historyWhen(text: ReturnType<typeof useAiText>, iso: string, now: Date): string {
+  const when = new Date(iso);
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (sameDay(when, now)) return text.t('AiChat.historyToday', { time: text.time(iso) });
+  if (sameDay(when, new Date(now.getTime() - 86_400_000))) return text.t('AiChat.historyYesterday');
+  return text.day(iso);
 }

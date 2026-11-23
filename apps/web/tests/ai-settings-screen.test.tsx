@@ -70,7 +70,7 @@ const MY_CLAUDE = {
 /** Both direction cards, by their headings (AI-TWO-WAYS). */
 async function bothCards() {
   await waitFor(() => expect(screen.queryByText('Loading the AI settings…')).toBeNull());
-  const company = await screen.findByRole('region', { name: 'TManage AI for your company' });
+  const company = await screen.findByRole('region', { name: 'TManage AI' });
   const own = screen.getByRole('region', { name: 'Your own AI' });
   return { company, own };
 }
@@ -170,8 +170,8 @@ describe('AiSettingsScreen (62-17)', () => {
       target: { value: '25' },
     });
     expect(
-      screen.getByText('Each member can use up to 500 of the 2,000 credits a month.'),
-    ).toBeTruthy();
+      (screen.getByRole('option', { name: '25 % · 500 credits' }) as HTMLOptionElement).selected,
+    ).toBe(true);
     expect(screen.getByText('You have unsaved changes.')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Block a member' }));
@@ -202,7 +202,7 @@ describe('AiSettingsScreen (62-17)', () => {
   it('answers-only disables quick changes (787:49285)', async () => {
     mount({ [`GET ${SETTINGS}`]: { status: 200, body: { ...VIEW, runAtOnce: true } } });
     fireEvent.click(await screen.findByRole('radio', { name: 'Answer questions only' }));
-    const quick = screen.getByRole('checkbox', {
+    const quick = screen.getByRole('switch', {
       name: /Quick everyday changes/,
     }) as HTMLInputElement;
     expect(quick.disabled).toBe(true);
@@ -216,7 +216,7 @@ describe('AiSettingsScreen (62-17)', () => {
       [`PATCH ${SETTINGS}`]: { status: 200, body: { ...VIEW, aiEnabled: false } },
     });
     fireEvent.click(
-      await screen.findByRole('switch', { name: /On\. Members can ask about their work/ }),
+      await screen.findByRole('switch', { name: 'TManage AI for everyone in this workspace' }),
     );
     const dialog = screen.getByRole('dialog', { name: 'Turn off TManage AI for everyone?' });
     expect(writes()).toHaveLength(0);
@@ -239,9 +239,20 @@ describe('AiSettingsScreen: both directions in every state (AI-TWO-WAYS)', () =>
     mount({ [`GET ${SETTINGS}`]: { status: 200, body: VIEW }, [`GET ${GRANTS}`]: MY_CLAUDE });
     const { company, own } = await bothCards();
     expect((within(company).getByRole('switch') as HTMLInputElement).checked).toBe(true);
-    expect(await within(own).findByText('Claude Desktop, through MCP')).toBeTruthy();
-    expect(within(own).getByRole('link', { name: 'Manage' }).getAttribute('href')).toBe(
+    expect(await within(own).findByText('Connected')).toBeTruthy();
+    expect(within(own).getByRole('link', { name: 'Manage connection' }).getAttribute('href')).toBe(
       '/northstar/settings/connected-apps',
+    );
+  });
+
+  it('G1 order: Your own AI first, then TManage AI; testing badge and lead (770:44997)', async () => {
+    mount({ [`GET ${SETTINGS}`]: { status: 200, body: VIEW }, [`GET ${GRANTS}`]: MY_CLAUDE });
+    const { company, own } = await bothCards();
+    expect(own.compareDocumentPosition(company) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Testing')).toBeTruthy();
+    expect(screen.getByText(/Your workspace is in the test group\./)).toBeTruthy();
+    expect(within(company).getByRole('link', { name: 'See usage' }).getAttribute('href')).toBe(
+      '/northstar/admin/ai/usage',
     );
   });
 
@@ -251,7 +262,7 @@ describe('AiSettingsScreen: both directions in every state (AI-TWO-WAYS)', () =>
     const toggle = (await within(company).findByRole('switch')) as HTMLInputElement;
     expect([toggle.checked, toggle.disabled]).toEqual([false, true]);
     expect(within(company).getByText(/not available for your company yet/)).toBeTruthy();
-    expect(await within(own).findByText('Claude Desktop, through MCP')).toBeTruthy();
+    expect(await within(own).findByText('Connected')).toBeTruthy();
   });
 
   it('403 (not the owner): read only, says who can change it; own AI still offered', async () => {
@@ -263,8 +274,10 @@ describe('AiSettingsScreen: both directions in every state (AI-TWO-WAYS)', () =>
       await within(company).findByText(/Only the company owner can change the TManage AI/),
     ).toBeTruthy();
     expect(within(company).queryByRole('switch')).toBeNull();
-    expect(await within(own).findByText('No AI app of yours is connected.')).toBeTruthy();
-    expect(within(own).getByRole('link', { name: 'Connect' })).toBeTruthy();
+    expect(within(own).queryByText('Connected')).toBeNull();
+    expect(
+      (await within(own).findByRole('link', { name: 'Connect your AI' })).getAttribute('href'),
+    ).toBe('/northstar/settings/ai-assistant');
   });
 
   it('could not load: the error and Try again sit in the company card; the read is retried', async () => {
@@ -280,7 +293,7 @@ describe('AiSettingsScreen: both directions in every state (AI-TWO-WAYS)', () =>
     });
     const { company, own } = await bothCards();
     expect(await within(company).findByText('The AI settings could not be loaded')).toBeTruthy();
-    expect(await within(own).findByText('Claude Desktop, through MCP')).toBeTruthy();
+    expect(await within(own).findByText('Connected')).toBeTruthy();
     fireEvent.click(within(company).getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('button', { name: 'Save changes' })).toBeTruthy();
     expect(reads).toBe(2);
