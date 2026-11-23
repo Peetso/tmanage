@@ -1,0 +1,101 @@
+/*
+ * Density v2: the app's size, space and type tokens.
+ *
+ * Source: the approved design system in Figma file `ZdUCRiqBiT7s3u08HA28RO`, page `0:1`,
+ * doc frame "DS · Density v2 — app default" (`918:2052`), collections Density `7:60`
+ * (Operational mode), Layout `915:910` and Inset `915:918`, and the 16 `App/` + `App AR/`
+ * text styles. Values and variable ids: `WORK-FIGMA-REPORT.md` §1 and §6 (pass 2026-11-23);
+ * the measured reasons: `WORK-AREA-REVIEW-AND-PLAN.md` §2 and §5.0 (Fable 5.2, 2026-11-23).
+ *
+ * Why a second file and not new values in `tokens.css`: `tokens.css` mirrors the immutable
+ * design export (`docs/design/source/project/design/tokens/`, pinned by
+ * `tests/tokens.drift.test.ts`), whose `--control` / `--row` / `--t-heading-page` are the
+ * export's compositions and the member's density preference. Density v2 is a later design
+ * decision taken in Figma, so it lives beside the export under names the export does not use
+ * (`--app-*`, `--inset-*`, `--page-gutter`, `--t-app-*`, `--target-min`), and
+ * `src/tokens/app-density.ts` with `tests/app-density.test.ts` pin the CSS and TS forms
+ * together (ADR-0016).
+ *
+ * The four rules of the doc frame, enforced by `scripts/lint/design-tokens.mjs` (sizes from
+ * tokens only) and `apps/web/vr/layout.spec.ts` (insets, gutter, header row):
+ *   1. Text sits at least 24px from any container edge or rounded end (cards, panels, dialogs,
+ *      page). Controls: 12px (`--inset-control`). Capsules: 16px and at least half the height.
+ *   2. One header row per page: 56px high, every control 32px, gaps 8, one radius (14), at
+ *      most one lime primary action.
+ *   3. Page gutter 32px beside the rail; one left text edge per column.
+ *   4. One page title size (24). Nothing below 11px. Every target at least 24 × 24.
+ */
+
+:root {
+  /* density — Figma Density `7:60`, Operational mode (the app) */
+  --app-control: 32px; /* density/control: every button, input, select, filter chip */
+  --app-control-sm: 28px; /* density/control-sm `915:906`: chips in rows, icon buttons */
+  --app-control-lg: 40px; /* density/control-lg `915:907`: the one primary action of a dialog */
+  --app-row: 36px; /* density/row: list, table and menu rows */
+  --app-panel-row: 32px; /* density/panel-row `915:908`: properties panel rows */
+  --app-header-row: 56px; /* density/header-row `915:909`: the one page header row */
+  --target-min: 24px; /* WCAG 2.2 SC 2.5.8; doc-frame rule 4; UX-5 */
+
+  /* layout — Figma Layout `915:910`, Desktop mode (Tablet and Phone below) */
+  --page-gutter: 32px; /* layout/page-gutter `915:911` */
+  --app-rail: 72px; /* layout/rail `915:912` */
+  --app-context-rail: 232px; /* layout/context-rail `915:913` */
+  --properties-panel: 360px; /* layout/properties-panel `915:914` */
+  --panel-label: 104px; /* layout/panel-label `915:915` */
+  --dialog: 560px; /* layout/dialog `915:917` */
+
+  /* inset — Figma Inset `915:918` */
+  --inset-control: 12px; /* inset/control `915:919`: text in a 14px-radius control */
+  --inset-capsule: 16px; /* inset/capsule `915:920`: text in a capsule (and ≥ half its height) */
+  --inset-cell: 12px; /* inset/cell `915:921`: table cell inline padding */
+  --inset-card: 24px; /* inset/card `915:922`: card and panel padding */
+  --inset-dialog: 24px; /* inset/dialog `915:923` */
+  --text-edge-min: 24px; /* text-edge-min `915:924`: text to any container edge */
+  --app-radius: var(--r-control); /* the one header-control radius (14) */
+
+  /* type — the 8 `App/` styles (Manrope); `App AR/` below changes only what differs */
+  --t-app-page-title: 24px;
+  --t-app-page-title-line: 30px;
+  --t-app-page-title-weight: 600;
+  --t-app-section: 18px;
+  --t-app-section-line: 24px;
+  --t-app-section-weight: 600;
+  --t-app-card-title: 15px;
+  --t-app-card-title-line: 22px;
+  --t-app-card-title-weight: 600;
+  --t-app-body: 14px;
+  --t-app-body-line: 20px;
+  --t-app-body-weight: 400;
+  --t-app-ui: 13px;
+  --t-app-ui-line: 18px;
+  --t-app-ui-weight: 500;
+  --t-app-ui-strong: 13px;
+  --t-app-ui-strong-line: 18px;
+  --t-app-ui-strong-weight: 600;
+  --t-app-caption: 12px;
+  --t-app-caption-line: 16px;
+  --t-app-caption-weight: 500;
+  /* Geist Mono, uppercase; section labels only; the smallest size anywhere */
+  --t-app-overline: 11px;
+  --t-app-overline-line: 14px;
+  --t-app-overline-weight: 500;
+}
+
+/* `App AR/` (Alexandria): the page title opens its line to 36px; the other seven match. */
+:root:lang(ar) {
+  --t-app-page-title-line: 36px;
+}
+
+/* Layout mode Tablet (900–1279px). Breakpoints in rem so 200 % zoom reaches them. */
+@media (max-width: 79.94rem) {
+  :root {
+    --page-gutter: 24px;
+  }
+}
+
+/* Layout mode Phone: the width at which the shell hides the rail and shows the dock (globals.css). */
+@media (max-width: 60rem) {
+  :root {
+    --page-gutter: 16px;
+  }
+}

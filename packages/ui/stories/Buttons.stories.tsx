@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Button } from '../src/components/Button.js';
+import { IconButton } from '../src/components/IconButton.js';
 import { OrbButton } from '../src/components/OrbButton.js';
 import { SplitCapsuleButton } from '../src/components/SplitCapsuleButton.js';
 
@@ -91,6 +92,47 @@ export const SplitCapsule: Story = {
         secondaryIcon="⌄"
         tone="lime"
       />
+    </div>
+  ),
+};
+
+/**
+ * Density v2 (Figma `Header/Button` `918:1826`, `929:906`, `929:910`): one header row, every
+ * control 32 high with one radius, gaps 8; the footer row of a dialog at 40; a flush text
+ * button that starts a row on the content edge; the 28px icon button for rows and panels.
+ */
+export const HeaderRow: Story = {
+  render: () => (
+    <div style={{ display: 'grid', gap: 'var(--s6)' }}>
+      <div style={{ display: 'flex', gap: 'var(--s2)', alignItems: 'center' }}>
+        <Button tone="lime" size="header">
+          New work
+        </Button>
+        <Button tone="outline" size="header">
+          Import
+        </Button>
+        <Button tone="text" size="header">
+          Help
+        </Button>
+        <IconButton label="More actions" icon="⋯" size="header" />
+      </div>
+      <div style={{ display: 'flex', gap: 'var(--s2)', alignItems: 'center' }}>
+        <Button tone="text" size="large" flush>
+          Create and add another
+        </Button>
+        <span style={{ flex: 1 }} />
+        <Button tone="outline" size="large">
+          Cancel
+        </Button>
+        <Button tone="lime" size="large">
+          Create
+        </Button>
+      </div>
+      <div style={{ display: 'flex', gap: 'var(--s2)', alignItems: 'center' }}>
+        <IconButton label="Add a doer" icon="+" />
+        <IconButton label="Rename" icon="✎" />
+        <IconButton label="Remove" icon="×" />
+      </div>
     </div>
   ),
 };

@@ -12,8 +12,13 @@ import { useUiLabels } from './ui-labels.js';
  */
 export type ButtonTone = 'ink' | 'lime' | 'outline' | 'text' | 'destructive';
 
-/** `40-DESIGN-SYSTEM` §4: controls are 36 compact, 40 default, 44 accessible, 48 feature. */
-export type ControlSize = 'compact' | 'default' | 'accessible' | 'feature';
+/**
+ * `40-DESIGN-SYSTEM` §4: controls are 36 compact, 40 default, 44 accessible, 48 feature.
+ * Density v2 (Figma `Header/Button` `918:1826`, ADR-0016) adds the two app sizes: `header`
+ * (32, `--app-control`: every control of a page header row and of the app's toolbars) and
+ * `large` (40, `--app-control-lg`: dialog and sheet footers). Both share one radius (14).
+ */
+export type ControlSize = 'compact' | 'default' | 'accessible' | 'feature' | 'header' | 'large';
 
 export interface ButtonProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
@@ -41,6 +46,12 @@ export interface ButtonProps extends Omit<
    */
   loading?: boolean;
   loadingLabel?: string;
+  /**
+   * Figma `Header/Button · Kind=Ghost flush` (`929:906`, `929:908`): a text button with no inline
+   * padding, so its label sits on the same edge as the text above it when it starts a row
+   * ("All fields", "Create and add another"). Only for `tone="text"`.
+   */
+  flush?: boolean;
 }
 
 export function Button({
@@ -49,6 +60,7 @@ export function Button({
   size = 'default',
   loading = false,
   loadingLabel: passedLoadingLabel,
+  flush = false,
   className,
   type = 'button',
   disabled,
@@ -57,7 +69,13 @@ export function Button({
 }: ButtonProps) {
   const labels = useUiLabels();
   const loadingLabel = passedLoadingLabel ?? labels.working;
-  const classes = ['tm-button', `tm-button--${tone}`, `tm-button--${size}`, className]
+  const classes = [
+    'tm-button',
+    `tm-button--${tone}`,
+    `tm-button--${size}`,
+    flush && tone === 'text' ? 'tm-button--flush' : null,
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
 

@@ -3,9 +3,10 @@
  *
  *   import '@tmanage/ui/styles.css';
  *
- * Order matters. Tokens define the custom properties, base sets the document, components
- * consume both.
+ * Order matters. Tokens define the custom properties (the design export, then the Density v2
+ * app tokens beside it), base sets the document, components consume both.
  */
 @import './tokens.css';
+@import './density.css';
 @import './base.css';
 @import './components.css';

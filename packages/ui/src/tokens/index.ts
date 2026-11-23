@@ -17,3 +17,12 @@ export {
   type Theme,
   type Contrast,
 } from './tokens.js';
+export {
+  appDensity,
+  pageGutter,
+  appLayout,
+  appInset,
+  appType,
+  appTypeArabicPageTitleLine,
+  minTextSize,
+} from './app-density.js';

@@ -9,6 +9,7 @@ export {
   type ButtonTone,
   type ControlSize,
 } from './Button.js';
+export { IconButton, type IconButtonProps, type IconButtonSize } from './IconButton.js';
 export { OrbButton, type OrbButtonProps, type OrbSize, type OrbTone } from './OrbButton.js';
 export { SplitCapsuleButton, type SplitCapsuleButtonProps } from './SplitCapsuleButton.js';
 export { Field, type FieldProps } from './Field.js';

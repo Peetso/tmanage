@@ -182,6 +182,36 @@
   font-size: var(--t-body-md);
 }
 
+/*
+ * Density v2 (Figma `Header/Button` `918:1826`, ADR-0016). `header` is every control of a page
+ * header row and of the app's toolbars: 32 high, one radius (14), text 12px from the edge
+ * (`--inset-control`). `large` is the dialog and sheet footer size (40), same radius, text 16px
+ * from the edge. `block-size` as well as the minimum, so a wrapped label cannot make one control
+ * in the row taller than its neighbours (doc-frame rule 2).
+ */
+.tm-button--header,
+.tm-button--large {
+  block-size: var(--tm-control-h);
+  border-radius: var(--app-radius);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-button--header {
+  --tm-control-h: var(--app-control);
+  padding-inline: var(--inset-control);
+}
+
+.tm-button--large {
+  --tm-control-h: var(--app-control-lg);
+  padding-inline: var(--inset-capsule);
+}
+
+/* `Kind=Ghost flush` (`929:906`): the label sits on the content edge of the row it starts. */
+.tm-button--text.tm-button--flush {
+  padding-inline: 0;
+}
+
 .tm-button--ink {
   background: var(--ink-950);
   color: var(--paper-50);
@@ -305,6 +335,59 @@
 /* In dark the ink capsule turns light; its orb stays a dark disc so the lime glyph still reads. */
 [data-theme='dark'] .tm-button__orb {
   background: var(--tm-ink-absolute);
+}
+
+/* ── IconButton (Density v2, `Header/Button · Kind=Icon`) ────────────────────────── */
+
+.tm-icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--tm-icon-button, var(--app-control-sm));
+  block-size: var(--tm-icon-button, var(--app-control-sm));
+  padding: 0;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--app-radius);
+  background: transparent;
+  color: var(--ink-650);
+  font-size: var(--s4);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--t-micro) var(--ease),
+    color var(--t-micro) var(--ease);
+}
+
+.tm-icon-button--header {
+  --tm-icon-button: var(--app-control);
+  border-color: var(--line-300);
+  background: var(--paper-0);
+}
+
+.tm-icon-button--small {
+  --tm-icon-button: var(--app-control-sm);
+}
+
+.tm-icon-button:hover:not(:disabled) {
+  background: var(--tm-hover-surface);
+  color: var(--ink-950);
+}
+
+.tm-icon-button:disabled {
+  color: var(--ink-500);
+  cursor: not-allowed;
+}
+
+.tm-icon-button__glyph {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--s4);
+  block-size: var(--s4);
+}
+
+.tm-icon-button__glyph svg {
+  inline-size: 100%;
+  block-size: 100%;
 }
 
 /* ── OrbButton ────────────────────────────────────────────────────────────────── */
@@ -1756,13 +1839,15 @@ a.tm-chip {
   display: inline-flex;
   align-items: center;
   margin-block-start: var(--s2);
-  padding: 3px 9px;
+  /* Density v2: a capsule keeps its text 16px from the rounded ends (it sat 9px), and nothing
+     is set below 11px (it was 10px). Doc-frame rules 1 and 4. */
+  padding: 3px var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   color: var(--ink-800);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 600;
   white-space: nowrap;
 }

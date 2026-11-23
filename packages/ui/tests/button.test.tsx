@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   Button,
   DestructiveButton,
+  IconButton,
   InkButton,
   LimeButton,
   LiveAnnouncer,
@@ -227,5 +228,43 @@ describe('SplitCapsuleButton', () => {
     );
     expect(screen.getByRole('button', { name: 'New work' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'New work options' })).toBeDisabled();
+  });
+});
+
+describe('Density v2 buttons (ADR-0016)', () => {
+  it('names the header and large sizes in stable class names', () => {
+    render(
+      <>
+        <Button size="header">Import</Button>
+        <Button size="large">Create</Button>
+      </>,
+    );
+    expect(screen.getByRole('button', { name: 'Import' })).toHaveClass('tm-button--header');
+    expect(screen.getByRole('button', { name: 'Create' })).toHaveClass('tm-button--large');
+  });
+
+  it('makes a text button flush, and only a text button', () => {
+    render(
+      <>
+        <TextButton flush>All fields</TextButton>
+        <InkButton flush>Save</InkButton>
+      </>,
+    );
+    expect(screen.getByRole('button', { name: 'All fields' })).toHaveClass('tm-button--flush');
+    expect(screen.getByRole('button', { name: 'Save' })).not.toHaveClass('tm-button--flush');
+  });
+
+  it('gives an icon button its name from the label and hides the glyph', async () => {
+    const { container } = render(<IconButton label="More actions" icon="⋯" size="header" />);
+    const button = screen.getByRole('button', { name: 'More actions' });
+    expect(button).toHaveClass('tm-icon-button', 'tm-icon-button--header');
+    expect(button).toHaveAttribute('type', 'button');
+    expect(button.querySelector('[aria-hidden="true"]')).toHaveTextContent('⋯');
+    await expectNoAxeViolations(container);
+  });
+
+  it('defaults an icon button to the 28px row size', () => {
+    render(<IconButton label="Remove" icon="×" />);
+    expect(screen.getByRole('button', { name: 'Remove' })).toHaveClass('tm-icon-button--small');
   });
 });
