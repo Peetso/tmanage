@@ -15,6 +15,17 @@
  * - `header-height`  every control in the page header row has one height (rule 2)
  * - `text-size`      no visible text below 11px (rule 4)
  * - `target-size`    every pointer target is at least 24 × 24 (rule 4, WCAG 2.2 SC 2.5.8)
+ *
+ * What counts as "the shape behind the text" (refined in design sweep 2, 2026-11-23, so the count
+ * is of real defects, not of measuring artefacts):
+ * - a shape is a box with a background or a visible inline-side border; a transparent border and
+ *   a top/bottom rule alone (an underlined tab, a section line) draw no edge beside the text;
+ * - text is measured against its nearest shape: card text that sits on a band, a capsule or a
+ *   nested card inside the card is measured there, and table-cell text keeps the cell inset;
+ * - text is measured where it shows: cut to every clipping box (ellipsis, scrolled panels), and a
+ *   scrolling axis of a panel is a viewport, not an inset;
+ * - a square glyph box up to 64px (initials in a circle, a numbered pin) centres its glyph and has
+ *   no rounded end; it is still measured as a target.
  */
 
 export type LayoutRule =
@@ -33,6 +44,8 @@ export interface LayoutViolation {
   /** What was measured, in CSS px. */
   readonly measured: number;
   readonly required: number;
+  /** For a container inset: the edge of the box that the text is too close to. */
+  readonly side?: 'left' | 'right' | 'top' | 'bottom';
 }
 
 export interface LayoutOptions {
@@ -98,13 +111,65 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
     return Number.isFinite(left) ? new DOMRect(left, top, right - left, bottom - top) : null;
   };
 
-  /** The text box of an element: its own text, or the text of the one element that holds it. */
-  const textRect = (el: Element): DOMRect | null => {
+  /**
+   * The part of a text box that can be seen: cut to the content box of every box from `from` up
+   * to `to` that clips its overflow. Text cut with an ellipsis, or scrolled out of a panel, is
+   * measured where it shows, not where its glyphs would run on to. Null when none of it shows.
+   */
+  const clipped = (rect: DOMRect, from: Element, to: Element): DOMRect | null => {
+    let { left, right, top, bottom } = rect;
+    for (let node: Element | null = from; node; node = node.parentElement) {
+      const s = getComputedStyle(node);
+      if (s.overflowX !== 'visible' || s.overflowY !== 'visible') {
+        const b = node.getBoundingClientRect();
+        const cl = b.left + node.clientLeft + (parseFloat(s.paddingLeft) || 0);
+        const ct = b.top + node.clientTop + (parseFloat(s.paddingTop) || 0);
+        const cr = b.left + node.clientLeft + node.clientWidth - (parseFloat(s.paddingRight) || 0);
+        const cb = b.top + node.clientTop + node.clientHeight - (parseFloat(s.paddingBottom) || 0);
+        if (s.overflowX !== 'visible') {
+          left = Math.max(left, cl);
+          right = Math.min(right, cr);
+        }
+        if (s.overflowY !== 'visible') {
+          top = Math.max(top, ct);
+          bottom = Math.min(bottom, cb);
+        }
+      }
+      if (node === to) break;
+    }
+    return right - left >= 1 && bottom - top >= 1
+      ? new DOMRect(left, top, right - left, bottom - top)
+      : null;
+  };
+
+  /**
+   * Whether `c` sits on a shape of its own inside `el`: a drawn box (a band, a capsule, a nested
+   * card) or a table cell between `c` and `el`. Such text is measured against that nearer shape
+   * (rule 1 is "text from the edge of the shape behind it"); a cell keeps its own inset
+   * (`--inset-cell`, 12), so a table that is its own card is not held to the card's 24.
+   */
+  const onInnerShape = (c: Element, el: Element): boolean => {
+    for (let node: Element | null = c; node && node !== el; node = node.parentElement) {
+      if (node.matches('td, th') || drawn(node)) return true;
+    }
+    return false;
+  };
+
+  /**
+   * The text box of an element: its own text, or the text of the elements that hold it. With
+   * `directOnly`, only the text whose nearest shape is this element (see `onInnerShape`).
+   */
+  const textRect = (el: Element, directOnly = false): DOMRect | null => {
     const own = ownTextRect(el);
-    if (own) return own;
-    const holders = [...el.querySelectorAll('*')].filter((c) => visible(c) && ownTextRect(c));
-    if (holders.length === 0) return null;
-    const rects = holders.map((h) => ownTextRect(h) as DOMRect);
+    if (own) return clipped(own, el, el);
+    const rects = [...el.querySelectorAll('*')]
+      .filter((c) => visible(c) && !(directOnly && onInnerShape(c, el)))
+      .map((c) => {
+        const r = ownTextRect(c);
+        return r ? clipped(r, c, el) : null;
+      })
+      .filter((r): r is DOMRect => r !== null);
+    if (rects.length === 0) return null;
     const left = Math.min(...rects.map((r) => r.left));
     const right = Math.max(...rects.map((r) => r.right));
     const top = Math.min(...rects.map((r) => r.top));
@@ -112,17 +177,36 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
     return new DOMRect(left, top, right - left, bottom - top);
   };
 
-  /** A box is drawn when it has a visible border or a background different from transparent. */
+  /** A colour that paints something: not `transparent` and not fully see-through. */
+  const painted = (color: string): boolean =>
+    color !== 'transparent' && !/^rgba\(.*,\s*0\)$/.test(color.replace(/\s+/g, ' '));
+
+  /**
+   * A box is drawn when it has a background, or a visible border on an inline side. A border in a
+   * transparent colour (a text button keeps one so its hover state does not move the label) draws
+   * no edge. A box drawn only by a top or bottom line (an underlined tab, a section rule) is a
+   * separator, not a shape around its text, so it has no edge for the text to crowd.
+   */
   const drawn = (el: Element): boolean => {
     const s = getComputedStyle(el);
-    const border = ['Top', 'Right', 'Bottom', 'Left'].some(
+    const border = ['right', 'left'].some(
       (side) =>
-        parseFloat(s.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0 &&
-        s.getPropertyValue(`border-${side.toLowerCase()}-style`) !== 'none',
+        parseFloat(s.getPropertyValue(`border-${side}-width`)) > 0 &&
+        s.getPropertyValue(`border-${side}-style`) !== 'none' &&
+        painted(s.getPropertyValue(`border-${side}-color`)),
     );
-    const bg = s.backgroundColor;
-    const filled = bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+    const filled = painted(s.backgroundColor);
     return border || filled || s.backgroundImage !== 'none';
+  };
+
+  /** A box whose content scrolls on an axis: its edges on that axis are a viewport, not padding. */
+  const scrolls = (el: Element, axis: 'x' | 'y'): boolean => {
+    const s = getComputedStyle(el);
+    const overflow = axis === 'x' ? s.overflowX : s.overflowY;
+    if (overflow === 'visible') return false;
+    return axis === 'x'
+      ? el.scrollWidth > el.clientWidth + 1
+      : el.scrollHeight > el.clientHeight + 1;
   };
 
   const radiusOf = (el: Element): number => {
@@ -207,6 +291,10 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
     const inset = Math.min(start, end);
     const radius = radiusOf(el);
     const capsule = radius >= box.height / 2 - 0.5;
+    // A square glyph box up to 64px (an avatar's initials in a circle, a numbered pin, a round
+    // icon) has no rounded *end* and no run of text: its glyph is centred, so the inset rules do
+    // not apply; it is still measured as a target.
+    if (Math.abs(box.width - box.height) <= 1 && box.width <= 64) continue;
 
     if (capsule) {
       // Rule 1: 16px and at least half the height from a rounded end; a tall capsule is held to
@@ -244,15 +332,33 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
         el.className.toString(),
       );
     if (container && box.height >= 48) {
-      const top = text.top - box.top;
-      const bottom = box.bottom - text.bottom;
-      const edge = Math.min(start, end, top, bottom);
+      const prose = textRect(el, true);
+      if (!prose) continue;
+      // Text scrolled past a scrolling panel's edge is not near that edge; that edge is the
+      // scroll viewport. The padding of a scrolling axis is checked by the content's own boxes.
+      const edges: [NonNullable<LayoutViolation['side']>, number][] = [
+        ...(scrolls(el, 'x')
+          ? []
+          : ([
+              ['left', prose.left - box.left],
+              ['right', box.right - prose.right],
+            ] as const)),
+        ...(scrolls(el, 'y')
+          ? []
+          : ([
+              ['top', prose.top - box.top],
+              ['bottom', box.bottom - prose.bottom],
+            ] as const)),
+      ];
+      if (edges.length === 0) continue;
+      const [side, edge] = edges.reduce((a, b) => (b[1] < a[1] ? b : a));
       if (edge < options.containerInset - 0.5) {
         out.push({
           rule: 'container-inset',
           where: describe(el),
           measured: round(edge),
           required: options.containerInset,
+          side,
         });
       }
     }

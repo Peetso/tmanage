@@ -25,6 +25,10 @@ import { defineConfig, devices } from '@playwright/test';
  * mid-transition; `caret: 'hide'` so a focused field's cursor cannot flake; and the spec waits on
  * `document.fonts.ready` (and more — see its header) before every shot.
  */
+// `VR_PORT` moves the static server (and the URLs below) off 6009, so the deploy gate's run in
+// its own clone never reuses a developer's server that serves another build (`serve.mjs`).
+const port = Number(process.env['VR_PORT'] ?? 6009);
+
 export default defineConfig({
   testDir: '.',
   workers: 1,
@@ -32,7 +36,7 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     ...devices['Desktop Chrome'],
-    baseURL: 'http://127.0.0.1:6009',
+    baseURL: `http://127.0.0.1:${port}`,
     viewport: { width: 1024, height: 768 },
     deviceScaleFactor: 1,
     colorScheme: 'light',
@@ -46,7 +50,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'node serve.mjs',
-    url: 'http://127.0.0.1:6009/iframe.html',
+    url: `http://127.0.0.1:${port}/iframe.html`,
     reuseExistingServer: true,
     timeout: 30_000,
   },

@@ -42,8 +42,13 @@ const index = JSON.parse(readFileSync(indexPath, 'utf8')) as {
   entries: Record<string, StoryIndexEntry>;
 };
 
+// `LAYOUT_ONLY=<id part>,<id part>` measures only the stories whose id contains one of the parts
+// (a fixing lane's quick loop). Such a run can check the ratchet but never write the baseline.
+const only = (process.env['LAYOUT_ONLY'] ?? '').split(',').filter(Boolean);
+
 const screens = Object.values(index.entries)
   .filter((entry) => entry.type === 'story' && (entry.tags ?? []).includes('vr'))
+  .filter((entry) => only.length === 0 || only.some((part) => entry.id.includes(part)))
   .sort((a, b) => a.id.localeCompare(b.id));
 
 const VARIANTS = [
@@ -165,6 +170,9 @@ test('every vr screen story stays within its layout baseline', async ({ browser,
     );
 
   if (process.env['LAYOUT_BASELINE'] === 'update') {
+    expect(only, 'a LAYOUT_ONLY run measures some stories; it cannot write the baseline').toEqual(
+      [],
+    );
     expect(existsSync(baselinePath) ? grown : [], 'refusing to raise the layout baseline').toEqual(
       [],
     );
