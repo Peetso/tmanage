@@ -5,7 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@tmanage/ui';
-import { browserApiClient } from '../../lib/api/browser-client';
+import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { getDisplayPreferences, updateDisplayPreferences } from '../../lib/api/display-preferences';
 import { signOut } from '../../lib/api/session';
 import { authBoundary } from '../../lib/auth-boundary';
@@ -22,6 +22,8 @@ import {
   localeNativeName,
 } from '../../lib/i18n/catalog-status';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { myPhotoUrl } from '../../lib/api/profile-photo';
+import { useMyPhoto } from '../people/PersonAvatar';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import './account-menu.css';
@@ -77,6 +79,10 @@ export function AccountMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
   const shown = initials ?? initialsOf(name);
+  // Profile photo (2026-11-23): the own photo, unless this workspace removed it; else initials.
+  const mine = useMyPhoto(organizationSlug);
+  const own = mine.data && !mine.data.removedHere ? mine.data.photo : null;
+  const photoSrc = own ? myPhotoUrl(apiBaseUrl(), organizationSlug, own.version, 64) : null;
 
   const close = useCallback((returnFocus: boolean) => {
     setOpen(false);
@@ -104,7 +110,11 @@ export function AccountMenu({
         aria-label={t(key('trigger'))}
         onClick={() => setOpen((value) => !value)}
       >
-        <span aria-hidden="true">{shown}</span>
+        {photoSrc ? (
+          <img className="tm-rail__account-photo" src={photoSrc} alt="" />
+        ) : (
+          <span aria-hidden="true">{shown}</span>
+        )}
       </button>
       {open ? (
         <AccountMenuPanel

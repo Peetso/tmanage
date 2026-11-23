@@ -20,6 +20,7 @@ import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { useA6T, WorkDialogFrame } from './DueDatePicker';
 import { initialsOf, useOwnerCandidates, type OwnerCandidate } from './OwnerPickerDialog';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 type Row = 'doers' | 'supervisors' | 'watchers';
 
@@ -72,9 +73,19 @@ export function DoerStack({
   return (
     <span className="tm-wk-stack" title={names.join(', ')} data-testid="doer-stack">
       {ids.slice(0, STACK).map((id, index) => (
-        <span key={id} className="tm-wk-orb" aria-hidden="true">
-          {initialsOf(names[index] ?? '')}
-        </span>
+        <PersonAvatar
+          key={id}
+          userId={id}
+          name={names[index] ?? ''}
+          className="tm-wk-orb"
+          size="compact"
+          decorative
+          fallback={
+            <span className="tm-wk-orb" aria-hidden="true">
+              {initialsOf(names[index] ?? '')}
+            </span>
+          }
+        />
       ))}
       {ids.length > STACK ? (
         <span className="tm-wk-orb" data-more="true" aria-hidden="true">

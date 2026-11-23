@@ -45,6 +45,7 @@ import { useViewPreference } from '../views/use-view-preference';
 import { invitationRoleName } from './AdminInvitationsView';
 import '../../styles/screens/people.css';
 import { withNumerals } from '../../lib/i18n/display-format';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 export interface PeopleDirectoryScreenProps {
   organizationSlug: string;
@@ -603,9 +604,18 @@ function MemberCardView({
     : null;
   return (
     <article className="tm-view-card ppl-member-card">
-      <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
-        {initialsOf(person.displayName)}
-      </span>
+      <PersonAvatar
+        organizationSlug={organizationSlug}
+        userId={person.userId}
+        name={person.displayName}
+        className="ppl-avatar"
+        decorative
+        fallback={
+          <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
+            {initialsOf(person.displayName)}
+          </span>
+        }
+      />
       <h3 className="tm-view-card__title">
         {profileHref ? <Link href={profileHref}>{person.displayName}</Link> : person.displayName}
       </h3>
@@ -698,9 +708,18 @@ function MemberRowView({
     <tr className="ppl-member">
       <td>
         <span className="ppl-member__who">
-          <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
-            {initialsOf(person.displayName)}
-          </span>
+          <PersonAvatar
+            organizationSlug={organizationSlug}
+            userId={person.userId}
+            name={person.displayName}
+            className="ppl-avatar"
+            decorative
+            fallback={
+              <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
+                {initialsOf(person.displayName)}
+              </span>
+            }
+          />
           <span>
             <span className="ppl-member__name">{person.displayName}</span>
             {person.email ? (

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Avatar, Badge, Button, InlineAlert } from '@tmanage/ui';
+import { Badge, Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { FilePreviewManifest } from '../../lib/api/file-preview';
@@ -29,6 +29,7 @@ import {
 import { useReviewDoor } from './review-door';
 import { ThreadComposer, type ComposerSubmit } from './ThreadComposer';
 import { ViewerIcon } from './viewer-icons';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 export type ThreadFilter = 'all' | 'open' | 'resolved' | 'mine' | 'page';
 export type PanelTab = 'comments' | 'layers' | 'versions' | 'details';
@@ -729,7 +730,8 @@ function CommentRow({
   return (
     <li className="tm-viewer-comment">
       <div className="tm-viewer-card__head">
-        <Avatar
+        <PersonAvatar
+          membershipId={comment.author.membershipId}
           name={name}
           audience={comment.author.kind === 'client' ? 'client' : 'internal'}
           size="compact"

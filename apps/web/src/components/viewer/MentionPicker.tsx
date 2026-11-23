@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Avatar } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import {
   searchReviewMentionCandidates,
@@ -11,6 +10,7 @@ import {
 } from '../../lib/api/review';
 import { useT } from '../../lib/i18n/use-t';
 import { useReviewDoor } from './review-door';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 export interface MentionPickerProps {
   readonly api: ApiClient;
@@ -91,7 +91,9 @@ export function MentionPicker({
           onPick(candidate);
         }}
       >
-        <Avatar
+        <PersonAvatar
+          organizationSlug={organizationSlug}
+          userId={candidate.userId}
           name={candidate.displayName}
           audience={candidate.kind === 'client' ? 'client' : 'internal'}
           size="compact"

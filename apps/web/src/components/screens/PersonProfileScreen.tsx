@@ -19,6 +19,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { describePeopleError, firstNameOf, initialsOf } from './peopleShared';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/people.css';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 export interface PersonProfileScreenProps {
   organizationSlug: string;
@@ -133,9 +134,19 @@ function ProfileBody({
   return (
     <>
       <div className="ppl-hero">
-        <span className="ppl-avatar ppl-avatar--88" aria-hidden="true">
-          {initialsOf(profile.displayName)}
-        </span>
+        <PersonAvatar
+          organizationSlug={organizationSlug}
+          userId={profile.userId}
+          name={profile.displayName}
+          className="ppl-avatar ppl-avatar--88"
+          size="hero"
+          decorative
+          fallback={
+            <span className="ppl-avatar ppl-avatar--88" aria-hidden="true">
+              {initialsOf(profile.displayName)}
+            </span>
+          }
+        />
         <div className="ppl-hero__titles">
           <p className="ppl-hero__eyebrow">
             {role.label} · {statusLabel(profile.status)}

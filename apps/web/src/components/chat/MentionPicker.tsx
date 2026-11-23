@@ -16,6 +16,7 @@ import type { MentionCandidate } from '../../lib/api/mention-candidates';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { initialsOf } from './channel-browser';
 import './chat-shell.css';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 /**
  * **m-mention** — the @ picker over a channel composer.
@@ -168,9 +169,18 @@ export function MentionPicker({
         }}
         onMouseEnter={() => onHover(index)}
       >
-        <span className="tm-chat-side__orb tm-mention__orb" aria-hidden="true">
-          {initialsOf(option.displayName)}
-        </span>
+        <PersonAvatar
+          userId={option.userId}
+          name={option.displayName}
+          className="tm-chat-side__orb tm-mention__orb"
+          size="compact"
+          decorative
+          fallback={
+            <span className="tm-chat-side__orb tm-mention__orb" aria-hidden="true">
+              {initialsOf(option.displayName)}
+            </span>
+          }
+        />
         <span className="tm-mention__text">
           <span className="tm-mention__name">{option.displayName}</span>
           {option.subtitle ? <span className="tm-mention__sub">{option.subtitle}</span> : null}

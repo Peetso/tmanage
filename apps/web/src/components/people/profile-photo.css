@@ -1,0 +1,108 @@
+/*
+ * Profile photo editor (owner, 2026-11-23). Design-system tokens only, logical properties only (so
+ * it mirrors in Arabic), controls at least 24px from the card edge (the card pads var(--s10)) and
+ * rounded ends (capsule buttons, a round crop window).
+ */
+.tm-photo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-photo__input {
+  display: none;
+}
+
+.tm-photo__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+  padding: var(--s4);
+  border: 1px dashed transparent;
+  border-radius: var(--r-card);
+}
+
+.tm-photo__row[data-drag-over] {
+  border-color: var(--line-300);
+  background: var(--paper-150);
+}
+
+.tm-photo__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-photo__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-photo__hint {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-photo__crop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s6);
+  padding: var(--s4);
+}
+
+.tm-photo__frame {
+  position: relative;
+  padding: 0;
+  border: 0;
+  inline-size: 224px;
+  block-size: 224px;
+  border-radius: var(--r-capsule);
+  overflow: hidden;
+  background: var(--paper-150);
+  cursor: grab;
+  touch-action: none;
+  flex: none;
+  /* A picture surface: the drag offset is in picture pixels, so it never mirrors. */
+  direction: ltr;
+}
+
+.tm-photo__frame:active {
+  cursor: grabbing;
+}
+
+.tm-photo__frame:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-photo__draft {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  max-inline-size: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.tm-photo__controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 200px;
+}
+
+.tm-photo__label {
+  font-size: var(--t-ui-sm);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tm-photo__row {
+    transition: background-color 120ms ease;
+  }
+}

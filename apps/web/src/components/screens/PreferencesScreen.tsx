@@ -11,7 +11,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Avatar, Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -25,6 +25,7 @@ import {
   type DisplayTimezone,
 } from '../../lib/api/display-preferences';
 import { fetchMyProfile, saveMyProfile, type MyProfileView } from '../../lib/api/member-profile';
+import { ProfilePhotoEditor } from '../people/ProfilePhotoEditor';
 import { changeMyPassword, listFactors } from '../../lib/api/auth';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -277,7 +278,6 @@ const S = {
     gap: 'var(--s5)',
     padding: 'var(--s10)',
   },
-  photoRow: { display: 'flex', alignItems: 'center', gap: 'var(--s4)' },
   lead: { margin: 0, fontSize: 'var(--t-body-md)', color: 'var(--ink-650)' },
   fieldset: {
     display: 'flex',
@@ -459,9 +459,11 @@ export function PreferencesScreen({
 
           {profile.data ? (
             <>
-              <div style={S.photoRow}>
-                <Avatar name={displayName || profile.data.displayName} size="feature" />
-              </div>
+              <ProfilePhotoEditor
+                organizationSlug={organizationSlug}
+                name={displayName || profile.data.displayName}
+                client={api}
+              />
               <Field
                 label={t('Profile.fullName')}
                 name="displayName"

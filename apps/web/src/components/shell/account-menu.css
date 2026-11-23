@@ -10,6 +10,17 @@
   font-family: inherit;
 }
 
+/* Profile photo (2026-11-23): the own photo fills the orb; the orb's round shape clips it. */
+.tm-rail__account {
+  overflow: hidden;
+}
+
+.tm-rail__account-photo {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
 .tm-rail__account:focus-visible,
 .tm-account__item:focus-visible {
   outline: none;

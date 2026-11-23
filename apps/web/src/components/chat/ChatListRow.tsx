@@ -7,6 +7,7 @@ import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { initialsOf } from './channel-browser';
 import { channelLabel } from '../../lib/text/channel-label';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 export interface ChatListRowProps {
   readonly row: ChatListRowData;
@@ -90,9 +91,18 @@ export function ChatListRow({
         aria-describedby={detailId}
         {...(active ? { 'aria-current': 'page' as const } : {})}
       >
-        <span className={avatarClass} aria-hidden="true">
-          {row.kind === 'project_channel' ? '#' : initialsOf(row.title || '?')}
-        </span>
+        <PersonAvatar
+          userId={row.kind === 'direct' ? row.otherUserId : null}
+          name={row.title || '?'}
+          className={avatarClass}
+          size="compact"
+          decorative
+          fallback={
+            <span className={avatarClass} aria-hidden="true">
+              {row.kind === 'project_channel' ? '#' : initialsOf(row.title || '?')}
+            </span>
+          }
+        />
         <span className="tm-chatrow__main">
           <span className="tm-chatrow__top">
             <bdi id={titleId} className="tm-chatrow__title">

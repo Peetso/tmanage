@@ -1,11 +1,12 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Avatar, Badge, StateCapsule } from '@tmanage/ui';
+import { Badge, StateCapsule } from '@tmanage/ui';
 import type { ReviewComment, ReviewPerson, ReviewThread } from '../../lib/api/review';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useT } from '../../lib/i18n/use-t';
 import { useReviewDoor } from './review-door';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 /** A person's name, or the "former member" word when they have left. */
 export function personName(person: ReviewPerson, formerMember: string): string {
@@ -119,7 +120,8 @@ export function ThreadCard({ thread, selected, optionId, active, onOpen, extra }
       <CardPin thread={thread} selected={selected} />
       <div className="tm-viewer-card__main">
         <div className="tm-viewer-card__head">
-          <Avatar
+          <PersonAvatar
+            membershipId={thread.createdBy.membershipId}
             name={name}
             audience={thread.createdBy.kind === 'client' ? 'client' : 'internal'}
             size="compact"

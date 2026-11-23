@@ -2746,6 +2746,24 @@ type _organizationProfile = Assert<Exact<ApiOrganizationProfileView, WebOrganiza
 /** C6. `OrganizationLogoView` (`GET …/logo`, `PUT/DELETE …/logo/image`) — the org-scoped logo. */
 type _organizationLogo = Assert<Exact<ApiOrganizationLogoView, WebOrganizationLogoView>>;
 
+// ---- 2026-11-23 · profile photo (lane P) ----
+import type {
+  MyPhotoView as ApiMyPhotoView,
+  PeoplePhotosView as ApiPeoplePhotosView,
+  PersonPhotoView as ApiPersonPhotoView,
+} from '../../apps/api/src/modules/people/profile-photo.service.js';
+import type {
+  MyPhotoView as WebMyPhotoView,
+  PeoplePhotosView as WebPeoplePhotosView,
+  PersonPhotoView as WebPersonPhotoView,
+} from '../../apps/web/src/lib/api/profile-photo';
+/** `GET|PUT|DELETE …/me/photo` — the signed-in person's own photo in this workspace. */
+type _myPhoto = Assert<Exact<ApiMyPhotoView, WebMyPhotoView>>;
+/** `GET …/people-photos` — whose photos this viewer may see, with each picture's version. */
+type _peoplePhotos = Assert<Exact<ApiPeoplePhotosView, WebPeoplePhotosView>>;
+/** One entry of `GET …/people-photos`. */
+type _personPhoto = Assert<Exact<ApiPersonPhotoView, WebPersonPhotoView>>;
+
 /**
  * B3 / B5. `DownloadScanPolicyView` (`GET/PATCH …/file-download-policy`). `DownloadScanPolicyCard`
  * reads and saves exactly this response, so the pair is Exact (C4 replaced the B3 literal).

@@ -19,6 +19,7 @@ import { useMembers } from '../../lib/use-members';
 import { initialsOf } from './channel-browser';
 import { InviteLinkRow } from './InviteLinkRow';
 import './groups.css';
+import { PersonAvatar } from '../people/PersonAvatar';
 
 export interface GroupInfoPanelProps {
   readonly api: ApiClient;
@@ -142,9 +143,19 @@ export function GroupInfoPanel({
       <ul className="tm-chatgroup-members">
         {group.members.map((member) => (
           <li key={member.userId} className="tm-chatgroup-member">
-            <span className="tm-chatgroup__avatar" aria-hidden="true">
-              {initialsOf(member.displayName)}
-            </span>
+            <PersonAvatar
+              organizationSlug={organizationSlug}
+              userId={member.userId}
+              name={member.displayName}
+              className="tm-chatgroup__avatar"
+              size="compact"
+              decorative
+              fallback={
+                <span className="tm-chatgroup__avatar" aria-hidden="true">
+                  {initialsOf(member.displayName)}
+                </span>
+              }
+            />
             <span className="tm-chatgroup-member__name">{member.displayName}</span>
             {member.role === 'admin' ? (
               <span className="tm-chatgroup__chip">{tOr('ChatGroups.admin', 'Admin')}</span>
