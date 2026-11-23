@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { Logger } from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { canonicalizeArgs } from '../mcp/internal-grant.js';
@@ -79,9 +80,11 @@ import {
   activityOf,
   isAiDomain,
   parseRoute,
+  routeFailure,
   routerRequest,
   type AiDomain,
   type AiRoute,
+  type RouteFailure,
 } from './ai-router.js';
 import { AI_TIER_SPECS, isAiTier, type AiSpendingPool, type AiTier } from './ai-tiers.js';
 import { DOMAIN_PROMPT_VERSION, domainSystemPrompt } from './system-prompts/domains.js';
@@ -276,6 +279,12 @@ export interface CopilotChatDeps {
   readonly limits?: (context: TenantContext) => Promise<ChatLimitDecision>;
   /** 62-14: one audit row per tool call and per turn, no text (best-effort: reads only). */
   readonly audit?: ChatAudit;
+  /**
+   * AI-ROUTER-FIX: where a router reply that gave no route is reported (the reply's shape only:
+   * stop reason, block types, counts; never its text, the question or the key). Absent = the
+   * server log, so the next failure is diagnosable from the host log.
+   */
+  readonly routerFailureLog?: (failure: RouteFailure) => void;
   /**
    * 62-14 (OWASP ASVS 5.0 V16): the fail-closed audit row of a change the AI runs at once, written
    * before the change runs; it throws when the row cannot be written, and then nothing runs.
@@ -775,7 +784,12 @@ export class CopilotChatService {
       const routed = await this.callModel(context, routing, routerRequest(input.message));
       const parsed = routed.ok ? parseRoute(routed.response) : null;
       if (parsed === null) {
-        const finish = await this.finish(context, routing, routed.ok ? 'completed' : 'failed', {
+        if (routed.ok)
+          (this.deps.routerFailureLog ?? logRouterFailure)(routeFailure(routed.response));
+        // AI-ROUTER-FIX (plan 62 v2 §1.1 row 3, §5 payer table): a turn that produced no route is
+        // failed work, charged 0; the platform pays the router call it really cost (the ledger
+        // still records it). So "Nothing was charged" is true.
+        const finish = await this.finish(context, routing, 'failed', {
           stop: routed.ok ? 'not_understood' : routed.stop,
         });
         return this.stopped(null, null, routed.ok ? 'not_understood' : routed.stop, finish);
@@ -1537,6 +1551,17 @@ export class CopilotChatService {
       chargedCredits,
     };
   }
+}
+
+const routerLogger = new Logger('CopilotChat');
+
+/** The default {@link CopilotChatDeps.routerFailureLog}: one warning line, shape only. */
+function logRouterFailure(failure: RouteFailure): void {
+  routerLogger.warn(
+    `router gave no route: stop_reason=${failure.stopReason} blocks=[${failure.blockTypes.join(',')}] ` +
+      `route_calls=${failure.routeCalls} output_tokens=${failure.outputTokens} ` +
+      `invalid_field=${failure.invalidField ?? 'none'}`,
+  );
 }
 
 const NO_USAGE: AiUsage = {

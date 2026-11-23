@@ -8,7 +8,7 @@ import { AiClientError } from './ai-client.js';
 import type { AiBudgetRefusal, AiBudgetResult, OpenTaskInput } from './ai-budget.service.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, isAiSelfOp, planToolCall } from './ai-chat-tools.js';
 import type { AiReplay, AiResponseBlock, AiStopReason } from './ai-response.js';
-import { parseRoute, routerRequest } from './ai-router.js';
+import { parseRoute, routerRequest, type RouteFailure } from './ai-router.js';
 import { AI_TIER_SPECS, type AiTier } from './ai-tiers.js';
 import type { ChatConversations } from './ai-conversations.service.js';
 import type { AiTurnAudit, ChatAudit } from './ai-audit.js';
@@ -87,6 +87,7 @@ function setup(
     conversations?: ChatConversations;
     limits?: (context: TenantContext) => Promise<ChatLimitDecision>;
     toolData?: unknown;
+    routerFailureLog?: (failure: RouteFailure) => void;
   } = {},
 ) {
   const audits: AiTurnAudit[] = [];
@@ -202,6 +203,9 @@ function setup(
     countTokens: async () => 500,
     ...(options.conversations === undefined ? {} : { conversations: options.conversations }),
     ...(options.limits === undefined ? {} : { limits: options.limits }),
+    ...(options.routerFailureLog === undefined
+      ? {}
+      : { routerFailureLog: options.routerFailureLog }),
     audit,
   });
   const turn = (
@@ -448,11 +452,25 @@ describe('the router', () => {
     expect(parseRoute(text('tasks'))).toBeNull();
   });
 
-  it('a message the router cannot place stops after one call', async () => {
-    const env = setup([text('I am not sure.')]);
-    const view = await env.turn('???');
-    expect(view).toMatchObject({ state: 'stopped', stop: 'not_understood' });
+  it('a message the router cannot place stops after one call, charged 0, shape logged', async () => {
+    const failures: RouteFailure[] = [];
+    const env = setup([text('I am not sure.')], { routerFailureLog: (f) => failures.push(f) });
+    const view = await env.turn('secret question text');
+    expect(view).toMatchObject({ state: 'stopped', stop: 'not_understood', chargedCredits: 0 });
     expect(env.requests).toHaveLength(1);
+    // AI-ROUTER-FIX: failed work is charged 0 (plan 62 v2 §1.1 row 3), so "Nothing was charged" holds.
+    expect(env.finished.map((f) => f.outcome)).toEqual(['failed']);
+    expect(failures).toEqual([
+      {
+        stopReason: 'end_turn',
+        blockTypes: ['text'],
+        routeCalls: 0,
+        outputTokens: 20,
+        invalidField: null,
+      },
+    ]);
+    // Shape only: neither the reply text nor the question reaches the log.
+    expect(JSON.stringify(failures)).not.toMatch(/not sure|secret question/);
   });
 
   it('help answers without tools', async () => {

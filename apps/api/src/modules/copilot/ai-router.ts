@@ -31,8 +31,14 @@ export interface AiRoute {
   readonly tier: AiTier;
 }
 
-/** The router's own reply budget: one tool call with two short strings. */
-export const ROUTER_MAX_TOKENS = 128;
+/**
+ * The router's own reply budget: one forced tool call with two short strings (about 40 output
+ * tokens). AI-ROUTER-FIX: it was 128 with `tool_choice: auto`, and Claude Haiku 5.5 thinks by
+ * default (adaptive thinking counts toward `max_tokens`), so a turn could end
+ * `stop_reason: max_tokens` after a thinking block, with no `route` call at all. The call is now
+ * forced (no thinking) and the margin is wider; the hold this adds is a fraction of a credit.
+ */
+export const ROUTER_MAX_TOKENS = 256;
 
 export const ROUTE_TOOL_NAME = 'route';
 
@@ -61,6 +67,8 @@ export function routerRequest(message: string): AiRequest {
     effort: 'low',
     system: [{ text: ROUTER_SYSTEM_PROMPT, cache: '1h' }],
     tools: [ROUTE_TOOL],
+    // AI-ROUTER-FIX: forced, so the reply is exactly one `route` call and never text or thinking.
+    toolChoice: { type: 'tool', name: ROUTE_TOOL_NAME },
     messages: [{ role: 'user', content: message }],
   };
 }
@@ -78,6 +86,43 @@ export function parseRoute(response: Pick<AiResponse, 'content'>): AiRoute | nul
   // Help is free support only as a help question; a help *tier* elsewhere is read as low.
   if (domain === 'help') return { domain, tier: 'help' };
   return { domain, tier: tier === 'help' ? 'low' : tier };
+}
+
+/** Why a router reply gave no route: the shape only, safe to log (no text, no input values). */
+export interface RouteFailure {
+  readonly stopReason: AiResponse['stopReason'];
+  /** Every content block's type in order, thinking included (from the raw reply). */
+  readonly blockTypes: readonly string[];
+  readonly routeCalls: number;
+  readonly outputTokens: number;
+  /** What was wrong with a single `route` call; null when there was not exactly one. */
+  readonly invalidField: 'domain' | 'tier' | null;
+}
+
+/** The diagnosable shape of a reply {@link parseRoute} refused. Never the content itself. */
+export function routeFailure(
+  response: Pick<AiResponse, 'content' | 'replay' | 'stopReason' | 'usage'>,
+): RouteFailure {
+  const calls = response.content.filter(
+    (block) => block.type === 'tool_use' && block.name === ROUTE_TOOL_NAME,
+  );
+  const only = calls.length === 1 ? calls[0] : undefined;
+  let invalidField: RouteFailure['invalidField'] = null;
+  if (only !== undefined && only.type === 'tool_use') {
+    const { domain, tier } = only.input;
+    if (!isAiDomain(domain)) invalidField = 'domain';
+    else if (typeof tier !== 'string' || !isAiTier(tier)) invalidField = 'tier';
+  }
+  return {
+    stopReason: response.stopReason,
+    blockTypes: response.replay.map((block) => {
+      const type = block['type'];
+      return typeof type === 'string' && /^[a-z_]{1,40}$/.test(type) ? type : 'unknown';
+    }),
+    routeCalls: calls.length,
+    outputTokens: response.usage.outputTokens,
+    invalidField,
+  };
 }
 
 /** The owner dashboard's activity (`ai_tasks.activity`) of a domain. */

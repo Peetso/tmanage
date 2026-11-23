@@ -82,6 +82,25 @@ export type AiMessage =
   | { readonly role: 'user'; readonly content: string | readonly AiUserBlock[] }
   | { readonly role: 'assistant'; readonly content: AiReplay };
 
+/**
+ * How the model may use the tools. `auto` (the default) lets it answer in text; `tool` forces
+ * exactly one call of the named tool (sent with `disable_parallel_tool_use`). Forcing is accepted
+ * only by the models in {@link FORCED_TOOL_CHOICE_MODELS}: Claude Opus 5.5, Sonnet 5.5 and the
+ * Fable 5.1+ models answer a forced `tool_choice` with a 400, so the client refuses it before it
+ * is sent rather than let a model swap turn into a provider error.
+ */
+export type AiToolChoice =
+  { readonly type: 'auto' } | { readonly type: 'tool'; readonly name: string };
+
+/**
+ * The priced models that accept a forced `tool_choice`. Claude Haiku 5.5 does, and a forced call
+ * skips its (default-on) adaptive thinking, so a short structured answer cannot be eaten by
+ * thinking tokens. Claude Sonnet 5.5 rejects it (400).
+ */
+export const FORCED_TOOL_CHOICE_MODELS: ReadonlySet<AiModelId> = new Set<AiModelId>([
+  'claude-haiku-5-5',
+]);
+
 export interface AiRequest {
   readonly model: AiModelId;
   readonly maxTokens: number;
@@ -89,6 +108,8 @@ export interface AiRequest {
   readonly system: readonly AiSystemBlock[];
   readonly tools: readonly AiToolDefinition[];
   readonly messages: readonly AiMessage[];
+  /** Absent = `auto`. */
+  readonly toolChoice?: AiToolChoice;
   /** Automatic breakpoint on the last cacheable block of the conversation. */
   readonly cacheConversation?: AiCacheTtl;
 }
@@ -174,6 +195,13 @@ function validate(request: AiRequest): void {
     names.add(tool.name);
     assertStrict(tool.inputSchema, tool.name);
   }
+  const choice = request.toolChoice;
+  if (choice?.type === 'tool') {
+    if (!names.has(choice.name)) throw invalid(`forced tool ${choice.name} is not defined`);
+    if (!FORCED_TOOL_CHOICE_MODELS.has(request.model)) {
+      throw invalid(`model ${request.model} does not accept a forced tool choice`);
+    }
+  }
   const breakpoints =
     request.system.filter((block) => block.cache !== undefined).length +
     request.tools.filter((tool) => tool.cache !== undefined).length +
@@ -199,6 +227,11 @@ function userBlock(block: AiUserBlock): JsonObject {
   };
 }
 
+function toolChoiceBody(choice: AiToolChoice | undefined): JsonObject {
+  if (choice === undefined || choice.type === 'auto') return { type: 'auto' };
+  return { type: 'tool', name: choice.name, disable_parallel_tool_use: true };
+}
+
 /** The Messages API body. Tools come first and system second, so both sit in the cached prefix. */
 export function messagesBody(request: AiRequest): JsonObject {
   return {
@@ -208,7 +241,7 @@ export function messagesBody(request: AiRequest): JsonObject {
     ...(request.tools.length === 0
       ? {}
       : {
-          tool_choice: { type: 'auto' },
+          tool_choice: toolChoiceBody(request.toolChoice),
           tools: request.tools.map((tool) => ({
             name: tool.name,
             description: tool.description,

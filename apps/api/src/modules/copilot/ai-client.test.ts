@@ -191,6 +191,20 @@ describe('AI client: request shape', () => {
       'unpriced_model',
     ],
     [
+      'a forced tool that is not defined',
+      { toolChoice: { type: 'tool', name: 'missing' } } as Partial<AiRequest>,
+      'invalid_request',
+    ],
+    [
+      // Claude Sonnet 5.5 answers a forced tool_choice with a 400: refused before it is sent.
+      'a forced tool on a model that rejects forcing',
+      {
+        model: 'claude-sonnet-5-5',
+        toolChoice: { type: 'tool', name: 'create_task' },
+      } as Partial<AiRequest>,
+      'invalid_request',
+    ],
+    [
       'a schema that allows extra fields',
       {
         tools: [
