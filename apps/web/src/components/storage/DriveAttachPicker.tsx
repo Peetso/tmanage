@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, InlineAlert } from '@tmanage/ui';
+import { Button, InlineAlert, type ButtonTone } from '@tmanage/ui';
 import { getPickerSession, getStorageStatus } from '../../lib/api/google-drive';
 import type { ApiClient } from '../../lib/api/client';
 import { openDrivePicker, type PickedDriveItem } from '../../lib/google-picker';
@@ -26,6 +26,8 @@ export interface DriveAttachPickerProps {
   /** FIX6 C3: `folder` picks one folder (Google's own picker only); the button says `label`. */
   mode?: 'files' | 'folder';
   label?: string;
+  /** The button's look: outline on its own, `text` as an entry of the work page's Attach menu. */
+  tone?: Extract<ButtonTone, 'outline' | 'text'>;
 }
 
 /**
@@ -49,6 +51,7 @@ export function DriveAttachPicker({
   disabled = false,
   mode = 'files',
   label,
+  tone = 'outline',
 }: DriveAttachPickerProps) {
   const t = useT();
   const locale = useActiveLocale();
@@ -92,7 +95,7 @@ export function DriveAttachPicker({
   return (
     <div className="tm-drive-attach">
       <Button
-        tone="outline"
+        tone={tone}
         loading={pick.isPending}
         loadingLabel={t('DriveAttach.opening')}
         disabled={disabled || projectId === ''}

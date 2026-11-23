@@ -94,6 +94,21 @@ export function figmaConnectHref(organizationSlug: string): string {
   return `/${organizationSlug}/automations/apps`;
 }
 
+/** The cache key of the Figma links attached to one target, shared by every list of them. */
+export function figmaLinksKey(
+  organizationSlug: string,
+  projectId: string,
+  target: { readonly type: FigmaAttachTarget; readonly id: string } | null,
+) {
+  return [
+    'figma-links',
+    organizationSlug,
+    projectId,
+    target?.type ?? '',
+    target?.id ?? '',
+  ] as const;
+}
+
 export interface FigmaLinksPanelProps {
   readonly organizationSlug: string;
   readonly projectId: string;
@@ -120,13 +135,7 @@ export function FigmaLinksPanel({
   const api = client ?? browserApiClient();
   const id = useId();
   const [open, setOpen] = useState(false);
-  const queryKey = [
-    'figma-links',
-    organizationSlug,
-    projectId,
-    target?.type ?? '',
-    target?.id ?? '',
-  ];
+  const queryKey = figmaLinksKey(organizationSlug, projectId, target);
   const links = useQuery({
     queryKey,
     queryFn: () => listFigmaLinks(api, organizationSlug, projectId, target),

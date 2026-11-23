@@ -12,7 +12,8 @@ import './voice-control.css';
  * and a 28 px language chip, beside every name or text the member can dictate (a work's title,
  * a step, a comment, a team or stage name). The chip is the AI chat's dictation language menu
  * (`DictationLanguagePicker`), so one choice of language serves every box (WORK-AREA plan
- * W-WEB-3). Where dictation cannot run the mic is drawn off and the chip says why.
+ * W-WEB-3). The chip names the language alone ("English", "العربية"); the region is in the menu.
+ * Where dictation cannot run the mic is drawn off and the chip says why.
  */
 export function VoiceControl({
   input,
@@ -40,6 +41,7 @@ export function VoiceControl({
         blocked={block}
         locked={listening}
         placement={placement}
+        chipName="language"
       />
     </span>
   );

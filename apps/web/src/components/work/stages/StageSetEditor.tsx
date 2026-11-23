@@ -18,17 +18,26 @@ import { StageDialogFrame } from './StageDialogFrame';
 import { StageGroupCard } from './StageGroupCard';
 import { StageMoreMenu } from './StageMoreMenu';
 import { StageNameField } from './StageNameField';
-import { checkSetName, copyOf, moveTargets, NAME_ERROR_KEY } from './stage-editor-model';
+import {
+  checkSetName,
+  copyOf,
+  moveTargets,
+  NAME_ERROR_KEY,
+  projectsKey,
+} from './stage-editor-model';
 import { STAGE_GROUPS } from './stage-model';
 import { useStageSetWrites } from './use-stage-editor';
 import { useStageName } from './WorkStageControl';
 
-/** The line under a set's name: what uses it (the API sends no usage counts yet). */
-function noteKey(set: StageSetView): string {
-  if (set.isBuiltIn) return 'WorkStages.editor.noteBuiltIn';
-  if (set.isDefault) return 'WorkStages.editor.noteDefault';
-  if (set.projectId !== null) return 'WorkStages.editor.noteProject';
-  return 'WorkStages.editor.noteChoice';
+/** The line under a set's name: what uses it (Figma W7 "Used by …"). */
+function setNote(set: StageSetView, t: ReturnType<typeof useA6T>): string {
+  if (set.isBuiltIn) return t('WorkStages.editor.noteBuiltIn');
+  if (set.isDefault) return t('WorkStages.editor.noteDefault');
+  if (set.projectId !== null) return t('WorkStages.editor.noteProject');
+  if (set.projectCount === 0) return t('WorkStages.editor.noteChoice');
+  return t('WorkStages.editor.noteUsedBy', {
+    projects: t(projectsKey(set.projectCount), { count: set.projectCount }),
+  });
 }
 
 /**
@@ -177,7 +186,7 @@ export function StageSetEditor({
           ) : null}
         </span>
       </div>
-      <p className="tm-stg-editor__note">{t(noteKey(set))}</p>
+      <p className="tm-stg-editor__note">{setNote(set, t)}</p>
       {writes.failure && !deleting && !deletingSet ? (
         <InlineAlert tone="danger" title={t('WorkStages.editor.notSaved')} live>
           {writes.failure}

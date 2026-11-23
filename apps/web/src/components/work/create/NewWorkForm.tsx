@@ -740,6 +740,7 @@ export function NewWorkForm({
             setPicking(null);
           }}
           onClose={() => setPicking(null)}
+          {...(picking === 'supervisors' ? {} : { teams: { api, organizationSlug } })}
         />
       ) : null}
     </form>

@@ -32,6 +32,8 @@ import {
   type StageLike,
 } from './stage-rules.js';
 
+type StageSetUsage = Awaited<ReturnType<WorkStagesRepository['usageCounts']>>;
+
 /**
  * Work area D1 (2026-11-23) — renamable stages and own stage sets for the workspace, a project or
  * a single work. The application service: it holds the policy, the repositories hold none.
@@ -60,6 +62,8 @@ export interface StageView {
   readonly group: StageGroup;
   readonly colorKey: string | null;
   readonly position: number;
+  /** Live works on this stage: they move when it is deleted (Figma W9 "3 work items will move"). */
+  readonly workCount: number;
 }
 
 export interface StageSetView {
@@ -72,6 +76,8 @@ export interface StageSetView {
   /** The built-in stages a workspace without its own set uses; never stored, never editable. */
   readonly isBuiltIn: boolean;
   readonly version: number;
+  /** Projects pointed at this set (Figma W7 "Used by 3 projects"); the default's others inherit it. */
+  readonly projectCount: number;
   readonly stages: readonly StageView[];
   readonly createdAt: string | null;
   readonly updatedAt: string | null;
@@ -117,18 +123,18 @@ export class WorkStagesService {
   // ── reads ─────────────────────────────────────────────────────────────────
 
   async listSets(context: TenantContext): Promise<readonly StageSetView[]> {
-    const sets = await this.database.read(context, (runner) =>
-      this.stages.listSets(runner, context),
+    return this.database.read(context, async (runner) =>
+      this.withUsage(runner, context, await this.stages.listSets(runner, context)),
     );
-    return sets.map(toSetView);
   }
 
   async getSet(context: TenantContext, setId: string): Promise<StageSetView> {
-    const set = await this.database.read(context, (runner) =>
-      this.stages.findSet(runner, context, setId),
-    );
-    if (!set) throw notFound();
-    return toSetView(set);
+    const [view] = await this.database.read(context, async (runner) => {
+      const set = await this.stages.findSet(runner, context, setId);
+      return set ? this.withUsage(runner, context, [set]) : [];
+    });
+    if (!view) throw notFound();
+    return view;
   }
 
   /** The set a project uses: its own, else the workspace default, else the built-in stages. */
@@ -141,12 +147,21 @@ export class WorkStagesService {
       await this.requireProject(runner, context, principal, projectId, 'work.read');
       const linked = await this.stages.projectSetId(runner, context, projectId);
       const own = linked ? await this.stages.findSet(runner, context, linked) : null;
-      if (own) return { source: 'project' as const, stageSet: toSetView(own) };
-      const fallback = await this.stages.defaultSet(runner, context);
-      return fallback
-        ? { source: 'workspace' as const, stageSet: toSetView(fallback) }
-        : { source: 'builtin' as const, stageSet: BUILT_IN_SET_VIEW };
+      const chosen = own ?? (await this.stages.defaultSet(runner, context));
+      const [view] = chosen ? await this.withUsage(runner, context, [chosen]) : [];
+      if (!view) return { source: 'builtin' as const, stageSet: BUILT_IN_SET_VIEW };
+      return { source: own ? ('project' as const) : ('workspace' as const), stageSet: view };
     });
+  }
+
+  /** The views of these sets with their use counts, read in the same unit of work. */
+  private async withUsage(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    sets: readonly StageSetWithStages[],
+  ): Promise<StageSetView[]> {
+    const usage = await this.stages.usageCounts(runner, context, sets);
+    return sets.map((entry) => toSetView(entry, usage));
   }
 
   // ── set writes ────────────────────────────────────────────────────────────
@@ -708,7 +723,7 @@ export class WorkStagesService {
 
 // ── projections and small rules ──────────────────────────────────────────────
 
-function toStageView(stage: WorkStageRow | StageLike): StageView {
+function toStageView(stage: WorkStageRow | StageLike, workCount = 0): StageView {
   return {
     id: stage.id,
     name: stage.name,
@@ -716,10 +731,11 @@ function toStageView(stage: WorkStageRow | StageLike): StageView {
     group: groupOfState(stage.stateKey) ?? 'not_started',
     colorKey: 'colorKey' in stage ? (stage.colorKey ?? null) : null,
     position: stage.position,
+    workCount,
   };
 }
 
-function toSetView(entry: StageSetWithStages): StageSetView {
+function toSetView(entry: StageSetWithStages, usage: StageSetUsage): StageSetView {
   return {
     id: entry.set.id,
     name: entry.set.name,
@@ -728,7 +744,10 @@ function toSetView(entry: StageSetWithStages): StageSetView {
     isDefault: entry.set.defaultMarker === 1,
     isBuiltIn: false,
     version: Number(entry.set.version),
-    stages: ordered(entry.stages).map(toStageView),
+    projectCount: usage.projectsBySet.get(entry.set.id) ?? 0,
+    stages: ordered(entry.stages).map((stage) =>
+      toStageView(stage, usage.worksByStage.get(stage.id) ?? 0),
+    ),
     createdAt: entry.set.createdAt.toISOString(),
     updatedAt: entry.set.updatedAt.toISOString(),
   };
@@ -742,7 +761,8 @@ const BUILT_IN_SET_VIEW: StageSetView = {
   isDefault: true,
   isBuiltIn: true,
   version: 0,
-  stages: BUILT_IN_STAGES.map(toStageView),
+  projectCount: 0,
+  stages: BUILT_IN_STAGES.map((stage) => toStageView(stage)),
   createdAt: null,
   updatedAt: null,
 };

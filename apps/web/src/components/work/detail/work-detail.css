@@ -731,7 +731,6 @@ a.tm-wk-prow__value:focus-visible {
   padding-inline: var(--inset-capsule);
 }
 
-.tm-wk-files .tm-figma-links,
 .tm-wk-files .tm-panel {
   padding: var(--inset-card);
 }

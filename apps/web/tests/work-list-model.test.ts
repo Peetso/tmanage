@@ -150,6 +150,7 @@ describe('the Updated cell and the board columns', () => {
       group: 'not_started' as const,
       colorKey: null,
       position: 0,
+      workCount: 0,
     },
     {
       id: 's-p',
@@ -158,6 +159,7 @@ describe('the Updated cell and the board columns', () => {
       group: 'in_progress' as const,
       colorKey: null,
       position: 1,
+      workCount: 0,
     },
     {
       id: 's-d',
@@ -166,6 +168,7 @@ describe('the Updated cell and the board columns', () => {
       group: 'done' as const,
       colorKey: null,
       position: 2,
+      workCount: 0,
     },
   ];
 

@@ -51,8 +51,8 @@ function Probe() {
   const format = useDisplayFormatters();
   return (
     <main>
-      <p id="hook">{t('WorkDetail.noFiles')}</p>
-      <p id="direct">{translate(activeLocale.get(), 'WorkDetail.noFiles')}</p>
+      <p id="hook">{t('WorkDetail.filesError')}</p>
+      <p id="direct">{translate(activeLocale.get(), 'WorkDetail.filesError')}</p>
       <p id="digits">{format.number(12)}</p>
     </main>
   );
@@ -69,12 +69,12 @@ describe('the first HTML of a signed-in page', () => {
     request.cookies.set(DISPLAY_FORMAT_COOKIE_NAME, 'arabic_indic.iso');
     const html = await firstHtml();
     expect(html).toMatch(/<html[^>]* lang="ar-EG"[^>]* dir="rtl"/);
-    const arabic = translate('ar-EG', 'WorkDetail.noFiles');
-    expect(arabic).not.toBe(translate('en-US', 'WorkDetail.noFiles'));
+    const arabic = translate('ar-EG', 'WorkDetail.filesError');
+    expect(arabic).not.toBe(translate('en-US', 'WorkDetail.filesError'));
     expect(html).toContain(`<p id="hook">${arabic}</p>`);
     expect(html).toContain(`<p id="direct">${arabic}</p>`);
     expect(html).toContain('<p id="digits">١٢</p>');
-    expect(html).not.toContain(translate('en-US', 'WorkDetail.noFiles'));
+    expect(html).not.toContain(translate('en-US', 'WorkDetail.filesError'));
   });
 
   it('keeps the saved Latin digits for an Arabic member who chose them', async () => {
@@ -88,7 +88,7 @@ describe('the first HTML of a signed-in page', () => {
     request.cookies.set(DISPLAY_FORMAT_COOKIE_NAME, 'roman.nope.x');
     const html = await firstHtml();
     expect(html).toMatch(/<html[^>]* lang="en"[^>]* dir="ltr"/);
-    expect(html).toContain(`<p id="hook">${translate('en-US', 'WorkDetail.noFiles')}</p>`);
+    expect(html).toContain(`<p id="hook">${translate('en-US', 'WorkDetail.filesError')}</p>`);
     expect(html).not.toContain('<script>"');
   });
 
@@ -97,6 +97,6 @@ describe('the first HTML of a signed-in page', () => {
     request.cookies.set(LOCALE_COOKIE_NAME, 'ar-EG');
     const html = await firstHtml();
     expect(html).toMatch(/<html[^>]* lang="en"[^>]* dir="ltr"/);
-    expect(html).toContain(`<p id="hook">${translate('en-US', 'WorkDetail.noFiles')}</p>`);
+    expect(html).toContain(`<p id="hook">${translate('en-US', 'WorkDetail.filesError')}</p>`);
   });
 });

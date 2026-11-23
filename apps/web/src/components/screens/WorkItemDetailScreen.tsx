@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workItemStateMachine } from '@tmanage/domain';
@@ -13,13 +13,10 @@ import { MemberSelect } from '../MemberSelect';
 import './work-core.css';
 import { WorkCommentsPanel } from './WorkCommentsPanel';
 import { WorkItemCodeLinks } from './WorkItemCodeLinks';
-import { FigmaLinksPanel } from '../viewer/FigmaLinks';
-import { NotScannedDownload } from './NotScannedDownload';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
-import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
+import { browserApiClient } from '../../lib/api/browser-client';
 import {
   deleteWorkItem,
-  detachWorkItemFile,
   duplicateWorkItem,
   getWorkItem,
   getWorkItemClientAudience,
@@ -38,45 +35,13 @@ import type {
 } from '../../lib/api/work-items';
 import { listProjects } from '../../lib/api/projects';
 import { listWorkActivity } from '../../lib/api/work-activity';
-import {
-  addDeliverableVersion,
-  getDeliverable,
-  listApprovers,
-  listDeliverables,
-} from '../../lib/api/deliverables';
-import type { DeliverableDetailView, DeliverableVersionView } from '../../lib/api/deliverables';
+import { getDeliverable, listApprovers, listDeliverables } from '../../lib/api/deliverables';
+import type { DeliverableDetailView } from '../../lib/api/deliverables';
 import { listClientOrganizationOptions } from '../../lib/api/project-client';
 import { listProjectShares } from '../../lib/api/clients';
-import {
-  attachmentProblem,
-  uploadProjectFileFor,
-  uploadWorkItemAttachment,
-} from '../../lib/api/uploads';
-import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
-import type { UploadRow } from '../../lib/upload-queue';
-import {
-  getStorageStatus,
-  importDriveFileToWorkItem,
-  listDriveAttachments,
-} from '../../lib/api/google-drive';
-import {
-  getOneDriveStatus,
-  importOneDriveFileToWorkItem,
-  listOneDriveAttachments,
-} from '../../lib/api/onedrive';
-import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
-import type { PickedDriveItem } from '../../lib/google-picker';
-import { DriveAttachPicker } from '../storage/DriveAttachPicker';
 import { CloudFoldersCard } from '../storage/CloudFoldersCard';
-import { cloudImportMessageKey } from '../../lib/cloud-import-copy';
-import { HelpTip } from '../help/HelpTip';
-import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
-import { NoStorageAttach, useAttachStorageState } from '../storage/NoStorageAttach';
-import { addAttachmentVersion, getAttachmentHistory } from '../../lib/api/attachment-versions';
-import type { AttachmentVersion } from '../../lib/api/attachment-versions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
-import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -100,6 +65,8 @@ import { dayOf, formatShortDay, useA6T, WorkDialogFrame } from '../work/DueDateP
 import { useOwnerCandidates } from '../work/OwnerPickerDialog';
 import { needsSupervisorApproval, workItemPeopleKey } from '../work/WorkPeopleBlock';
 import { WorkDecision } from '../work/detail/WorkDecision';
+import { describeWorkError } from '../work/detail/describe-work-error';
+import { WorkFiles } from '../work/detail/WorkFiles';
 import { WorkPropertiesPanel } from '../work/detail/WorkPropertiesPanel';
 import { WorkSteps } from '../work/detail/WorkSteps';
 import { WorkTitle } from '../work/detail/WorkTitle';
@@ -186,12 +153,6 @@ function toLocalControlValue(instant: Date): string {
   return `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())}T${pad(instant.getHours())}:${pad(instant.getMinutes())}`;
 }
 
-function describe(error: unknown, t: (key: string) => string): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return t('WorkDetail.networkError');
-  return t('WorkDetail.genericError');
-}
-
 /**
  * How a refused write reads on this page, the same in the body and in the properties panel: a
  * stale version (409 on `version`) is "somebody else changed this first" and reloads the item;
@@ -207,7 +168,7 @@ function writeFailure(error: unknown, t: (key: string) => string): WriteFailure 
       ? { conflict: true }
       : { conflict: false, message: error.message };
   }
-  return { conflict: false, message: describe(error, t) };
+  return { conflict: false, message: describeWorkError(error, t) };
 }
 
 function WriteAlerts({ conflict, failure }: { conflict: boolean; failure: string | undefined }) {
@@ -226,16 +187,6 @@ function WriteAlerts({ conflict, failure }: { conflict: boolean; failure: string
       ) : null}
     </>
   );
-}
-
-function fileKind(name: string): string {
-  const dot = name.lastIndexOf('.');
-  return dot < 0
-    ? 'FILE'
-    : name
-        .slice(dot + 1)
-        .toUpperCase()
-        .slice(0, 5);
 }
 
 /**
@@ -311,7 +262,7 @@ export function WorkItemDetailScreen({
       }),
     onSuccess: changed,
     onError: (error) => {
-      setHeaderFailure(describe(error, ta));
+      setHeaderFailure(describeWorkError(error, ta));
       void item.refetch();
     },
   });
@@ -756,7 +707,7 @@ function WorkItemBody({
         ta('WorkDetail.copyOf', { title: item.title }),
       ),
     onSuccess: (copy) => onOpenItem(copy.id),
-    onError: (error) => setFailure(describe(error, ta)),
+    onError: (error) => setFailure(describeWorkError(error, ta)),
   });
 
   // 55-23: the delete is held behind an Undo toast for a few seconds; the item leaves at once
@@ -847,7 +798,7 @@ function WorkItemBody({
             </Button>
           ) : null}
         </div>
-        <FilesCard
+        <WorkFiles
           api={api}
           organizationSlug={organizationSlug}
           item={item}
@@ -864,13 +815,6 @@ function WorkItemBody({
           client={api}
           workItemId={item.id}
           projectId={item.projectId}
-        />
-        <FigmaLinksPanel
-          organizationSlug={organizationSlug}
-          projectId={item.projectId}
-          target={{ type: 'work_item', id: item.id }}
-          canAttach
-          client={api}
         />
         <WorkItemCodeLinks organizationSlug={organizationSlug} workItemId={item.id} api={api} />
       </section>
@@ -1090,575 +1034,6 @@ function DescriptionSection({
         </button>
       )}
     </section>
-  );
-}
-
-interface FilesCardProps {
-  api: ApiClient;
-  organizationSlug: string;
-  item: WorkItemSummary;
-  files: readonly ItemFile[];
-  loading: boolean;
-  failed: boolean;
-  backingOf: (file: ItemFile) => DeliverableDetailView | undefined;
-  latestOf: (detail: DeliverableDetailView) => DeliverableVersionView | undefined;
-  members: ReturnType<typeof useMembers>;
-  locale: string;
-}
-
-/** Which chain "Upload new version" adds to: a deliverable's, or a plain attachment's (C7). */
-type VersionTarget =
-  | { readonly kind: 'deliverable'; readonly id: string }
-  | { readonly kind: 'plain'; readonly id: string };
-
-function attachmentHistoryKey(organizationSlug: string, fileAssetId: string) {
-  return ['attachment-history', organizationSlug, fileAssetId] as const;
-}
-
-/** The Files card: attachments, "Attach file", and a version history for every file. */
-function FilesCard({
-  api,
-  organizationSlug,
-  item,
-  files,
-  loading,
-  failed,
-  backingOf,
-  latestOf,
-  members,
-  locale,
-}: FilesCardProps) {
-  const ta = useA6T();
-  const queries = useQueryClient();
-  const picker = useRef<HTMLInputElement>(null);
-  const versionPicker = useRef<HTMLInputElement>(null);
-  const [versionTarget, setVersionTarget] = useState<VersionTarget | null>(null);
-  const [problem, setProblem] = useState<string | undefined>(undefined);
-  const base = apiBaseUrl();
-  const href = (fileAssetId: string) =>
-    `${base}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(fileAssetId)}/content`;
-
-  // C7. The version history of each plain (not deliverable-backed) attachment.
-  const plainFiles = files.filter((file) => backingOf(file) === undefined).slice(0, 20);
-  const plainHistories = useQueries({
-    queries: plainFiles.map((file) => ({
-      queryKey: attachmentHistoryKey(organizationSlug, file.fileAssetId),
-      queryFn: () => getAttachmentHistory(api, organizationSlug, file.fileAssetId),
-    })),
-  });
-  const plainHistoryOf = (file: ItemFile): readonly AttachmentVersion[] => {
-    const index = plainFiles.findIndex((entry) => entry.id === file.id);
-    return index < 0 ? [] : (plainHistories[index]?.data?.versions ?? []);
-  };
-
-  const addPlainVersion = useMutation({
-    mutationFn: (input: { rootFileAssetId: string; fileAssetId: string }) =>
-      addAttachmentVersion(api, organizationSlug, input.rootFileAssetId, {
-        fileAssetId: input.fileAssetId,
-      }),
-    onSuccess: (_history, input) => {
-      setProblem(undefined);
-      void queries.invalidateQueries({
-        queryKey: attachmentHistoryKey(organizationSlug, input.rootFileAssetId),
-      });
-    },
-    onError: (error) => setProblem(describe(error, ta)),
-  });
-
-  // B (wave 17). Files attached from Google Drive are listed below the TManage ones in the same
-  // rows; the storage status decides whether the Drive picker is offered.
-  const storageQuery = {
-    queryKey: ['storage-status', organizationSlug],
-    queryFn: () => getStorageStatus(api, organizationSlug),
-    staleTime: 60_000,
-  };
-  const storage = useQuery(storageQuery);
-  // 419:23811 / 419:23844: with neither Google Drive nor OneDrive chosen, nothing can be attached;
-  // files attached before stay listed.
-  const attachState = useAttachStorageState(organizationSlug, api);
-  const noStorage = attachState === 'connect' || attachState === 'ask';
-  const driveKey = ['drive-attachments', organizationSlug, item.id] as const;
-  const driveFiles = useQuery({
-    queryKey: driveKey,
-    queryFn: () => listDriveAttachments(api, organizationSlug, item.id),
-    enabled: storage.data?.configured === true,
-  });
-  const driveRows = driveFiles.data ?? [];
-
-  // 0236. The same for OneDrive: its files below Drive's, and "Attach from OneDrive" in the head.
-  const oneDriveQuery = {
-    queryKey: oneDriveStatusKey(organizationSlug),
-    queryFn: () => getOneDriveStatus(api, organizationSlug),
-    staleTime: 60_000,
-  };
-  const oneDrive = useQuery(oneDriveQuery);
-  const oneDriveKey = ['onedrive-attachments', organizationSlug, item.id] as const;
-  const oneDriveFiles = useQuery({
-    queryKey: oneDriveKey,
-    queryFn: () => listOneDriveAttachments(api, organizationSlug, item.id),
-    enabled: oneDrive.data?.configured === true,
-  });
-  const oneDriveRows = oneDriveFiles.data ?? [];
-  // FIX6 C1. A picked drive file becomes a checked TManage copy in this item's files (the server
-  // fetches it), so the client can open it in the portal without connecting anything.
-  const filesKey = ['work-item-files', organizationSlug, item.id] as const;
-  const cloudProblem = (error: unknown) => {
-    const key = cloudImportMessageKey(error);
-    return key ? ta(key) : describe(error, ta);
-  };
-  const attachFromOneDrive = useMutation({
-    mutationFn: async (picked: readonly PickedOneDriveItem[]) => {
-      for (const file of picked) {
-        await importOneDriveFileToWorkItem(api, organizationSlug, item.id, file);
-      }
-    },
-    onSuccess: () => setProblem(undefined),
-    onError: (error) => setProblem(cloudProblem(error)),
-    onSettled: () => void queries.invalidateQueries({ queryKey: filesKey }),
-  });
-  const attachFromDrive = useMutation({
-    mutationFn: async (picked: readonly PickedDriveItem[]) => {
-      for (const file of picked) {
-        await importDriveFileToWorkItem(api, organizationSlug, item.id, file.id);
-      }
-    },
-    onSuccess: () => setProblem(undefined),
-    onError: (error) => setProblem(cloudProblem(error)),
-    onSettled: () => void queries.invalidateQueries({ queryKey: filesKey }),
-  });
-
-  // 409:6602. Each new file is a progress row (bar, Cancel, Retry) until it is attached; a dropped
-  // connection reads "Upload stopped at N %", any other refusal in the API's words.
-  const uploads = useUploadQueue((error) =>
-    error instanceof NetworkError ? null : describe(error, ta),
-  );
-  // UX-1 (live UX test 69836a13, O-P1-2): several files at once. A file the checks refuse before
-  // sending (empty, too large, a blocked type) is named with its reason instead of being dropped;
-  // the others go up, each with its own progress row and Retry.
-  const attachFiles = (picked: readonly File[]) => {
-    const refused = picked.flatMap((file) => {
-      const reason = attachmentProblem(file);
-      return reason === null ? [] : [reason];
-    });
-    setProblem(refused.length > 0 ? refused.join(' ') : undefined);
-    for (const file of picked) {
-      if (attachmentProblem(file) === null) void attachFile(file);
-    }
-  };
-  const attachFile = async (file: File) => {
-    // FIX6 item 2: the same road as chat and Files — uploaded to TManage, attached as an item file.
-    await uploads.start(file, async (sent, deps) => {
-      const attached = await uploadWorkItemAttachment(
-        api,
-        organizationSlug,
-        { workItemId: item.id, projectId: item.projectId, file: sent },
-        deps,
-      );
-      void queries.invalidateQueries({ queryKey: filesKey });
-      return attached.id;
-    });
-  };
-  // A finished row stands in for its attachment, so the list below does not show it twice.
-  const justUploaded = new Set(
-    uploads.rows.flatMap((row) => (row.state === 'done' && row.resultId ? [row.resultId] : [])),
-  );
-  const removeUpload = async (row: UploadRow) => {
-    if (row.state === 'done' && row.resultId) {
-      try {
-        await detachWorkItemFile(api, organizationSlug, item.id, row.resultId);
-      } catch (error) {
-        setProblem(describe(error, ta));
-        return;
-      }
-      void queries.invalidateQueries({ queryKey: filesKey });
-    }
-    uploads.remove(row.id);
-  };
-
-  const addVersion = useMutation({
-    mutationFn: async (input: {
-      deliverableId: string;
-      fileAssetId: string;
-      note: string | null;
-    }) =>
-      addDeliverableVersion(api, organizationSlug, input.deliverableId, {
-        fileAssetId: input.fileAssetId,
-        note: input.note,
-      }),
-    onSuccess: (_version, input) => {
-      setProblem(undefined);
-      void queries.invalidateQueries({
-        queryKey: ['deliverable', organizationSlug, input.deliverableId],
-      });
-    },
-    onError: (error) => setProblem(describe(error, ta)),
-  });
-
-  async function uploadVersion(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || versionTarget === null) return;
-    const target = versionTarget;
-    try {
-      // FIX6 item 1: the file is used once its checks pass, and removed again if refused.
-      await uploadProjectFileFor(
-        api,
-        organizationSlug,
-        { projectId: item.projectId, file },
-        async (fileAssetId) => {
-          if (target.kind === 'deliverable') {
-            await addVersion.mutateAsync({ deliverableId: target.id, fileAssetId, note: null });
-          } else {
-            await addPlainVersion.mutateAsync({ rootFileAssetId: target.id, fileAssetId });
-          }
-        },
-      );
-    } catch (error) {
-      setProblem(describe(error, ta));
-    }
-  }
-
-  const nameOf = (userId: string) => memberDisplayName(userId, members.members, members.isPending);
-
-  return (
-    // The page's Files section owns the heading; this is its body (no second "Files" landmark).
-    <div
-      className="tm-wk-card"
-      onDragOver={(event) => {
-        if (!noStorage && event.dataTransfer.types.includes('Files')) event.preventDefault();
-      }}
-      onDrop={(event) => {
-        if (noStorage || !event.dataTransfer.types.includes('Files')) return;
-        event.preventDefault();
-        attachFiles(Array.from(event.dataTransfer.files));
-      }}
-    >
-      <div className="tm-wk-card__head">
-        {noStorage ? null : (
-          <>
-            <button
-              type="button"
-              className="tm-wk-pill-button"
-              data-tone="outline"
-              onClick={() => picker.current?.click()}
-            >
-              {ta('WorkDetail.attachFile')}
-            </button>
-            <HelpTip tip={ta('CloudImport.tip')}>
-              <span className="tm-row tm-row--wrap">
-                <DriveAttachPicker
-                  organizationSlug={organizationSlug}
-                  client={api}
-                  picked={[]}
-                  onPick={(picked) => attachFromDrive.mutate(picked)}
-                  onRemove={() => undefined}
-                  projectId={item.projectId}
-                  disabled={attachFromDrive.isPending}
-                />
-                <OneDriveAttachPicker
-                  organizationSlug={organizationSlug}
-                  client={api}
-                  picked={[]}
-                  onPick={(picked) => attachFromOneDrive.mutate(picked)}
-                  onRemove={() => undefined}
-                  projectId={item.projectId}
-                  disabled={attachFromOneDrive.isPending}
-                  showList={false}
-                />
-              </span>
-            </HelpTip>
-          </>
-        )}
-        <input
-          ref={picker}
-          type="file"
-          multiple
-          hidden
-          aria-hidden="true"
-          tabIndex={-1}
-          onChange={(event) => {
-            const picked = Array.from(event.target.files ?? []);
-            event.target.value = '';
-            attachFiles(picked);
-          }}
-        />
-        <input
-          ref={versionPicker}
-          type="file"
-          hidden
-          aria-hidden="true"
-          tabIndex={-1}
-          onChange={(event) => void uploadVersion(event)}
-        />
-      </div>
-
-      {noStorage ? (
-        <NoStorageAttach organizationSlug={organizationSlug} client={api} state={attachState} />
-      ) : null}
-      {problem ? (
-        <InlineAlert tone="danger" title={ta('WorkDetail.fileProblem')} live>
-          {problem}
-        </InlineAlert>
-      ) : null}
-      {loading ? <Skeleton height="var(--row)" /> : null}
-      {failed ? <p className="tm-field__hint">{ta('WorkDetail.filesError')}</p> : null}
-      {!loading &&
-      !failed &&
-      !noStorage &&
-      files.length === 0 &&
-      uploads.rows.length === 0 &&
-      driveRows.length === 0 &&
-      oneDriveRows.length === 0 ? (
-        <p className="tm-field__hint">{ta('WorkDetail.noFiles')}</p>
-      ) : null}
-
-      <ul className="tm-wk-files">
-        {uploads.rows.map((row) => (
-          <UploadProgressItem
-            key={row.id}
-            row={row}
-            onCancel={uploads.cancel}
-            onRetry={uploads.retry}
-            onRemove={(done) => void removeUpload(done)}
-            removableWhenDone
-          />
-        ))}
-        {files
-          .filter((file) => !justUploaded.has(file.id))
-          .map((file) => {
-            const backing = backingOf(file);
-            const latest = backing ? latestOf(backing) : undefined;
-            const plain = backing ? [] : plainHistoryOf(file);
-            const plainLatest = plain.length > 1 ? plain[0] : undefined;
-            const servedAsset = latest?.fileAssetId ?? plainLatest?.fileAssetId ?? file.fileAssetId;
-            const availability = plainLatest?.availability ?? file.availability;
-            const history = backing
-              ? [...backing.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))
-              : [];
-            return (
-              <li key={file.id} className="tm-wk-file" data-backed={backing !== undefined}>
-                <div
-                  className={
-                    availability === 'scanning' ? 'tm-wk-file__row tm-scan-row' : 'tm-wk-file__row'
-                  }
-                >
-                  <span className="tm-wk-badge">{fileKind(file.fileName)}</span>
-                  <span className="tm-wk-file__text">
-                    <span className="tm-wk-file__name">{file.fileName}</span>
-                    <span className="tm-wk-file__meta">
-                      {latest
-                        ? ta('WorkDetail.versionUpdated', {
-                            n: latest.versionNo ?? 1,
-                            day: formatShortDay(dayOf(latest.createdAt), locale),
-                            name: nameOf(latest.createdByUserId),
-                          })
-                        : plainLatest
-                          ? ta('WorkDetail.versionUpdated', {
-                              n: plainLatest.versionNo,
-                              day: formatShortDay(dayOf(plainLatest.createdAt), locale),
-                              name: nameOf(plainLatest.createdByUserId),
-                            })
-                          : ta('WorkDetail.versionOn', {
-                              n: 1,
-                              day: formatShortDay(dayOf(file.createdAt), locale),
-                            })}
-                    </span>
-                  </span>
-                  {availability !== 'unavailable' ? (
-                    // V-54: the work item's Files tab opens the viewer with "Review".
-                    <Link
-                      className="tm-wk-text-button"
-                      href={`/${organizationSlug}/files/${encodeURIComponent(servedAsset)}`}
-                      aria-label={`${file.fileName} · ${ta('WorkDetail.review')}`}
-                    >
-                      {ta('WorkDetail.review')}
-                    </Link>
-                  ) : null}
-                  {availability === 'ready' ? (
-                    <a
-                      className="tm-wk-text-button"
-                      href={href(servedAsset)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {ta('WorkDetail.download')}
-                    </a>
-                  ) : availability === 'scanning' ? (
-                    <NotScannedDownload href={href(servedAsset)} fileName={file.fileName} />
-                  ) : (
-                    <span className="tm-wk-file__meta" role="status">
-                      {ta('WorkDetail.unavailable')}
-                    </span>
-                  )}
-                </div>
-
-                {backing ? (
-                  <>
-                    <div className="tm-wk-history">
-                      <p className="tm-wk-history__title">{ta('WorkDetail.versionHistory')}</p>
-                      <ul>
-                        {history.map((version, index) => (
-                          <li key={version.id} data-current={index === 0}>
-                            <span>
-                              {index === 0
-                                ? ta('WorkDetail.versionCurrent', { n: version.versionNo ?? 1 })
-                                : ta('WorkDetail.versionBy', {
-                                    n: version.versionNo ?? 1,
-                                    name: nameOf(version.createdByUserId),
-                                  })}
-                            </span>
-                            {index === 0 ? (
-                              <span>{formatShortDay(dayOf(version.createdAt), locale)}</span>
-                            ) : version.fileAssetId !== null ? (
-                              <button
-                                type="button"
-                                className="tm-wk-text-button"
-                                disabled={addVersion.isPending}
-                                onClick={() =>
-                                  addVersion.mutate({
-                                    deliverableId: backing.id,
-                                    fileAssetId: version.fileAssetId as string,
-                                    note: ta('WorkDetail.restoredNote', {
-                                      n: version.versionNo ?? 1,
-                                    }),
-                                  })
-                                }
-                              >
-                                {ta('WorkDetail.restore')}
-                              </button>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <button
-                      type="button"
-                      className="tm-wk-pill-button"
-                      data-tone="outline"
-                      disabled={addVersion.isPending}
-                      onClick={() => {
-                        setVersionTarget({ kind: 'deliverable', id: backing.id });
-                        versionPicker.current?.click();
-                      }}
-                    >
-                      {ta('WorkDetail.uploadVersion')}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {plain.length > 1 ? (
-                      <div className="tm-wk-history">
-                        <p className="tm-wk-history__title">{ta('WorkDetail.versionHistory')}</p>
-                        <ul>
-                          {plain.map((version) => (
-                            <li key={version.fileAssetId} data-current={version.current}>
-                              <span>
-                                {version.current
-                                  ? ta('WorkDetail.versionCurrent', { n: version.versionNo })
-                                  : ta('WorkDetail.versionBy', {
-                                      n: version.versionNo,
-                                      name: nameOf(version.createdByUserId),
-                                    })}
-                              </span>
-                              {version.current ? (
-                                <span>{formatShortDay(dayOf(version.createdAt), locale)}</span>
-                              ) : version.availability === 'ready' ? (
-                                <a
-                                  className="tm-wk-text-button"
-                                  href={href(version.fileAssetId)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  {ta('WorkDetail.download')}
-                                </a>
-                              ) : version.availability === 'scanning' ? (
-                                <NotScannedDownload
-                                  href={href(version.fileAssetId)}
-                                  fileName={version.fileName}
-                                />
-                              ) : (
-                                <span role="status">{ta('WorkDetail.unavailable')}</span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="tm-wk-pill-button"
-                      data-tone="outline"
-                      disabled={addPlainVersion.isPending}
-                      onClick={() => {
-                        setVersionTarget({ kind: 'plain', id: file.fileAssetId });
-                        versionPicker.current?.click();
-                      }}
-                    >
-                      {ta('WorkDetail.uploadVersion')}
-                    </button>
-                  </>
-                )}
-              </li>
-            );
-          })}
-        {driveRows
-          .filter((drive) => !justUploaded.has(drive.id))
-          .map((drive) => (
-            <li key={drive.id} className="tm-wk-file" data-backed={false}>
-              <div className="tm-wk-file__row">
-                <span className="tm-wk-badge">{fileKind(drive.name)}</span>
-                <span className="tm-wk-file__text">
-                  <span className="tm-wk-file__name">{drive.name}</span>
-                  <span className="tm-wk-file__meta">
-                    {ta('WorkDetail.versionOn', {
-                      n: 1,
-                      day: formatShortDay(dayOf(drive.createdAt), locale),
-                    })}
-                  </span>
-                </span>
-                {drive.webViewLink ? (
-                  <a
-                    className="tm-wk-text-button"
-                    href={drive.webViewLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {ta('WorkDetail.download')}
-                  </a>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        {oneDriveRows
-          .filter((file) => !justUploaded.has(file.id))
-          .map((file) => (
-            <li key={file.id} className="tm-wk-file" data-backed={false}>
-              <div className="tm-wk-file__row">
-                <span className="tm-wk-badge">{fileKind(file.name)}</span>
-                <span className="tm-wk-file__text">
-                  <span className="tm-wk-file__name">{file.name}</span>
-                  <span className="tm-wk-file__meta">
-                    {ta('WorkDetail.versionOn', {
-                      n: 1,
-                      day: formatShortDay(dayOf(file.createdAt), locale),
-                    })}
-                  </span>
-                </span>
-                {file.webUrl ? (
-                  <a
-                    className="tm-wk-text-button"
-                    href={file.webUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {ta('WorkDetail.download')}
-                  </a>
-                ) : null}
-              </div>
-            </li>
-          ))}
-      </ul>
-    </div>
   );
 }
 

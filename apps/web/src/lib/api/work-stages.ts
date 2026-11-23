@@ -21,6 +21,8 @@ export interface StageView {
   readonly group: StageGroup;
   readonly colorKey: string | null;
   readonly position: number;
+  /** Live works on this stage; they move when it is deleted. */
+  readonly workCount: number;
 }
 
 export interface StageSetView {
@@ -32,6 +34,8 @@ export interface StageSetView {
   /** The built-in stages (never stored, not editable); names are shown by state label. */
   readonly isBuiltIn: boolean;
   readonly version: number;
+  /** Projects pointed at this set ("Used by 3 projects"). */
+  readonly projectCount: number;
   readonly stages: readonly StageView[];
   readonly createdAt: string | null;
   readonly updatedAt: string | null;

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, InlineAlert } from '@tmanage/ui';
+import { Button, InlineAlert, type ButtonTone } from '@tmanage/ui';
 import {
   getOneDrivePickerSession,
   getOneDriveStatus,
@@ -34,6 +34,8 @@ export interface OneDriveAttachPickerProps {
   /** FIX6 C3: `folder` picks one folder (Microsoft's own picker only); the button says `label`. */
   mode?: 'files' | 'folder';
   label?: string;
+  /** The button's look: outline on its own, `text` as an entry of the work page's Attach menu. */
+  tone?: Extract<ButtonTone, 'outline' | 'text'>;
 }
 
 export const oneDriveStatusKey = (organizationSlug: string) =>
@@ -72,6 +74,7 @@ export function OneDriveAttachPicker({
   showList = true,
   mode = 'files',
   label,
+  tone = 'outline',
 }: OneDriveAttachPickerProps) {
   const t = useT();
   const locale = useActiveLocale();
@@ -123,7 +126,7 @@ export function OneDriveAttachPicker({
   return (
     <div className="tm-onedrive-attach">
       <Button
-        tone="outline"
+        tone={tone}
         loading={pick.isPending}
         loadingLabel={t('OneDriveAttach.opening')}
         disabled={disabled || projectId === ''}

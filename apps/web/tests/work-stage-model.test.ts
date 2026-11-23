@@ -25,6 +25,7 @@ function stage(id: string, stateKey: string, position: number): StageView {
     group: groupOfState(stateKey) ?? 'not_started',
     colorKey: null,
     position,
+    workCount: 0,
   };
 }
 
@@ -37,6 +38,7 @@ function set(id: string, stages: readonly StageView[]): StageSetView {
     isDefault: false,
     isBuiltIn: false,
     version: 1,
+    projectCount: 0,
     stages,
     createdAt: null,
     updatedAt: null,

@@ -8,7 +8,7 @@ import { browserApiClient } from '../../../lib/api/browser-client';
 import type { StageSetView } from '../../../lib/api/work-stages';
 import { useA6T } from '../DueDatePicker';
 import { ChevronDownIcon } from '../work-icons';
-import { editorSets } from './stage-editor-model';
+import { editorSets, projectsKey } from './stage-editor-model';
 import { NewStageSetDialog } from './NewStageSetDialog';
 import { StageSetEditor } from './StageSetEditor';
 import { useStageSets } from './use-work-stages';
@@ -24,12 +24,16 @@ export interface StagesSettingsScreenProps {
   readonly client?: ApiClient;
 }
 
-/** "Workspace default · 2 stages"-style line under each set in the list. */
+/**
+ * The line under each set in the list (Figma W7: "Workspace default", "2 projects"): what uses it.
+ * A set no project points at yet says how many stages it has.
+ */
 function listNote(set: StageSetView, t: ReturnType<typeof useA6T>): string {
-  const count = t('WorkStages.editor.stagesCount', { count: set.stages.length });
-  if (set.isDefault) return `${t('WorkStages.workspaceDefault')} · ${count}`;
-  if (set.projectId !== null) return `${t('WorkStages.editor.projectSet')} · ${count}`;
-  return count;
+  if (set.isDefault) return t('WorkStages.workspaceDefault');
+  if (set.projectId !== null) return t('WorkStages.editor.projectSet');
+  return set.projectCount > 0
+    ? t(projectsKey(set.projectCount), { count: set.projectCount })
+    : t('WorkStages.editor.stagesCount', { count: set.stages.length });
 }
 
 /**
@@ -71,6 +75,9 @@ export function StagesSettingsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="stages"
+      // Figma WV2-07 phone (WX1, must-fix 4): an opened set draws "‹ Stages" and its name, so
+      // the page title is not drawn above them.
+      phoneHeader={view === 'set' ? 'hide' : 'show'}
       title={t('WorkStages.editor.title')}
       titleMeta={
         <InfoButton title={t('WorkStages.editor.title')} label={t('WorkStages.editor.infoLabel')}>

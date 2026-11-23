@@ -373,6 +373,55 @@ export class WorkStagesRepository {
   }
 
   /**
+   * What the stage-set screens say about use (Figma W7 "Used by 3 projects", W9 "3 work items
+   * will move"): per set, the projects pointed at it; per stage, the live works on it. Two
+   * grouped reads for any number of sets, never one per set or stage.
+   */
+  async usageCounts(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    sets: readonly StageSetWithStages[],
+  ): Promise<{
+    readonly projectsBySet: ReadonlyMap<string, number>;
+    readonly worksByStage: ReadonlyMap<string, number>;
+  }> {
+    const setIds = sets.map((entry) => entry.set.id);
+    const stageIds = sets.flatMap((entry) => entry.stages.map((stage) => stage.id));
+    if (setIds.length === 0) return { projectsBySet: new Map(), worksByStage: new Map() };
+    const db = tenantDrizzle(runner);
+    const projects = await db
+      .select({ setId: workStageSetProjects.stageSetId, n: sql<number>`count(*)` })
+      .from(workStageSetProjects)
+      .where(
+        and(
+          eq(workStageSetProjects.organizationId, context.organizationId),
+          inArray(workStageSetProjects.stageSetId, setIds),
+        ),
+      )
+      .groupBy(workStageSetProjects.stageSetId);
+    const works =
+      stageIds.length === 0
+        ? []
+        : await db
+            .select({ stageId: workItems.stageId, n: sql<number>`count(*)` })
+            .from(workItems)
+            .where(
+              and(
+                eq(workItems.organizationId, context.organizationId),
+                inArray(workItems.stageId, stageIds),
+                isNull(workItems.deletedAt),
+              ),
+            )
+            .groupBy(workItems.stageId);
+    return {
+      projectsBySet: new Map(projects.map((row) => [row.setId, Number(row.n)])),
+      worksByStage: new Map(
+        works.flatMap((row) => (row.stageId === null ? [] : [[row.stageId, Number(row.n)]])),
+      ),
+    };
+  }
+
+  /**
    * How many live works that use this set are in `state` — the set itself, a project linked to
    * it (works without their own set), or, for the workspace default, every work with neither.
    */

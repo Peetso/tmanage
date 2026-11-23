@@ -49,8 +49,10 @@ export interface WorkRowsProps {
  * The Works table (Figma `WV2-01`, `930:95062`): a round tick that marks the work done (the same
  * shape as a step), the title, the stage capsule, the doers' faces, the supervisor's, the due day,
  * the client and when it last changed. Selecting rows (for the bulk "who sees it" change) and the
- * hand-made order live in a gutter at the start that shows on hover and focus, so the resting
- * row is the design's and nothing is lost. On a phone the same rows become two-line cards
+ * hand-made order live in a gutter at the start that takes no width until select mode is on or
+ * a control in it has keyboard focus (Fable WORK-BUILD 14), so the resting row is the design's:
+ * the tick 24 px from the table edge. "Select all" sits above the ticks and shows on hover and
+ * focus; once anything is chosen, every row shows its box and drag handle. On a phone the same rows become two-line cards
  * (`930:95709`): title and faces, then stage, due · client.
  */
 export function WorkRows({
@@ -104,7 +106,10 @@ export function WorkRows({
         <caption className="tm-visually-hidden">{caption}</caption>
         <thead>
           <tr>
-            <th scope="col" className="tm-wl-cell--gutter">
+            <td className="tm-wl-cell--gutter" />
+            <th scope="col" className="tm-wl-cell--tick">
+              <span className="tm-visually-hidden">{t('WorkListScreen.colDone')}</span>
+              {/* Select all sits above the ticks: the gutter takes no width until select mode. */}
               <input
                 className="tm-wl-select"
                 type="checkbox"
@@ -112,9 +117,6 @@ export function WorkRows({
                 checked={allSelected}
                 onChange={onToggleAll}
               />
-            </th>
-            <th scope="col" className="tm-wl-cell--tick">
-              <span className="tm-visually-hidden">{t('WorkListScreen.colDone')}</span>
             </th>
             {header('title', t('WorkListScreen.colTitle'), 'tm-wl-cell--title')}
             {header('stage', t('WorkPage.stage'), 'tm-wl-cell--stage')}

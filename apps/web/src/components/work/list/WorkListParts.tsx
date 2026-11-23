@@ -20,11 +20,14 @@ export function Faces({
   ids,
   nameOf,
   emptyLabel,
+  max = FACES,
 }: {
   readonly ids: readonly string[];
   readonly nameOf: (userId: string) => string;
   /** Read for an empty cell ("No supervisor"); the cell shows a dash. */
   readonly emptyLabel?: string;
+  /** Faces drawn before "+N": three in the table, two on a board card (beside its due day). */
+  readonly max?: number;
 }) {
   if (ids.length === 0) {
     return (
@@ -38,15 +41,15 @@ export function Faces({
   return (
     <span className="tm-wl-faces" title={names.join(', ')}>
       <span className="tm-wl-faces__stack" aria-hidden="true">
-        {ids.slice(0, FACES).map((id, index) => (
+        {ids.slice(0, max).map((id, index) => (
           <span key={id} className="tm-wl-face">
             {initialsOf(names[index] ?? '')}
           </span>
         ))}
       </span>
-      {ids.length > FACES ? (
+      {ids.length > max ? (
         // U+200E keeps "+1" reading left to right inside Arabic text (Fable must-fix 6).
-        <span className="tm-wl-faces__more" aria-hidden="true">{`‎+${ids.length - FACES}`}</span>
+        <span className="tm-wl-faces__more" aria-hidden="true">{`‎+${ids.length - max}`}</span>
       ) : null}
       <span className="tm-visually-hidden">{names.join(', ')}</span>
     </span>

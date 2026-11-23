@@ -19,8 +19,9 @@ function stage(
   stateKey: string,
   group: StageView['group'],
   position: number,
+  workCount = 0,
 ): StageView {
-  return { id, name, stateKey, group, colorKey: null, position };
+  return { id, name, stateKey, group, colorKey: null, position, workCount };
 }
 
 const GROUP_OF: Readonly<Record<string, StageView['group']>> = {
@@ -45,6 +46,7 @@ function set(
     isDefault: false,
     isBuiltIn: false,
     version: 1,
+    projectCount: 0,
     stages,
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
@@ -65,20 +67,32 @@ export function stageSetsFixture(options: { emptyReview?: boolean } = {}): Stage
       ],
       { scope: 'workspace', isDefault: true },
     ),
-    set('set-design', 'Design thinking', [
-      stage('st-empathize', 'Empathize', 'ready', 'not_started', 0),
-      stage('st-define', 'Define', 'in_progress', 'in_progress', 1),
-      stage('st-ideate', 'Ideate', 'in_progress', 'in_progress', 2),
-      stage('st-prototype', 'Prototype', 'in_progress', 'in_progress', 3),
-      ...(options.emptyReview ? [] : [stage('st-test', 'Test', 'internal_review', 'in_review', 4)]),
-      stage('st-done', 'Done', 'done', 'done', 5),
-    ]),
-    set('set-client', 'Client delivery', [
-      stage('cd-brief', 'Brief', 'ready', 'not_started', 0),
-      stage('cd-make', 'Make', 'in_progress', 'in_progress', 1),
-      stage('cd-client', 'Client review', 'internal_review', 'in_review', 2),
-      stage('cd-done', 'Delivered', 'done', 'done', 3),
-    ]),
+    set(
+      'set-design',
+      'Design thinking',
+      [
+        stage('st-empathize', 'Empathize', 'ready', 'not_started', 0),
+        stage('st-define', 'Define', 'in_progress', 'in_progress', 1),
+        stage('st-ideate', 'Ideate', 'in_progress', 'in_progress', 2, 3),
+        stage('st-prototype', 'Prototype', 'in_progress', 'in_progress', 3),
+        ...(options.emptyReview
+          ? []
+          : [stage('st-test', 'Test', 'internal_review', 'in_review', 4)]),
+        stage('st-done', 'Done', 'done', 'done', 5),
+      ],
+      { projectCount: 2 },
+    ),
+    set(
+      'set-client',
+      'Client delivery',
+      [
+        stage('cd-brief', 'Brief', 'ready', 'not_started', 0),
+        stage('cd-make', 'Make', 'in_progress', 'in_progress', 1),
+        stage('cd-client', 'Client review', 'internal_review', 'in_review', 2),
+        stage('cd-done', 'Delivered', 'done', 'done', 3),
+      ],
+      { projectCount: 1 },
+    ),
   ];
 }
 

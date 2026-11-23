@@ -116,7 +116,9 @@ describe('stage rules', () => {
 
 // ── the stages service ───────────────────────────────────────────────────────
 
-function stagesHarness(options: { inReview?: number; onStage?: number } = {}) {
+function stagesHarness(
+  options: { inReview?: number; onStage?: number; worksByStage?: Record<string, number> } = {},
+) {
   const sets = new Map<string, StageSetWithStages>();
   const links = new Map<string, string>();
   const audits: { action: string; metadata: Record<string, unknown> }[] = [];
@@ -254,6 +256,15 @@ function stagesHarness(options: { inReview?: number; onStage?: number } = {}) {
     usage: async (_r: unknown, _c: unknown, setId: string) => ({
       projects: [...links.values()].filter((id) => id === setId).length,
       works: 0,
+    }),
+    usageCounts: async (_r: unknown, _c: unknown, listed: readonly StageSetWithStages[]) => ({
+      projectsBySet: new Map(
+        listed.map((entry) => [
+          entry.set.id,
+          [...links.values()].filter((id) => id === entry.set.id).length,
+        ]),
+      ),
+      worksByStage: new Map(Object.entries(options.worksByStage ?? {})),
     }),
     worksOnSetInState: async () => options.inReview ?? 0,
     projectWorksInState: async () => options.inReview ?? 0,
@@ -473,6 +484,21 @@ describe('WorkStagesService', () => {
     await service.setProjectSet(context, OWNER, PROJECT, null);
     await service.deleteSet(context, OWNER, shared.id);
     await expect(service.getSet(context, shared.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('a set says how many projects use it and how many works sit on each stage', async () => {
+    const { service } = stagesHarness({ worksByStage: { 'set-1-s1': 3 } });
+    const set = await service.createSet(context, OWNER, { name: 'Agency flow' });
+    expect(set.projectCount).toBe(0);
+    await service.setProjectSet(context, OWNER, PROJECT, set.id);
+    const read = await service.getSet(context, set.id);
+    expect(read.projectCount).toBe(1);
+    expect(read.stages.map((stage) => stage.workCount)).toEqual(
+      read.stages.map((stage) => (stage.id === 'set-1-s1' ? 3 : 0)),
+    );
+    expect((await service.listSets(context))[0]).toMatchObject({ id: set.id, projectCount: 1 });
+    const effective = await service.projectSet(context, OWNER, PROJECT);
+    expect(effective).toMatchObject({ source: 'project', stageSet: { projectCount: 1 } });
   });
 
   it('a project falls back to the workspace default, then to the built-in stages', async () => {

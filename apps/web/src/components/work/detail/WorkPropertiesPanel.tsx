@@ -42,6 +42,7 @@ import {
   FolderIcon,
   ForwardIcon,
   InfoIcon,
+  LockIcon,
   PlayIcon,
   PlusIcon,
 } from '../work-icons';
@@ -204,7 +205,7 @@ export function WorkPropertiesPanel({
 
   const audienceLabel =
     item.audience === 'internal'
-      ? t('WorkPage.audienceInternal')
+      ? t('WorkPage.audienceTeamOnly')
       : item.audience === 'client_action_required'
         ? t('WorkPage.audienceAction')
         : t('WorkPage.audienceFollow');
@@ -221,8 +222,12 @@ export function WorkPropertiesPanel({
   const repeats = recurrence.data
     ? t(`WorkPage.repeat.${recurrence.data.freq.toLowerCase()}`)
     : t('WorkPage.repeatNo');
+  // Figma WV2-09: nothing logged and no estimate reads "Add", not "0m".
+  const noTime =
+    estimate.data === undefined ||
+    (estimate.data.estimateMinutes === null && estimate.data.actualMinutes === 0);
   const time =
-    estimate.data === undefined
+    estimate.data === undefined || noTime
       ? add
       : estimate.data.estimateMinutes === null
         ? formatDuration(estimate.data.actualMinutes, locale)
@@ -345,7 +350,7 @@ export function WorkPropertiesPanel({
         label={t('WorkPage.client')}
         value={
           clientNames.length === 0 || item.audience === 'internal' ? (
-            t('WorkPage.audienceInternal')
+            add
           ) : (
             <span className="tm-wk-inline">
               <span className="tm-wk-client-dot" aria-hidden="true" />
@@ -353,6 +358,7 @@ export function WorkPropertiesPanel({
             </span>
           )
         }
+        empty={clientNames.length === 0 || item.audience === 'internal'}
         icon={<ChevronDownIcon />}
         iconLabel={t('WorkPage.changeClient')}
         popover={audienceEditor}
@@ -363,7 +369,7 @@ export function WorkPropertiesPanel({
         label={t('WorkPage.whoSees')}
         value={
           <span className="tm-wk-inline">
-            <EyeIcon />
+            {item.audience === 'internal' ? <LockIcon /> : <EyeIcon />}
             {audienceLabel}
           </span>
         }
@@ -446,6 +452,7 @@ export function WorkPropertiesPanel({
       <PanelRow
         label={t('WorkPage.time')}
         value={time}
+        empty={noTime}
         icon={<PlayIcon />}
         iconLabel={t('WorkPage.openTime')}
         href={`/${organizationSlug}/work/${item.id}/time-logs`}
@@ -514,6 +521,7 @@ export function WorkPropertiesPanel({
           saving={savePeople.isPending || saving}
           onSave={(ids) => savePeople.mutate({ row: picking, ids })}
           onClose={() => setPicking(null)}
+          {...(picking === 'supervisors' ? {} : { teams: { api, organizationSlug } })}
         />
       ) : null}
     </section>

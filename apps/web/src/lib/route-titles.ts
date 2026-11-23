@@ -432,6 +432,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     key: 'RouteTitle.projectRiskRegister',
   },
   '/[orgSlug]/projects/[projectId]/risks': { en: 'Risks', key: 'RouteTitle.projectRisks' },
+  '/[orgSlug]/projects/[projectId]/stages': { en: 'Stages', key: 'RouteTitle.projectStages' },
   '/[orgSlug]/projects/new': { en: 'New project', key: 'RouteTitle.projectNew' },
   '/[orgSlug]/projects/portfolio': { en: 'Portfolio', key: 'RouteTitle.projectsPortfolio' },
   '/[orgSlug]/projects/tags': { en: 'Project tags', key: 'RouteTitle.projectsTags' },
@@ -472,6 +473,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
     en: 'Sign-in security',
     key: 'RouteTitle.settingsSignInSecurity',
   },
+  '/[orgSlug]/settings/stages': { en: 'Stages', key: 'RouteTitle.settingsStages' },
   '/[orgSlug]/settings/startup': { en: 'Startup', key: 'RouteTitle.settingsStartup' },
   '/[orgSlug]/settings/two-step': {
     en: 'Two-step verification',

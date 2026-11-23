@@ -6,6 +6,7 @@ import type { StageView } from '../../../lib/api/work-stages';
 import { useA6T } from '../DueDatePicker';
 import { CloseIcon } from '../work-icons';
 import { StageDialogFrame } from './StageDialogFrame';
+import { worksOnStageKey } from './stage-editor-model';
 import { stageColorVar } from './stage-model';
 
 /**
@@ -41,6 +42,8 @@ export function DeleteStageDialog({
   const selectId = useId();
   const [target, setTarget] = useState(targets[0]?.id ?? '');
   const chosen = targets.find((candidate) => candidate.id === target) ?? null;
+  // Works move only when there are works and a stage of the same state to take them.
+  const moving = stage.workCount > 0 && targets.length > 0;
   return (
     <StageDialogFrame labelledBy={titleId} kind="sheet" onClose={onClose}>
       <div className="tm-stg-dialog__head">
@@ -54,10 +57,13 @@ export function DeleteStageDialog({
           onClick={onClose}
         />
       </div>
-      {targets.length > 0 ? (
+      {stage.workCount === 0 ? (
+        // Figma W9 counts the works that move; with none, nothing needs a new stage.
+        <p className="tm-stg-dialog__lede">{t('WorkStages.editor.deleteNoWork')}</p>
+      ) : targets.length > 0 ? (
         <>
           <label htmlFor={selectId} className="tm-stg-dialog__lede">
-            {t('WorkStages.editor.deleteMoveTo')}
+            {t(worksOnStageKey(stage.workCount), { count: stage.workCount })}
           </label>
           <span className="tm-stg-select">
             <span
@@ -95,11 +101,9 @@ export function DeleteStageDialog({
           tone="destructive"
           size="large"
           loading={pending}
-          onClick={() => onConfirm(chosen ? chosen.id : undefined)}
+          onClick={() => onConfirm(moving && chosen ? chosen.id : undefined)}
         >
-          {targets.length > 0
-            ? t('WorkStages.editor.moveAndDelete')
-            : t('WorkStages.editor.delete')}
+          {moving ? t('WorkStages.editor.moveAndDelete') : t('WorkStages.editor.delete')}
         </Button>
       </div>
     </StageDialogFrame>

@@ -148,7 +148,7 @@ test.describe.serial('the work-item checklist and comments', () => {
     const maker = await openAs(browser, world().northstar.designer.id);
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
     const activity = maker.page.getByRole('region', { name: 'Activity', exact: true });
-    await expect(activity).toContainText('No comments yet. Add the first one below.');
+    await expect(activity).toContainText('No comments yet. Ask a question or share an update.');
 
     await activity.getByLabel('Add a comment').fill(FIRST_COMMENT);
     await activity.getByRole('button', { name: 'Add comment' }).click();

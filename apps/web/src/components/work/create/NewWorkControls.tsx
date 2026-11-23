@@ -3,6 +3,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { IconButton } from '@tmanage/ui';
 import type { ApiClient } from '../../../lib/api/client';
+import { useIsMobile } from '../../../lib/hooks/useIsMobile';
 import type { StageSetView, StageView } from '../../../lib/api/work-stages';
 import { VoiceControl } from '../../voice/VoiceControl';
 import { useVoiceInput } from '../../voice/use-voice-language';
@@ -269,6 +270,7 @@ export function CreateSteps({
   labelledBy: string;
 }) {
   const t = useA6T();
+  const phone = useIsMobile();
   const [draft, setDraft] = useState('');
   const voice = useVoiceInput({ api, organizationSlug, value: draft, onChange: setDraft });
   const add = () => {
@@ -325,7 +327,7 @@ export function CreateSteps({
             value={draft}
             maxLength={300}
             dir="auto"
-            placeholder={t('WorkSteps.addPlaceholder')}
+            placeholder={t(phone ? 'WorkSteps.addPlaceholderShort' : 'WorkSteps.addPlaceholder')}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               // Enter adds the step; it never submits the whole form.

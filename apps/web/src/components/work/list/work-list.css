@@ -214,10 +214,27 @@
   transform: rotate(180deg);
 }
 
-/* The gutter at the start: select and the drag handle, shown on hover, focus and selection. */
+/* The gutter at the start: select and the drag handle. It takes no width at rest (Fable
+   WORK-BUILD 14: no empty band before the tick); select mode, or keyboard focus on one of its
+   controls, opens it. At rest its controls stay in the tab order, clipped like visually-hidden. */
 .tm-wl-table .tm-wl-cell--gutter {
+  inline-size: 0;
+  padding: 0;
+}
+
+.tm-wl-frame:not([data-selecting]) .tm-wl-cell--gutter:not(:focus-within) .tm-wl-gutter {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-wl-frame[data-selecting] .tm-wl-cell--gutter,
+.tm-wl-table .tm-wl-cell--gutter:focus-within {
   inline-size: var(--app-control);
-  padding-inline: var(--s1) 0;
+  padding-inline: var(--s2) 0;
 }
 
 .tm-wl-gutter {
@@ -225,6 +242,11 @@
   align-items: center;
   gap: var(--s1);
   opacity: 0;
+}
+
+/* Its controls keep their 24 px targets when the gutter is folded to nothing at rest. */
+.tm-wl-gutter > * {
+  flex: none;
 }
 
 .tm-wl-table tr:hover .tm-wl-gutter,
@@ -241,6 +263,11 @@
 .tm-wl-table thead tr:hover .tm-wl-select,
 .tm-wl-frame[data-selecting] thead .tm-wl-select {
   opacity: 1;
+}
+
+/* The tick header holds "Select all" over the ticks; the column name is read, not drawn. */
+.tm-wl-table thead .tm-wl-cell--tick .tm-wl-select {
+  vertical-align: middle;
 }
 
 /* A 24px target (SC 2.5.8) around the 16px box the design draws. */
@@ -312,7 +339,13 @@
 
 .tm-wl-table .tm-wl-cell--tick {
   inline-size: var(--app-control);
-  padding-inline: 0 var(--s1);
+  padding-inline: var(--s6) var(--s1);
+}
+
+/* In select mode the gutter is the start inset; the tick follows it closely. */
+.tm-wl-frame[data-selecting] .tm-wl-cell--tick,
+.tm-wl-table tr:has(.tm-wl-cell--gutter:focus-within) .tm-wl-cell--tick {
+  padding-inline-start: var(--s1);
 }
 
 /* The round tick: "mark done", the same shape as a step (Fable must-fix 14). */
@@ -643,14 +676,19 @@
 
 .tm-wl-card__meta {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--s2);
+  gap: var(--s1) var(--s2);
   align-self: stretch;
+  min-inline-size: 0;
 }
 
+/* Faces and the due day share one line (Fable WORK-BUILD 16): the day never wraps inside itself;
+   only a card too narrow for both (a 1024 px window, a long Arabic day) puts it on its own line. */
 .tm-wl-card__due {
+  flex: none;
+  white-space: nowrap;
   color: var(--ink-650);
   font-size: var(--t-app-caption);
   line-height: var(--t-app-caption-line);
@@ -659,6 +697,12 @@
 .tm-wl-card .tm-wl-client {
   font-size: var(--t-app-caption);
   line-height: var(--t-app-caption-line);
+}
+
+/* The Move menu's box is not a line of the card (Fable WORK-BUILD 16: no space under the
+   client line), so the bottom inset equals the top one; its button and menu sit on the card. */
+.tm-wl-card .tm-wk-move {
+  display: contents;
 }
 
 /* The Move menu (2.5.7): a 28 px icon at the card's end corner, shown on hover and focus. */
@@ -838,6 +882,19 @@
   justify-content: space-between;
   gap: var(--s3);
   margin-block-end: var(--s4);
+}
+
+/*
+ * In the canvas (a column with its own --s6 gap) the Figma spacing is 16 from the view bar to the
+ * table or board and 24 from the table to "Showing": the bar's margin takes back what the canvas
+ * gap adds beyond 16, and the footer relies on the gap alone.
+ */
+.tm-canvas > .tm-wl-bar {
+  margin-block-end: calc(var(--s4) - var(--s6));
+}
+
+.tm-canvas > .tm-wl-foot {
+  margin-block-start: 0;
 }
 
 .tm-wl-bar__tools {

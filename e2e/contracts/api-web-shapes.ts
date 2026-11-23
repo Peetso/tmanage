@@ -2059,7 +2059,8 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
 
 /**
  * Work area D1 (0413). Stage sets: a stage, a set with its stages, and the set a project uses with
- * where it comes from — `work/stage-sets*`, `projects/:id/stage-set`.
+ * where it comes from — `work/stage-sets*`, `projects/:id/stage-set`. WX2 (2026-11-24): the use
+ * counts `StageView.workCount` and `StageSetView.projectCount` are part of both shapes.
  */
 type _workStage = Assert<Exact<ApiStageView, WebStageView>>;
 type _workStageSet = Assert<Exact<ApiStageSetView, WebStageSetView>>;

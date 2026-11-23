@@ -17,6 +17,23 @@ const USERS = [
   { userId: 'u-laila', displayName: 'Laila Hassan', role: 'manager', membershipId: 'm-laila' },
 ] as const;
 
+/** In the Design team but not on the project: the people picker leaves them out and says so. */
+const OUTSIDE_PROJECT = {
+  userId: 'u-youssef',
+  displayName: 'Youssef Tarek',
+  role: 'member',
+  membershipId: 'm-youssef',
+} as const;
+
+/** The workspace's one team, offered at the top of the Doers and Watchers pickers. */
+const DESIGN_TEAM = {
+  id: 'team-design',
+  name: 'Design',
+  memberCount: USERS.length + 1,
+  faces: USERS.slice(0, 3).map(({ userId, displayName }) => ({ userId, displayName })),
+  createdAt: '2026-11-01T09:00:00.000Z',
+} as const;
+
 function stage(id: string, name: string, stateKey: string, group: string, position: number) {
   return { id, name, stateKey, group, colorKey: null, position };
 }
@@ -270,6 +287,24 @@ export function workClient(routes: WorkStoryRoutes = {}): ApiClient {
         return reply({ stageSets: [BUILT_IN_SET, DESIGN_SET] });
       case '/members':
         return reply({ members: USERS, nextAfter: null });
+      case '/people/teams':
+        return reply({ teams: [DESIGN_TEAM], peopleCount: USERS.length });
+      case `/people/teams/${DESIGN_TEAM.id}`:
+        return reply({
+          id: DESIGN_TEAM.id,
+          name: DESIGN_TEAM.name,
+          createdAt: DESIGN_TEAM.createdAt,
+          members: [...USERS, OUTSIDE_PROJECT].map(
+            ({ userId, displayName, role, membershipId }) => ({
+              membershipId,
+              userId,
+              displayName,
+              role,
+              status: 'active',
+              openWorkCount: 0,
+            }),
+          ),
+        });
       default:
         return reply({ error: { code: 'not_found', message: 'Not in this story.' } }, 404);
     }

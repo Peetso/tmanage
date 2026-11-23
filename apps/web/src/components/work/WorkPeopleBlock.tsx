@@ -2,9 +2,11 @@
 
 import { useId, useState } from 'react';
 import { Button } from '@tmanage/ui';
+import type { ApiClient } from '../../lib/api/client';
 import type { WorkItemPeople } from '../../lib/api/work-items';
 import { useA6T, WorkDialogFrame } from './DueDatePicker';
 import { initialsOf, type OwnerCandidate } from './OwnerPickerDialog';
+import { PickerTeams } from './PickerTeams';
 import { PersonAvatar } from '../people/PersonAvatar';
 
 /** Avatars shown before the "+N" orb. */
@@ -130,6 +132,8 @@ interface PeoplePickerDialogProps {
   readonly saving: boolean;
   readonly onSave: (userIds: readonly string[]) => void;
   readonly onClose: () => void;
+  /** Offer the workspace's teams above the people: a press ticks a whole team at once. */
+  readonly teams?: { readonly api: ApiClient; readonly organizationSlug: string };
 }
 
 /** The multi-select people picker: search, tick several at once, in the order ticked. */
@@ -144,6 +148,7 @@ export function PeoplePickerDialog({
   saving,
   onSave,
   onClose,
+  teams,
 }: PeoplePickerDialogProps) {
   const t = useA6T();
   const titleId = useId();
@@ -177,6 +182,17 @@ export function PeoplePickerDialog({
           onChange={(event) => setQuery(event.target.value)}
         />
       </label>
+      {teams ? (
+        <PickerTeams
+          api={teams.api}
+          organizationSlug={teams.organizationSlug}
+          needle={needle}
+          candidateIds={new Set(candidates.map((candidate) => candidate.userId))}
+          onAdd={(userIds) =>
+            setTicked((now) => [...now, ...userIds.filter((userId) => !now.includes(userId))])
+          }
+        />
+      ) : null}
       <ul className="tm-wk-people" aria-label={t('OwnerPicker.listLabel')} aria-busy={loading}>
         {shown.map((candidate) => {
           const on = ticked.includes(candidate.userId);

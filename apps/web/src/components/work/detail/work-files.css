@@ -1,0 +1,159 @@
+/*
+ * The work page's Files section (Figma `WV2-02` Files row, `WV2-09` empty): one wrapping row of
+ * file chips and a flush "Attach" (Header/Button Ghost flush). The chip is the Figma capsule:
+ * control-sm high, file icon then the name; the ⌄ at its end opens the file's panel (Review,
+ * Download, Upload new version, version history). Tokens only (UX-11), logical properties only
+ * (UX-14); every target is at least 24 × 24 (UX-5).
+ */
+
+.tm-wk-filebox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-wk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-wk-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+  min-block-size: var(--app-control-sm);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+}
+
+.tm-wk-chip[data-scanning] {
+  border-style: dashed;
+}
+
+.tm-wk-chip__open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+  min-block-size: var(--app-control-sm);
+  padding-inline: var(--inset-capsule);
+  border-radius: var(--r-capsule);
+  color: var(--ink-950);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  font-weight: var(--t-app-ui-weight);
+  text-decoration: none;
+}
+
+/* With a ⌄ the name ends close to it; the capsule's own end inset sits after the ⌄. */
+.tm-wk-chip:has(.tm-wk-chip__more) .tm-wk-chip__open {
+  padding-inline-end: var(--s1);
+}
+
+.tm-wk-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-wk-chip__open:hover .tm-wk-chip__name {
+  text-decoration: underline;
+}
+
+.tm-wk-chip__open:focus-visible,
+.tm-wk-chip__more:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-chip__more {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  margin-inline-end: var(--s1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  cursor: pointer;
+}
+
+.tm-wk-chip__more:hover,
+.tm-wk-chip__more[aria-expanded='true'] {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+.tm-wk-chip__panel,
+.tm-wk-attach__panel {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-start: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  inline-size: max-content;
+  max-inline-size: min(var(--dialog), calc(100vw - var(--s8)));
+  padding: var(--s4) var(--inset-card);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: 0 var(--s3) var(--s8) color-mix(in srgb, var(--ink-950) 12%, transparent);
+}
+
+.tm-wk-chip__meta {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-wk-chip__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-wk-chip__actions .tm-wk-text-button {
+  min-block-size: var(--target-min);
+}
+
+.tm-wk-chip__panel .tm-wk-history {
+  margin: 0;
+}
+
+/* "Attach": the flush text button at the end of the row, its panel listing every way in. */
+.tm-wk-attach {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-wk-attach__panel {
+  gap: var(--s1);
+  padding: var(--s2);
+}
+
+.tm-wk-attach__panel .tm-button,
+.tm-wk-attach__drives .tm-button {
+  justify-content: flex-start;
+  inline-size: 100%;
+}
+
+.tm-wk-attach__drives {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}

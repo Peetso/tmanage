@@ -7,7 +7,7 @@ import { translate, type MessageKey } from '../src/lib/i18n/t';
 
 /**
  * C7 — version history for a plain (not deliverable-backed) attachment on the work item's Files
- * card: the history block, the current version served by the row's Download, a previous version
+ * card: the history block, the current version served by the file's Download, a previous version
  * downloaded by its own file id, and "Upload new version" recording the upload against the
  * attachment's root file.
  */
@@ -152,9 +152,17 @@ function renderDetail(versions: readonly ReturnType<typeof version>[]) {
 
 afterEach(() => vi.unstubAllGlobals());
 
+async function openFilePanel() {
+  fireEvent.click(
+    await screen.findByRole('button', { name: L('WorkFiles.moreFor', { name: 'hero-copy.docx' }) }),
+  );
+}
+
 describe('C7 plain attachment version history', () => {
   it('lists the versions, serves the current one and downloads a previous one by its own id', async () => {
     renderDetail([version(2, 'asset-2', true), version(1, 'asset-1', false)]);
+    // WX2: the file is a chip; its ⌄ panel holds the actions and the history.
+    await openFilePanel();
     const title = await screen.findByText(L('WorkDetail.versionHistory'));
     const history = title.closest('.tm-wk-history') as HTMLElement;
     expect(within(history).getByText(L('WorkDetail.versionCurrent', { n: 2 }))).toBeInTheDocument();
@@ -175,6 +183,7 @@ describe('C7 plain attachment version history', () => {
       vi.fn(() => Promise.resolve(new Response(null, { status: 200, headers: { etag: '"e1"' } }))),
     );
     const { calls } = renderDetail([version(1, 'asset-1', true)]);
+    await openFilePanel();
     const upload = await screen.findByRole('button', { name: L('WorkDetail.uploadVersion') });
     expect(screen.queryByText(L('WorkDetail.versionHistory'))).toBeNull();
     fireEvent.click(upload);

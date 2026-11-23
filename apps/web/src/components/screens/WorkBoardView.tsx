@@ -534,7 +534,7 @@ export function WorkBoardView({
                       {item.title}
                     </Link>
                     <span className="tm-wl-card__meta">
-                      <Faces ids={doersOf(item)} nameOf={nameOf} />
+                      <Faces ids={doersOf(item)} nameOf={nameOf} max={2} />
                       {item.dueAt === null ? null : (
                         <time className="tm-wl-card__due" dateTime={item.dueAt}>
                           {formatDueDay(item.dueAt, locale)}

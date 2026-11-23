@@ -39,6 +39,7 @@ export const BUILT_IN_SET: StageSetView = {
   isDefault: true,
   isBuiltIn: true,
   version: 0,
+  projectCount: 0,
   stages: (
     [
       ['backlog', 'not_started'],
@@ -54,6 +55,7 @@ export const BUILT_IN_SET: StageSetView = {
     group,
     colorKey: null,
     position,
+    workCount: 0,
   })),
   createdAt: null,
   updatedAt: null,
@@ -215,4 +217,18 @@ export function copyOf(
       colorKey: stage.colorKey,
     })),
   };
+}
+
+/** The count key for "1 project", "2 projects" (Arabic has a dual), "{count} projects". */
+export function projectsKey(count: number): string {
+  if (count === 1) return 'WorkStages.editor.projectsOne';
+  if (count === 2) return 'WorkStages.editor.projectsTwo';
+  return 'WorkStages.editor.projectsMany';
+}
+
+/** The delete lede for the works on a stage: "3 work items are in this stage. Move them to:". */
+export function worksOnStageKey(count: number): string {
+  if (count === 1) return 'WorkStages.editor.deleteMoveOne';
+  if (count === 2) return 'WorkStages.editor.deleteMoveTwo';
+  return 'WorkStages.editor.deleteMoveMany';
 }

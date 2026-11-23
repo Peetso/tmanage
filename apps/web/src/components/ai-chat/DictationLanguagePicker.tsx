@@ -47,6 +47,12 @@ export interface DictationLanguagePickerProps {
    * default) or `below` it (a name field at the top of a page or dialog, Figma `935:97514`).
    */
   readonly placement?: 'above' | 'below';
+  /**
+   * What the chip says: the full name with its region ("English (US)", the AI composer), or the
+   * language alone ("English"), as Figma `Control/Voice` draws it beside a name or a step; the
+   * region then shows only in the menu and in the chip's accessible name (Fable WORK-BUILD 10).
+   */
+  readonly chipName?: 'full' | 'language';
 }
 
 function isPhone(): boolean {
@@ -72,6 +78,7 @@ export function DictationLanguagePicker({
   blocked,
   locked,
   placement = 'above',
+  chipName = 'full',
 }: DictationLanguagePickerProps) {
   const text = useAiText();
   const { t } = text;
@@ -195,7 +202,8 @@ export function DictationLanguagePicker({
         ? t('AiChat.dictation.blockedBrowser')
         : null;
   const accessibleName = t('AiChat.dictation.chipLabel', { language: fullName });
-  const useShort = fullName.length > PHONE_SHORT_AFTER && shortName !== fullName;
+  const languageOnly = chipName === 'language';
+  const useShort = !languageOnly && fullName.length > PHONE_SHORT_AFTER && shortName !== fullName;
 
   const chipButton = (
     <button
@@ -211,7 +219,9 @@ export function DictationLanguagePicker({
       onClick={() => (open ? close(true) : openMenu())}
       onKeyDown={onChipKey}
     >
-      <span className={useShort ? 'tm-aic-dict__full' : undefined}>{fullName}</span>
+      <span className={useShort ? 'tm-aic-dict__full' : undefined}>
+        {languageOnly ? shortName : fullName}
+      </span>
       {useShort ? <span className="tm-aic-dict__short">{shortName}</span> : null}
       <svg
         className="tm-aic-dict__chevron"

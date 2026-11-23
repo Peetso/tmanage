@@ -540,13 +540,59 @@
   border-color: var(--lime-500);
 }
 
+/* Figma radio (Fable WORK-BUILD 17): a 16 px ring, an 8 px lime dot when chosen, drawn inside
+   the 24 px target (UX-5) in every theme, never the platform's solid disc. */
 .tm-stg-start input,
 .tm-stg-choice input {
+  display: inline-grid;
   flex: none;
+  place-items: center;
   inline-size: var(--target-min);
   block-size: var(--target-min);
   margin: 0;
-  accent-color: var(--lime-500);
+  border: 0;
+  background: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.tm-stg-start input::before,
+.tm-stg-choice input::before,
+.tm-stg-start input::after,
+.tm-stg-choice input::after {
+  content: '';
+  grid-area: 1 / 1;
+  border-radius: var(--r-capsule);
+}
+
+.tm-stg-start input::before,
+.tm-stg-choice input::before {
+  box-sizing: border-box;
+  inline-size: var(--s4);
+  block-size: var(--s4);
+  border: var(--b-structural) solid var(--ink-650);
+}
+
+.tm-stg-start input:checked::before,
+.tm-stg-choice input:checked::before {
+  border-color: var(--lime-500);
+}
+
+.tm-stg-start input:checked::after,
+.tm-stg-choice input:checked::after {
+  inline-size: var(--s2);
+  block-size: var(--s2);
+  background: var(--lime-500);
+}
+
+.tm-stg-start input:focus-visible,
+.tm-stg-choice input:focus-visible {
+  outline: none;
+}
+
+.tm-stg-start input:focus-visible::before,
+.tm-stg-choice input:focus-visible::before {
+  box-shadow: var(--focus-ring);
 }
 
 /* The radio spans both lines; the start's name and its stages sit beside it. */

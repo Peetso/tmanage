@@ -130,7 +130,9 @@ describe('Settings → Stages', () => {
       within(await openRowMenu(user, 'Ideate')).getByRole('menuitem', { name: 'Delete' }),
     );
     const dialog = screen.getByRole('dialog', { name: 'Delete the stage Ideate?' });
-    const target = within(dialog).getByRole('combobox', { name: 'Work in this stage moves to:' });
+    const target = within(dialog).getByRole('combobox', {
+      name: '3 work items are in this stage. Move them to:',
+    });
     expect(target).toHaveValue('st-define');
     await user.selectOptions(target, 'st-prototype');
     await user.click(within(dialog).getByRole('button', { name: 'Move and delete' }));

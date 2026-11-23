@@ -14,6 +14,7 @@ import {
   updateChecklistItem,
   type WorkChecklistItem,
 } from '../../../lib/api/work-items';
+import { useIsMobile } from '../../../lib/hooks/useIsMobile';
 import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { tickChecklistOrQueue } from '../../../lib/offline/write-or-queue';
 import { usePendingWrites } from '../../../lib/offline/use-offline';
@@ -63,6 +64,8 @@ export function WorkSteps({
   readOnly?: boolean;
 }) {
   const t = useA6T();
+  // Figma WV2-02 phone: "Add a step" — the long hint would be cut by the voice chip.
+  const phone = useIsMobile();
   const describe = useDescribeApiError();
   const queries = useQueryClient();
   const headingId = useId();
@@ -250,7 +253,8 @@ export function WorkSteps({
             </li>
           ))}
         </ol>
-      ) : steps.isSuccess ? (
+      ) : steps.isSuccess && readOnly ? (
+        // Figma WV2-09: a member who can add steps sees only the add field, no sentence.
         <p className="tm-wk-section__empty">{t('WorkSteps.empty')}</p>
       ) : null}
 
@@ -269,7 +273,7 @@ export function WorkSteps({
               value={draft}
               maxLength={300}
               dir="auto"
-              placeholder={t('WorkSteps.addPlaceholder')}
+              placeholder={t(phone ? 'WorkSteps.addPlaceholderShort' : 'WorkSteps.addPlaceholder')}
               onChange={(event) => setDraft(event.target.value)}
             />
           </label>
