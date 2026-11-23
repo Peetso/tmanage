@@ -96,6 +96,10 @@ describe('AI actions (55-15p)', () => {
     const badge = container.querySelector('.tm-cc-sections__waiting');
     expect(badge?.textContent).toContain('2 waiting');
     expect(badge?.classList.contains('tm-state-capsule--waiting')).toBe(true);
+    // The badge opens the AI panel straight on tab 2, "Your AI" (its own link, label-in-name).
+    const link = badge?.closest('a');
+    expect(link?.getAttribute('href')).toBe('/northstar/home?ai=your-ai');
+    expect(link?.getAttribute('aria-label')).toBe('2 waiting, open Your AI');
     query.setQueryData(pendingAiApprovalsKey('northstar'), []);
     rerender(
       <QueryClientProvider client={query}>

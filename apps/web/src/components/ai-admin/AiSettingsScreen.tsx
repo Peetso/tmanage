@@ -31,7 +31,7 @@ import { listPeople } from '../../lib/api/people';
 import { useFormCheck } from '../../lib/forms/form-check';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { ControlCenterShell, ccKey } from '../admin/ControlCenterShell';
-import { useAiText } from '../ai-chat/use-ai-text';
+import { useAiText, type AiTextKey } from '../ai-chat/use-ai-text';
 import { CloseIcon } from '../ai-chat/icons';
 import { AiAdminTabs } from './AiAdminTabs';
 import {
@@ -91,9 +91,9 @@ export function AiSettingsScreen({
       title={t('AiSettings.title')}
       titleMeta={<Badge>{t('AiChat.testing')}</Badge>}
       description={t('AiSettings.leadTesting')}
+      tabs={<AiAdminTabs organizationSlug={organizationSlug} current="settings" />}
       client={api}
     >
-      <AiAdminTabs organizationSlug={organizationSlug} current="settings" />
       {settings.isSuccess ? (
         <SettingsBody api={api} organizationSlug={organizationSlug} view={settings.data} />
       ) : (
@@ -416,8 +416,9 @@ function SettingsForm({
   readonly onSaved: () => void;
   readonly onEdit: () => void;
 }) {
-  const { t, number, day } = useAiText();
+  const { t, number, locale } = useAiText();
   const queries = useQueryClient();
+  const retentionId = useId();
   const [draft, setDraft] = useState<AiSettingsDraft>(() => draftOf(view));
   const [blocking, setBlocking] = useState(false);
   const blockButton = useRef<HTMLSpanElement>(null);
@@ -446,6 +447,19 @@ function SettingsForm({
 
   const options = shareOptions(view);
   const formId = useId();
+  const addMember = (
+    <span ref={blockButton}>
+      <Button
+        type="button"
+        tone="outline"
+        size="compact"
+        className="tm-ais-set__touch"
+        onClick={() => setBlocking(true)}
+      >
+        {t('AiSettings.blocked.add')}
+      </Button>
+    </span>
+  );
   return (
     <>
       <form
@@ -512,39 +526,23 @@ function SettingsForm({
             </option>
           ))}
         </Select>
+        {/* Figma G1 770:45366 / 770:45321: the title alone, then each member (avatar and name)
+            with "Allow again" (G1 v2 786:49121), and "Add member" at the end of the first row. */}
         <div className="tm-ais-set__row tm-ais-set__row--list">
-          <div className="tm-ais-set__line">
-            <h3 className="tm-ais-set__subtitle">{t('AiSettings.blocked.title')}</h3>
-            <span className="tm-aia-spacer" />
-            <span ref={blockButton}>
-              <Button
-                type="button"
-                tone="outline"
-                size="compact"
-                className="tm-ais-set__touch"
-                onClick={() => setBlocking(true)}
-              >
-                {t('AiSettings.blocked.add')}
-              </Button>
-            </span>
-          </div>
+          <h3 className="tm-ais-set__subtitle">{t('AiSettings.blocked.title')}</h3>
           {draft.blocked.length === 0 ? (
-            <p className="tm-aia-muted">{t('AiSettings.blocked.empty')}</p>
+            <div className="tm-ais-set__member">
+              <p className="tm-ais-set__who tm-aia-muted">{t('AiSettings.blocked.empty')}</p>
+              {addMember}
+            </div>
           ) : (
             <ul className="tm-ais-set__blocked">
-              {draft.blocked.map((entry) => (
+              {draft.blocked.map((entry, index) => (
                 <li key={entry.membershipId} className="tm-ais-set__member">
                   <span className="tm-ais-set__avatar" aria-hidden="true">
                     {initials(entry.displayName)}
                   </span>
-                  <span className="tm-ais-set__who">
-                    <span className="tm-ais-set__text">{entry.displayName}</span>
-                    <span className="tm-aia-muted">
-                      {entry.blockedAt
-                        ? t('AiSettings.blocked.since', { date: day(entry.blockedAt) })
-                        : t('AiSettings.blocked.pending')}
-                    </span>
-                  </span>
+                  <span className="tm-ais-set__who tm-ais-set__text">{entry.displayName}</span>
                   <Button
                     type="button"
                     tone="text"
@@ -562,24 +560,53 @@ function SettingsForm({
                   >
                     {t('AiSettings.blocked.allow')}
                   </Button>
+                  {index === 0 ? addMember : null}
                 </li>
               ))}
             </ul>
           )}
         </div>
-        <Field
-          className="tm-ais-set__row"
-          label={t('AiSettings.form.retentionTitle')}
-          name="retention"
-          inputMode="numeric"
-          dir="ltr"
-          autoComplete="off"
-          required
-          value={draft.retention}
-          hint={t('AiSettings.form.retentionRowHint')}
-          onChange={(event) => change({ ...draft, retention: event.target.value })}
-          {...(retentionError === undefined ? {} : { error: retentionError })}
-        />
+        {/* Figma G1 770:45375: the label and help at the start, "30 days" in the field at the end;
+            the 1–365 check stays (the server checks it again, AR-9). */}
+        <div className="tm-field tm-ais-set__row">
+          <label className="tm-field__label" htmlFor={retentionId}>
+            {t('AiSettings.form.retentionTitle')}
+          </label>
+          <div className="tm-field__control tm-ais-set__days">
+            <input
+              id={retentionId}
+              className="tm-ais-set__days-input"
+              name="retention"
+              inputMode="numeric"
+              dir="ltr"
+              autoComplete="off"
+              required
+              value={draft.retention}
+              aria-invalid={retentionError === undefined ? undefined : true}
+              aria-describedby={
+                retentionError === undefined
+                  ? `${retentionId}-hint`
+                  : `${retentionId}-hint ${retentionId}-error`
+              }
+              onChange={(event) => change({ ...draft, retention: event.target.value })}
+            />
+            {/* A second label: the unit is read with the name and a press on it focuses the field. */}
+            <label className="tm-ais-set__days-unit" htmlFor={retentionId}>
+              {retentionUnit(t, locale, draft.retention, view.conversationRetentionDays)}
+            </label>
+          </div>
+          <span className="tm-field__hint" id={`${retentionId}-hint`}>
+            {t('AiSettings.form.retentionRowHint')}
+          </span>
+          {retentionError === undefined ? null : (
+            <span className="tm-field__error" id={`${retentionId}-error`}>
+              <span className="tm-inline-alert__glyph" aria-hidden="true">
+                !
+              </span>
+              {retentionError}
+            </span>
+          )}
+        </div>
         {save.isError ? (
           <InlineAlert tone="danger" live>
             {save.error instanceof ApiRequestError && save.error.status === 400
@@ -623,6 +650,26 @@ function SettingsForm({
       ) : null}
     </>
   );
+}
+
+/** "days" after the typed number, in the locale's plural form; the saved number while unreadable. */
+function retentionUnit(
+  t: (key: AiTextKey) => string,
+  locale: string,
+  typed: string,
+  saved: number,
+): string {
+  const value = /^\d{1,3}$/u.test(typed.trim()) ? Number(typed.trim()) : saved;
+  const category = new Intl.PluralRules(locale).select(value);
+  const keys = {
+    zero: 'AiSettings.form.retentionUnit.zero',
+    one: 'AiSettings.form.retentionUnit.one',
+    two: 'AiSettings.form.retentionUnit.two',
+    few: 'AiSettings.form.retentionUnit.few',
+    many: 'AiSettings.form.retentionUnit.many',
+    other: 'AiSettings.form.retentionUnit.other',
+  } as const satisfies Record<Intl.LDMLPluralRule, AiTextKey>;
+  return t(keys[category]);
 }
 
 function initials(name: string): string {

@@ -174,13 +174,15 @@ describe('AiSettingsScreen (62-17)', () => {
     ).toBe(true);
     expect(screen.getByText('You have unsaved changes.')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Block a member' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
     const dialog = screen.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox', { name: 'Find a member' }), {
       target: { value: 'Li' },
     });
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Block Lina Haddad' }));
-    expect(screen.getByText('Blocked when you save')).toBeTruthy();
+    // G1 770:45321: the member row is the name alone, with Allow again reachable beside it.
+    expect(screen.getByText('Lina Haddad')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Allow Lina Haddad again' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(writes()).toHaveLength(1));
@@ -192,11 +194,49 @@ describe('AiSettingsScreen (62-17)', () => {
 
   it('refuses a retention out of range before sending (786:51477)', async () => {
     const { writes } = mount({ [`GET ${SETTINGS}`]: { status: 200, body: VIEW } });
-    const field = await screen.findByRole('textbox', { name: 'Delete conversations after (days)' });
+    const field = await screen.findByRole('textbox', { name: 'Delete conversations after days' });
     fireEvent.change(field, { target: { value: '400' } });
     expect(screen.getByText('Choose between 1 and 365 days.')).toBeTruthy();
+    expect(field.getAttribute('aria-invalid')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(writes()).toHaveLength(0);
+  });
+
+  it('retention reads "30 days" with its help, no "(days)" label or asterisk (770:45375)', async () => {
+    mount({ [`GET ${SETTINGS}`]: { status: 200, body: VIEW } });
+    const field = (await screen.findByRole('textbox', {
+      name: 'Delete conversations after days',
+    })) as HTMLInputElement;
+    expect(field.value).toBe('30');
+    expect(field.required).toBe(true);
+    expect(screen.getByText('Each member sees only their own conversations.').id).toBe(
+      field.getAttribute('aria-describedby'),
+    );
+    expect(screen.queryByText(/\(days\)/)).toBeNull();
+    expect(document.querySelector('.tm-field__required')).toBeNull();
+    fireEvent.change(field, { target: { value: '1' } });
+    expect(screen.getByText('day')).toBeTruthy();
+  });
+
+  it('G1 layout: the Settings · Usage · Business Memory tabs sit above the title (770:45261)', async () => {
+    mount({ [`GET ${SETTINGS}`]: { status: 200, body: VIEW } });
+    const tabs = await screen.findByRole('navigation', { name: 'TManage AI pages' });
+    const title = screen.getByRole('heading', { level: 1, name: 'TManage AI' });
+    expect(tabs.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(tabs).getByRole('link', { name: 'Settings' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+  });
+
+  it('members who can’t use it: name only, Allow again and Add member (770:45321)', async () => {
+    mount({ [`GET ${SETTINGS}`]: { status: 200, body: VIEW } });
+    const row = (await screen.findByText('Karim Aziz')).closest('li')!;
+    expect(row.textContent).not.toMatch(/Blocked/);
+    expect(within(row).getByRole('button', { name: 'Add member' })).toBeTruthy();
+    fireEvent.click(within(row).getByRole('button', { name: 'Allow Karim Aziz again' }));
+    expect(screen.queryByText('Karim Aziz')).toBeNull();
+    expect(screen.getByText('Every member can use TManage AI.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add member' })).toBeTruthy();
   });
 
   it('answers-only disables quick changes (787:49285)', async () => {

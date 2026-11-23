@@ -28,6 +28,11 @@
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
+/* Above the headline (Figma G1 770:45261, G11 771:45480): the shell's gap spaces it. */
+.tm-cc-main > .tm-aia-tabs {
+  margin-block-end: 0;
+}
+
 .tm-aia-tabs__item {
   display: inline-flex;
   align-items: center;
@@ -684,6 +689,56 @@
 .tm-ais-set__row--list .tm-ais-set__member {
   background: transparent;
   padding-inline: 0;
+}
+
+/* Figma 770:45321: a 40 px avatar, the name 8 px after it, the buttons at the far end. */
+.tm-ais-set__row--list .tm-ais-set__member {
+  gap: var(--s2);
+  padding-block: 0;
+}
+
+.tm-ais-set__row--list .tm-ais-set__who {
+  margin: 0;
+}
+
+/* Figma 770:45370: "30 days" in one 320 px field; the number is typed, the unit is a label. */
+.tm-ais-set__days {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  cursor: text;
+}
+
+.tm-ais-set__days:focus-within {
+  background: var(--paper-0);
+  border-color: var(--ink-950);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-ais-set__days:has([aria-invalid='true']) {
+  border-color: var(--danger-600);
+  background: var(--paper-0);
+}
+
+.tm-ais-set__days-input {
+  field-sizing: content;
+  min-inline-size: 1ch;
+  max-inline-size: 4ch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.tm-ais-set__days-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.tm-ais-set__days-unit {
+  flex: 1;
+  cursor: text;
 }
 
 @media (max-width: 767px) {

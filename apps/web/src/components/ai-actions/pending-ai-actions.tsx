@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useContext } from 'react';
 import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query';
 import { StateCapsule } from '@tmanage/ui';
@@ -8,6 +9,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { listPendingAiApprovals, pendingAiApprovalsKey } from '../../lib/api/ai-approvals';
 import type { AiApprovalView } from '../../lib/api/ai-approvals';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { yourAiHref } from '../ai-panel/open-your-ai';
 
 /**
  * 55-15p — the actions an AI assistant asked for that wait for the member's approval.
@@ -43,16 +45,31 @@ export function reviewHref(organizationSlug: string, items: readonly AiApprovalV
     : `/${organizationSlug}/settings/ai-actions`;
 }
 
-/** "2 waiting" — the amber Waiting capsule (review point 8), the same as "Review requested". */
+/**
+ * "2 waiting" — the amber Waiting capsule (review point 8), the same as "Review requested". It is
+ * its own link: it opens the AI panel straight on tab 2, "Your AI" (`yourAiHref`), so it sits
+ * beside the menu entry's link, never inside it.
+ */
 export function PendingAiActionsBadge({ organizationSlug }: { organizationSlug: string }) {
   const tOr = useTOr();
   const pending = usePendingAiApprovals(organizationSlug);
   const count = pending.data?.length ?? 0;
   if (count === 0) return null;
+  const shown = String(count);
   return (
-    <StateCapsule state="waiting" className="tm-cc-sections__waiting">
-      {tOr('AiAssistantScreen.navWaiting', '{count} waiting').replace('{count}', String(count))}
-    </StateCapsule>
+    <Link
+      href={yourAiHref(organizationSlug)}
+      prefetch={false}
+      className="tm-cc-sections__waiting-link"
+      aria-label={tOr('AiAssistantScreen.navWaitingOpen', '{count} waiting, open Your AI').replace(
+        '{count}',
+        shown,
+      )}
+    >
+      <StateCapsule state="waiting" className="tm-cc-sections__waiting">
+        {tOr('AiAssistantScreen.navWaiting', '{count} waiting').replace('{count}', shown)}
+      </StateCapsule>
+    </Link>
   );
 }
 

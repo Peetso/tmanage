@@ -6,6 +6,9 @@ import { ApiClient } from '../src/lib/api/client';
 import type { AiApprovalView } from '../src/lib/api/ai-approvals';
 import type { AiActivityItem, AiPanelApp, AiPanelView } from '../src/lib/api/ai-panel';
 import { AiPanel } from '../src/components/ai-panel/AiPanel';
+import { AiPanelLauncher } from '../src/components/ai-panel/AiPanelLauncher';
+import { aiPanelKey } from '../src/lib/api/ai-panel';
+import { pendingAiApprovalsKey } from '../src/lib/api/ai-approvals';
 import { AiApproveScreen } from '../src/components/screens/AiApproveScreen';
 import {
   activityKind,
@@ -684,5 +687,168 @@ describe('Approve page: a money request needs the step-up (API AI-PANEL-API)', (
     expect(calls.find((call) => call.key.endsWith('/approve'))!.headers.get('x-reauth-token')).toBe(
       'rt-9',
     );
+  });
+});
+
+/**
+ * The approve route as the API (f4ff271d, `PendingAiActionsService.approveInPerson`) answers it:
+ * a money or HR action without a fresh step-up is 403 `reauthentication_required`; a named amount
+ * not typed back is 400 `validation_failed` on `amount`. The envelope is `apiErrorBody`'s.
+ */
+function approveRoute(
+  decided: AiApprovalView,
+  amount: number | null,
+): (body: unknown, headers: Headers) => Reply {
+  return (body, headers) => {
+    if (!headers.get('x-reauth-token')) {
+      return {
+        status: 403,
+        body: {
+          error: {
+            code: 'reauthentication_required',
+            message: 'Confirm it is you to approve this.',
+            correlationId: 'c',
+          },
+        },
+      };
+    }
+    const typed = (body as { amount?: unknown } | undefined)?.amount;
+    if (amount !== null && typed !== amount) {
+      return {
+        status: 400,
+        body: {
+          error: {
+            code: 'validation_failed',
+            message: 'The amount does not match.',
+            correlationId: 'c',
+            details: [{ field: 'amount', message: 'type the amount the card shows' }],
+          },
+        },
+      };
+    }
+    return { status: 200, body: decided };
+  };
+}
+
+function mountApprove(api: ApiClient) {
+  const queries = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queries}>
+      <AiApproveScreen orgSlug="northstar" approvalId="a1" client={api} now={() => NOW.getTime()} />
+    </QueryClientProvider>,
+  );
+}
+
+describe('Approve page: the server asks for the step-up (403 reauthentication_required)', () => {
+  it('a view that did not say step_up still shows the step-up card on 403, then approves with it', async () => {
+    // An HR action read before the rule reached this view: `confirmation: 'none'`.
+    const hr = approval({
+      summary: { ...approval().summary, opId: 'members.update_role', title: 'Change a role' },
+    });
+    const decided = { ...hr, status: 'approved' as const, decidedAt: '2026-11-23T10:01:00Z' };
+    const { api, calls } = client({
+      [`GET ${BASE}/ai/approvals/a1`]: { status: 200, body: hr },
+      'POST https://api.example.test/v1/auth/reauth': {
+        status: 200,
+        body: { reauthToken: 'rt-7' },
+      },
+      [`POST ${BASE}/ai/approvals/a1/approve`]: approveRoute(decided, null),
+    });
+    mountApprove(api);
+    expect(await screen.findByRole('button', { name: 'Approve' })).toBeTruthy();
+    expect(screen.queryByLabelText(/Password/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    // The refusal is the card, never a silent page or the connection error.
+    const password = await screen.findByLabelText(/Password/);
+    expect(screen.getByText('Confirm it’s you')).toBeTruthy();
+    expect(screen.queryByText('That password didn’t work. Try again.')).toBeNull();
+    expect(screen.queryByText(/Check your connection/)).toBeNull();
+
+    fireEvent.change(password, { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('Approved')).toBeTruthy();
+    const approves = calls.filter((call) => call.key.endsWith('/approve'));
+    expect(approves).toHaveLength(2);
+    expect(approves[0]!.headers.get('x-reauth-token')).toBeNull();
+    expect(approves[1]!.headers.get('x-reauth-token')).toBe('rt-7');
+  });
+
+  it('a step-up the server still refuses reads as a failed step-up, nothing approved', async () => {
+    const money = approval({ confirmation: 'step_up', amount: 120 });
+    const { api } = client({
+      [`GET ${BASE}/ai/approvals/a1`]: { status: 200, body: money },
+      'POST https://api.example.test/v1/auth/reauth': {
+        status: 401,
+        body: { error: { code: 'unauthenticated', message: 'x', correlationId: 'c' } },
+      },
+      [`POST ${BASE}/ai/approvals/a1/approve`]: approveRoute(money, 120),
+    });
+    mountApprove(api);
+    fireEvent.change(await screen.findByLabelText(/Type the amount to confirm/), {
+      target: { value: '120' },
+    });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('That password didn’t work. Try again.')).toBeTruthy();
+    expect(screen.queryByText('Approved')).toBeNull();
+  });
+
+  it('an amount the server refuses (400 on amount) shows the amount line, not a connection error', async () => {
+    // The card's own check passes (the view names 120); the server holds 125 (changed since).
+    const money = approval({ confirmation: 'step_up', amount: 120 });
+    const { api } = client({
+      [`GET ${BASE}/ai/approvals/a1`]: { status: 200, body: money },
+      'POST https://api.example.test/v1/auth/reauth': {
+        status: 200,
+        body: { reauthToken: 'rt-1' },
+      },
+      [`POST ${BASE}/ai/approvals/a1/approve`]: approveRoute(money, 125),
+    });
+    mountApprove(api);
+    fireEvent.change(await screen.findByLabelText(/Type the amount to confirm/), {
+      target: { value: '120' },
+    });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText(WRONG_AMOUNT)).toBeTruthy();
+    expect(screen.queryByText(/Check your connection/)).toBeNull();
+  });
+});
+
+describe('The approvals badge opens the AI panel on tab 2 (Fable ruling: default tab)', () => {
+  function mountLauncher(view: AiPanelView, path: string) {
+    window.history.replaceState(null, '', path);
+    const queries = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    queries.setQueryData(aiPanelKey('northstar'), view);
+    queries.setQueryData(pendingAiApprovalsKey('northstar'), [approval(), approval({ id: 'a2' })]);
+    render(
+      <QueryClientProvider client={queries}>
+        <AiPanelLauncher organizationSlug="northstar" />
+      </QueryClientProvider>,
+    );
+  }
+
+  it('?ai=your-ai opens the panel with Your AI selected, once, and clears the address', async () => {
+    mountLauncher(
+      panelView({ apps: [app()], pendingApprovals: 2 }),
+      '/northstar/home?ai=your-ai&x=1',
+    );
+    const own = await screen.findByRole('tab', { name: /Your AI/ });
+    expect(own.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', { name: /TManage AI/ }).getAttribute('aria-selected')).toBe(
+      'false',
+    );
+    expect(window.location.search).toBe('?x=1');
+  });
+
+  it('without the request the panel stays closed, and the button opens it on TManage AI', async () => {
+    mountLauncher(panelView({ apps: [app()], pendingApprovals: 2 }), '/northstar/home');
+    expect(screen.queryByRole('tab')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Let AI do the job' }));
+    const tmanage = await screen.findByRole('tab', { name: /TManage AI/ });
+    expect(tmanage.getAttribute('aria-selected')).toBe('true');
   });
 });

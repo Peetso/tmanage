@@ -110,6 +110,16 @@ export function AiApproveScreen({
                 decide.error instanceof ApiRequestError &&
                 (decide.error.status === 401 || decide.error.code === 'reauthentication_required')
               }
+              stepUpAsked={
+                decide.error instanceof ApiRequestError &&
+                decide.error.status === 403 &&
+                decide.error.code === 'reauthentication_required'
+              }
+              amountRefused={
+                decide.error instanceof ApiRequestError &&
+                decide.error.status === 400 &&
+                decide.error.details.some((detail) => detail.field === 'amount')
+              }
               onDecide={(decision, stepUp) =>
                 decide.mutate(stepUp === undefined ? { decision } : { decision, stepUp })
               }
@@ -148,10 +158,23 @@ interface ApprovalBodyProps {
   busy: boolean;
   failed: boolean;
   stepUpFailed: boolean;
+  /** The server answered 403 `reauthentication_required`: a money or HR action needs the step-up. */
+  stepUpAsked: boolean;
+  /** The server refused the typed-back amount (400 on `amount`). */
+  amountRefused: boolean;
   onDecide: (decision: 'approve' | 'decline', stepUp?: StepUp) => void;
 }
 
-function ApprovalBody({ view, now, busy, failed, stepUpFailed, onDecide }: ApprovalBodyProps) {
+function ApprovalBody({
+  view,
+  now,
+  busy,
+  failed,
+  stepUpFailed,
+  stepUpAsked,
+  amountRefused,
+  onDecide,
+}: ApprovalBodyProps) {
   const t = useT();
   const lookup = useCatalogLookup();
   const formatters = useDisplayFormatters();
@@ -167,7 +190,15 @@ function ApprovalBody({ view, now, busy, failed, stepUpFailed, onDecide }: Appro
   const status = view.status === 'pending' && msLeft <= 0 ? 'expired' : view.status;
   const destructive = view.summary.destructive;
   const subject = subjectLine(lookup, view.summary.subject, destructive);
-  const stepUp = view.confirmation === 'step_up';
+  // The server is the control (API AI-PANEL-API): a 403 `reauthentication_required` shows the
+  // step-up card even when this view did not say `step_up` (an older read, a rule changed since).
+  const [serverAsked, setServerAsked] = useState(false);
+  useEffect(() => {
+    if (stepUpAsked) setServerAsked(true);
+  }, [stepUpAsked]);
+  const stepUp = view.confirmation === 'step_up' || serverAsked;
+  // Asked by the server before any step-up was sent: the card is new, not a failure.
+  const [sentStepUp, setSentStepUp] = useState(false);
   const [typed, setTyped] = useState('');
   const [password, setPassword] = useState('');
   const [wrongAmount, setWrongAmount] = useState(false);
@@ -188,6 +219,7 @@ function ApprovalBody({ view, now, busy, failed, stepUpFailed, onDecide }: Appro
     }
     setWrongAmount(false);
     if (password === '') return;
+    setSentStepUp(true);
     onDecide('approve', amount === undefined ? { password } : { password, amount });
   }
 
@@ -276,7 +308,7 @@ function ApprovalBody({ view, now, busy, failed, stepUpFailed, onDecide }: Appro
               required
               value={typed}
               onChange={(event) => setTyped(event.currentTarget.value)}
-              {...(wrongAmount ? { error: t('AiChat.card.wrongAmount') } : {})}
+              {...(wrongAmount || amountRefused ? { error: t('AiChat.card.wrongAmount') } : {})}
             />
           ) : null}
           <p className="tm-approve__kind">{t('AiChat.card.stepUpTitle')}</p>
@@ -289,12 +321,12 @@ function ApprovalBody({ view, now, busy, failed, stepUpFailed, onDecide }: Appro
             required
             value={password}
             onChange={(event) => setPassword(event.currentTarget.value)}
-            {...(stepUpFailed ? { error: t('AiChat.card.stepUpFailed') } : {})}
+            {...(stepUpFailed && sentStepUp ? { error: t('AiChat.card.stepUpFailed') } : {})}
           />
         </div>
       ) : null}
 
-      {failed && !stepUpFailed ? (
+      {failed && !stepUpFailed && !amountRefused ? (
         <p className="tm-approve__warning" role="alert">
           {t('aiApprove.decideError')}
         </p>

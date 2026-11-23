@@ -582,13 +582,10 @@ function SectionItem({
       <SectionIcon id={item.id} />
       {label}
       {item.id === 'storage' ? <StorageProviderBadge organizationSlug={organizationSlug} /> : null}
-      {item.id === 'ai-actions' ? (
-        <PendingAiActionsBadge organizationSlug={organizationSlug} />
-      ) : null}
     </Link>
   );
   return (
-    <li>
+    <li className={item.id === 'ai-actions' ? 'tm-cc-sections__entry--badged' : undefined}>
       {tip === '' ? (
         link
       ) : (
@@ -596,6 +593,10 @@ function SectionItem({
           {link}
         </HelpTip>
       )}
+      {/* The waiting badge is its own link (to tab 2 of the AI panel), beside this one. */}
+      {item.id === 'ai-actions' ? (
+        <PendingAiActionsBadge organizationSlug={organizationSlug} />
+      ) : null}
     </li>
   );
 }
@@ -763,6 +764,11 @@ export interface ControlCenterShellProps {
   description?: ReactNode;
   actions?: ReactNode;
   /**
+   * In-page tabs drawn above the headline (Control › AI: Settings · Usage · Business Memory, Figma
+   * G1 770:45261 / G11 771:45480). Hidden with the page when the role cannot open it.
+   */
+  tabs?: ReactNode;
+  /**
    * The menu is always drawn. A node (ADM-03's role list) is drawn inside it, under the groups;
    * `'sections'` is the menu alone.
    */
@@ -787,6 +793,7 @@ export function ControlCenterShell({
   titleMeta,
   description,
   actions,
+  tabs,
   rail,
   client,
   children,
@@ -851,6 +858,7 @@ export function ControlCenterShell({
           </nav>
 
           <main id="tm-main" className="tm-canvas tm-cc-main" tabIndex={-1}>
+            {tabs && !denied ? tabs : null}
             <header className="tm-canvas-header" data-title-variant="page" data-actions="end">
               <div className="tm-canvas-header__titles">
                 {eyebrow ? <p className="tm-canvas-header__context">{eyebrow}</p> : null}

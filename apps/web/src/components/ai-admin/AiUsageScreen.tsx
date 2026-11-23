@@ -46,9 +46,9 @@ export function AiUsageScreen({
       crumbs={[tOr(ccKey('ControlCenter.ai'), 'AI')]}
       title={t('AiUsage.title')}
       description={t('AiUsage.lead')}
+      tabs={<AiAdminTabs organizationSlug={organizationSlug} current="usage" />}
       client={api}
     >
-      <AiAdminTabs organizationSlug={organizationSlug} current="usage" />
       <div className="tm-aia-usage">
         <AiCreditsBlock organizationSlug={organizationSlug} client={api} placement="usage" />
         {view.isSuccess ? (

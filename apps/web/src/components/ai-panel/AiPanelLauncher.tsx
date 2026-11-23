@@ -30,6 +30,7 @@ import { listAiConversations } from '../../lib/api/ai-chat';
 import { aiPanelKey, getAiPanel } from '../../lib/api/ai-panel';
 import { AiPanel } from './AiPanel';
 import { defaultTab, panelLayout } from './ai-panel-model';
+import { takeYourAiRequest } from './open-your-ai';
 import './ai-panel.css';
 
 /** Which popover is open, and where: under the top-bar button, or under the panel's Switch. */
@@ -107,6 +108,13 @@ export function AiPanelLauncher({
     enabled: wanted,
   });
   const [aiOpen, setAiOpen] = useState(false);
+  // The approvals badge asked for tab 2 ("Your AI"): open the panel there once it is read.
+  const [fromApprovals, setFromApprovals] = useState(false);
+  useEffect(() => {
+    if (!takeYourAiRequest()) return;
+    setFromApprovals(true);
+    setAiOpen(true);
+  }, []);
   // AI panel with two tabs (Figma 851:906): one read lays the panel out (gap 4). While nothing is
   // connected and the panel is open, it is read again so step 3 turns into the connected view.
   const panelView = useQuery({
@@ -129,6 +137,15 @@ export function AiPanelLauncher({
   });
   const chatOnly = layout === 'tmanage-only' || (panelView.isError && tmanageAi.isSuccess);
   const twoWays = layout === 'tabs' || layout === 'own-only';
+  // Without a "Your AI" tab (the panel read failed, or only TManage AI is in use) the badge's
+  // request goes to the AI actions list instead, where the same waiting actions are.
+  const settled = panelView.isError ? !tmanageAi.isPending : panelView.isSuccess;
+  useEffect(() => {
+    if (!fromApprovals || !settled || twoWays) return;
+    setFromApprovals(false);
+    setAiOpen(false);
+    window.location.assign(`/${encodeURIComponent(organizationSlug)}/settings/ai-actions`);
+  }, [fromApprovals, settled, twoWays, organizationSlug]);
   const choices = useMemo(() => assistantChoices(view.data?.apps ?? []), [view.data]);
   const storageKey = rememberKey(organizationSlug, view.data?.viewerName ?? '');
   const address = connectorAddress(deploymentAddress());
@@ -161,6 +178,7 @@ export function AiPanelLauncher({
 
   function press() {
     if (chatOnly || twoWays) {
+      setFromApprovals(false);
       setAiOpen((open) => !open);
       return;
     }
@@ -293,11 +311,12 @@ export function AiPanelLauncher({
               organizationSlug={organizationSlug}
               layout={layout}
               view={panelView.data}
-              initialTab={defaultTab(panelView.data)}
+              initialTab={defaultTab(panelView.data, fromApprovals)}
               address={address}
               onRetry={() => void panelView.refetch()}
               onClose={() => {
                 setAiOpen(false);
+                setFromApprovals(false);
                 anchor.current?.querySelector('button')?.focus();
               }}
             />,
@@ -305,7 +324,7 @@ export function AiPanelLauncher({
           )
         : null}
 
-      {aiOpen && chatOnly
+      {aiOpen && chatOnly && !fromApprovals
         ? createPortal(
             <AiChatPanel
               organizationSlug={organizationSlug}

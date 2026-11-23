@@ -256,10 +256,10 @@ export function BusinessMemoryScreen({
       crumbs={[tOr(ccKey('ControlCenter.ai'), 'AI')]}
       title={t('BusinessMemory.title')}
       description={t('BusinessMemory.lead')}
+      tabs={<AiAdminTabs organizationSlug={organizationSlug} current="memory" />}
       {...(facts.isSuccess ? { actions: addButton } : {})}
       client={api}
     >
-      <AiAdminTabs organizationSlug={organizationSlug} current="memory" />
       <div className="tm-aia-memory">
         {facts.isPending ? (
           <div className="tm-aia-state" aria-busy="true">
