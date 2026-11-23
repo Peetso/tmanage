@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Button } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient, IdleState } from '../../lib/api/client';
@@ -47,13 +48,26 @@ export function IdleSignOutWarning({ client }: { client?: ApiClient }) {
     const onActivity = () => {
       if (!openRef.current) api.noteActivity();
     };
+    // F4: bringing the tab back is the person's own act too. Registered on `document`, so it runs
+    // before TanStack's focus refetch (which listens on `window`) and that refetch can recover.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') onActivity();
+    };
     for (const name of ACTIVITY_EVENTS) {
       window.addEventListener(name, onActivity, { passive: true, capture: true });
     }
+    document.addEventListener('visibilitychange', onVisible, true);
     return () => {
       for (const name of ACTIVITY_EVENTS) window.removeEventListener(name, onActivity, true);
+      document.removeEventListener('visibilitychange', onVisible, true);
     };
   }, [api]);
+
+  // F4: moving to another page is use of the page, whether a click, a key or the app did it.
+  const pathname = usePathname();
+  useEffect(() => {
+    if (!openRef.current) api.noteActivity();
+  }, [api, pathname]);
 
   useEffect(() => {
     if (idle.deadline === null) return;

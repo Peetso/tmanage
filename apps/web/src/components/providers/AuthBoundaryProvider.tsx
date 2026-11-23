@@ -4,6 +4,8 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, type ReactNode } from 'react';
 import { authBoundary, type AuthBoundary, type AuthNotice } from '../../lib/auth-boundary';
+import { browserApiClient } from '../../lib/api/browser-client';
+import { isAccessExpired, type ApiClient } from '../../lib/api/client';
 import { signInPathFor } from '../../lib/sign-in-return';
 import { IdleSignOutWarning } from './IdleSignOutWarning';
 
@@ -52,6 +54,25 @@ export function useAuthBoundaryEffects(
   );
 }
 
+/**
+ * F4 — after a refresh kept the session, re-run every read that is showing "the access token is
+ * gone". TanStack treats that 401 as final (no retry, `QueryProvider`), so without this a card
+ * refused while the token was expired kept "The request carries no valid session" on screen
+ * until a reload, although the session was fine again a moment later.
+ */
+export function useRefetchAfterSessionKept(queryClient: QueryClient, api: ApiClient): void {
+  useEffect(
+    () =>
+      api.subscribeSessionKept(() => {
+        void queryClient.refetchQueries({
+          predicate: (query) =>
+            query.state.status === 'error' && isAccessExpired(query.state.error),
+        });
+      }),
+    [api, queryClient],
+  );
+}
+
 /** The sign-in and sign-up pages, English and Arabic (AUTHSTATE). */
 const ENTRY_PAGES: ReadonlySet<string> = new Set([
   '/sign-in',
@@ -80,6 +101,7 @@ export function AuthBoundaryProvider({ children }: { children: ReactNode }) {
   // `replace`, not `push`: a page whose session is gone is not a place to come back to.
   const navigate = useCallback((path: string) => router.replace(path), [router]);
   useAuthBoundaryEffects(queryClient, authBoundary, navigate);
+  useRefetchAfterSessionKept(queryClient, browserApiClient());
   return (
     <>
       {children}

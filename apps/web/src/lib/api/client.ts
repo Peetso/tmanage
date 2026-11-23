@@ -98,6 +98,12 @@ export interface SessionRecoveryOptions {
    * when the person used the page (`noteActivity`) since the last refresh. Without this, a
    * background poll would refresh every few minutes and keep an idle session alive forever,
    * because the API counts a refresh as activity.
+   *
+   * F4 (2026-11-23): the gate applies only while the company has an idle limit in force (the API
+   * reported one). With the limit Off there is no idle rule to protect, and gating then left a
+   * page that was used without a key or pointer event (a route change, a tab brought back) with
+   * "The request carries no valid session" on every card after its second token expiry, until a
+   * reload, although the session itself was fine.
    */
   readonly requireActivity?: boolean;
 }
@@ -203,7 +209,7 @@ export function newCorrelationId(): string {
 }
 
 /** The 401 that means "the access token is gone", as opposed to any other refusal. */
-function isAccessExpired(error: unknown): error is ApiRequestError {
+export function isAccessExpired(error: unknown): error is ApiRequestError {
   return (
     error instanceof ApiRequestError && error.status === 401 && error.code === 'unauthenticated'
   );
@@ -216,6 +222,7 @@ export class ApiClient {
   private lastRefreshAt = Number.NEGATIVE_INFINITY;
   private idle: IdleState = { limitMinutes: 0, deadline: null };
   private readonly idleListeners = new Set<(state: IdleState) => void>();
+  private readonly keptListeners = new Set<() => void>();
 
   constructor(private readonly options: ApiClientOptions) {
     // Loading the page is the person's own act, so it counts as activity.
@@ -235,6 +242,27 @@ export class ApiClient {
   subscribeIdle(listener: (state: IdleState) => void): () => void {
     this.idleListeners.add(listener);
     return () => this.idleListeners.delete(listener);
+  }
+
+  /**
+   * F4. Be told each time a refresh kept the session, so the application can re-run the reads
+   * that were refused while the access token was gone (they are final refusals to TanStack, and
+   * would otherwise stay on screen as errors until a reload). Returns the unsubscribe.
+   */
+  subscribeSessionKept(listener: () => void): () => void {
+    this.keptListeners.add(listener);
+    return () => this.keptListeners.delete(listener);
+  }
+
+  /** A listener's own failure never turns a kept session into a failed refresh. */
+  private announceKept(): void {
+    for (const listener of this.keptListeners) {
+      try {
+        listener();
+      } catch {
+        // The listener's problem; the session was kept either way.
+      }
+    }
   }
 
   private setIdle(next: IdleState): void {
@@ -306,8 +334,10 @@ export class ApiClient {
         (request.authentication ?? 'session') === 'session' &&
         request.path !== REFRESH_PATH &&
         isAccessExpired(error) &&
-        // R3. No activity since the last refresh: a background request does not keep it alive.
+        // R3. No activity since the last refresh: a background request does not keep it alive —
+        // while an idle limit is in force (F4); with the limit Off there is nothing to protect.
         (this.options.recovery?.requireActivity !== true ||
+          this.idle.limitMinutes <= 0 ||
           this.lastActivityAt > this.lastRefreshAt);
       if (!recoverable) throw error;
 
@@ -350,6 +380,7 @@ export class ApiClient {
             deadline: this.lastRefreshAt + this.idle.limitMinutes * 60_000,
           });
         }
+        this.announceKept();
         return 'kept';
       } catch (error) {
         if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {

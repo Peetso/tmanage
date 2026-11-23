@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   sendsToSignIn,
   useAuthBoundaryEffects,
+  useRefetchAfterSessionKept,
 } from '../src/components/providers/AuthBoundaryProvider';
+import { ApiClient } from '../src/lib/api/client';
+import { ApiRequestError } from '../src/lib/api/errors';
 import { AuthBoundary, type AuthChannel, type AuthNotice } from '../src/lib/auth-boundary';
 
 /**
@@ -202,5 +205,54 @@ describe('what a change of principal does to the caches', () => {
     unmount();
     boundary.announce('session-ended');
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('F4: reads refused while the access token was gone run again once it is renewed', () => {
+  it('refetches only the queries whose error is the expired-session 401', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const api = new ApiClient({
+      baseUrl: '',
+      csrfCookieName: 'c',
+      readCsrfToken: () => undefined,
+      newCorrelationId: () => 'id',
+      recovery: { onSessionEnded: () => undefined },
+      fetch: (async () => new Response('{}', { status: 200 })) as typeof fetch,
+    });
+    const expired = new ApiRequestError(
+      401,
+      'unauthenticated',
+      'The request carries no valid session',
+      'c',
+    );
+    const forbidden = new ApiRequestError(403, 'forbidden', 'No', 'c');
+    let expiredCalls = 0;
+    let forbiddenCalls = 0;
+    await queryClient
+      .fetchQuery({
+        queryKey: ['expired'],
+        queryFn: () => {
+          expiredCalls += 1;
+          if (expiredCalls === 1) throw expired;
+          return 'fresh';
+        },
+      })
+      .catch(() => undefined);
+    await queryClient
+      .fetchQuery({
+        queryKey: ['forbidden'],
+        queryFn: () => {
+          forbiddenCalls += 1;
+          throw forbidden;
+        },
+      })
+      .catch(() => undefined);
+    expect(queryClient.getQueryState(['expired'])?.status).toBe('error');
+
+    renderHook(() => useRefetchAfterSessionKept(queryClient, api));
+    await api.staySignedIn();
+    await vi.waitFor(() => expect(expiredCalls).toBe(2));
+    expect(queryClient.getQueryData(['expired'])).toBe('fresh');
+    expect(forbiddenCalls).toBe(1);
   });
 });
