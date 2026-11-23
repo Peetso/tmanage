@@ -40,13 +40,39 @@ function heard(words: string, isFinal: boolean): RecognitionResultEventLike {
   return { results: Object.assign(list, { length: 1 }) };
 }
 
+/** The member's display preferences as the API answers them: no dictation language saved yet. */
+const PREFERENCES = {
+  theme: 'system',
+  density: 'comfortable',
+  locale: 'en-US',
+  timezone: 'Europe/London',
+  dateFormat: 'iso',
+  numerals: 'latin',
+  calendarDisplay: 'gregorian',
+  uiMode: 'simple',
+  uiModeSource: 'org_default',
+  uiModeLocked: false,
+  dictationLanguage: null,
+};
+
 function mount() {
   const posts: string[] = [];
+  const preferencePuts: unknown[] = [];
   const api = new ApiClient({
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
     fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
-      if ((init?.method ?? 'GET') !== 'GET') posts.push(String(input));
+      const method = init?.method ?? 'GET';
+      if (String(input) === `${BASE}/me/display-preferences`) {
+        if (method === 'PUT') preferencePuts.push(JSON.parse(String(init?.body)));
+        return Promise.resolve(
+          new Response(JSON.stringify(PREFERENCES), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }
+      if (method !== 'GET') posts.push(String(input));
       const chat = String(input) === `${BASE}/copilot/chat`;
       const body = chat
         ? {
@@ -88,6 +114,7 @@ function mount() {
   );
   return {
     posts,
+    preferencePuts,
     box: () => screen.getByLabelText('Message to TManage AI') as HTMLTextAreaElement,
   };
 }
@@ -170,10 +197,9 @@ describe('TManage AI voice mode (62-16)', () => {
     expect(cancel).toHaveBeenCalled();
   });
 
-  it('dictates in the language picked in the composer chip, saved for next time (878:976)', async () => {
+  it('dictates in the language picked in the composer chip, saved to the member preference (878:976)', async () => {
     (window as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition = FakeRecognition;
-    window.localStorage.removeItem('tm.voice.dictationLanguage.northstar');
-    mount();
+    const { preferencePuts } = mount();
     fireEvent.click(
       await screen.findByRole('button', { name: 'Dictation language: English (US)' }),
     );
@@ -181,10 +207,12 @@ describe('TManage AI voice mode (62-16)', () => {
       target: { value: 'egypt' },
     });
     fireEvent.click(screen.getByRole('radio', { name: /Arabic \(Egypt\)/ }), { detail: 1 });
-    expect(window.localStorage.getItem('tm.voice.dictationLanguage.northstar')).toBe('ar-EG');
     fireEvent.click(screen.getByRole('button', { name: 'Talk instead of typing' }));
     expect(FakeRecognition.last!.lang).toBe('ar-EG');
-    window.localStorage.removeItem('tm.voice.dictationLanguage.northstar');
+    // Saved to the member's preference (all devices), not to this browser.
+    await waitFor(() => expect(preferencePuts).toHaveLength(1));
+    expect(preferencePuts[0]).toMatchObject({ dictationLanguage: 'ar-EG' });
+    expect(preferencePuts[0]).not.toHaveProperty('uiModeSource');
   });
 
   it('in the desktop app the chip is disabled with why, and no microphone is drawn', async () => {

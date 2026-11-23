@@ -1,4 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { isDictationLanguageTag } from '@tmanage/domain';
+import type { DictationLanguageTag } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { DISPLAY_PREFERENCES_REPOSITORY, TENANT_DATABASE } from '../../common/http/tokens.js';
 import {
@@ -71,6 +73,11 @@ export interface DisplayPreferencesView {
   readonly calendarDisplay: DisplayCalendar;
   /** C24. The first day of the week calendars and week pickers start on. */
   readonly weekStart: DisplayWeekStart;
+  /**
+   * AI panel (2026-11-23). The voice-dictation language (BCP-47, one of the domain's 17), or
+   * `null` = the app language. A PUT without the key keeps the stored choice; `null` clears it.
+   */
+  readonly dictationLanguage: DictationLanguageTag | null;
   /** 55-04. The effective shell mode: the member's own, else (or when locked) the org default. */
   readonly uiMode: UiMode;
   readonly uiModeSource: 'self' | 'org_default';
@@ -119,6 +126,7 @@ export const DEFAULT_DISPLAY_PREFERENCES: StoredDisplayPreferencesView = {
   numerals: 'latin',
   calendarDisplay: 'gregorian',
   weekStart: 'monday',
+  dictationLanguage: null,
 };
 
 /** The only keys a PUT body may carry — anything else is a 400 (fixed-key allowlist). */
@@ -132,6 +140,7 @@ const ALLOWED_KEYS: ReadonlySet<string> = new Set([
   'calendarDisplay',
   'weekStart',
   'uiMode',
+  'dictationLanguage',
 ]);
 
 @Injectable()
@@ -187,9 +196,15 @@ export class DisplayPreferencesService {
           'ui_mode_locked',
         );
       }
-      await this.preferences.upsert(tx, context, membershipId, settings);
+      const stored = await this.preferences.findForMembership(tx, context, membershipId);
+      const kept =
+        settings.dictationLanguage === undefined &&
+        stored?.displayJson.dictationLanguage !== undefined
+          ? { ...settings, dictationLanguage: stored.displayJson.dictationLanguage }
+          : settings;
+      await this.preferences.upsert(tx, context, membershipId, kept);
       const row = await this.preferences.findForMembership(tx, context, membershipId);
-      return viewOf(row ? row.displayJson : settings, org);
+      return viewOf(row ? row.displayJson : kept, org);
     });
   }
 
@@ -250,6 +265,9 @@ function viewOf(settings: DisplayPreferences, org: OrgUiMode): DisplayPreference
     numerals: settings.numerals ?? DEFAULT_DISPLAY_PREFERENCES.numerals,
     calendarDisplay: settings.calendarDisplay ?? DEFAULT_DISPLAY_PREFERENCES.calendarDisplay,
     weekStart: settings.weekStart ?? DEFAULT_DISPLAY_PREFERENCES.weekStart,
+    dictationLanguage: isDictationLanguageTag(settings.dictationLanguage)
+      ? settings.dictationLanguage
+      : null,
     uiMode: useOwn ? own : org.defaultMode,
     uiModeSource: useOwn ? 'self' : 'org_default',
     uiModeLocked: org.locked,
@@ -302,6 +320,14 @@ function parseInput(body: unknown): DisplayPreferences {
       : oneOf('weekStart', DISPLAY_WEEK_STARTS);
   // 55-04: optional, and absent stays absent — it means "inherit the org default", not a value.
   const uiMode = value['uiMode'] === undefined ? undefined : oneOf('uiMode', UI_MODES);
+  const rawDictation = value['dictationLanguage'];
+  if (
+    rawDictation !== undefined &&
+    rawDictation !== null &&
+    !isDictationLanguageTag(rawDictation)
+  ) {
+    details.push({ field: 'dictationLanguage', message: 'must be a dictation language or null' });
+  }
 
   if (details.length > 0) {
     throw new ApiError(400, 'validation_failed', 'The display preferences are invalid', details);
@@ -317,5 +343,8 @@ function parseInput(body: unknown): DisplayPreferences {
     calendarDisplay,
     weekStart,
     ...(uiMode === undefined ? {} : { uiMode }),
+    ...(rawDictation === undefined
+      ? {}
+      : { dictationLanguage: isDictationLanguageTag(rawDictation) ? rawDictation : null }),
   };
 }

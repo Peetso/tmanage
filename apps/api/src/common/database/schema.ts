@@ -9497,6 +9497,11 @@ export interface DisplayPreferences {
    * `default_ui_mode` setting — the effective mode is computed on read, never stored as a default.
    */
   readonly uiMode?: 'simple' | 'power';
+  /**
+   * AI panel (2026-11-23). The member's voice-dictation language, one of the domain's
+   * `DICTATION_LANGUAGE_TAGS`. Absent or `null` = follow the app language.
+   */
+  readonly dictationLanguage?: string | null;
 }
 
 /**

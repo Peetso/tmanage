@@ -8,6 +8,9 @@
  * come from the catalogs (`AiChat.dictation.lang.<tag>`), in the member's app language.
  */
 
+import { isDictationLanguageTag } from '@tmanage/domain';
+import type { DictationLanguageTag } from '@tmanage/domain';
+
 /**
  * The groups, in the order shown in both app languages (Figma 878:976, AR 873:1476). The chosen
  * language is scrolled into view on open, so an Arabic member still sees their choice first.
@@ -42,8 +45,9 @@ export const DICTATION_LANGUAGES: readonly DictationLanguage[] = [
 
 const TAGS = new Set(DICTATION_LANGUAGES.map((language) => language.tag));
 
-export function isDictationTag(value: unknown): value is string {
-  return typeof value === 'string' && TAGS.has(value);
+/** One of the domain's `DICTATION_LANGUAGE_TAGS`, the list the API validates the preference by. */
+export function isDictationTag(value: unknown): value is DictationLanguageTag {
+  return isDictationLanguageTag(value);
 }
 
 /**
@@ -119,32 +123,5 @@ export function isDesktopApp(
 
 // ── The saved choice ────────────────────────────────────────────────────────────────────────────
 //
-// Kept beside the read-aloud switch (`lib/voice/speech.ts`), the voice feature's existing
-// preference mechanism, under one key per workspace. No value outside the list is ever read back.
-
-const STORAGE_PREFIX = 'tm.voice.dictationLanguage.';
-
-export function readDictationChoice(
-  organizationSlug: string,
-  storage?: Pick<Storage, 'getItem'>,
-): string | null {
-  try {
-    const value = (storage ?? window.localStorage).getItem(`${STORAGE_PREFIX}${organizationSlug}`);
-    return isDictationTag(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveDictationChoice(
-  organizationSlug: string,
-  tag: string,
-  storage?: Pick<Storage, 'setItem'>,
-): void {
-  if (!isDictationTag(tag)) return;
-  try {
-    (storage ?? window.localStorage).setItem(`${STORAGE_PREFIX}${organizationSlug}`, tag);
-  } catch {
-    // A private window or blocked storage: the choice still holds for this visit.
-  }
-}
+// The member's own `dictationLanguage` display preference (API AI-PANEL-API, 2026-11-23), so the
+// choice follows the member to every browser and device; `null` = the app language.

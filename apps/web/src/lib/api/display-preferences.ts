@@ -1,3 +1,4 @@
+import type { DictationLanguageTag } from '@tmanage/domain';
 import type { ApiClient } from './client';
 
 /**
@@ -77,6 +78,11 @@ export interface DisplayPreferencesView {
   readonly calendarDisplay: 'gregorian' | 'gregorian_hijri';
   /** C24: the first day of the week; the API reads an unsaved value as `monday`. */
   readonly weekStart: DisplayWeekStart;
+  /**
+   * AI panel (2026-11-23): the voice-dictation language (BCP-47, one of the domain's 17), or
+   * `null` = the app language. A PUT without it keeps the stored choice.
+   */
+  readonly dictationLanguage: DictationLanguageTag | null;
   /** 55-04 (R20-c): the effective shell mode — the member's own, else (or when locked) the org default. */
   readonly uiMode: DisplayUiMode;
   readonly uiModeSource: 'self' | 'org_default';
@@ -90,8 +96,12 @@ export interface DisplayPreferencesView {
  */
 export type DisplayPreferencesUpdate = Omit<
   DisplayPreferencesView,
-  'uiMode' | 'uiModeSource' | 'uiModeLocked'
-> & { readonly uiMode?: DisplayPreferencesView['uiMode'] };
+  'uiMode' | 'uiModeSource' | 'uiModeLocked' | 'dictationLanguage'
+> & {
+  readonly uiMode?: DisplayPreferencesView['uiMode'];
+  /** Sent only when the member changes it; left out, the stored choice is kept. */
+  readonly dictationLanguage?: DisplayPreferencesView['dictationLanguage'];
+};
 
 /**
  * The PUT body for a full record: only the stored settings, never the computed `uiModeSource` /
@@ -112,7 +122,24 @@ export function toDisplayPreferencesUpdate(
     calendarDisplay: view.calendarDisplay,
     weekStart: view.weekStart,
     ...(ownMode && view.uiMode !== undefined ? { uiMode: view.uiMode } : {}),
+    // A fetched view's choice is never echoed back: only an explicit update sends it.
+    ...(!('uiModeSource' in view) && view.dictationLanguage !== undefined
+      ? { dictationLanguage: view.dictationLanguage }
+      : {}),
   };
+}
+
+/** The PUT that changes only the dictation language, from the member's current settings. */
+export function withDictationLanguage(
+  current: DisplayPreferencesView,
+  dictationLanguage: DictationLanguageTag | null,
+): DisplayPreferencesUpdate {
+  return { ...toDisplayPreferencesUpdate(current), dictationLanguage };
+}
+
+/** The query key every reader of the member's display preferences shares. */
+export function displayPreferencesKey(organizationSlug: string): readonly string[] {
+  return ['display-preferences', organizationSlug];
 }
 
 function path(organizationSlug: string): string {

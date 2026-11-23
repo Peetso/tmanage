@@ -167,6 +167,7 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
       numerals: 'latin',
       calendarDisplay: 'gregorian',
       weekStart: 'monday',
+      dictationLanguage: null,
       ...INHERITED,
     });
 
@@ -180,6 +181,7 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
       numerals: 'latin',
       calendarDisplay: 'gregorian',
       weekStart: 'monday',
+      dictationLanguage: null,
       ...INHERITED,
     });
   });
@@ -281,6 +283,33 @@ describe('DisplayPreferencesController (PREF-DISPLAY, x285)', () => {
       controllerWith(repo).put(context, member(), { ...VALID, weekStart: 'friday' }),
       400,
     );
+    expect(repo.upsertCalls).toHaveLength(before);
+  });
+
+  it('AI panel: dictationLanguage is one of the 17 or null, kept when a save leaves it out', async () => {
+    const repo = new FakeDisplayPreferencesRepository();
+    repo.rows.set(MY_MEMBERSHIP, { ...VALID });
+    expect((await controllerWith(repo).get(context, member())).dictationLanguage).toBeNull();
+    const saved = await controllerWith(repo).put(context, member(), {
+      ...VALID,
+      dictationLanguage: 'ar-SA',
+    });
+    expect(saved.dictationLanguage).toBe('ar-SA');
+    // The display screen saves without the key: the member's choice stays.
+    const kept = await controllerWith(repo).put(context, member(), { ...VALID, theme: 'light' });
+    expect(kept.dictationLanguage).toBe('ar-SA');
+    const cleared = await controllerWith(repo).put(context, member(), {
+      ...VALID,
+      dictationLanguage: null,
+    });
+    expect(cleared.dictationLanguage).toBeNull();
+    const before = repo.upsertCalls.length;
+    for (const bad of ['xx-YY', 'ar-eg', 3]) {
+      await expectStatus(
+        controllerWith(repo).put(context, member(), { ...VALID, dictationLanguage: bad }),
+        400,
+      );
+    }
     expect(repo.upsertCalls).toHaveLength(before);
   });
 

@@ -22,9 +22,14 @@ import {
   dictationBlock,
   filterLanguages,
   isDesktopApp,
-  readDictationChoice,
-  saveDictationChoice,
+  isDictationTag,
 } from '../src/components/ai-chat/dictation-language';
+import { DICTATION_LANGUAGE_TAGS } from '@tmanage/domain';
+import {
+  toDisplayPreferencesUpdate,
+  withDictationLanguage,
+} from '../src/lib/api/display-preferences';
+import type { DisplayPreferencesView } from '../src/lib/api/display-preferences';
 import { expectNoAxeViolations } from './axe';
 
 vi.mock('next/navigation', () => ({
@@ -309,18 +314,34 @@ describe('Dictation language rules', () => {
     expect(isDesktopApp({})).toBe(false);
   });
 
-  it('saves the choice per workspace and never reads back a tag outside the list', () => {
-    const store = new Map<string, string>();
-    const storage = {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => void store.set(key, value),
+  it('offers exactly the domain list the API validates the preference against', () => {
+    expect(DICTATION_LANGUAGES.map((language) => language.tag)).toEqual([
+      ...DICTATION_LANGUAGE_TAGS,
+    ]);
+    expect(isDictationTag('ar-SA')).toBe(true);
+    expect(isDictationTag('xx-YY')).toBe(false);
+  });
+
+  it('saves the choice as the dictationLanguage preference, never echoing a fetched one', () => {
+    const current: DisplayPreferencesView = {
+      theme: 'system',
+      density: 'comfortable',
+      locale: 'en-US',
+      timezone: 'UTC',
+      dateFormat: 'iso',
+      numerals: 'latin',
+      calendarDisplay: 'gregorian',
+      weekStart: 'monday',
+      dictationLanguage: 'en-GB',
+      uiMode: 'simple',
+      uiModeSource: 'org_default',
+      uiModeLocked: false,
     };
-    saveDictationChoice('northstar', 'ar-SA', storage);
-    saveDictationChoice('northstar', 'xx-YY', storage);
-    expect(readDictationChoice('northstar', storage)).toBe('ar-SA');
-    expect(readDictationChoice('other', storage)).toBeNull();
-    store.set('tm.voice.dictationLanguage.northstar', 'evil');
-    expect(readDictationChoice('northstar', storage)).toBeNull();
+    expect(withDictationLanguage(current, 'ar-SA')).toMatchObject({
+      theme: 'system',
+      dictationLanguage: 'ar-SA',
+    });
+    expect(toDisplayPreferencesUpdate(current)).not.toHaveProperty('dictationLanguage');
   });
 });
 

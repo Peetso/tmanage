@@ -64,6 +64,7 @@ const DEFAULTS: DisplayPreferences = {
   weekStart: 'monday',
   uiMode: 'simple',
   uiModeSource: 'org_default',
+  dictationLanguage: null,
   uiModeLocked: false,
 };
 

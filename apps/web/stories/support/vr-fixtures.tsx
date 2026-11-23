@@ -505,6 +505,7 @@ const DISPLAY_PREFERENCES: DisplayPreferencesView = {
   weekStart: 'monday',
   uiMode: 'simple',
   uiModeSource: 'org_default',
+  dictationLanguage: null,
   uiModeLocked: false,
 };
 

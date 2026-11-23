@@ -19,6 +19,12 @@ import {
 } from '../../lib/api/ai-chat';
 import { ApiRequestError } from '../../lib/api/errors';
 import { creditsTone, fetchAiCredits, requestAiPack } from '../../lib/api/ai-credits';
+import {
+  displayPreferencesKey,
+  getDisplayPreferences,
+  updateDisplayPreferences,
+  withDictationLanguage,
+} from '../../lib/api/display-preferences';
 import { useFormCheck } from '../../lib/forms/form-check';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
 import { useDictation, type DictationStatus } from '../voice/useDictation';
@@ -28,9 +34,8 @@ import {
   appLanguageTag,
   dictationBlock,
   isDesktopApp,
+  isDictationTag,
   languageNameKey,
-  readDictationChoice,
-  saveDictationChoice,
   type DictationBlock,
 } from './dictation-language';
 import { AnswerReaderProvider, useAnswerReader } from './AiVoice';
@@ -109,9 +114,17 @@ export function AiChatPanel({
   // Voice mode (62-16): dictation only fills the box; the member checks the words and sends. The
   // language is the member's choice (Figma §Dictation), the app language until they pick one.
   const appTag = appLanguageTag(text.locale);
+  // The choice is the member's own preference (`dictationLanguage`), so it follows them to every
+  // browser; `chosenTag` shows a new pick at once while it saves.
+  const displayPrefs = useQuery({
+    queryKey: displayPreferencesKey(organizationSlug),
+    queryFn: () => getDisplayPreferences(api, organizationSlug),
+  });
   const [chosenTag, setChosenTag] = useState<string | null>(null);
-  useEffect(() => setChosenTag(readDictationChoice(organizationSlug)), [organizationSlug]);
-  const dictationTag = chosenTag ?? appTag;
+  const savedTag = isDictationTag(displayPrefs.data?.dictationLanguage)
+    ? (displayPrefs.data?.dictationLanguage ?? null)
+    : null;
+  const dictationTag = chosenTag ?? savedTag ?? appTag;
   const heard = useDictation({ value: draft, onChange: setDraft, lang: dictationTag });
   // The desktop app's browser has no speech service behind its recognition API, so it is off there.
   // Both are known only after mount, so the server render and the first client render agree.
@@ -120,9 +133,17 @@ export function AiChatPanel({
   const dictation = desktopApp ? { ...heard, supported: false } : heard;
   const block: DictationBlock =
     desktopApp === null ? null : dictationBlock(heard.supported, desktopApp);
+  const saveDictation = useMutation({
+    mutationFn: async (tag: string) => {
+      if (!isDictationTag(tag)) throw new Error('not a dictation language');
+      const current = await getDisplayPreferences(api, organizationSlug);
+      return updateDisplayPreferences(api, organizationSlug, withDictationLanguage(current, tag));
+    },
+    onSuccess: (saved) => queries.setQueryData(displayPreferencesKey(organizationSlug), saved),
+  });
   function chooseDictation(tag: string) {
     setChosenTag(tag);
-    saveDictationChoice(organizationSlug, tag);
+    saveDictation.mutate(tag);
   }
   const reader = useAnswerReader();
   const [spoken, setSpoken] = useState(false);
