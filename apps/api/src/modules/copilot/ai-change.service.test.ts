@@ -793,3 +793,34 @@ describe('prompt injection corpus (62-12, first half)', () => {
     expect(view.withheldFigures).toBe(1);
   });
 });
+
+describe('AI tamper review 2026-11-23: the card hides no field that would run', () => {
+  it('a change with more fields than one card shows is refused, not proposed, nothing runs', async () => {
+    const wide = {
+      workItemId: 'wi_1',
+      freq: 'weekly',
+      interval: 1,
+      until: '2026-12-31',
+      preset: 'weekly',
+      rrule: 'FREQ=WEEKLY',
+      spawnMode: 'ahead',
+      spawnAheadDays: 3,
+      holidayPolicy: 'skip',
+      countLimit: 10,
+      timeZone: 'Asia/Riyadh',
+      startsOn: '2026-12-01',
+      endsOn: '2026-12-31',
+      scope: 'all',
+      fromDate: '2026-12-01',
+    };
+    const env = setup([
+      route('tasks', 'medium'),
+      runAction('t1', 'work_items.recurrence.set', wide),
+      text('I could not.'),
+    ]);
+    const view = await env.turn('make it repeat');
+    expect(view.card).toBeNull();
+    expect(view.toolCalls).toEqual([{ opId: 'work_items.recurrence.set', outcome: 'refused' }]);
+    expect(env.ws.calls.map((c) => c.opId)).not.toContain('work_items.recurrence.set');
+  });
+});

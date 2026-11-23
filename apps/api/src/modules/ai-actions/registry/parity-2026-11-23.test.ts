@@ -121,10 +121,10 @@ describe('parity batch 1: the iteration writes are ops (were NEVER work_planning
   it('without the right (project.manage), the member is refused and nothing is sent', async () => {
     const { run, fetched, frozen } = surface(CHAT_FULL_SCOPES, WITHOUT('project.manage'));
     const ran = await run('iterations.create', { projectId: 'pr_1', name: 'Sprint 5' });
-    expect(ran).toMatchObject({
-      isError: true,
-      data: 'Unknown or not permitted action: iterations.create',
-    });
+    // ae3933fe: a refusal names its reason (the missing right) instead of "unknown".
+    expect(ran.isError).toBe(true);
+    expect(String(ran.data)).toContain('Not permitted: iterations.create.');
+    expect(String(ran.data)).toContain('"project.manage"');
     expect(fetched).toEqual([]);
     expect(frozen).toEqual([]);
   });

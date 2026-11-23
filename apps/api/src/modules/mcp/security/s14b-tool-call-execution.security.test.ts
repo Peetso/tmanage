@@ -385,10 +385,16 @@ describe('S14B tool call — workspace isolation', () => {
     expect(call.actorChannel).toBe('ai_assistant');
   });
 
-  it('the model cannot name a workspace: an orgSlug argument is ignored', async () => {
+  it('the model cannot name a workspace: an orgSlug argument is refused, nothing is sent', async () => {
     const app = guardedApp();
     const tools = await connect(app);
-    await tools.call('work_items_get', { workItemId: 'wi-9', orgSlug: 'globex' });
+    // AI tamper review 2026-11-23: the runtime parses every call with the op's strict schema, so an
+    // extra `orgSlug` is refused (it used to be dropped) and no inner request is made.
+    const before = app.calls.length;
+    const refused = await tools.call('work_items_get', { workItemId: 'wi-9', orgSlug: 'globex' });
+    expect(refused.isError).toBe(true);
+    expect(app.calls.length).toBe(before);
+    await tools.call('work_items_get', { workItemId: 'wi-9' });
     const call = app.calls.at(-1)!;
     expect(call.url.startsWith('/v1/organizations/acme/')).toBe(true);
     expect(call.organizationId).toBe('org-a');

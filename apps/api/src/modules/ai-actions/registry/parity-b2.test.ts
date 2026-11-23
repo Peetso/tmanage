@@ -200,10 +200,10 @@ describe('parity batch 2: the remaining workspace routes are ops', () => {
     const without = new Set([...OWNER].filter((c) => c !== 'org.security.manage'));
     const { run, fetched, frozen } = surface(without);
     const ran = await run('admin.ip_allowlist.create', { cidr: '203.0.113.0/24' });
-    expect(ran).toMatchObject({
-      isError: true,
-      data: 'Unknown or not permitted action: admin.ip_allowlist.create',
-    });
+    // ae3933fe: a refusal names its reason (the missing right) instead of "unknown".
+    expect(ran.isError).toBe(true);
+    expect(String(ran.data)).toContain('Not permitted: admin.ip_allowlist.create.');
+    expect(String(ran.data)).toContain('"org.security.manage"');
     expect(fetched).toEqual([]);
     expect(frozen).toEqual([]);
   });

@@ -74,7 +74,7 @@ import {
   type CardItem,
   type CardPayloadItem,
 } from './ai-preview.js';
-import { AI_UNDO_WINDOW_MS, recordOf, type AiUndoEntry } from './ai-undo.js';
+import { AI_UNDO_WINDOW_MS, changedFields, recordOf, type AiUndoEntry } from './ai-undo.js';
 import { isPricedModel } from './ai-price-table.js';
 import { historyReplay, type AiResponse } from './ai-response.js';
 import {
@@ -1503,6 +1503,14 @@ export class CopilotChatService {
     }
     if (changes.proposals.length >= MAX_CARD_ITEMS) {
       return refused(`The card already holds ${MAX_CARD_ITEMS} changes; ${opId} was not proposed.`);
+    }
+    // AI tamper review 2026-11-23: the card shows exactly what runs. A change with more fields than
+    // one card shows is not proposed (nor frozen), so no field can run unseen (fail closed).
+    const shown = buildCardItem(0, change, gate, current, null).changes.length;
+    if (shown < changedFields(change.op, change.args).length) {
+      return refused(
+        `${opId} changes more fields than one card can show. Nothing was changed; make this change in TManage directly or in smaller steps.`,
+      );
     }
     let approvalId: string | null = null;
     if (change.op.risk === 'confirm') {

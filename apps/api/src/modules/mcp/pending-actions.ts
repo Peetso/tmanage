@@ -73,6 +73,9 @@ export function freezeConfirmAction(opId: string, rawArgs: unknown): FrozenActio
     throw new PendingActionRefusedError('invalid_args', `Invalid arguments for ${opId}`);
   }
   const args = parsed.data as Record<string, unknown>;
+  // AI tamper review 2026-11-23: a row is frozen only when its request can be built, so the approve
+  // page never shows an action whose path argument would send it to another route (`..`).
+  buildOpRequest(op, args, 'frozen');
   return { op, detail, args, argsSha256: argsSha256({ opId, args }) };
 }
 
@@ -102,9 +105,20 @@ export interface OpRequest {
 }
 
 /**
+ * A path argument the URL parser would turn into a different path: `.` and `..` are dot segments
+ * that `new URL()` (and so `fastify.inject`) resolves before routing, and an empty value collapses
+ * the segment. `files/:fileId/...` with `..` would reach another route than the op (and the card
+ * or approve page) names (AI tamper review 2026-11-23; OWASP LLM06, ASVS 5.0 V1.3).
+ */
+export function isUnsafePathSegment(value: string): boolean {
+  return value === '' || value === '.' || value === '..';
+}
+
+/**
  * Turn an op and its frozen args into the request the in-process inject sends. `:orgSlug` comes
  * from the approver's route (the tenant is never an argument); every other `:param` comes from
- * the args, URL-encoded; the rest is a query string for a GET and a JSON body otherwise.
+ * the args, URL-encoded, and is never a dot segment ({@link isUnsafePathSegment}); the rest is a
+ * query string for a GET and a JSON body otherwise.
  */
 export function buildOpRequest(
   op: AiActionOp,
@@ -120,6 +134,9 @@ export function buildOpRequest(
     const value = args[name];
     if (typeof value !== 'string' && typeof value !== 'number') {
       throw new PendingActionRefusedError('invalid_args', `Missing path argument ${name}`);
+    }
+    if (isUnsafePathSegment(String(value))) {
+      throw new PendingActionRefusedError('invalid_args', `Invalid path argument ${name}`);
     }
     used.add(name);
     return encodeURIComponent(String(value));
@@ -177,7 +194,6 @@ export interface ApprovalSummary {
   readonly fields: readonly SummaryField[];
 }
 
-const MAX_SUMMARY_FIELDS = 12;
 const MAX_FIELD_CHARS = 200;
 
 function fieldText(value: unknown): string {
@@ -240,9 +256,11 @@ export function buildApprovalSummary(
   args: Record<string, unknown>,
   subject: string | null = subjectFromArgs(args),
 ): ApprovalSummary {
+  // Every argument that runs is shown (AI tamper review 2026-11-23): a cap here hid the 13th and
+  // later fields of the wider ops (`finance.profile.set` has 22) while they still ran. The strict
+  // schemas bound how many there can be.
   const fields = Object.entries(args)
     .filter(([, value]) => value !== undefined && value !== null)
-    .slice(0, MAX_SUMMARY_FIELDS)
     .map(([name, value]) => ({ name, value: fieldText(value) }));
   return {
     opId: op.id,

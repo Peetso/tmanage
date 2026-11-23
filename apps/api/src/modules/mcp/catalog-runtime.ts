@@ -184,7 +184,7 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     return null;
   }
 
-  async function runOp(opId: string, args: Record<string, unknown>): Promise<RunResult> {
+  async function runOp(opId: string, rawArgs: Record<string, unknown>): Promise<RunResult> {
     const op = findOpById(opId);
     if (op === undefined) return { isError: true, data: `Unknown action: ${opId}` };
     if (!permitted.has(opId)) {
@@ -194,10 +194,27 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     if (!grantCoversOp(options.scopes, op)) {
       return { isError: true, data: `insufficient_scope: ${opId} needs ${op.scope}` };
     }
+    // AI tamper review 2026-11-23 (ASVS 5.0 V2.2, mass assignment): whatever channel called (an op
+    // tool, `run_action`, a resource read), the arguments pass the op's own strict schema here, in
+    // the one funnel every inner request goes through. Unknown keys are refused, not forwarded.
+    const parsed = allDetailsById.get(opId)?.input.safeParse(rawArgs);
+    if (parsed === undefined || !parsed.success) {
+      return { isError: true, data: `Invalid arguments for ${opId}.` };
+    }
+    const args = parsed.data as Record<string, unknown>;
     // N07: a `write` op whose arguments reach a client (`confirmWhen`) is refused like a confirm op;
     // M01: so is one on a row the client already sees (`confirmWhenStored`, read from storage).
     if (await callNeedsConfirmWithState(op, args, storedField)) return askApproval(opId, args);
-    const built = buildOpRequest(op, args, options.orgSlug);
+    let built;
+    try {
+      built = buildOpRequest(op, args, options.orgSlug);
+    } catch (error) {
+      // A missing or dot-segment path argument: nothing is sent.
+      if (error instanceof PendingActionRefusedError) {
+        return { isError: true, data: `Invalid arguments for ${opId}.` };
+      }
+      throw error;
+    }
     const response = await options.fetch(`${options.baseUrl}${built.url}`, {
       method: built.method,
       ...(built.body !== undefined

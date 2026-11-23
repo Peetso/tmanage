@@ -7,6 +7,7 @@
  * is `standard`. `:orgSlug` is never an argument (architecture B3/T-TEN-01).
  */
 import { z } from 'zod';
+import { INBOX_RULE_CATEGORIES, INBOX_RULE_MATCH_TYPES } from '../../../common/database/schema.js';
 import { det, noArgs, pathOnly, listArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 export const inboxDetails: readonly AiActionDetail[] = [
@@ -54,9 +55,21 @@ export const inboxDetails: readonly AiActionDetail[] = [
     id: 'inbox.rules.create',
     title: 'Create inbox rules',
     description: 'Create inbox rules.',
-    input: z.object({}).passthrough(),
+    // AI tamper review 2026-11-23: strict, mirroring `inbox/rules.controller.ts` parseInput (it was
+    // a passthrough, the one op whose arguments the registry did not check).
+    input: bodyArgs([], {
+      matchType: z.enum(INBOX_RULE_MATCH_TYPES),
+      matchValue: f.shortText(190),
+      category: z.enum(INBOX_RULE_CATEGORIES),
+      position: f.int(0, 10_000).optional(),
+    }),
     redact: 'config',
-    examples: [{ summary: 'Create inbox rules', args: {} }],
+    examples: [
+      {
+        summary: 'Create inbox rules',
+        args: { matchType: 'type', matchValue: 'mention', category: 'urgent' },
+      },
+    ],
   }),
   det({
     id: 'inbox.rules.delete',
