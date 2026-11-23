@@ -20558,7 +20558,7 @@
   "PlatformPersonMail.helper": "اكتب ملاحظة قصيرة عن شيء جديد وأرسلها مرة واحدة. يتلقاها أعضاء الفرق الذين فعّلوا النصائح من الشخص المسؤول عنهم في TManage خلال اليوم التالي.",
   "PlatformPersonMail.alreadySent": "سبق إرسال هذه الملاحظة.",
   "PlatformPersonMail.switchLabel": "النصائح والتذكيرات",
-  "PlatformPersonMail.switchHint": "الإيقاف يمنع كل رسائل النصائح والتذكيرات والأخبار. رسالة المتابعة الأمنية بعد الدخول من جهاز جديد تُرسل دائمًا.",
+  "PlatformPersonMail.switchHint": "الإيقاف يمنع كل رسائل النصائح والتذكيرات والأخبار، ومنها رسالة المتابعة الأمنية بعد الدخول من جهاز جديد.",
   "PlatformPersonMail.addNote": "أضف ملاحظة",
   "PlatformPersonMail.addTitle": "ملاحظة ميزة جديدة",
   "PlatformPersonMail.loading": "جارٍ تحميل الملاحظات",

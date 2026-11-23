@@ -20365,7 +20365,7 @@
   "PlatformPersonMail.helper": "Write a short note about something new and send it once. Team members with tips on get it from their TManage person within the next day.",
   "PlatformPersonMail.alreadySent": "This note was already sent.",
   "PlatformPersonMail.switchLabel": "Tips and reminders",
-  "PlatformPersonMail.switchHint": "Off stops every tip, reminder and news e-mail. The security follow-up after a new-device sign-in still goes.",
+  "PlatformPersonMail.switchHint": "Off stops every tip, reminder and news e-mail, the security follow-up after a new-device sign-in included.",
   "PlatformPersonMail.addNote": "Add note",
   "PlatformPersonMail.addTitle": "New feature note",
   "PlatformPersonMail.loading": "Loading notes",
