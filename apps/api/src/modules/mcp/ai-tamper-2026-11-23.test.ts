@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { capabilitiesFor } from '@tmanage/domain';
 import type { CatalogTool } from '@tmanage/mcp-server';
-import { OPS, isPlatformOp, sensitivityOf } from '../ai-actions/registry/index.js';
+import { OPS, sensitivityOf } from '../ai-actions/registry/index.js';
 import type { AiActionOp } from '../ai-actions/registry/index.js';
 import { BOUND_TOKEN_NO_TENANT_ALLOWLIST } from '../../common/http/guards/bound-token-allowlist.js';
 import { changeGateFor } from '../copilot/ai-preview.js';
@@ -24,6 +24,8 @@ import { allDetailsById } from './tool-catalog.js';
  */
 
 const ORG_PREFIX = '/v1/organizations/:orgSlug/';
+// Platform-admin ops (`/v1/platform/*`) have no workspace; this file checks the workspace ones.
+const isPlatformOp = (op: AiActionOp): boolean => op.path.startsWith('/v1/platform');
 const tenantOps = OPS.filter((op) => !isPlatformOp(op));
 const paramsOf = (op: AiActionOp): string[] =>
   [...op.path.matchAll(/:([A-Za-z0-9_]+)/g)].map((m) => m[1]!).filter((p) => p !== 'orgSlug');
