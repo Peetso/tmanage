@@ -38,7 +38,7 @@ export interface ConsentView {
    * ADR-0015 F11: the platform admin scope. `offered` only to a platform admin; `ready` once two-step
    * is on and they stepped up in Platform admin minutes ago. Off by default either way.
    */
-  readonly platform?: { readonly offered: boolean; readonly ready: boolean };
+  readonly platform: { readonly offered: boolean; readonly ready: boolean };
   readonly ticket: string;
 }
 
