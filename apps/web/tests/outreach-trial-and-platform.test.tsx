@@ -1,13 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SignUpScreen } from '../src/components/screens/SignUpScreen';
+import { PlatformOutreachCampaignScreen } from '../src/components/platform/settings/PlatformOutreachCampaignScreen';
 import { PlatformOutreachScreen } from '../src/components/platform/settings/PlatformOutreachScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { AuthBoundary } from '../src/lib/auth-boundary';
 import type { PlatformMeView } from '../src/lib/api/platform-admin';
-import type { OutreachView } from '../src/lib/api/platform-outreach';
+import type {
+  OutreachCampaignDetailView,
+  OutreachCampaignView,
+  OutreachView,
+} from '../src/lib/api/platform-outreach';
 import { trialTokenFromQuery } from '../src/lib/api/trial-invites';
 
 /**
@@ -28,6 +33,8 @@ interface Call {
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: () => undefined }) }));
 
 function clientOver(handler: (call: Call) => Response) {
   const calls: Call[] = [];
@@ -120,23 +127,42 @@ const PAUSED: OutreachView = {
       id: 'c-1',
       name: 'Decision makers 2026-11',
       status: 'paused',
+      languages: ['en'],
+      senderPool: 'auto',
+      dailyCap: 20,
+      warmup: true,
+      followupEnabled: false,
+      followupDays: 4,
+      archivedAt: null,
       firstStartedAt: null,
       createdAt: '2026-11-20T10:00:00Z',
       counts: { queued: 2 },
       trialsRedeemed: 0,
+      walkthroughs: 0,
+      followupsSent: 0,
+      replied: 0,
+      optedOut: 0,
     },
   ],
   recipients: [
     {
       id: 'r-1',
       company: 'Eta Studio',
+      personName: 'Eeva Koski',
       firstName: 'Eeva',
       country: 'FI',
       language: 'en',
       sender: 'emma@tmanageapp.com',
+      senderPersonId: 'p-emma',
       status: 'queued',
       sentAt: null,
+      lastError: null,
       trialRedeemedAt: null,
+      walkthroughAt: null,
+      repliedAt: null,
+      followupStatus: null,
+      followupSentAt: null,
+      optedOut: false,
     },
   ],
   postalAddressSet: true,
@@ -185,7 +211,7 @@ describe('LANE-Q Platform admin -> Outreach', () => {
       csv: 'company,country\nEta,Finland\n',
     });
     expect(await screen.findByText('Paused')).toBeTruthy();
-    expect(screen.getByText('Eta Studio')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Decision makers 2026-11' })).toBeTruthy();
   });
 
   it('starts a campaign only after the confirmation', async () => {
@@ -203,5 +229,108 @@ describe('LANE-Q Platform admin -> Outreach', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start' }));
     expect(await screen.findByText('Running')).toBeTruthy();
     expect(calls.filter((c) => c.path.endsWith('/start'))).toHaveLength(1);
+  });
+});
+
+const STARTED: OutreachCampaignView = {
+  ...(PAUSED.campaigns[0] as OutreachCampaignView),
+  status: 'running',
+  firstStartedAt: '2026-11-21T09:00:00Z',
+};
+const DETAIL: OutreachCampaignDetailView = {
+  campaign: STARTED,
+  senders: [
+    { id: 'p-emma', address: 'emma@tmanageapp.com', name: 'Emma', side: 'en', chosen: false },
+  ],
+  emails: {
+    intro: {
+      en: { subject: 'Client approvals', body: 'Hi {first name},', version: 1, savedAt: null },
+    },
+    followup: {},
+  },
+  versions: [
+    {
+      kind: 'intro',
+      version: 1,
+      languages: ['en'],
+      createdAt: '2026-11-21T09:00:00Z',
+      byYou: true,
+    },
+  ],
+  postalAddressSet: true,
+  placeholders: [
+    '{first name}',
+    '{company}',
+    '{sender name}',
+    '{trial link}',
+    '{walkthrough link}',
+  ],
+  languages: ['en', 'ar'],
+};
+
+function mountCampaign() {
+  const { client, calls } = clientOver((call) => {
+    if (call.path === '/v1/platform/me') return json(ME);
+    if (call.path === '/v1/platform/outreach/campaigns/c-1') return json(DETAIL);
+    if (call.path === '/v1/platform/outreach/campaigns/c-1/recipients') {
+      return json({ campaign: STARTED, recipients: PAUSED.recipients, postalAddressSet: true });
+    }
+    if (call.path === '/v1/platform/outreach/campaigns/c-1/preview') {
+      return json({
+        from: 'Emma from TManage <emma@tmanageapp.com>',
+        to: 's•••@example.com',
+        subject: String((call.body as { subject?: string } | null)?.subject ?? ''),
+        text: 'Hi Sam,\n\nUnsubscribe: https://tmanageapp.com/u',
+        recipientId: null,
+        problems: [],
+      });
+    }
+    if (call.path === '/v1/platform/outreach/campaigns/c-1/emails/intro') return json(DETAIL);
+    if (call.path === '/v1/platform/outreach/campaigns/c-1/test-send') {
+      return json({ sent: true, to: 'peter@peetrix.com' });
+    }
+    return json({ error: { code: 'not_found', message: 'x' } }, 404);
+  });
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <PlatformOutreachCampaignScreen client={client} campaignId="c-1" />
+    </QueryClientProvider>,
+  );
+  return calls;
+}
+
+describe('OUTREACH MANAGER one campaign', () => {
+  it('asks before changing a started campaign, then saves the next version', async () => {
+    const calls = mountCampaign();
+    fireEvent.click(await screen.findByRole('tab', { name: 'E-mail' }));
+    const subject = await screen.findByLabelText('Subject');
+    fireEvent.change(subject, { target: { value: 'Approvals at {company}' } });
+    expect(await screen.findByText('Not saved')).toBeTruthy();
+    await waitFor(() => expect(calls.some((c) => c.path.endsWith('/preview'))).toBe(true));
+    fireEvent.click(screen.getByRole('button', { name: 'Save as a new version' }));
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Save and use for the next e-mails',
+      }),
+    );
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true));
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({
+      texts: { en: { subject: 'Approvals at {company}', body: 'Hi {first name},' } },
+      confirmStarted: true,
+    });
+  });
+
+  it('sends the test to me only and shows the address it went to', async () => {
+    const calls = mountCampaign();
+    fireEvent.click(await screen.findByRole('tab', { name: 'E-mail' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Send a test to me' }));
+    expect(await screen.findByText('Test sent to peter@peetrix.com.')).toBeTruthy();
+    expect(calls.find((c) => c.path.endsWith('/test-send'))?.body).toMatchObject({
+      kind: 'intro',
+      language: 'en',
+    });
   });
 });

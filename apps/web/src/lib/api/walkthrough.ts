@@ -21,6 +21,8 @@ export interface WalkthroughSubmitInput {
   readonly language: 'en' | 'ar';
   /** The page address's `utm_source` (NOCOOKIE: read from the URL, never stored on the device). */
   readonly source?: string;
+  /** OUTREACH MANAGER: a campaign mail's signed invite (the API verifies it). */
+  readonly invite?: string;
   /** The honeypot: always empty from a person. */
   readonly website: string;
   readonly startedAt?: string;

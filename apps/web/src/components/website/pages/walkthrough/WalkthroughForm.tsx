@@ -166,6 +166,9 @@ export function WalkthroughForm({ client }: WalkthroughFormProps) {
     setFailure(undefined);
     try {
       const source = signupAttributionFromSearch(window.location.search)?.utm_source;
+      // OUTREACH MANAGER: a campaign mail's link carries the recipient's signed invite; the API
+      // verifies it and credits the booking (nothing else about it is trusted here).
+      const invite = new URLSearchParams(window.location.search).get('invite');
       const website = (event.currentTarget.elements.namedItem('website') as HTMLInputElement | null)
         ?.value;
       const view = await submitWalkthrough(api, {
@@ -179,6 +182,7 @@ export function WalkthroughForm({ client }: WalkthroughFormProps) {
         consent: draft.consent,
         language: document.documentElement.lang.startsWith('ar') ? 'ar' : 'en',
         ...(source === undefined ? {} : { source }),
+        ...(invite !== null && /^[A-Za-z0-9._~-]{1,512}$/u.test(invite) ? { invite } : {}),
         website: website ?? '',
         ...(await formProof.fields()),
       });

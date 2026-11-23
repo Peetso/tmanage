@@ -5097,6 +5097,35 @@ type _outreachRecipient = Assert<Exact<ApiOutreachRecipientView, WebOutreachReci
 type _outreachCampaign = Assert<Exact<ApiOutreachCampaignView, WebOutreachCampaignView>>;
 type _outreach = Assert<Exact<ApiOutreachView, WebOutreachView>>;
 type _outreachImport = Assert<Exact<ApiOutreachImportView, WebOutreachImportView>>;
+// OUTREACH MANAGER: one campaign's page (settings, e-mail versions, preview, test, recipients).
+import type {
+  OutreachCampaignDetailView as ApiOutreachCampaignDetailView,
+  OutreachExportView as ApiOutreachExportView,
+  OutreachPreviewView as ApiOutreachPreviewView,
+  OutreachRecipientsImportView as ApiOutreachRecipientsImportView,
+  OutreachRecipientsView as ApiOutreachRecipientsView,
+  OutreachTestSendView as ApiOutreachTestSendView,
+  OutreachVersionTextView as ApiOutreachVersionTextView,
+} from '../../apps/api/src/modules/outreach/outreach-manager.service.js';
+import type {
+  OutreachCampaignDetailView as WebOutreachCampaignDetailView,
+  OutreachExportView as WebOutreachExportView,
+  OutreachPreviewView as WebOutreachPreviewView,
+  OutreachRecipientsImportView as WebOutreachRecipientsImportView,
+  OutreachRecipientsView as WebOutreachRecipientsView,
+  OutreachTestSendView as WebOutreachTestSendView,
+  OutreachVersionTextView as WebOutreachVersionTextView,
+} from '../../apps/web/src/lib/api/platform-outreach.js';
+
+type _outreachDetail = Assert<Exact<ApiOutreachCampaignDetailView, WebOutreachCampaignDetailView>>;
+type _outreachRecipients = Assert<Exact<ApiOutreachRecipientsView, WebOutreachRecipientsView>>;
+type _outreachRecipientsImport = Assert<
+  Exact<ApiOutreachRecipientsImportView, WebOutreachRecipientsImportView>
+>;
+type _outreachPreview = Assert<Exact<ApiOutreachPreviewView, WebOutreachPreviewView>>;
+type _outreachTestSend = Assert<Exact<ApiOutreachTestSendView, WebOutreachTestSendView>>;
+type _outreachExport = Assert<Exact<ApiOutreachExportView, WebOutreachExportView>>;
+type _outreachVersionText = Assert<Exact<ApiOutreachVersionTextView, WebOutreachVersionTextView>>;
 
 // Lane O (approval reviewer e-mail state) and lane M (role mailbox login state).
 import type { ApprovalReviewerView as ApiApprovalReviewerView } from '../../apps/api/src/modules/approvals/deliverables.service.js';
