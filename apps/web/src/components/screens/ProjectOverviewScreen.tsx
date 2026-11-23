@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { Fragment, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@tmanage/ui';
+import { Button, InlineAlert } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { NavIcon } from '../icons/phone';
 import { ProjectExportButton } from '../projects/ProjectExportButton';
+import { ProjectLifecycleActions } from '../projects/ProjectLifecycleActions';
 import { ProjectUpdateComposer } from '../projects/ProjectUpdateComposer';
 import { ActivityTab } from '../overview/ActivityTab';
 import { OverviewBlocks } from '../overview/OverviewBlocks';
@@ -99,6 +100,10 @@ export function ProjectOverviewScreen({
     queryFn: () => readOrganizationMe(api, organizationSlug),
   });
   const mayOpenClient = me.data?.capabilities.includes('org.manage') ?? false;
+  // Fix lane C: the lifecycle controls are drawn only for a role that holds them (fail closed while
+  // the answer loads); the API still decides each request.
+  const mayManageProject = me.data?.capabilities.includes('project.manage') ?? false;
+  const mayDeleteProject = me.data?.capabilities.includes('project.delete') ?? false;
 
   useRecordRecentItem({
     organizationSlug,
@@ -180,10 +185,25 @@ export function ProjectOverviewScreen({
           >
             {copy.text('Overview.postUpdate')}
           </Button>
+          <ProjectLifecycleActions
+            api={api}
+            organizationSlug={organizationSlug}
+            project={project.data}
+            mayManage={mayManageProject}
+            mayDelete={mayDeleteProject}
+          />
         </div>
       }
     >
       <div className="tm-ov">
+        {project.data?.archivedAt ? (
+          <InlineAlert tone="neutral" title={tOr('ProjectLifecycle.archivedTitle', 'Archived')}>
+            {tOr(
+              'ProjectLifecycle.archivedBody',
+              'This project is out of your lists. Everything in it is kept. Restore it to bring it back.',
+            )}
+          </InlineAlert>
+        ) : null}
         <OverviewTabs
           label={copy.text('Overview.tabsLabel')}
           current={view}

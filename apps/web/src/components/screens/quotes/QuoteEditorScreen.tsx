@@ -22,7 +22,16 @@ import { useDescribeApiError } from '../../../lib/api/describe-error';
 import { useDisplayFormatters } from '../../../lib/i18n/use-formatters';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 import { DocumentPdfButton, DocumentPdfFailure, useDocumentPdf } from '../finance/DocumentPdf';
-import { getQuote, quotePdfPath, saveQuote, sendQuote, type QuoteDocument } from './QuoteApi';
+import {
+  deleteQuote,
+  getQuote,
+  quotePdfPath,
+  saveQuote,
+  sendQuote,
+  type QuoteDocument,
+} from './QuoteApi';
+import { useShellCapability } from '../../shell/use-shell-capability';
+import { ConfirmActionButton, conflictReason } from '../ConfirmActionButton';
 import { QuoteConvertCard } from './QuoteConvertCard';
 import { STATUS_WORDS } from './QuoteListScreen';
 import {
@@ -92,6 +101,7 @@ export function QuoteEditorScreen({
   const queryClient = useQueryClient();
   const formId = useId();
   const pdf = useDocumentPdf();
+  const canUse = useShellCapability(organizationSlug, client);
 
   const quote = useQuery({
     queryKey: ['quote', organizationSlug, quoteId],
@@ -243,6 +253,35 @@ export function QuoteEditorScreen({
               pdf={pdf}
               path={quotePdfPath(organizationSlug, quote.data.id)}
               fileName={`${quote.data.number}.pdf`}
+            />
+          ) : null}
+          {/* Fix lane C: a draft only (`project.manage`); a sent quote is kept. */}
+          {quote.data?.status === 'draft' && canUse('project.manage') ? (
+            <ConfirmActionButton
+              triggerLabel={tOr('Quotes.deleteDraft', 'Delete draft')}
+              title={tOr('Quotes.deleteDraftTitle', 'Delete the draft quote {number}?')
+                .split('{number}')
+                .join(quote.data.number)}
+              body={tOr(
+                'Quotes.deleteDraftBody',
+                'The draft goes for good. Your client has not seen it. This cannot be undone.',
+              )}
+              confirmLabel={tOr('Quotes.deleteDraftConfirm', 'Delete draft')}
+              busyLabel={tOr('Quotes.deletingDraft', 'Deleting…')}
+              failedTitle={tOr('Quotes.deleteDraftFailed', 'Draft not deleted')}
+              explainFailure={(failure) =>
+                conflictReason(failure) === 'not_draft'
+                  ? tOr(
+                      'Quotes.deleteNotDraft',
+                      'This quote was already sent, so it is kept. Refresh the page to see it.',
+                    )
+                  : null
+              }
+              onConfirm={() => deleteQuote(api, organizationSlug, quote.data?.id ?? '')}
+              onDone={() => {
+                void queryClient.invalidateQueries({ queryKey: ['quotes', organizationSlug] });
+                router.push(`/${organizationSlug}/quotes`);
+              }}
             />
           ) : null}
         </div>

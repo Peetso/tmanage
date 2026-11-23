@@ -1,17 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { fetchTeam, listTeams } from '../../lib/api/people-teams';
+import { deleteTeam, fetchTeam, listTeams } from '../../lib/api/people-teams';
 import type { TeamDetailView, TeamView } from '../../lib/api/people-teams';
 import { useRoleDescription } from '../../lib/use-role-description';
 import type { ApiClient } from '../../lib/api/client';
+import { useShellCapability } from '../shell/use-shell-capability';
+import { ConfirmActionButton } from './ConfirmActionButton';
 import { describePeopleError, initialsOf } from './peopleShared';
 import '../../styles/screens/people.css';
 
@@ -41,6 +44,9 @@ export function TeamsScreen({ organizationSlug, organizationName, client }: Team
   const t = useT();
   const api = client ?? browserApiClient();
   const [chosenId, setChosenId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  // Fix lane C: Delete team is drawn only for a role that holds `org.manage` (the API's gate).
+  const mayManage = useShellCapability(organizationSlug, client)('org.manage');
 
   const teams = useQuery({
     queryKey: ['people-teams', organizationSlug],
@@ -137,7 +143,29 @@ export function TeamsScreen({ organizationSlug, organizationName, client }: Team
                 ) : null}
 
                 {detail.isSuccess ? (
-                  <TeamDetail team={detail.data} organizationSlug={organizationSlug} />
+                  <TeamDetail
+                    team={detail.data}
+                    organizationSlug={organizationSlug}
+                    removeAction={
+                      mayManage ? (
+                        <DeleteTeamAction
+                          api={api}
+                          organizationSlug={organizationSlug}
+                          team={detail.data}
+                          onDeleted={async (teamId) => {
+                            // The list first, so the next selection is never the gone team.
+                            await queryClient.invalidateQueries({
+                              queryKey: ['people-teams', organizationSlug],
+                            });
+                            setChosenId(null);
+                            queryClient.removeQueries({
+                              queryKey: ['people-team', organizationSlug, teamId],
+                            });
+                          }}
+                        />
+                      ) : null
+                    }
+                  />
                 ) : null}
               </section>
             ) : teams.isSuccess ? (
@@ -200,12 +228,46 @@ function TeamsList({
   );
 }
 
+/** Fix lane C. Delete a team after one confirm; its people stay in the workspace. */
+function DeleteTeamAction({
+  api,
+  organizationSlug,
+  team,
+  onDeleted,
+}: {
+  api: ApiClient;
+  organizationSlug: string;
+  team: TeamDetailView;
+  onDeleted: (teamId: string) => Promise<void>;
+}) {
+  const tOr = useTOr();
+  return (
+    <ConfirmActionButton
+      triggerLabel={tOr('TeamsScreen.deleteTeam', 'Delete team')}
+      title={tOr('TeamsScreen.deleteTeamTitle', 'Delete the team “{name}”?')
+        .split('{name}')
+        .join(team.name)}
+      body={tOr(
+        'TeamsScreen.deleteTeamBody',
+        'Its members stay in the workspace with their projects and work. Only the team goes. This cannot be undone.',
+      )}
+      confirmLabel={tOr('TeamsScreen.deleteTeamConfirm', 'Delete team')}
+      busyLabel={tOr('TeamsScreen.deletingTeam', 'Deleting…')}
+      failedTitle={tOr('TeamsScreen.deleteTeamFailed', 'Team not deleted')}
+      onConfirm={() => deleteTeam(api, organizationSlug, team.id)}
+      onDone={() => void onDeleted(team.id)}
+    />
+  );
+}
+
 function TeamDetail({
   team,
   organizationSlug,
+  removeAction,
 }: {
   team: TeamDetailView;
   organizationSlug: string;
+  removeAction: ReactNode;
 }) {
   const t = useT();
   const describeRole = useRoleDescription();
@@ -221,6 +283,7 @@ function TeamDetail({
             ? t('TeamsScreen.memberSingular')
             : t('TeamsScreen.memberPlural')}
         </span>
+        {removeAction}
       </div>
 
       {team.members.length === 0 ? (

@@ -271,6 +271,21 @@ export async function recordInvoicePayment(
   return data;
 }
 
+/**
+ * Fix lane C. `DELETE …/client-invoices/:invoiceId` (204) — a draft only (409 `not_draft`); the time,
+ * expenses and retainer period it pulled become free to bill again. An issued invoice keeps Void.
+ */
+export async function deleteClientInvoice(
+  client: ApiClient,
+  organizationSlug: string,
+  invoiceId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${base(organizationSlug)}/${encodeURIComponent(invoiceId)}`,
+  });
+}
+
 /** 52-10 — the invoice as a PDF in its own language (`finance.view`), relative to the API origin. */
 export function invoicePdfPath(organizationSlug: string, invoiceId: string): string {
   return `${base(organizationSlug)}/${encodeURIComponent(invoiceId)}/pdf`;

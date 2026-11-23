@@ -8,14 +8,17 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import {
   WORK_LABEL_COLORS,
   defineWorkLabel,
+  deleteWorkLabel,
   listWorkLabels,
   type WorkLabelColor,
 } from '../../lib/api/work-labels';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { ConfirmActionButton } from './ConfirmActionButton';
 
 export interface WorkLabelsScreenProps {
   organizationSlug: string;
@@ -40,6 +43,7 @@ export function WorkLabelsScreen({
 }: WorkLabelsScreenProps) {
   const describe = useDescribeApiError();
   const t = useT();
+  const tOr = useTOr();
   const canUse = useShellCapability(organizationSlug, client);
   const firstStep = useRef<HTMLFormElement>(null);
   const api = client ?? browserApiClient();
@@ -177,8 +181,34 @@ export function WorkLabelsScreen({
               style={{ listStyle: 'none', padding: 0, margin: 0 }}
             >
               {rows.map((label) => (
-                <li key={label.id} data-color={label.color} className="tm-badge">
-                  {label.name}
+                <li key={label.id} className="tm-row">
+                  <span data-color={label.color} className="tm-badge">
+                    {label.name}
+                  </span>
+                  {/* Fix lane C: deleting a label is `work.delete` on the API. */}
+                  {canUse('work.delete') ? (
+                    <ConfirmActionButton
+                      triggerLabel={tOr('WorkLabelsScreen.delete', 'Delete')}
+                      triggerAccessibleLabel={tOr(
+                        'WorkLabelsScreen.deleteAria',
+                        'Delete the label {name}',
+                      )
+                        .split('{name}')
+                        .join(label.name)}
+                      title={tOr('WorkLabelsScreen.deleteTitle', 'Delete the label “{name}”?')
+                        .split('{name}')
+                        .join(label.name)}
+                      body={tOr(
+                        'WorkLabelsScreen.deleteBody',
+                        'The label comes off every work item that has it. The work items stay. This cannot be undone.',
+                      )}
+                      confirmLabel={tOr('WorkLabelsScreen.deleteConfirm', 'Delete label')}
+                      busyLabel={tOr('WorkLabelsScreen.deleting', 'Deleting…')}
+                      failedTitle={tOr('WorkLabelsScreen.deleteFailed', 'Label not deleted')}
+                      onConfirm={() => deleteWorkLabel(api, organizationSlug, label.id)}
+                      onDone={() => void queries.invalidateQueries({ queryKey })}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>

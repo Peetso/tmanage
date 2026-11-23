@@ -156,3 +156,18 @@ export async function unpublishWorkForm(
   });
   return data;
 }
+
+/**
+ * Fix lane C. Delete a form (204). A published form is 409 `form_published` (unpublish first); one
+ * with submissions is 409 `form_has_submissions` and is kept.
+ */
+export async function deleteWorkForm(
+  client: ApiClient,
+  organizationSlug: string,
+  formId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${base(organizationSlug)}/${encodeURIComponent(formId)}`,
+  });
+}

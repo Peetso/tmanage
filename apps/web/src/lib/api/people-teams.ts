@@ -108,3 +108,15 @@ export async function unassignMember(
     )}`,
   });
 }
+
+/** Fix lane C. Delete a team (204). Its members stay in the workspace; only the grouping goes. */
+export async function deleteTeam(
+  client: ApiClient,
+  organizationSlug: string,
+  teamId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${base(organizationSlug)}/${encodeURIComponent(teamId)}`,
+  });
+}

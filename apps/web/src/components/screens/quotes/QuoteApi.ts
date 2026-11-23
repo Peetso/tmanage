@@ -157,6 +157,18 @@ export function quotePdfPath(organizationSlug: string, quoteId: string): string 
   return `${base(organizationSlug)}/${encodeURIComponent(quoteId)}/pdf`;
 }
 
+/** Fix lane C. `DELETE …/quotes/:quoteId` (204) — a draft only; a sent quote is 409 `not_draft`. */
+export async function deleteQuote(
+  client: ApiClient,
+  organizationSlug: string,
+  quoteId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${base(organizationSlug)}/${encodeURIComponent(quoteId)}`,
+  });
+}
+
 // ── the client's side: the quote link ──────────────────────────────────────
 
 /** The client-safe projection the `quote` link target shows: no ids, no internal notes. */

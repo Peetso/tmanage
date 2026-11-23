@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../../shell/AppShell';
 import { browserApiClient } from '../../../lib/api/browser-client';
@@ -13,7 +14,9 @@ import { useTOr } from '../../../lib/i18n/use-t-or';
 import { DocumentPdfButton, DocumentPdfFailure, useDocumentPdf } from './DocumentPdf';
 import { FinanceReportSectionTabs } from './FinanceReportSectionTabs';
 import { InvoicePaymentCard, InvoicePrintLink, InvoiceSendCard } from './InvoiceActions';
-import { getClientInvoice, invoicePdfPath } from './InvoiceApi';
+import { deleteClientInvoice, getClientInvoice, invoicePdfPath } from './InvoiceApi';
+import { useShellCapability } from '../../shell/use-shell-capability';
+import { ConfirmActionButton, conflictReason } from '../ConfirmActionButton';
 import { invoiceMayTakePayment } from './InvoiceFormRules';
 import { invoiceCapsule, invoiceStateKey } from './InvoiceRules';
 import { InvoiceStateWord, useClientNames } from './InvoiceStateWord';
@@ -46,6 +49,9 @@ export function InvoiceDetailScreen({
   const { money, day } = useDisplayFormatters();
   const clientNames = useClientNames(api, organizationSlug);
   const pdf = useDocumentPdf();
+  const canUse = useShellCapability(organizationSlug, client);
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const invoice = useQuery({
     queryKey: ['client-invoice', organizationSlug, invoiceId],
@@ -79,6 +85,38 @@ export function InvoiceDetailScreen({
             >
               {tOr('InvoiceDetail.editDraft', 'Edit draft')}
             </Link>
+          ) : null}
+          {/* Fix lane C: a draft only (`finance.manage`); an issued invoice keeps Void. */}
+          {data?.state === 'draft' && canUse('finance.manage') ? (
+            <ConfirmActionButton
+              triggerLabel={tOr('InvoiceDetail.deleteDraft', 'Delete draft')}
+              title={tOr('InvoiceDetail.deleteDraftTitle', 'Delete this invoice draft?')}
+              body={tOr(
+                'InvoiceDetail.deleteDraftBody',
+                'The draft goes for good. The time and expenses it pulled in become free to bill again. This cannot be undone.',
+              )}
+              confirmLabel={tOr('InvoiceDetail.deleteDraftConfirm', 'Delete draft')}
+              busyLabel={tOr('InvoiceDetail.deletingDraft', 'Deleting…')}
+              failedTitle={tOr('InvoiceDetail.deleteDraftFailed', 'Draft not deleted')}
+              explainFailure={(failure) =>
+                conflictReason(failure) === 'not_draft'
+                  ? tOr(
+                      'InvoiceDetail.deleteNotDraft',
+                      'This invoice was already sent, so it is kept. Refresh the page to see it.',
+                    )
+                  : null
+              }
+              onConfirm={() => deleteClientInvoice(api, organizationSlug, invoiceId)}
+              onDone={() => {
+                void queryClient.invalidateQueries({
+                  queryKey: ['client-invoices', organizationSlug],
+                });
+                void queryClient.invalidateQueries({
+                  queryKey: ['client-invoices-aging', organizationSlug],
+                });
+                router.push(`/${organizationSlug}/finance/invoices`);
+              }}
+            />
           ) : null}
         </div>
       }

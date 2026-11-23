@@ -116,3 +116,15 @@ export async function removeItemLabel(
     path: `${orgBase(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/labels/${encodeURIComponent(labelId)}`,
   });
 }
+
+/** Fix lane C. Delete a label definition (204, `work.delete`); it comes off every work item. */
+export async function deleteWorkLabel(
+  client: ApiClient,
+  organizationSlug: string,
+  labelId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${orgBase(organizationSlug)}/work/labels/${encodeURIComponent(labelId)}`,
+  });
+}

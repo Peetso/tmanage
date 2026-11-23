@@ -137,3 +137,47 @@ export async function ensureProjectForNewContent(
   if (!workspace) return null;
   return createProject(client, organizationSlug, { workspaceId: workspace.id, name: fallbackName });
 }
+
+/** Fix lane C. `PATCH …/projects/:projectId` — `expectedUpdatedAt` is the `updatedAt` last read (409 when stale). */
+export async function renameProject(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  input: { readonly name: string; readonly expectedUpdatedAt: string },
+): Promise<ProjectSummary> {
+  const { data } = await client.request<ProjectSummary>({
+    method: 'PATCH',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}`,
+    body: input,
+  });
+  return data;
+}
+
+/** Fix lane C. `POST …/projects/:projectId/archive|unarchive` — out of every list, or back in. */
+export async function setProjectArchived(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  archived: boolean,
+): Promise<ProjectSummary> {
+  const { data } = await client.request<ProjectSummary>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/${archived ? 'archive' : 'unarchive'}`,
+  });
+  return data;
+}
+
+/**
+ * Fix lane C. `DELETE …/projects/:projectId` (204) — an EMPTY project only; one that still holds
+ * work, files or links is 409 with the detail `project_not_empty`.
+ */
+export async function deleteProject(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}`,
+  });
+}

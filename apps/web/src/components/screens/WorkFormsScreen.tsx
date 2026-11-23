@@ -8,6 +8,7 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createWorkForm,
+  deleteWorkForm,
   listWorkForms,
   submitWorkForm,
   type WorkFormFieldDef,
@@ -19,6 +20,9 @@ import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/work-planning.css';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useShellCapability } from '../shell/use-shell-capability';
+import { ConfirmActionButton, conflictReason } from './ConfirmActionButton';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { WorkFormPublicLink } from './WorkFormPublicLink';
 import { WorkFormAttachmentSetting } from './WorkFormAttachmentSetting';
@@ -52,8 +56,8 @@ const EMPTY_FIELD: DraftField = { label: '', type: 'text', required: false };
  * - **Submission history is not shown.** A submission's record is the work item it creates; the
  *   screen links straight to it. A stored submission log and conditional fields are deferred
  *   (NEXT-SCOPES-13).
- * - **A form is defined, never edited here.** The API grants create and read only this slice, so
- *   there is no edit or delete control — a form is authored and then submitted.
+ * - **A form is defined, never edited here.** An unpublished form without submissions can be
+ *   deleted (fix lane C); a published one is unpublished first, and one with submissions is kept.
  */
 export function WorkFormsScreen({
   organizationSlug,
@@ -65,6 +69,8 @@ export function WorkFormsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const canUse = useShellCapability(organizationSlug, client);
 
   const forms = useQuery({
     queryKey: ['work-forms', organizationSlug],
@@ -331,6 +337,48 @@ export function WorkFormsScreen({
               form={activeForm}
               projects={available}
             />
+          ) : null}
+
+          {/* Fix lane C: only an unpublished form can go; the API also keeps one with submissions. */}
+          {activeForm && !activeForm.published && canUse('work.create') ? (
+            <div className="tm-row">
+              <ConfirmActionButton
+                triggerLabel={tOr('WorkFormsScreen.deleteForm', 'Delete form')}
+                title={tOr('WorkFormsScreen.deleteFormTitle', 'Delete the form “{name}”?')
+                  .split('{name}')
+                  .join(activeForm.name)}
+                body={tOr(
+                  'WorkFormsScreen.deleteFormBody',
+                  'The form goes for good. This cannot be undone. A form people already sent answers with is kept.',
+                )}
+                confirmLabel={tOr('WorkFormsScreen.deleteFormConfirm', 'Delete form')}
+                busyLabel={tOr('WorkFormsScreen.deletingForm', 'Deleting…')}
+                failedTitle={tOr('WorkFormsScreen.deleteFormFailed', 'Form not deleted')}
+                explainFailure={(failure) => {
+                  const reason = conflictReason(failure);
+                  if (reason === 'form_published') {
+                    return tOr(
+                      'WorkFormsScreen.deleteFormPublished',
+                      'This form is shared. Stop sharing it first, then delete it.',
+                    );
+                  }
+                  if (reason === 'form_has_submissions') {
+                    return tOr(
+                      'WorkFormsScreen.deleteFormHasSubmissions',
+                      'People already sent answers with this form, so it is kept with their requests.',
+                    );
+                  }
+                  return null;
+                }}
+                onConfirm={() => deleteWorkForm(api, organizationSlug, activeForm.id)}
+                onDone={() => {
+                  setActiveFormId('');
+                  void queryClient.invalidateQueries({
+                    queryKey: ['work-forms', organizationSlug],
+                  });
+                }}
+              />
+            </div>
           ) : null}
 
           {activeForm ? (
