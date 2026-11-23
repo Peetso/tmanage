@@ -6,7 +6,7 @@
   z-index: 60;
   display: grid;
   place-items: start center;
-  padding: 120px 16px 16px;
+  padding: var(--s24) var(--s4) var(--s4);
 }
 
 .tm-docshare__scrim {
@@ -19,9 +19,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   inline-size: min(560px, 100%);
-  padding: 21px;
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -31,24 +31,24 @@
 
 .tm-docshare__title {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--t-app-section);
   font-weight: 500;
-  line-height: 27px;
+  line-height: var(--t-app-section-line);
   overflow-wrap: anywhere;
 }
 
 .tm-docshare__body {
   margin: 0;
   color: var(--ink-800);
-  font-size: 15px;
-  line-height: 25px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
 }
 
 .tm-docshare__label {
   margin: 0;
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -61,7 +61,7 @@
 .tm-docshare__rows {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -70,22 +70,22 @@
 .tm-docshare__row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   min-block-size: 51px;
-  padding: 12px 16px;
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-control);
   background: var(--paper-0);
-  font-size: 15px;
-  line-height: 22px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
 }
 
 .tm-docshare__note {
   margin: 0;
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 17px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 [dir='rtl'] .tm-docshare__note {
@@ -96,18 +96,18 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-docshare__btn {
   block-size: 46px;
-  padding-inline: 20px;
+  padding-inline: var(--s5);
   border: var(--b-quiet) solid var(--ink-950);
   border-radius: 999px;
   background: var(--paper-0);
   color: var(--ink-950);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   cursor: pointer;
 }
 
@@ -123,6 +123,6 @@
 
 @media (max-width: 600px) {
   .tm-docshare {
-    padding-block-start: 64px;
+    padding-block-start: var(--s16);
   }
 }

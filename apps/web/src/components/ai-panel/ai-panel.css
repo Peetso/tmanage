@@ -46,34 +46,34 @@
 
 .tm-ai-chooser {
   inline-size: 380px;
-  gap: 6px;
-  padding: 12px 8px 8px;
+  gap: var(--s1);
+  padding: var(--s3) var(--s2) var(--s2);
 }
 
 .tm-ai-chooser__heading {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 12px 6px;
+  padding: 0 var(--s3) var(--s1);
   line-height: 1.45;
 }
 
 .tm-ai-chooser__title {
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 600;
   color: var(--ink-950);
 }
 
 .tm-ai-chooser__hint,
 .tm-ai-chooser__detail {
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   color: var(--ink-500);
 }
 
 .tm-ai-chooser__list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -84,7 +84,7 @@
   align-items: center;
   gap: var(--s3);
   inline-size: 100%;
-  padding: 10px 12px;
+  padding: var(--s2) var(--s3);
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -111,7 +111,7 @@
 }
 
 .tm-ai-chooser__name {
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 600;
   color: var(--ink-950);
 }
@@ -128,8 +128,8 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s2);
-  padding-block-start: 4px;
-  padding-inline: 12px 4px;
+  padding-block-start: var(--s1);
+  padding-inline: var(--s3) var(--s1);
 }
 
 .tm-ai-chooser__remember .tm-choice__label {
@@ -155,7 +155,7 @@
 .tm-ai-card {
   inline-size: 380px;
   gap: var(--s3);
-  padding: 20px;
+  padding: var(--s5);
 }
 
 .tm-ai-card--window {
@@ -165,7 +165,7 @@
 .tm-ai-card__title-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-ai-card__glyph {
@@ -176,20 +176,20 @@
 .tm-ai-card__title {
   flex: 1;
   min-inline-size: 0;
-  font-size: 15px;
+  font-size: var(--t-app-body);
   font-weight: 600;
   line-height: 1.45;
   color: var(--ink-950);
 }
 
 .tm-ai-card__body {
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   line-height: 1.45;
   color: var(--ink-650);
 }
 
 .tm-ai-card__note {
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   line-height: 1.45;
   color: var(--ink-500);
 }
@@ -211,13 +211,13 @@
 .tm-ai-address__value {
   flex: 1;
   min-inline-size: 0;
-  padding: 10px 12px;
+  padding: var(--s2) var(--s3);
   overflow: hidden;
   border: 1px solid var(--line-300);
   border-radius: 8px;
   background: var(--paper-150);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 500;
   line-height: 1.45;
   color: var(--ink-950);
@@ -239,7 +239,7 @@
   block-size: 72px;
   box-sizing: border-box;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   line-height: 1.45;
 }
 
@@ -314,8 +314,8 @@ html[data-ai-panel='open'] .tm-app {
   display: flex;
   align-items: center;
   gap: var(--s2);
-  padding-block: 12px 8px;
-  padding-inline: 14px 12px;
+  padding-block: var(--s3) var(--s2);
+  padding-inline: var(--s3) var(--s3);
 }
 
 .tm-ai-panel__sparkle {
@@ -324,7 +324,7 @@ html[data-ai-panel='open'] .tm-app {
 }
 
 .tm-ai-panel__name {
-  font-size: 15px;
+  font-size: var(--t-app-body);
   font-weight: 600;
   line-height: 1.45;
   color: var(--ink-950);
@@ -367,9 +367,9 @@ html[data-ai-panel='open'] .tm-app {
 .tm-ai-panel__trust {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding-block-end: 10px;
-  padding-inline: 16px 14px;
+  gap: var(--s1);
+  padding-block-end: var(--s2);
+  padding-inline: var(--s4) var(--s3);
 }
 
 .tm-ai-panel__lock {
@@ -380,7 +380,7 @@ html[data-ai-panel='open'] .tm-app {
 .tm-ai-panel__trust-text {
   min-inline-size: 0;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   line-height: 1.45;
   color: var(--ink-500);
   text-overflow: ellipsis;
@@ -389,11 +389,11 @@ html[data-ai-panel='open'] .tm-app {
 
 .tm-ai-panel__chip {
   flex: none;
-  padding: 3px 8px;
+  padding: var(--s1) var(--inset-capsule);
   border-radius: 999px;
   background: var(--paper-150);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 500;
   line-height: 1.45;
   color: var(--ink-650);
@@ -408,7 +408,7 @@ html[data-ai-panel='open'] .tm-app {
 }
 
 .tm-ai-panel__notice {
-  padding: 12px 12px 0;
+  padding: var(--s3) var(--s3) 0;
 }
 
 .tm-ai-panel__area {
@@ -416,7 +416,7 @@ html[data-ai-panel='open'] .tm-app {
   min-block-size: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: var(--s3);
 }
 
 .tm-ai-panel__site {
@@ -426,8 +426,8 @@ html[data-ai-panel='open'] .tm-app {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding-inline: 24px;
+  gap: var(--s1);
+  padding-inline: var(--s6);
   border: 1px dashed var(--line-700);
   border-radius: 12px;
   background: var(--paper-150);
@@ -436,35 +436,35 @@ html[data-ai-panel='open'] .tm-app {
 }
 
 .tm-ai-panel__site-title {
-  font-size: 15px;
+  font-size: var(--t-app-body);
   font-weight: 600;
   color: var(--ink-650);
 }
 
 .tm-ai-panel__site-body {
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   color: var(--ink-500);
 }
 
 .tm-ai-panel__setup {
-  padding: 0 12px 12px;
+  padding: 0 var(--s3) var(--s3);
 }
 
 .tm-ai-panel__status {
   display: flex;
   align-items: center;
-  padding: 10px 16px 12px;
+  padding: var(--s2) var(--s4) var(--s3);
   border-block-start: 1px solid var(--line-300);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-650);
 }
 
 .tm-ai-hint {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: var(--s2);
+  padding: var(--s4);
   border: 1px solid var(--line-300);
   border-radius: 12px;
   background: var(--paper-0);
@@ -476,18 +476,18 @@ html[data-ai-panel='open'] .tm-app {
 }
 
 .tm-ai-hint__title {
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 600;
   color: var(--ink-950);
 }
 
 .tm-ai-hint__body {
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   color: var(--ink-650);
 }
 
 .tm-ai-hint__label {
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 500;
   color: var(--ink-500);
 }

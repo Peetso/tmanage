@@ -66,7 +66,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--s3);
-  min-block-size: 44px;
+  min-block-size: var(--app-row);
   padding-block: var(--s2);
   padding-inline: var(--s2);
   margin-inline: calc(-1 * var(--s2));
@@ -263,7 +263,7 @@
   align-items: center;
   gap: var(--s2);
   inline-size: 100%;
-  min-block-size: 44px;
+  min-block-size: var(--app-row);
   padding-inline: var(--s3);
   border: 0;
   border-radius: var(--r-control);

@@ -100,7 +100,7 @@
   display: flex;
   align-items: center;
   gap: var(--s4);
-  padding-block: 14px;
+  padding-block: var(--s3);
   border-block-start: 1px solid var(--line-300);
 }
 

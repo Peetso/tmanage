@@ -35,7 +35,7 @@
 .tm-context-rail:has(.tm-docside) {
   inline-size: 236px;
   min-inline-size: 0;
-  padding: 24px 16px;
+  padding: var(--s6) var(--s4);
   border: 0;
   border-inline-end: var(--b-quiet) solid var(--line-300);
   border-radius: 0;
@@ -47,15 +47,15 @@
 .tm-docside {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--s5);
 }
 
 .tm-docside__find {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   block-size: 48px;
-  padding-inline: 14px 12px;
+  padding-inline: var(--s3) var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 12px;
   background: var(--paper-0);
@@ -79,7 +79,7 @@
   background: transparent;
   color: var(--ink-950);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   text-overflow: ellipsis;
 }
 
@@ -93,13 +93,13 @@
 
 .tm-docside__kbd {
   flex: none;
-  padding: 2px 6px;
+  padding: 2px var(--s1);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 6px;
   background: var(--paper-150);
   color: var(--ink-800);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-docside__new {
@@ -112,7 +112,7 @@
   background: var(--ink-950);
   color: var(--paper-0);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
@@ -131,17 +131,17 @@
 .tm-docside__group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s1);
 }
 
 .tm-docside__eyebrow {
-  margin: 0 0 4px;
+  margin: 0 0 var(--s1);
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 500;
   letter-spacing: 0.04em;
-  line-height: 16px;
+  line-height: var(--t-app-caption-line);
   text-transform: uppercase;
 }
 
@@ -153,7 +153,7 @@
 .tm-docside__list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -162,12 +162,12 @@
 .tm-docside__row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 7px 12px 7px 14px;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3) var(--s2) var(--s3);
   border-radius: 10px;
   color: var(--ink-800);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   text-decoration: none;
 }
 
@@ -188,15 +188,15 @@
 .tm-docside__row-glyph {
   flex: none;
   color: var(--ink-650);
-  font-size: 11px;
-  line-height: 18px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 .tm-docside__empty {
   margin: 0;
-  padding-inline: 14px;
+  padding-inline: var(--s3);
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 /* ── The page: top bar, toolbar, sheet ───────────────────────────────────────── */
@@ -211,21 +211,21 @@
 .tm-docpage__bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s3);
   min-block-size: 88px;
-  padding-inline: 24px;
+  padding-inline: var(--s6);
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-docpage__crumbs {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s1);
   margin: 0;
   padding: 0;
   list-style: none;
   color: var(--ink-650);
-  font-size: 14px;
+  font-size: var(--t-app-body);
 }
 
 .tm-docpage__crumbs a {
@@ -240,13 +240,13 @@
 .tm-docpage__bar-end {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s3);
   margin-inline-start: auto;
 }
 
 .tm-docpage__saved {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-docpage__btn {
@@ -254,13 +254,13 @@
   align-items: center;
   justify-content: center;
   block-size: 48px;
-  padding-inline: 20px;
+  padding-inline: var(--s5);
   border: var(--b-strong, 1.5px) solid var(--ink-650);
   border-radius: 999px;
   background: transparent;
   color: var(--ink-950);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--t-app-body);
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
@@ -286,30 +286,30 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--s1);
   min-block-size: 46px;
-  padding-inline: 24px;
+  padding-inline: var(--s6);
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-docpage__tool {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s1);
   block-size: 32px;
-  padding-inline: 10px;
+  padding-inline: var(--s2);
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--ink-800);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   cursor: pointer;
 }
 
 [dir='rtl'] .tm-docpage__tool[data-words='true'] {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 .tm-docpage__tool:hover {
@@ -325,41 +325,41 @@
   flex-direction: column;
   inline-size: min(720px, 100% - 48px);
   margin-inline: auto;
-  padding-block: 56px 48px;
+  padding-block: var(--s12) var(--s12);
 }
 
 .tm-docpage__title {
   margin: 0;
   color: var(--ink-950);
-  font-size: 40px;
+  font-size: var(--t-app-page-title);
   font-weight: 500;
   letter-spacing: -0.02em;
-  line-height: 48px;
+  line-height: var(--t-app-page-title-line);
 }
 
 .tm-docpage__meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-block: 14px 0;
-  padding-block-end: 20px;
+  gap: var(--s2);
+  margin-block: var(--s3) 0;
+  padding-block-end: var(--s5);
   border-block-end: var(--b-quiet) solid var(--line-300);
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-docpage__pill {
   display: inline-flex;
   align-items: center;
-  block-size: 26px;
-  padding-inline: 12px;
+  block-size: var(--app-control-sm);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--ink-650);
   border-radius: 999px;
   background: var(--paper-0);
   color: var(--ink-950);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   white-space: nowrap;
 }
 
@@ -370,14 +370,14 @@
 .tm-docpage__body {
   inline-size: 100%;
   min-block-size: 280px;
-  margin-block-start: 16px;
+  margin-block-start: var(--s4);
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--ink-950);
   font: inherit;
-  font-size: 15px;
-  line-height: 24px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
   resize: vertical;
 }
 
@@ -391,9 +391,9 @@
 
 .tm-docpage__template {
   align-self: flex-start;
-  margin-block-start: 8px;
+  margin-block-start: var(--s2);
   color: var(--ink-950);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   text-decoration: none;
 }
 
@@ -402,9 +402,9 @@
 }
 
 .tm-docpage__history {
-  margin-block-start: 32px;
+  margin-block-start: var(--s8);
   color: var(--ink-800);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 .tm-docpage__history summary {
@@ -416,15 +416,15 @@
 .tm-docpage__versions {
   display: grid;
   grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
-  gap: 20px;
+  gap: var(--s5);
   align-items: start;
-  margin-block-start: 12px;
+  margin-block-start: var(--s3);
 }
 
 .tm-docpage__versions ol {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -434,9 +434,9 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: var(--s1);
   inline-size: 100%;
-  padding: 12px 14px;
+  padding: var(--s3) var(--s3);
   border: var(--b-quiet) solid transparent;
   border-radius: var(--r-control);
   background: var(--paper-150);
@@ -464,14 +464,14 @@
 }
 
 .tm-docpage__version-when {
-  font-size: 15px;
-  line-height: 22px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
 }
 
 .tm-docpage__version-who {
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -484,8 +484,8 @@
 .tm-docpage__compare {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
+  gap: var(--s3);
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -495,11 +495,11 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--s2);
   margin: 0;
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -517,13 +517,13 @@
 .tm-docpage__change {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 16px;
+  gap: var(--s1);
+  padding: var(--s3) var(--s4);
   border-inline-start: 3px solid var(--success-600);
   border-radius: var(--r-compact);
   background: color-mix(in srgb, var(--success-600) 10%, var(--paper-0));
-  font-size: 15px;
-  line-height: 24px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
   color: var(--ink-950);
 }
 
@@ -547,7 +547,7 @@
   margin: 0;
   color: var(--success-600);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -560,15 +560,15 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--s3);
 }
 
 .tm-docpage__restore p {
   flex: 1 1 160px;
   margin: 0;
   color: var(--ink-650);
-  font-size: 13px;
-  line-height: 19px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
 }
 
 @media (max-width: 720px) {
@@ -587,7 +587,7 @@
   z-index: 20;
   inline-size: 260px;
   max-inline-size: calc(100vw - 32px);
-  padding: 7px;
+  padding: var(--s2);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -603,12 +603,12 @@
 .tm-docpage__slash-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-block-size: 44px;
-  padding-inline: 12px;
+  gap: var(--s2);
+  min-block-size: var(--app-row);
+  padding-inline: var(--s3);
   border-radius: var(--r-control);
   color: var(--ink-950);
-  font-size: 15px;
+  font-size: var(--t-app-body);
   cursor: pointer;
 }
 
@@ -620,22 +620,22 @@
   inline-size: 20px;
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   text-align: center;
 }
 
 .tm-docpage__slash-none {
   margin: 0;
-  padding: 10px 12px;
+  padding: var(--s2) var(--s3);
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 .tm-docpage__slash-hint {
-  margin: 4px 0 0;
-  padding: 6px 12px 2px;
+  margin: var(--s1) 0 0;
+  padding: var(--s1) var(--s3) 2px;
   color: var(--ink-650);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 /* ── Decision detail: content + Details column ───────────────────────────────── */
@@ -650,56 +650,56 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 32px 40px 48px;
+  padding: var(--s8) var(--s10) var(--s12);
 }
 
 .tm-decpage__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-decpage__title {
   max-inline-size: 760px;
-  margin: 14px 0 0;
+  margin: var(--s3) 0 0;
   color: var(--ink-950);
-  font-size: 38px;
+  font-size: var(--t-app-page-title);
   font-weight: 500;
   letter-spacing: -0.02em;
-  line-height: 44px;
+  line-height: var(--t-app-page-title-line);
 }
 
 .tm-decpage__section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-block-start: 32px;
+  gap: var(--s2);
+  margin-block-start: var(--s8);
   max-inline-size: 736px;
 }
 
 .tm-decpage__h {
   margin: 0;
   color: var(--ink-950);
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 500;
 }
 
 .tm-decpage__prose {
   margin: 0;
   color: var(--ink-650);
-  font-size: 15px;
-  line-height: 22px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
   white-space: pre-wrap;
 }
 
 .tm-decpage__card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: var(--s2);
+  padding: var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 14px;
   background: var(--paper-0);
@@ -708,9 +708,9 @@
 .tm-decpage__source-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-decpage__orb {
@@ -723,20 +723,20 @@
   border-radius: 999px;
   background: var(--paper-250);
   color: var(--ink-950);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 .tm-decpage__quote {
   margin: 0;
   color: var(--ink-950);
-  font-size: 15px;
-  line-height: 22px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
 }
 
 .tm-decpage__open {
   align-self: flex-start;
   color: var(--ink-950);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   text-decoration: none;
 }
 
@@ -747,7 +747,7 @@
 .tm-decpage__links {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -756,8 +756,8 @@
 .tm-decpage__link {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 14px;
   background: var(--paper-0);
@@ -772,7 +772,7 @@
 .tm-decpage__link-glyph {
   flex: none;
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-decpage__link-text {
@@ -781,20 +781,20 @@
   flex-direction: column;
   gap: 2px;
   min-inline-size: 0;
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   color: var(--ink-950);
 }
 
 .tm-decpage__link-sub {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-decpage__side {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 32px 24px;
+  gap: var(--s4);
+  padding: var(--s8) var(--s6);
   border-inline-start: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
 }
@@ -802,58 +802,58 @@
 .tm-decpage__side h2 {
   margin: 0;
   color: var(--ink-950);
-  font-size: 15px;
+  font-size: var(--t-app-body);
   font-weight: 500;
 }
 
 .tm-decpage__facts {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--s4);
   margin: 0;
 }
 
 .tm-decpage__facts dt {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-decpage__facts dd {
   margin: 2px 0 0;
   color: var(--ink-950);
-  font-size: 14px;
+  font-size: var(--t-app-body);
 }
 
 .tm-decpage__edit {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-block-start: 24px;
+  gap: var(--s3);
+  margin-block-start: var(--s6);
   max-inline-size: 736px;
 }
 
 .tm-decpage__edit textarea,
 .tm-decpage__edit select {
-  padding: 10px 12px;
+  padding: var(--s2) var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 12px;
   background: var(--paper-0);
   color: var(--ink-950);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--t-app-body);
 }
 
 .tm-decpage__edit label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s1);
   color: var(--ink-800);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 .tm-decpage__edit-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 @media (max-width: 1024px) {
@@ -870,7 +870,7 @@
 @media (max-width: 767px) {
   .tm-docpage__bar {
     flex-wrap: wrap;
-    padding-block: 12px;
+    padding-block: var(--s3);
   }
 
   .tm-docpage__title,
@@ -880,7 +880,7 @@
   }
 
   .tm-decpage__main {
-    padding: 24px 16px;
+    padding: var(--s6) var(--s4);
   }
 }
 

@@ -21,7 +21,7 @@
   min-inline-size: 0;
   gap: var(--s2);
   min-block-size: 220px;
-  padding: 22px;
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -86,7 +86,7 @@
 }
 
 .tm-int-advanced__summary {
-  padding: var(--s4) 22px;
+  padding: var(--s4) var(--s5);
   color: var(--ink-800);
   font-size: var(--t-ui-md);
   font-weight: 500;
@@ -100,8 +100,8 @@
 }
 
 .tm-int-advanced__body {
-  padding-inline: 22px;
-  padding-block-end: 22px;
+  padding-inline: var(--s5);
+  padding-block-end: var(--s5);
   max-inline-size: 560px;
 }
 

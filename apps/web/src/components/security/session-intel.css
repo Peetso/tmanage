@@ -28,7 +28,7 @@
 
 .tm-intel-mono {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-intel-dash {
@@ -43,12 +43,12 @@
 }
 
 .tm-intel-chip {
-  padding: 1px 6px;
+  padding: 1px var(--s1);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-micro);
   background: var(--paper-50);
   color: var(--ink-650);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 500;
 }
 
@@ -63,12 +63,12 @@
 
 .tm-intel-pill {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--s1);
   align-items: center;
-  padding: 3px 10px;
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   color: var(--ink-950);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -111,7 +111,7 @@
   margin: 0;
   padding-inline-start: var(--s4);
   color: var(--ink-950);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-intel-reasons__points {
@@ -140,7 +140,7 @@
 .tm-intel-card__title {
   margin: 0;
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -162,7 +162,7 @@
 
 .tm-intel-row dt {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-intel-row dd {
@@ -243,14 +243,14 @@
 
 .tm-intel-drawer__title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--t-app-section);
   font-weight: 600;
 }
 
 .tm-intel-drawer__sub {
   margin: var(--s1) 0 0;
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-intel-drawer__close {
@@ -334,7 +334,7 @@
 
 .tm-trail-print__table th,
 .tm-trail-print__table td {
-  padding: 4px 6px;
+  padding: var(--s1) var(--s1);
   border: 1px solid var(--line-300);
   text-align: start;
   vertical-align: top;

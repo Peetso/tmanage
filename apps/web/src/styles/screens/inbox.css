@@ -23,7 +23,7 @@
 .tm-inbox-badge {
   display: inline-flex;
   align-items: center;
-  padding: 6px 14px;
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
   color: var(--tm-accent-on-ink, var(--lime-500));
@@ -67,8 +67,8 @@
 /* ── Mode capsules ───────────────────────────────────────────────────────────── */
 
 .tm-inbox-modes .tm-chip {
-  min-block-size: 35px;
-  padding-inline: 18px;
+  min-block-size: var(--app-control);
+  padding-inline: var(--s4);
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
 }
@@ -92,7 +92,7 @@
 .tm-inbox-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
   padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
@@ -109,7 +109,7 @@
 .tm-inbox-card__head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   min-inline-size: 0;
 }
 
@@ -159,23 +159,23 @@
   margin-inline-start: auto;
   flex: none;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
 .tm-inbox-card__title {
   margin: 0;
-  font-size: 17px;
-  line-height: 23px;
+  font-size: var(--t-app-card-title);
+  line-height: var(--t-app-card-title-line);
   font-weight: 600;
   letter-spacing: -0.005em;
   color: var(--ink-950);
 }
 
 .tm-inbox-card[data-selected='true'] .tm-inbox-card__title {
-  font-size: 18px;
-  line-height: 24px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
 }
 
 .tm-inbox-card__title a {
@@ -211,7 +211,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--s1);
   padding: var(--s2);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
@@ -219,12 +219,12 @@
 }
 
 .tm-inbox-track__step {
-  padding: 6px var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
   color: var(--tm-paper-absolute);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -236,7 +236,7 @@
 
 .tm-inbox-track__arrow {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   color: var(--ink-650);
 }
@@ -250,18 +250,18 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-inbox-card__actions .tm-button {
-  --tm-control-h: 35px;
-  padding-inline: 18px;
+  --tm-control-h: var(--app-control);
+  padding-inline: var(--s4);
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
 }
 
 .tm-inbox-card[data-selected='true'] .tm-inbox-card__actions .tm-button {
-  --tm-control-h: 38px;
+  --tm-control-h: var(--app-control);
   padding-inline: var(--s5);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
@@ -352,16 +352,16 @@
 }
 
 .tm-inbox-more .tm-button {
-  --tm-control-h: 35px;
-  padding-inline: 18px;
+  --tm-control-h: var(--app-control);
+  padding-inline: var(--s4);
   font-size: var(--t-caption);
 }
 
 .tm-inbox-pagenote {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.04em;
   color: var(--ink-650);
   text-align: center;
@@ -392,8 +392,8 @@
 .tm-inbox-eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -402,8 +402,8 @@
 
 .tm-inbox-detail__title {
   margin: 0;
-  font-size: 30px;
-  line-height: 36px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink-950);
@@ -441,8 +441,8 @@
 .tm-inbox-detail__track {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: var(--s2);
+  gap: var(--s1);
+  padding: var(--s2) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -450,7 +450,7 @@
 }
 
 .tm-inbox-detail__step {
-  padding: 9px var(--s4);
+  padding: var(--s2) var(--s4);
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
   color: var(--tm-paper-absolute);
@@ -470,8 +470,8 @@
   min-inline-size: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px var(--s4);
+  gap: var(--s2);
+  padding: var(--s2) var(--s4);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
   color: var(--tm-on-lime);
@@ -528,7 +528,7 @@
   flex-direction: column;
   gap: var(--s3);
   margin: 0;
-  padding: 18px;
+  padding: var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-50);
@@ -538,7 +538,7 @@
 .tm-inbox-detail__event {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
   font-weight: 500;
@@ -548,14 +548,14 @@
 .tm-inbox-detail__event .tm-inbox-orb {
   inline-size: 28px;
   block-size: 28px;
-  font-size: 10px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-inbox-detail__mono {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -564,7 +564,7 @@
   align-items: center;
   gap: var(--s3);
   margin: 0;
-  padding: 14px 18px;
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-50);
@@ -598,14 +598,14 @@
 .tm-inbox-detail__aside {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-inbox-ink {
   display: flex;
   flex-direction: column;
   gap: var(--s4);
-  padding: 22px;
+  padding: var(--s5);
   border-radius: var(--r-card);
   background: var(--tm-ink-absolute);
   color: var(--tm-paper-absolute);
@@ -629,7 +629,7 @@
 .tm-inbox-ink__figure {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-inbox-ink__value {
@@ -655,7 +655,7 @@
 .tm-inbox-ink__list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -664,7 +664,7 @@
 .tm-inbox-ink__item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
   font-weight: 500;
@@ -680,7 +680,7 @@
   background: var(--ink-800);
   color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--t-app-overline);
   line-height: 1;
 }
 
@@ -691,7 +691,7 @@
 .tm-inbox-why {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
   padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
@@ -768,12 +768,12 @@
 
 .tm-inbox-rule__index {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   color: var(--ink-650);
 }
 
 .tm-inbox-rule .tm-button {
-  --tm-control-h: 32px;
+  --tm-control-h: var(--app-control);
   padding-inline: var(--s3);
   font-size: var(--t-caption);
 }
@@ -801,13 +801,13 @@
   }
 
   .tm-inbox-card[data-selected='true'] {
-    gap: 10px;
+    gap: var(--s2);
     border: var(--b-quiet) solid var(--line-300);
   }
 
   .tm-inbox-card[data-selected='true'] .tm-inbox-card__title {
-    font-size: 17px;
-    line-height: 23px;
+    font-size: var(--t-app-card-title);
+    line-height: var(--t-app-card-title-line);
   }
 
   .tm-inbox-rules {
@@ -827,7 +827,7 @@
   }
 
   .tm-inbox-card {
-    padding: 18px;
+    padding: var(--s4);
     gap: var(--s3);
   }
 

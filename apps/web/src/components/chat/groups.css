@@ -6,50 +6,50 @@
 
 .tm-chatgroup__label {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 600;
   color: var(--ink-650);
 }
 
 .tm-chatgroup__hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   color: var(--ink-650);
 }
 
 .tm-chatgroup__error {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   color: var(--danger-600);
 }
 
 .tm-chatgroup__field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s1);
 }
 
 .tm-chatgroup__input {
   inline-size: 100%;
-  padding-block: 10px;
-  padding-inline: 12px;
+  padding-block: var(--s2);
+  padding-inline: var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-control);
   background: var(--paper-0);
   color: var(--ink-950);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--t-app-body);
 }
 
 .tm-chatgroup__btn {
-  padding-block: 8px;
-  padding-inline: 14px;
+  padding-block: var(--s2);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   color: var(--ink-950);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   font-weight: 600;
   cursor: pointer;
 }
@@ -66,8 +66,8 @@
 }
 
 .tm-chatgroup__btn--quiet {
-  padding-block: 4px;
-  padding-inline: 10px;
+  padding-block: var(--s1);
+  padding-inline: var(--s2);
   border-color: transparent;
   color: var(--ink-650);
 }
@@ -95,7 +95,7 @@
   border-radius: 50%;
   background: var(--paper-350);
   color: var(--ink-950);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   font-weight: 600;
 }
 
@@ -108,12 +108,12 @@
 .tm-chatgroup__chip {
   display: inline-block;
   padding-block: 2px;
-  padding-inline: 8px;
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
   color: var(--ink-950);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 600;
 }
 
@@ -131,17 +131,17 @@
   z-index: 60;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: var(--s4);
   background: color-mix(in srgb, var(--ink-950) 40%, transparent);
 }
 
 .tm-chatgroup-sheet {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   inline-size: min(480px, 100%);
   max-block-size: min(800px, 100%);
-  padding: 24px;
+  padding: var(--s6);
   overflow-y: auto;
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 16px;
@@ -150,14 +150,14 @@
 
 .tm-chatgroup-sheet__title {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--t-app-section);
   font-weight: 600;
 }
 
 .tm-chatgroup-sheet__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 /* ── Members ────────────────────────────────────────────────────────────────── */
@@ -165,7 +165,7 @@
 .tm-chatgroup-members {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -179,13 +179,13 @@
 .tm-chatgroup-member {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-chatgroup-member__name {
   flex: 1;
   min-inline-size: 0;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 500;
 }
 
@@ -194,10 +194,10 @@
 .tm-chatgroup-info {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   inline-size: min(420px, 100%);
   block-size: 100%;
-  padding: 24px;
+  padding: var(--s6);
   overflow-y: auto;
   border-inline-start: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
@@ -207,26 +207,26 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--s1);
   text-align: center;
 }
 
 .tm-chatgroup-info__name {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--t-app-section);
   font-weight: 600;
 }
 
 .tm-chatgroup-info__desc {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 .tm-chatgroup-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--s3);
 }
 
 .tm-chatgroup-toggle > span {
@@ -236,14 +236,14 @@
 }
 
 .tm-chatgroup-toggle__title {
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 500;
 }
 
 .tm-chatgroup-add {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 /* ── Invite link ────────────────────────────────────────────────────────────── */
@@ -251,14 +251,14 @@
 .tm-chatgroup-invite {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .tm-chatgroup-invite__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .tm-chatgroup-invite__link {
@@ -266,7 +266,7 @@
   overflow: hidden;
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -276,18 +276,18 @@
 .tm-chatgroup-sys {
   display: flex;
   justify-content: center;
-  padding-block: 4px;
+  padding-block: var(--s1);
 }
 
 .tm-chatgroup-sys__pill {
   max-inline-size: 90%;
-  padding-block: 6px;
-  padding-inline: 12px;
+  padding-block: var(--s1);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 500;
   text-align: center;
 }
@@ -296,7 +296,7 @@
 .tm-chatgroup__link {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   border: 0;
@@ -306,10 +306,10 @@
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  column-gap: 10px;
+  column-gap: var(--s2);
   row-gap: 2px;
-  padding-block: 10px;
-  padding-inline: 12px;
+  padding-block: var(--s2);
+  padding-inline: var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-control);
   background: var(--paper-0);
@@ -328,11 +328,11 @@
 
 .tm-chatgroup__choice-title {
   color: var(--ink-950);
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 600;
 }
 
 .tm-chatgroup__choice-hint {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }

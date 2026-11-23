@@ -8,13 +8,13 @@
 }
 
 .tm-doctitle__heading {
-  margin-inline: -10px;
+  margin-inline: calc(var(--s2) * -1);
 }
 
 .tm-doctitle__trigger {
   display: block;
   inline-size: 100%;
-  padding: 1px 10px;
+  padding: 1px var(--s2);
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -41,12 +41,12 @@
   inset-block-end: calc(100% + 12px);
   inset-inline-start: 0;
   display: none;
-  padding: 4px 10px;
+  padding: var(--s1) var(--s2);
   border-radius: 6px;
   background: var(--ink-950);
   color: var(--paper-0);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -65,16 +65,16 @@
 .tm-doctitle__input {
   inline-size: 100%;
   block-size: 54px;
-  padding-inline: 12px;
+  padding-inline: var(--s3);
   border: var(--b-strong, 1.5px) solid var(--ink-950);
   border-radius: 8px;
   background: var(--paper-0);
   color: var(--ink-950);
   font: inherit;
-  font-size: 40px;
+  font-size: var(--t-app-page-title);
   font-weight: 500;
   letter-spacing: -0.02em;
-  line-height: 48px;
+  line-height: var(--t-app-page-title-line);
 }
 
 .tm-doctitle__input:focus {
@@ -82,14 +82,14 @@
 }
 
 .tm-doctitle__hint {
-  margin: 16px 0 0;
+  margin: var(--s4) 0 0;
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 /* 5 · someone else renamed it: the warning, then "Keep my name" / "Use …". */
 .tm-doctitle__alert {
-  margin-block-start: 16px;
+  margin-block-start: var(--s4);
 }
 
 .tm-doctitle__alert .tm-inline-alert {
@@ -99,15 +99,15 @@
 .tm-doctitle__choices {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-block-start: 16px;
+  gap: var(--s2);
+  margin-block-start: var(--s4);
 }
 
 /* 3 · saving: the spinner beside "Saving…" in the bar. */
 .tm-doctitle__saving {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .tm-doctitle__spinner {
@@ -135,7 +135,7 @@
 .tm-doctitle__toast {
   display: inline-flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--s4);
 }
 
 @media (max-width: 767px) {

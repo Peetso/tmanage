@@ -96,7 +96,7 @@
 
 .tm-plans-card__pill {
   padding-block: var(--s1);
-  padding-inline: var(--s3);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-150);

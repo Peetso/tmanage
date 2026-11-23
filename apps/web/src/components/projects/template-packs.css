@@ -13,13 +13,13 @@
 .tm-packs__head {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s1);
 }
 
 .tm-packs__title {
   margin: 0;
-  font-size: 20px;
-  line-height: 28px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   font-weight: 600;
   color: var(--ink-950);
 }
@@ -44,8 +44,8 @@
 .tm-packs__card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 20px;
+  gap: var(--s2);
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -93,7 +93,7 @@
 }
 
 .tm-packs__list-item {
-  padding: 12px var(--s4);
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-control);
   font-size: var(--t-ui-md);

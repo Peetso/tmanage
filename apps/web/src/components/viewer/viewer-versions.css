@@ -82,7 +82,7 @@
 
 .tm-versions-card__here {
   margin-inline-start: auto;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--lime-100);
   font-size: var(--t-caption);
@@ -346,7 +346,7 @@
 }
 
 .tm-upload-version__badge {
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
   color: var(--tm-on-lime);

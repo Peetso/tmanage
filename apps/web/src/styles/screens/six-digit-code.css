@@ -11,7 +11,7 @@
 
 .tm-id-code__cells {
   display: flex;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-id-code__cell {
@@ -64,7 +64,7 @@
 
 @media (max-width: 560px) {
   .tm-id-code__cells {
-    gap: 6px;
+    gap: var(--s1);
   }
 
   .tm-id-code__cell {

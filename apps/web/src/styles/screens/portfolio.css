@@ -11,14 +11,14 @@
 /* The frame's headline is 48/52 at weight 500, between `heading.page` and the display metric. */
 .tm-app__body:has(.tm-por) .tm-canvas-header__title,
 .tm-app__body:has(.tm-por-view-bar) .tm-canvas-header__title {
-  font-size: 48px;
-  line-height: 52px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   letter-spacing: -0.03em;
 }
 
 .tm-por-metrics {
   display: flex;
-  gap: 36px;
+  gap: var(--s8);
 }
 
 .tm-por-metric__figure {
@@ -37,12 +37,12 @@
 
 .tm-por-metric__flag {
   margin-block-start: var(--s2);
-  padding: 3px 9px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--danger-600);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 600;
   color: var(--danger-600);
   white-space: nowrap;
@@ -81,8 +81,8 @@
   border-block-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -107,7 +107,7 @@
   min-block-size: 53px;
   padding-block: var(--s2);
   border-inline-start: 3px solid transparent;
-  padding-inline-start: calc(var(--s5) - 3px);
+  padding-inline-start: calc(var(--s5) - var(--s1));
 }
 
 .tm-por-row[data-tone='danger'] {
@@ -156,8 +156,8 @@
 
 .tm-por-row__meta {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   text-transform: uppercase;
   color: var(--ink-500);
 }
@@ -230,8 +230,8 @@
   border-block-start: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-500);
@@ -276,7 +276,7 @@
 .tm-obj-card__top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-obj-card__title {
@@ -310,11 +310,11 @@
 .tm-obj-pill {
   flex: none;
   margin-inline-start: auto;
-  padding: 4px 11px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid transparent;
   border-radius: var(--r-capsule);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -342,7 +342,7 @@
 .tm-obj-card__body {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-obj-card__metric {
@@ -362,8 +362,8 @@
 }
 
 .tm-obj-card__label {
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-650);
 }
@@ -398,8 +398,8 @@
 .tm-obj-eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -410,15 +410,15 @@
 
 .tm-obj-detail__title {
   margin: 0;
-  font-size: 34px;
-  line-height: 38px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink-950);
 }
 
 .tm-obj-detail__card {
-  gap: 14px;
+  gap: var(--s3);
   padding: var(--s5);
 }
 
@@ -444,8 +444,8 @@
 
 .tm-obj-detail__stats dt {
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   text-transform: uppercase;
   color: var(--ink-500);
@@ -467,9 +467,9 @@
 .tm-obj-detail__stats .tm-obj-pill {
   display: inline-block;
   margin-inline-start: 0;
-  padding: 5px 12px;
-  font-size: 11px;
-  line-height: 15px;
+  padding: var(--s1) var(--s3);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 /* Key results — the "linked work" card's rows on paper-50. */
@@ -491,8 +491,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
   border-radius: var(--r-control);
   background: var(--paper-50);
 }
@@ -509,19 +509,19 @@
 
 .tm-kr-row__value {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
   white-space: nowrap;
 }
 
 .tm-kr-row__progress {
-  padding: 3px 9px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-800);
   white-space: nowrap;
@@ -570,8 +570,8 @@
 
 @media (max-width: 899px) {
   .tm-app__body:has(.tm-por) .tm-canvas-header__title {
-    font-size: var(--t-heading-page);
-    line-height: var(--t-heading-page-line);
+    font-size: var(--t-app-page-title);
+    line-height: var(--t-app-page-title-line);
   }
 
   .tm-por__head {
@@ -633,7 +633,7 @@
   }
 
   .tm-por-metric__value {
-    font-size: 36px;
+    font-size: var(--t-heading-page);
     line-height: 40px;
   }
 }
@@ -692,12 +692,12 @@
 }
 
 .tm-kr-row__edit > summary {
-  padding: 3px 9px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-800);
   cursor: pointer;

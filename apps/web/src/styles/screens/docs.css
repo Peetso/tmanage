@@ -10,8 +10,8 @@
 /* ── Headline: DOC-01/DOC-04/DEC-01 draw a 28–30px semibold title under a mono eyebrow ──── */
 
 .tm-app__body:has(.tm-dx) .tm-canvas-header__title {
-  font-size: 30px;
-  line-height: 36px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   font-weight: 600;
   letter-spacing: -0.015em;
 }
@@ -40,8 +40,8 @@
 }
 
 .tm-dx-chips .tm-chip {
-  min-block-size: 34px;
-  padding-inline: 14px;
+  min-block-size: var(--app-control);
+  padding-inline: var(--s3);
   font-size: var(--t-caption);
   line-height: 15px;
 }
@@ -67,18 +67,18 @@
 
 .tm-dx-select__label {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-500);
 }
 
 .tm-dx-select__control {
-  min-block-size: 34px;
+  min-block-size: var(--app-control);
   max-inline-size: 260px;
   padding-block: 0;
-  padding-inline: 14px 32px;
+  padding-inline: var(--inset-capsule) var(--s8);
   border: var(--b-quiet) solid var(--ink-500);
   border-radius: var(--r-capsule);
   background-color: var(--paper-0);
@@ -99,7 +99,7 @@
 }
 
 [dir='rtl'] .tm-dx-select__control {
-  padding-inline: 14px 32px;
+  padding-inline: var(--s3) var(--s8);
   background-position:
     12px 50%,
     17px 50%;
@@ -140,8 +140,8 @@
   border-block-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-align: start;
@@ -153,7 +153,7 @@
 .tm-dx-table tbody th,
 .tm-dx-table tbody td {
   block-size: 44px;
-  padding-block: 6px;
+  padding-block: var(--s1);
   padding-inline: var(--s4);
   border-block-end: var(--b-quiet) solid var(--paper-150);
   text-align: start;
@@ -246,8 +246,8 @@
 
 .tm-dx-table__mono {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -278,13 +278,13 @@
 .tm-dx-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
+  gap: var(--s1);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ink-800);
@@ -324,7 +324,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--s1);
 }
 
 .tm-dx-actions--end {
@@ -332,8 +332,8 @@
 }
 
 .tm-dx-actions .tm-button {
-  --tm-control-h: 32px;
-  padding-inline: 12px;
+  --tm-control-h: var(--app-control);
+  padding-inline: var(--s3);
   font-size: var(--t-caption);
   line-height: 15px;
 }
@@ -343,7 +343,7 @@
 }
 
 .tm-dx-actions .tm-dx-select__control {
-  min-block-size: 32px;
+  min-block-size: var(--app-control);
   max-inline-size: 150px;
 }
 
@@ -366,7 +366,7 @@
 
 .tm-app__body:has(.tm-dx) .tm-canvas-header__aside {
   align-self: flex-end;
-  padding-block: 0 6px;
+  padding-block: 0 var(--s1);
 }
 
 /* ── Two-column body: a main column and a 340px side column (DEC-02 proportions) ───────── */
@@ -392,7 +392,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  padding: 18px;
+  padding: var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -418,8 +418,8 @@
 .tm-dx-caption {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -468,13 +468,13 @@
 }
 
 .tm-dx-form .tm-field__control {
-  min-block-size: 40px;
+  min-block-size: var(--app-control-lg);
   font-size: var(--t-ui-sm);
 }
 
 .tm-dx-form .tm-field__hint {
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 .tm-dx-form .tm-button {
@@ -489,9 +489,9 @@
 }
 
 .tm-dx-form .tm-choice__hint {
-  margin-inline-start: 34px;
-  font-size: 11px;
-  line-height: 16px;
+  margin-inline-start: var(--s8);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 /* Row actions: a quiet outline, so a column of buttons does not outweigh the rows. */
@@ -503,13 +503,13 @@
 .tm-dx-info {
   display: flex;
   align-items: flex-start;
-  gap: 11px;
-  padding: 14px;
+  gap: var(--s3);
+  padding: var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-0);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -526,7 +526,7 @@
   border: var(--b-structural) solid var(--ink-500);
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   font-weight: 600;
   color: var(--ink-500);
@@ -540,8 +540,8 @@
 .tm-dx-empty {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 18px;
+  gap: var(--s1);
+  padding: var(--s4);
   border: var(--b-quiet) dashed var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -589,7 +589,7 @@
   align-items: center;
   column-gap: var(--s4);
   row-gap: var(--s2);
-  padding: 18px;
+  padding: var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -633,16 +633,16 @@
 }
 
 .tm-dx-cards__actions .tm-button {
-  --tm-control-h: 34px;
-  padding-inline: 14px;
+  --tm-control-h: var(--app-control);
+  padding-inline: var(--s3);
   font-size: var(--t-caption);
 }
 
 .tm-dx-link-capsule {
   display: inline-flex;
   align-items: center;
-  min-block-size: 34px;
-  padding-inline: 14px;
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -664,12 +664,12 @@
 .tm-dx-token {
   display: inline-flex;
   align-items: center;
-  padding: 5px 11px;
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
   white-space: nowrap;
 }
@@ -679,10 +679,10 @@
 .tm-dx-new {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   min-block-size: 36px;
-  padding-block: 5px;
-  padding-inline: 5px 16px;
+  padding-block: var(--s1);
+  padding-inline: var(--s1) var(--s4);
   border-radius: var(--r-capsule);
   background: var(--ink-950);
   color: var(--paper-50);
@@ -760,7 +760,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
   inline-size: 100%;
 }
 
@@ -777,8 +777,8 @@
   align-items: center;
   gap: var(--s2);
   min-block-size: 38px;
-  padding-block: 6px;
-  padding-inline: 6px 14px;
+  padding-block: var(--s1);
+  padding-inline: var(--s1) var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -798,7 +798,7 @@
   border-radius: var(--r-capsule);
   background: var(--paper-150);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   line-height: 1;
 }
 
@@ -808,8 +808,8 @@
 
 .tm-dx-stamp {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-500);
   text-transform: uppercase;
   white-space: nowrap;
@@ -820,8 +820,8 @@
 }
 
 .tm-dx-topbar .tm-button {
-  --tm-control-h: 38px;
-  padding-inline: 18px;
+  --tm-control-h: var(--app-control);
+  padding-inline: var(--s4);
   font-size: var(--t-caption);
   line-height: 17px;
 }
@@ -837,7 +837,7 @@
   grid-template-columns: minmax(0, 1fr) 300px;
   align-items: stretch;
   min-block-size: calc(100dvh - 102px);
-  margin-block: -26px calc(var(--s8) * -1);
+  margin-block: calc(var(--s6) * -1) calc(var(--s8) * -1);
   margin-inline: calc(var(--s2) * -1) calc(var(--s8) * -1);
   background: var(--paper-350);
 }
@@ -853,10 +853,10 @@
 .tm-dx-sheet {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--s5);
   inline-size: 100%;
   max-inline-size: var(--reading);
-  padding: 56px 64px;
+  padding: var(--s12) var(--s16);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 8px;
   background: var(--paper-0);
@@ -867,14 +867,14 @@
 .tm-dx-sheet__head {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-dx-sheet__eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -883,8 +883,8 @@
 
 .tm-dx-sheet__title {
   margin: 0;
-  font-size: 44px;
-  line-height: 48px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   font-weight: 500;
   letter-spacing: -0.025em;
   color: var(--ink-950);
@@ -908,7 +908,7 @@
 .tm-dx-sheet__body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-dx-sheet__body p {
@@ -927,7 +927,7 @@
 /* Live test 2026-10-31: the body's Markdown drawn as the read view of 77:345 shows it — section
    headings ("The decision"), lists, checklists, bold and links. */
 .tm-dx-sheet__heading {
-  margin: 10px 0 -4px;
+  margin: var(--s2) 0 calc(var(--s1) * -1);
   color: var(--ink-950);
   font-weight: 500;
   letter-spacing: -0.01em;
@@ -935,13 +935,13 @@
 }
 
 .tm-dx-sheet__heading[data-level='1'] {
-  font-size: 22px;
-  line-height: 30px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
 }
 
 .tm-dx-sheet__heading[data-level='2'] {
-  font-size: 19px;
-  line-height: 27px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
 }
 
 .tm-dx-sheet__heading[data-level='3'] {
@@ -952,9 +952,9 @@
 .tm-dx-sheet__list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s1);
   margin: 0;
-  padding-inline-start: 22px;
+  padding-inline-start: var(--s5);
   font-size: 16px;
   line-height: 27px;
   color: var(--ink-800);
@@ -967,7 +967,7 @@
 
 .tm-dx-sheet__list[data-checklist='true'] li {
   display: flex;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-dx-sheet__list li[data-done='true'] > span:last-child {
@@ -1030,8 +1030,8 @@
 }
 
 .tm-dx-sheet__hint {
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-500);
 }
 
@@ -1039,9 +1039,9 @@
 .tm-dx-edge {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   min-inline-size: 0;
-  padding: 24px 20px;
+  padding: var(--s6) var(--s5);
   border-inline-start: var(--b-quiet) solid var(--paper-250);
   background: var(--paper-50);
 }
@@ -1049,8 +1049,8 @@
 .tm-dx-edge__caption {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1065,7 +1065,7 @@
 .tm-dx-comments {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1074,7 +1074,7 @@
 .tm-dx-comment {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: var(--s2);
   padding: var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
@@ -1088,7 +1088,7 @@
 .tm-dx-comment__head {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--s2);
 }
 
 .tm-dx-comment__orb {
@@ -1101,15 +1101,15 @@
   background: var(--ink-650);
   color: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   font-weight: 600;
 }
 
 .tm-dx-comment__who {
   overflow: hidden;
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-800);
   text-overflow: ellipsis;
@@ -1119,8 +1119,8 @@
 .tm-dx-comment__when {
   margin-inline-start: auto;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-500);
   white-space: nowrap;
 }
@@ -1137,15 +1137,15 @@
   display: flex;
   flex-direction: column;
   gap: var(--s2);
-  padding: 14px;
+  padding: var(--s3);
   border: var(--b-quiet) dashed var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-0);
 }
 
 .tm-dx-comment-form .tm-field__label {
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 .tm-dx-comment-form .tm-field__control {
@@ -1155,11 +1155,11 @@
 }
 
 .tm-dx-comment-form .tm-button {
-  --tm-control-h: 32px;
+  --tm-control-h: var(--app-control);
   align-self: flex-start;
-  padding-inline: 12px;
-  font-size: 11px;
-  line-height: 15px;
+  padding-inline: var(--s3);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 .tm-dx-quiet {
@@ -1183,7 +1183,7 @@
 .tm-dx-versions > tbody {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: var(--s2);
 }
 
 .tm-dx-versions > tbody > tr {
@@ -1194,8 +1194,8 @@
     'who who'
     'act act';
   align-items: center;
-  gap: 3px var(--s2);
-  padding: 10px 12px;
+  gap: var(--s1) var(--s2);
+  padding: var(--s2) var(--s3);
   border: var(--b-structural) solid transparent;
   border-radius: 12px;
   background: var(--paper-0);
@@ -1224,8 +1224,8 @@
 .tm-dx-versions__when {
   grid-area: when;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-500);
 }
 
@@ -1233,8 +1233,8 @@
   grid-area: who;
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-500);
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -1243,26 +1243,26 @@
 
 .tm-dx-versions__act {
   grid-area: act;
-  padding-block-start: 6px !important;
+  padding-block-start: var(--s1) !important;
 }
 
 .tm-dx-versions__act > div {
   display: flex;
-  gap: 6px;
+  gap: var(--s1);
 }
 
 .tm-dx-versions__act .tm-button {
-  --tm-control-h: 28px;
-  padding-inline: 12px;
+  --tm-control-h: var(--app-control-sm);
+  padding-inline: var(--s3);
   border-width: var(--b-quiet);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 .tm-dx-compare {
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: var(--s3);
   padding: var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
@@ -1271,7 +1271,7 @@
 
 .tm-dx-compare__block {
   margin: 0;
-  padding: 13px;
+  padding: var(--s3);
   border-inline-start: 3px solid var(--ink-500);
   border-start-end-radius: 12px;
   border-end-end-radius: 12px;
@@ -1286,8 +1286,8 @@
 
 .tm-dx-compare__tag {
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-500);
 }
@@ -1300,7 +1300,7 @@
   }
 
   .tm-dx-sheet {
-    padding: 40px 40px;
+    padding: var(--s10) var(--s10);
   }
 }
 
@@ -1327,7 +1327,7 @@
   }
 
   .tm-dx-sheet {
-    padding: 28px 22px;
+    padding: var(--s6) var(--s5);
     border-radius: var(--r-compact);
   }
 
@@ -1341,8 +1341,8 @@
   }
 
   .tm-app__body:has(.tm-dx) .tm-canvas-header__title {
-    font-size: 26px;
-    line-height: 32px;
+    font-size: var(--t-app-page-title);
+    line-height: var(--t-app-page-title-line);
   }
 }
 
@@ -1365,7 +1365,7 @@
 .tm-dx-audience {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s1);
   font-size: var(--t-caption);
   line-height: 15px;
   font-weight: 500;
@@ -1381,7 +1381,7 @@
   border: var(--b-structural) solid var(--ink-950);
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   font-weight: 600;
   color: var(--ink-950);
@@ -1419,8 +1419,8 @@
   align-items: center;
   gap: var(--s2);
   min-block-size: 38px;
-  padding-block: 6px;
-  padding-inline: 6px 14px;
+  padding-block: var(--s1);
+  padding-inline: var(--s1) var(--s3);
   border: var(--b-structural) solid var(--client-500);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -1453,7 +1453,7 @@
   border: var(--b-structural) solid var(--client-500);
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   color: var(--client-500);
 }
@@ -1473,7 +1473,7 @@
   border: 2px solid var(--paper-150);
   border-radius: var(--r-capsule);
   background: var(--ink-650);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   font-weight: 600;
   color: var(--paper-50);
@@ -1484,7 +1484,7 @@
 }
 
 .tm-dx-faces__face + .tm-dx-faces__face {
-  margin-inline-start: -9px;
+  margin-inline-start: calc(var(--s2) * -1);
 }
 
 .tm-dx-faces__face[data-latest='true'] {
@@ -1494,13 +1494,13 @@
 .tm-dx-edge__note {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
-  padding: 14px;
+  padding: var(--s3);
   border: var(--b-quiet) dashed var(--line-300);
   border-radius: var(--r-compact);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -1513,7 +1513,7 @@
   border: var(--b-structural) solid var(--client-500);
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   color: var(--client-500);
 }

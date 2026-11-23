@@ -7,7 +7,7 @@
 .tm-afb {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--s5);
   min-inline-size: 0;
 }
 
@@ -45,7 +45,7 @@
   align-items: center;
   min-inline-size: 0;
   overflow: auto;
-  padding: 28px var(--s6);
+  padding: var(--s6) var(--s6);
   border: 1px solid var(--line-300);
   border-radius: 12px;
   background: var(--paper-50);
@@ -54,7 +54,7 @@
 .tm-afb-step {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s1);
   inline-size: 320px;
   flex-shrink: 0;
   padding: var(--s4);
@@ -88,19 +88,19 @@ button.tm-afb-step {
 .tm-afb-step__kind {
   flex: 1 1 auto;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 500;
   color: var(--ink-500);
 }
 
 .tm-afb-step__flag {
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 600;
   color: var(--danger-600);
 }
 
 .tm-afb-step__title {
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 600;
 }
 
@@ -136,31 +136,31 @@ button.tm-afb-step {
 .tm-afb-add-step {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s1);
   flex-shrink: 0;
   min-block-size: var(--s6);
   min-inline-size: var(--s6);
   justify-content: center;
-  padding: var(--s1) var(--s2);
+  padding: var(--s1) var(--inset-capsule);
   border: 1px solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   color: var(--ink-950);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 700;
   cursor: pointer;
 }
 
 .tm-afb-add-step {
-  padding-block: 6px;
-  padding-inline: 10px var(--s3);
+  padding-block: var(--s1);
+  padding-inline: var(--s2) var(--s3);
   font-size: var(--t-caption);
   font-weight: 600;
 }
 
 .tm-afb-add-step > span {
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 700;
 }
 
@@ -193,7 +193,7 @@ button.tm-afb-step {
 .tm-afb-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   inline-size: 340px;
   flex-shrink: 0;
   padding: var(--s6);
@@ -242,7 +242,7 @@ button.tm-afb-step {
 
 .tm-afb-loading__label {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 500;
   color: var(--ink-650);
 }
@@ -277,7 +277,7 @@ button.tm-afb-step {
 .tm-afb-empty__body {
   margin: 0;
   max-inline-size: 480px;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   color: var(--ink-650);
 }
 
@@ -289,14 +289,14 @@ button.tm-afb-step {
 }
 
 .tm-afb-chip {
-  min-block-size: 40px;
+  min-block-size: var(--app-control-lg);
   padding: 0 var(--s4);
   border: 1px solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   color: var(--ink-950);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 500;
   cursor: pointer;
 }

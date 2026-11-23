@@ -106,10 +106,10 @@
 }
 
 .tm-sis-pill {
-  padding: var(--s1) 10px;
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--lime-100);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 500;
   color: var(--ink-950);
   white-space: nowrap;

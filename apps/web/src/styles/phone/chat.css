@@ -49,7 +49,7 @@
     place-items: center;
     inline-size: var(--orb-comfortable);
     block-size: var(--orb-comfortable);
-    padding: 0;
+    padding: 0 0;
     border: 0;
     border-radius: var(--r-capsule);
     background: var(--paper-0);
@@ -160,7 +160,7 @@
 
   .tm-chat-channel--phone .tm-chat-message__head .tm-chat-pill--client {
     order: 1;
-    padding: var(--s1) var(--s3);
+    padding: var(--s1) var(--inset-capsule);
     border: var(--b-quiet) solid var(--client-500);
     border-radius: var(--r-capsule);
     background: var(--paper-50);
@@ -290,7 +290,7 @@
 
   .tm-chat-channel.tm-chat-channel--phone .tm-chat-composer {
     gap: var(--s2);
-    padding: var(--s2);
+    padding: var(--s2) var(--inset-capsule);
     border: 0;
     border-radius: var(--r-capsule);
     background: var(--paper-0);

@@ -61,7 +61,7 @@
   position: absolute;
   inset-block-start: var(--s4);
   inset-inline-end: var(--s4);
-  padding: 5px var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   color: var(--ink-950);
@@ -157,9 +157,9 @@
 .tm-media-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   min-block-size: 70px;
-  padding: 11px var(--s4);
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--paper-250);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -170,8 +170,8 @@
   place-items: center;
   flex: none;
   inline-size: 36px;
-  block-size: 36px;
-  padding: 0;
+  block-size: var(--app-control);
+  padding: 0 0;
   border: 0;
   border-radius: var(--r-capsule);
   background: var(--ink-950);
@@ -195,7 +195,7 @@
   flex: none;
   inline-size: 32px;
   block-size: 32px;
-  padding: 0;
+  padding: 0 0;
   border: 0;
   border-radius: var(--r-capsule);
   background: transparent;
@@ -214,8 +214,8 @@
 .tm-media-controls__rate {
   flex: none;
   min-inline-size: 38px;
-  block-size: 32px;
-  padding-inline: var(--s2);
+  block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -330,7 +330,7 @@
   place-items: center;
   inline-size: 22px;
   block-size: 22px;
-  padding: 0;
+  padding: 0 0;
   border: var(--b-expressive) solid var(--ink-950);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
@@ -344,7 +344,7 @@
 
 .tm-media-marker--selected {
   inline-size: 32px;
-  block-size: 32px;
+  block-size: var(--app-control);
   border-width: 3px;
   background: var(--ink-950);
   color: var(--tm-accent-on-ink, var(--lime-500));
@@ -406,7 +406,7 @@
 
 .tm-media-wave-card__facts {
   flex: none;
-  padding: 3px var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);
@@ -417,7 +417,7 @@
 
 .tm-media-wave {
   position: relative;
-  padding-block: 32px 24px;
+  padding-block: var(--s8) var(--s6);
 }
 
 .tm-media-wave__canvas {
@@ -544,7 +544,7 @@
 
 .tm-media-moment__time {
   flex: none;
-  padding: 3px var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);

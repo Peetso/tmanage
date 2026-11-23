@@ -4,10 +4,10 @@
 .tm-pane-bubble {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s1);
   max-inline-size: min(560px, 85%);
-  padding-block: 8px;
-  padding-inline: 12px;
+  padding-block: var(--s2);
+  padding-inline: var(--s3);
   border-radius: 14px;
   background: var(--paper-0);
   border: 1px solid var(--line-300);
@@ -51,7 +51,7 @@
 .tm-pane-bubble__forwarded,
 .tm-pane-bubble__edited,
 .tm-pane-bubble__meta {
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   color: var(--ink-650);
 }
 
@@ -64,7 +64,7 @@
 
 .tm-pane-bubble__foot {
   display: flex;
-  gap: 6px;
+  gap: var(--s1);
   align-items: center;
   justify-content: flex-end;
 }
@@ -77,8 +77,8 @@
 .tm-pane-quote {
   display: block;
   inline-size: 100%;
-  padding-block: 4px;
-  padding-inline: 8px;
+  padding-block: var(--s1);
+  padding-inline: var(--s2);
   border: 0;
   border-inline-start: 3px solid var(--lime-500);
   border-radius: 8px;
@@ -91,13 +91,13 @@
 
 .tm-pane-quote__author {
   display: block;
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 600;
 }
 
 .tm-pane-quote__excerpt {
   display: block;
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   opacity: 0.8;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -112,30 +112,30 @@
 
 .tm-pane-location__coords {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-pane-day {
   display: flex;
   justify-content: center;
   list-style: none;
-  margin-block: 8px;
+  margin-block: var(--s2);
 }
 
 .tm-pane-day > span {
   padding-block: 2px;
-  padding-inline: 10px;
+  padding-inline: var(--inset-capsule);
   border-radius: 999px;
   background: var(--paper-250);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-pane-jump {
   position: sticky;
   inset-block-end: 8px;
   align-self: center;
-  padding-block: 6px;
-  padding-inline: 12px;
+  padding-block: var(--s1);
+  padding-inline: var(--inset-capsule);
   border: 0;
   border-radius: 999px;
   background: var(--ink-950);
@@ -155,11 +155,11 @@
 .tm-pane-sheet__card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
   inline-size: min(420px, calc(100vw - 32px));
   max-block-size: 80vh;
   overflow: auto;
-  padding: 16px;
+  padding: var(--s4);
   border-radius: 16px;
   background: var(--paper-0);
   color: var(--ink-950);
@@ -173,7 +173,7 @@
 .tm-pane-sheet__list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -181,32 +181,32 @@
 
 .tm-pane-sheet__row {
   display: flex;
-  gap: 8px;
+  gap: var(--s2);
   align-items: center;
 }
 
 .tm-pane-sheet__actions {
   display: flex;
-  gap: 8px;
+  gap: var(--s2);
   justify-content: flex-end;
 }
 
 .tm-pane-emoji {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
-  gap: 4px;
-  padding: 8px;
+  gap: var(--s1);
+  padding: var(--s2);
   border-radius: 12px;
   background: var(--paper-0);
   border: 1px solid var(--line-300);
 }
 
 .tm-pane-emoji__item {
-  padding: 4px;
+  padding: var(--s1);
   border: 0;
   border-radius: 8px;
   background: transparent;
-  font-size: 18px;
+  font-size: var(--t-app-section);
   cursor: pointer;
 }
 
@@ -224,7 +224,7 @@
 
 .tm-pane-reply-bar {
   display: flex;
-  gap: 8px;
+  gap: var(--s2);
   align-items: center;
 }
 
@@ -235,7 +235,7 @@
 .tm-pane-composer-extras {
   position: relative;
   display: flex;
-  gap: 4px;
+  gap: var(--s1);
   align-items: center;
 }
 
@@ -265,7 +265,7 @@
 
 /* A7: the channel composer's pending files and its drop target. */
 .tm-pane-composer-files {
-  margin-block-end: 8px;
+  margin-block-end: var(--s2);
 }
 
 .tm-chat-composer[data-dragging='true'] {

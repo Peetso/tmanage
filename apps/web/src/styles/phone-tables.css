@@ -22,13 +22,13 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 10px;
-    padding: 12px 14px;
+    gap: var(--s1) var(--s2);
+    padding: var(--s3) var(--s3);
     border-block-end: var(--b-quiet) solid var(--paper-150);
   }
 
   .tm-wk-table-frame .tm-wk-table thead tr {
-    padding-block: 8px;
+    padding-block: var(--s2);
     background: var(--paper-50);
     border-block-end-color: var(--line-300);
   }
@@ -74,7 +74,7 @@
 
   .tm-wk-table-frame .tm-wk-table .tm-wk-table__group {
     display: block;
-    padding: 8px 14px;
+    padding: var(--s2) var(--s3);
     background: var(--paper-50);
   }
 
@@ -116,8 +116,8 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 12px;
-    padding: 12px var(--s4);
+    gap: var(--s1) var(--s3);
+    padding: var(--s3) var(--s4);
     border-block-end: var(--b-quiet) solid var(--paper-150);
   }
 

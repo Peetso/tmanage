@@ -21,7 +21,7 @@
 .tm-pm-section-head__aside,
 .tm-pm-footnote {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--t-caption);
   line-height: 18px;
   color: var(--ink-650);
 }
@@ -52,7 +52,7 @@
 .tm-pm-table td,
 .tm-pm-lines th,
 .tm-pm-lines td {
-  padding-block: 12px;
+  padding-block: var(--s3);
   padding-inline: 0 var(--s3);
   text-align: start;
   vertical-align: middle;
@@ -61,12 +61,12 @@
 
 .tm-pm-table tr > :first-child,
 .tm-pm-lines tr > :first-child {
-  padding-inline-start: 24px;
+  padding-inline-start: var(--s6);
 }
 
 .tm-pm-table tr > :last-child,
 .tm-pm-lines tr > :last-child {
-  padding-inline-end: 24px;
+  padding-inline-end: var(--s6);
 }
 
 .tm-pm-table thead th,
@@ -113,7 +113,7 @@
 
 .tm-pm-row__label {
   display: block;
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   line-height: 16px;
   font-weight: 400;
   color: var(--ink-650);
@@ -151,7 +151,7 @@
 
 .tm-pm-empty {
   gap: var(--s3);
-  padding: 40px;
+  padding: var(--s10);
 }
 
 .tm-pm-empty__mark {
@@ -166,7 +166,7 @@
 
 .tm-pm-empty__title {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--t-heading-section);
   line-height: 32px;
   font-weight: 500;
   color: var(--ink-950);
@@ -209,7 +209,7 @@
   display: flex;
   justify-content: space-between;
   margin: 0;
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   line-height: 16px;
   color: var(--ink-650);
 }
@@ -243,10 +243,10 @@
 
 .tm-pm-totals {
   display: grid;
-  gap: 8px;
+  gap: var(--s2);
   margin: 0;
   margin-inline-start: auto;
-  padding: 16px 24px 24px;
+  padding: var(--s4) var(--s6) var(--s6);
   inline-size: min(100%, 360px);
 }
 
@@ -270,13 +270,13 @@
 }
 
 .tm-pm-totals__rule {
-  padding-block-start: 8px;
+  padding-block-start: var(--s2);
   border-block-start: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-pm-totals__due dt,
 .tm-pm-totals__due dd {
-  font-size: 20px;
+  font-size: var(--t-heading-card);
   line-height: 28px;
   font-weight: 500;
   color: var(--ink-950);
@@ -291,7 +291,7 @@
 .tm-pm-notice,
 .tm-pm-note {
   margin: 0;
-  padding: 0 24px 20px;
+  padding: 0 var(--s6) var(--s5);
   white-space: pre-wrap;
 }
 
@@ -332,7 +332,7 @@
       'left due download';
     align-items: end;
     row-gap: var(--s3);
-    padding: 16px;
+    padding: var(--s4);
     border: var(--b-quiet) solid var(--line-300);
     border-radius: var(--r-card);
     background: var(--paper-0);
@@ -355,7 +355,7 @@
 
   .tm-pm-row__left {
     grid-area: left;
-    font-size: 18px;
+    font-size: var(--t-app-section);
   }
 
   .tm-pm-row__due {

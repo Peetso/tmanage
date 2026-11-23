@@ -1004,8 +1004,10 @@
   flex: none;
   display: inline-grid;
   place-content: center;
-  inline-size: var(--s5);
-  block-size: var(--s5);
+  /* Density v2 rule 4 / WCAG 2.2 SC 2.5.8: the tick box is the target, so it is 24 × 24 (it was
+     20, review W11). */
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
   border: var(--b-structural) solid var(--ink-500);
   background: var(--paper-0);
   cursor: pointer;
@@ -1025,8 +1027,8 @@
 
 .tm-checkbox::before {
   content: '';
-  inline-size: calc(var(--s5) / 2);
-  block-size: calc(var(--s5) / 2);
+  inline-size: calc(var(--target-min) / 2);
+  block-size: calc(var(--target-min) / 2);
   background: var(--paper-0);
   clip-path: polygon(14% 44%, 0 65%, 40% 100%, 100% 16%, 84% 0, 38% 66%);
   transform: scale(0);
@@ -1053,8 +1055,8 @@
 
 .tm-radio::before {
   content: '';
-  inline-size: calc(var(--s5) / 2);
-  block-size: calc(var(--s5) / 2);
+  inline-size: calc(var(--target-min) / 2);
+  block-size: calc(var(--target-min) / 2);
   border-radius: var(--r-capsule);
   background: var(--ink-950);
   transform: scale(0);
@@ -1829,7 +1831,7 @@ a.tm-chip {
 }
 
 .tm-metric__source {
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   line-height: 16px;
   color: var(--ink-650);
 }
@@ -1998,7 +2000,7 @@ a.tm-chip {
 .tm-pulse-track__meta {
   margin-inline-start: auto;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   opacity: 0.8;
 }
 
@@ -2043,7 +2045,7 @@ a.tm-chip {
 
 .tm-focus-capsule__title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--t-app-section);
   line-height: 25px;
   font-weight: 600;
   overflow: hidden;
@@ -2092,7 +2094,7 @@ a.tm-chip {
   border: var(--b-structural) solid currentColor;
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-audience-halo--client {
@@ -2174,7 +2176,7 @@ a.tm-chip {
 
 .tm-work-story__when {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   line-height: 15px;
   letter-spacing: 0.1em;
   text-transform: uppercase;

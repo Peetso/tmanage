@@ -8,7 +8,7 @@
 }
 
 .tm-ease-kpis .tm-cc-metric__value {
-  font-size: 36px;
+  font-size: var(--t-heading-page);
   line-height: 40px;
 }
 
@@ -18,8 +18,8 @@
 .tm-ease-funnel__figure {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 17px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.04em;
   color: var(--ink-650);
 }
@@ -70,7 +70,7 @@
 .tm-ease-funnel__bars {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--s1);
 }
 
 .tm-ease-bar {

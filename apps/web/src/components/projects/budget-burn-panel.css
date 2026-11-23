@@ -16,9 +16,9 @@
   display: inline-flex;
   align-items: center;
   padding-block: 2px;
-  padding-inline: var(--s2);
+  padding-inline: var(--inset-capsule);
   border-radius: var(--r-capsule);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -59,7 +59,7 @@
 
 .tm-burn__money {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 400;
 }
 
@@ -121,7 +121,7 @@
 .tm-burn__axis {
   margin: 0;
   color: var(--ink-500);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-burn__forecast {

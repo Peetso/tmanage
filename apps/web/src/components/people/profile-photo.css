@@ -56,7 +56,7 @@
 
 .tm-photo__frame {
   position: relative;
-  padding: 0;
+  padding: 0 0;
   border: 0;
   inline-size: 224px;
   block-size: 224px;

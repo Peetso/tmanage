@@ -10,8 +10,8 @@
 /* ── Header: these frames use a 52px sentence-case headline, not HOME-01's uppercase display ── */
 
 .tm-app:has(.tm-aut) .tm-canvas-header__title {
-  font-size: 52px;
-  line-height: 56px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   letter-spacing: -0.03em;
 }
 
@@ -38,8 +38,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--s2);
-  min-block-size: 38px;
-  padding: 0 18px;
+  min-block-size: var(--app-control);
+  padding: 0 var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -94,13 +94,13 @@
   display: flex;
   align-items: flex-end;
   flex-wrap: wrap;
-  gap: var(--s3) 26px;
+  gap: var(--s3) var(--s6);
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-aut-tabs__list {
   display: flex;
-  gap: 26px;
+  gap: var(--s6);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -110,7 +110,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  padding-block-end: 9px;
+  padding-block-end: var(--s2);
   border-block-end: 2px solid transparent;
   color: var(--ink-500);
   font-size: var(--t-ui-md);
@@ -136,13 +136,13 @@
 }
 
 .tm-aut-tabs__count {
-  padding: 1px 8px;
+  padding: 1px var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-150);
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
 }
 
@@ -151,22 +151,22 @@
   flex-wrap: wrap;
   gap: var(--s2);
   margin-inline-start: auto;
-  padding-block-end: 9px;
+  padding-block-end: var(--s2);
 }
 
 /* Filter capsules (AUT-01 "All projects", INT-01 "All · 12"). Pressed = ink, like the design. */
 .tm-aut-filter {
   display: inline-flex;
   align-items: center;
-  min-block-size: 32px;
-  padding: 0 14px;
+  min-block-size: var(--app-control);
+  padding: 0 var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   color: var(--ink-800);
   font: inherit;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -265,8 +265,8 @@
   background: var(--paper-50);
   color: var(--ink-500);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-align: start;
@@ -313,8 +313,8 @@
 
 .tm-aut-mono {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--ink-650);
@@ -340,10 +340,10 @@ a.tm-aut-rowtitle:hover {
 
 .tm-aut-rowsub {
   display: block;
-  margin-block-start: 3px;
+  margin-block-start: var(--s1);
   color: var(--ink-500);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 400;
 }
 
@@ -380,13 +380,13 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-state {
   display: inline-flex;
   align-items: center;
-  padding: 4px 11px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   color: var(--ink-650);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -457,8 +457,8 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 22px 24px;
+  gap: var(--s3);
+  padding: var(--s5) var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -497,12 +497,12 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-eyebrow {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   color: var(--ink-500);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -535,8 +535,8 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-card__title {
   margin: 0;
   color: var(--ink-950);
-  font-size: 22px;
-  line-height: 29px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   font-weight: 500;
   letter-spacing: -0.01em;
 }
@@ -550,8 +550,8 @@ a.tm-aut-rowtitle:hover {
 }
 
 .tm-aut-card__title--section {
-  font-size: 18px;
-  line-height: 24px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
 }
 
 .tm-aut-card__body {
@@ -567,7 +567,7 @@ a.tm-aut-rowtitle:hover {
 
 .tm-aut-card__foot {
   margin: 0;
-  padding-block-start: 14px;
+  padding-block-start: var(--s3);
   border-block-start: var(--b-quiet) solid var(--paper-150);
   font-size: var(--t-ui-sm);
   line-height: 19px;
@@ -605,7 +605,7 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-facts {
   display: flex;
   flex-direction: column;
-  gap: 13px;
+  gap: var(--s3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -613,7 +613,7 @@ a.tm-aut-rowtitle:hover {
 
 .tm-aut-facts > li {
   display: flex;
-  gap: 12px;
+  gap: var(--s3);
   align-items: baseline;
   font-size: var(--t-ui-sm);
   line-height: 19px;
@@ -645,14 +645,14 @@ a.tm-aut-rowtitle:hover {
   background: none;
   color: var(--ink-500);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 /* Ratio bars (AUT-01 "Last 14 days"). */
 .tm-aut-bars {
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: var(--s3);
   margin: 0;
 }
 
@@ -723,9 +723,9 @@ a.tm-aut-rowtitle:hover {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-inline-start: 36px;
-  padding-block-end: 18px;
+  gap: var(--s1);
+  padding-inline-start: var(--s8);
+  padding-block-end: var(--s4);
 }
 
 .tm-aut-steps > li::before {
@@ -775,7 +775,7 @@ a.tm-aut-rowtitle:hover {
 /* AUT-04 "What it recorded": label / value lines instead of raw JSON. */
 .tm-aut-kv {
   display: grid;
-  gap: 6px;
+  gap: var(--s1);
   margin: var(--s2) 0 0;
 }
 
@@ -788,8 +788,8 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-kv dt {
   color: var(--ink-500);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 18px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -808,8 +808,8 @@ a.tm-aut-rowtitle:hover {
   background: var(--paper-50);
   color: var(--ink-800);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 17px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -820,7 +820,7 @@ a.tm-aut-rowtitle:hover {
   display: flex;
   flex-direction: column;
   gap: var(--s6);
-  padding: 28px;
+  padding: var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -839,7 +839,7 @@ a.tm-aut-rowtitle:hover {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
   gap: var(--s4);
-  padding-block-end: 28px;
+  padding-block-end: var(--s6);
 }
 
 .tm-aut-flow > li:not(:last-child)::after {
@@ -914,7 +914,7 @@ a.tm-aut-rowtitle:hover {
 
 .tm-aut-flow__add-title {
   margin: 0;
-  padding-block-start: 10px;
+  padding-block-start: var(--s2);
   color: var(--ink-650);
   font-size: var(--t-body-md);
   line-height: 20px;
@@ -936,7 +936,7 @@ a.tm-aut-rowtitle:hover {
   flex-direction: column;
   gap: var(--s2);
   min-block-size: 208px;
-  padding: 22px;
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -977,14 +977,14 @@ a.tm-aut-rowtitle:hover {
   block-size: 66px;
   border-radius: 18px;
   background: var(--paper-0);
-  font-size: 18px;
+  font-size: var(--t-app-section);
 }
 
 .tm-aut-tool__name {
   margin: 0;
   color: var(--ink-950);
-  font-size: 17px;
-  line-height: 23px;
+  font-size: var(--t-app-card-title);
+  line-height: var(--t-app-card-title-line);
   font-weight: 500;
 }
 
@@ -1008,15 +1008,15 @@ a.tm-aut-rowtitle:hover {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: var(--s2) 14px;
+  gap: var(--s2) var(--s3);
   margin: 0;
 }
 
 .tm-aut-section-head__title {
   margin: 0;
   color: var(--ink-950);
-  font-size: 20px;
-  line-height: 26px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   font-weight: 500;
 }
 
@@ -1040,7 +1040,7 @@ a.tm-aut-rowtitle:hover {
   align-items: center;
   gap: var(--s4);
   min-block-size: 58px;
-  padding: 10px var(--s5);
+  padding: var(--s2) var(--s5);
   border-block-end: var(--b-quiet) solid var(--paper-150);
 }
 
@@ -1064,8 +1064,8 @@ a.tm-aut-rowtitle:hover {
 .tm-aut-scope {
   min-inline-size: 64px;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1148,7 +1148,7 @@ a.tm-aut-rowtitle:hover {
   align-items: center;
   gap: var(--s4);
   min-block-size: 56px;
-  padding-block: 10px;
+  padding-block: var(--s2);
   border-block-end: var(--b-quiet) solid var(--paper-150);
 }
 
@@ -1172,8 +1172,8 @@ a.tm-aut-rowtitle:hover {
 
 @media (max-width: 640px) {
   .tm-app:has(.tm-aut) .tm-canvas-header__title {
-    font-size: var(--t-heading-page);
-    line-height: var(--t-heading-page-line);
+    font-size: var(--t-app-page-title);
+    line-height: var(--t-app-page-title-line);
   }
 
   .tm-aut-tools {

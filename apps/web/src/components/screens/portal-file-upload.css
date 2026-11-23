@@ -20,8 +20,8 @@
 
 .tm-pfu-foot {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-650);
 }
 
@@ -70,7 +70,7 @@
   display: flex;
   align-items: center;
   gap: var(--s4);
-  padding: 18px 20px;
+  padding: var(--s4) var(--s5);
   border: var(--b-quiet) solid var(--warning-600);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -85,7 +85,7 @@
   border: var(--b-quiet) solid var(--warning-600);
   border-radius: 50%;
   color: var(--warning-600);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   font-weight: 600;
 }
 
@@ -103,7 +103,7 @@
 }
 
 .tm-pfu-problem__body {
-  margin: 4px 0 0;
+  margin: var(--s1) 0 0;
   color: var(--ink-650);
 }
 
@@ -123,7 +123,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--s1);
   min-block-size: 330px;
   border: 1.5px dashed var(--ink-950);
   border-radius: var(--r-card);
@@ -132,27 +132,27 @@
 }
 
 .tm-pfu-drop__arrow {
-  font-size: 20px;
+  font-size: var(--t-app-section);
 }
 
 .tm-pfu-drop__title {
   margin: 0;
-  font-size: 20px;
-  line-height: 28px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   font-weight: 500;
   color: var(--ink-950);
 }
 
 .tm-pfu-drop__hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   color: var(--ink-650);
 }
 
 /* "Which project?" */
 .tm-pfu-dialog {
   inline-size: min(460px, calc(100vw - 32px));
-  padding: 28px;
+  padding: var(--s6);
   border: 0;
   border-radius: var(--r-sheet);
   background: var(--paper-0);
@@ -165,14 +165,14 @@
 
 .tm-pfu-dialog__title {
   margin: 0 0 var(--s5);
-  font-size: 26px;
-  line-height: 32px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   font-weight: 500;
 }
 
 .tm-pfu-dialog__file {
   margin: 0 0 var(--s5);
-  padding: 10px 14px;
+  padding: var(--s2) var(--s3);
   border-radius: 12px;
   background: var(--paper-50);
   overflow-wrap: anywhere;
@@ -180,14 +180,14 @@
 
 .tm-pfu-dialog__label {
   display: block;
-  margin-block-end: 8px;
+  margin-block-end: var(--s2);
   font-size: var(--t-ui-sm);
 }
 
 .tm-pfu-dialog__select {
   inline-size: 100%;
   min-block-size: 48px;
-  padding-inline: 16px;
+  padding-inline: var(--s4);
   border: var(--b-quiet) solid var(--ink-950);
   border-radius: 12px;
   background: var(--paper-0);
@@ -237,8 +237,8 @@
     display: grid;
     grid-template-columns: auto 1fr auto;
     align-items: center;
-    gap: 6px 12px;
-    padding: 14px 16px;
+    gap: var(--s1) var(--s3);
+    padding: var(--s3) var(--s4);
     border-block-end: var(--b-quiet) solid var(--paper-350);
   }
 
@@ -258,7 +258,7 @@
 
   .tm-pfu-cell--project {
     grid-column: 1 / -1;
-    font-size: 12px;
+    font-size: var(--t-caption);
   }
 
   .tm-pfu-cell--day {

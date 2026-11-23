@@ -7,7 +7,7 @@
 .tm-por-plan {
   display: grid;
   grid-template-columns: minmax(0, 4fr) minmax(0, 3fr);
-  gap: 28px;
+  gap: var(--s6);
   margin-block-start: var(--s5);
 }
 
@@ -21,14 +21,14 @@
 .tm-por-plan__head {
   display: flex;
   align-items: flex-end;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-por-plan__eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -37,8 +37,8 @@
 
 .tm-por-plan__title {
   margin: 0;
-  font-size: 26px;
-  line-height: 32px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink-950);
@@ -48,10 +48,10 @@
 
 .tm-por-tl__range {
   margin: 0 0 0 auto;
-  padding-block-end: 6px;
+  padding-block-end: var(--s1);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650); /* ink-500 was 3.7–4.2:1 at 10–11px (axe) */
   white-space: nowrap;
 }
@@ -78,15 +78,15 @@
   border-block-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 32px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   text-transform: uppercase;
   color: var(--ink-650); /* ink-500 was 3.7–4.2:1 at 10–11px (axe) */
 }
 
 .tm-por-tl__month {
-  padding-inline-start: 10px;
+  padding-inline-start: var(--s2);
   border-inline-start: var(--b-quiet) solid var(--paper-150);
 }
 
@@ -113,8 +113,8 @@
 }
 
 .tm-por-tl__row .tm-por-tl__name {
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   font-weight: 500;
   color: var(--ink-950);
 }
@@ -152,7 +152,7 @@
   box-sizing: border-box;
   border: 2px solid var(--ink-950);
   border-radius: var(--r-capsule);
-  margin-inline-start: -12px;
+  margin-inline-start: calc(var(--s3) * -1);
   background: var(--lime-500);
   color: var(--tm-on-lime);
 }
@@ -164,12 +164,12 @@
   align-items: center;
   block-size: 20px;
   box-sizing: border-box;
-  padding-inline: 10px;
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
-  font-size: 10px;
-  line-height: 18px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-800);
   white-space: nowrap;
@@ -212,12 +212,12 @@
 
 .tm-por-tl__foot {
   margin: auto 0 0;
-  padding: 12px var(--s4);
+  padding: var(--s3) var(--s4);
   border-block-start: var(--b-quiet) solid var(--paper-150);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   text-transform: uppercase;
   color: var(--ink-500);
 }
@@ -228,7 +228,7 @@
 .tm-por-unstaffed {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
@@ -238,8 +238,8 @@
 .tm-por-cap__label {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   text-transform: uppercase;
   color: var(--ink-500);
@@ -255,7 +255,7 @@
 .tm-por-cap__list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -264,7 +264,7 @@
 .tm-por-cap__row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s3);
 }
 
 .tm-por-cap__name {
@@ -303,8 +303,8 @@
 .tm-por-cap__value {
   flex: 0 0 58px;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   text-align: end;
   color: var(--ink-950);
@@ -316,7 +316,7 @@
 
 .tm-por-unstaffed {
   flex: 1;
-  gap: 12px;
+  gap: var(--s3);
 }
 
 .tm-por-unstaffed[data-alert='true'] {
@@ -326,7 +326,7 @@
 .tm-por-unstaffed__title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   font-size: var(--t-body-md);
   line-height: 21px;
@@ -343,7 +343,7 @@
   border: 2px solid var(--warning-600);
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   font-weight: 600;
   color: var(--warning-600);
@@ -352,7 +352,7 @@
 .tm-por-unstaffed__list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -361,8 +361,8 @@
 .tm-por-unstaffed__item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
   border-radius: 12px;
   background: var(--paper-50);
 }
@@ -389,8 +389,8 @@
 
 .tm-por-unstaffed__meta {
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   text-transform: uppercase;
   color: var(--ink-500);
   white-space: nowrap;
@@ -398,8 +398,8 @@
 
 .tm-por-unstaffed__note {
   margin: auto 0 0;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -433,8 +433,8 @@
   }
 
   .tm-por-tl__chip {
-    padding-inline: 6px;
-    font-size: 9px;
+    padding-inline: var(--s1);
+    font-size: var(--t-app-overline);
   }
 
   .tm-por-plan__title {

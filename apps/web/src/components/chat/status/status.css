@@ -3,7 +3,7 @@
 .tm-ticks {
   display: inline-flex;
   align-items: center;
-  margin-inline-start: 4px;
+  margin-inline-start: var(--s1);
   color: var(--ink-500);
   vertical-align: middle;
 }
@@ -15,17 +15,17 @@
 .tm-typing {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   min-block-size: 20px;
-  padding-inline: 16px;
+  padding-inline: var(--s4);
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   font-style: italic;
 }
 
 .tm-typing__dots {
   display: inline-flex;
-  gap: 3px;
+  gap: var(--s1);
 }
 
 .tm-typing__dots span {
@@ -63,7 +63,7 @@
 
 .tm-presence {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-presence[data-online] {
@@ -72,21 +72,21 @@
 
 .tm-receipts {
   display: grid;
-  gap: 16px;
+  gap: var(--s4);
 }
 
 .tm-receipts__title {
-  margin: 0 0 8px;
+  margin: 0 0 var(--s2);
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .tm-receipts__list {
   display: grid;
-  gap: 6px;
+  gap: var(--s1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -95,8 +95,8 @@
 .tm-receipts__row {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  padding-block: 6px;
+  gap: var(--s3);
+  padding-block: var(--s1);
   border-block-end: 1px solid var(--line-300);
 }
 
@@ -107,5 +107,5 @@
 .tm-receipts__at,
 .tm-receipts__empty {
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }

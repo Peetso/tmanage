@@ -17,13 +17,13 @@
 
 .tm-upload__kind {
   flex: none;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: 1px solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
   color: var(--ink-950);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 500;
 }
 
@@ -75,7 +75,7 @@
   gap: var(--s2);
   color: var(--ink-500);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 500;
 }
 
@@ -115,9 +115,9 @@
   background: transparent;
   color: var(--ink-950);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 500;
-  line-height: 20px;
+  line-height: var(--t-app-body-line);
   white-space: nowrap;
   cursor: pointer;
 }

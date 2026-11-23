@@ -109,7 +109,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s1);
-  padding: var(--s1);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -124,7 +124,7 @@
   gap: var(--s2);
   min-inline-size: var(--control);
   min-block-size: var(--control);
-  padding-inline: var(--s3);
+  padding-inline: var(--inset-capsule);
   border: 0;
   border-radius: var(--r-capsule);
   background: transparent;
@@ -176,7 +176,7 @@
 .tm-viewer-counter {
   display: inline-flex;
   align-items: center;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
@@ -232,7 +232,7 @@
   inset-block-start: var(--s4);
   right: var(--s4);
   z-index: 3;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -454,7 +454,7 @@
 .tm-viewer-audience {
   display: inline-flex;
   gap: var(--s1);
-  padding: var(--s1);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-150);
 }
@@ -464,7 +464,7 @@
   align-items: center;
   gap: var(--s1);
   min-block-size: 32px;
-  padding-inline: var(--s3);
+  padding-inline: var(--inset-capsule);
   border: 0;
   border-radius: var(--r-capsule);
   background: transparent;
@@ -619,7 +619,7 @@
   display: inline-grid;
   place-items: center;
   min-inline-size: 20px;
-  padding-inline: var(--s1);
+  padding-inline: var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-150);
   color: var(--ink-650);
@@ -679,8 +679,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  min-block-size: 32px;
-  padding-inline: var(--s3);
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -1040,7 +1040,7 @@
   border-radius: 50%;
   background: var(--lime-500);
   color: var(--tm-on-lime);
-  font-size: 10px;
+  font-size: var(--t-app-overline);
   font-weight: 600;
 }
 
@@ -1210,8 +1210,8 @@
 
   /* V-02: the phone top bar carries the file name at card size, not the page headline. */
   .tm-app__body:has(.tm-viewer) .tm-canvas-header__title {
-    font-size: var(--t-heading-card);
-    line-height: var(--t-heading-card-line);
+    font-size: var(--t-app-page-title);
+    line-height: var(--t-app-page-title-line);
     overflow-wrap: anywhere;
   }
 }
@@ -1256,7 +1256,7 @@
 .tm-viewer-draw-hint {
   display: none;
   margin: 0;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--ink-950);
   color: var(--paper-0);
@@ -1266,7 +1266,7 @@
 
 .tm-viewer-draw-limit {
   margin: 0;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -1282,7 +1282,7 @@
   justify-content: center;
   gap: var(--s1);
   max-inline-size: calc(100% - var(--s6));
-  padding: 6px;
+  padding: var(--s1);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -1347,8 +1347,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: var(--s1);
+  padding: var(--s1) var(--inset-capsule);
   border: 0;
   border-radius: var(--r-capsule);
   background: transparent;
@@ -1367,7 +1367,7 @@
 }
 
 .tm-viewer-draw-bar__done {
-  padding: var(--s2) 14px;
+  padding: var(--s2) var(--s3);
   background: var(--lime-500);
   color: var(--tm-on-lime);
   font-weight: 600;
@@ -1384,7 +1384,7 @@
 .tm-viewer-draw-bar__undo {
   display: inline-grid;
   place-items: center;
-  padding: 0;
+  padding: 0 0;
   border: 0;
   border-radius: var(--r-capsule);
   background: transparent;
@@ -1492,7 +1492,7 @@
     display: flex;
     align-items: center;
     gap: var(--s2);
-    padding: 6px;
+    padding: var(--s1);
     border: var(--b-quiet) solid var(--line-300);
     border-radius: var(--r-capsule);
     background: var(--paper-0);
@@ -1504,7 +1504,7 @@
 
   .tm-viewer-draw-bar__colours {
     order: 0;
-    gap: 6px;
+    gap: var(--s1);
   }
 
   .tm-viewer-draw-bar__main {

@@ -19,7 +19,7 @@
 .tm-bil {
   display: flex;
   align-items: flex-start;
-  gap: 22px;
+  gap: var(--s5);
 }
 
 .tm-bil > * {
@@ -36,7 +36,7 @@
 .tm-bil-col {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--s4);
 }
 
 .tm-bil-col--wide {
@@ -50,7 +50,7 @@
 .tm-bil-stack {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--s5);
 }
 
 /* ── Cards ───────────────────────────────────────────────────────────────────── */
@@ -60,8 +60,8 @@
 .tm-bil-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 22px;
+  gap: var(--s3);
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -86,8 +86,8 @@
 
 /* BIL-01's "Before renewal" and BIL-03's consequence card: the inverted card. */
 .tm-bil-card.tm-card--ink {
-  gap: 12px;
-  padding: 22px;
+  gap: var(--s3);
+  padding: var(--s5);
   border-color: var(--tm-ink-absolute);
   background: var(--tm-ink-absolute);
   color: var(--tm-paper-absolute);
@@ -117,8 +117,8 @@
 }
 
 .tm-card--ink .tm-bil-card__lead {
-  font-size: 22px;
-  line-height: 29px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   color: inherit;
 }
 
@@ -155,8 +155,8 @@
 .tm-bil-eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -166,7 +166,7 @@
 .tm-bil-eyebrow--lime {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   color: var(--tm-accent-on-ink, var(--lime-500));
 }
 
@@ -192,7 +192,7 @@
 .tm-bil-figure {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .tm-bil-figure__value {
@@ -214,7 +214,7 @@
 .tm-bil-meters {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -223,7 +223,7 @@
 .tm-bil-meter {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-bil-meter__label {
@@ -268,19 +268,19 @@
 .tm-bil-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-bil-capsule {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 14px;
+  padding: var(--s2) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-800);
   text-decoration: none;
@@ -318,8 +318,8 @@
 }
 
 .tm-bil-aside-note {
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-500);
 }
@@ -330,13 +330,13 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-bil-headline__title {
   margin: 0;
-  font-size: 34px;
-  line-height: 40px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink-950);
@@ -360,14 +360,14 @@
 .tm-bil .tm-panel > .tm-table,
 .tm-bil .tm-panel > .tm-table-scroll {
   inline-size: calc(100% + 44px);
-  margin-inline: -22px;
+  margin-inline: calc(var(--s5) * -1);
   border-width: 0;
   border-radius: 0;
 }
 
 .tm-bil .tm-panel > .tm-table:last-child,
 .tm-bil .tm-panel > .tm-table-scroll:last-child {
-  margin-block-end: -22px;
+  margin-block-end: calc(var(--s5) * -1);
 }
 
 .tm-bil .tm-table thead th,
@@ -381,15 +381,15 @@
 .tm-bil .tm-table td,
 .tm-bil-table-card .tm-table td {
   block-size: 52px;
-  padding-block: 8px;
+  padding-block: var(--s2);
   font-size: var(--t-ui-sm);
   line-height: 18px;
 }
 
 .tm-bil .tm-table .tm-mono,
 .tm-bil-table-card .tm-table .tm-mono {
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -414,8 +414,8 @@
 
 .tm-bil-cell-sub {
   display: block;
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-500);
 }
 
@@ -447,12 +447,12 @@
 .tm-bil-status {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 600;
   color: var(--ink-650);
   white-space: nowrap;
@@ -484,7 +484,7 @@
   border: 0;
   background: none;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 500;
   color: var(--ink-800);
   text-decoration: underline;
@@ -506,7 +506,7 @@
 .tm-bil .tm-definition {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 10px 18px;
+  gap: var(--s2) var(--s4);
   margin: 0;
 }
 
@@ -537,7 +537,7 @@
 .tm-bil-plans {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-  gap: 16px;
+  gap: var(--s4);
   margin: 0;
   padding: 0;
   border: 0;
@@ -548,9 +548,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s3);
   min-block-size: 168px;
-  padding: 24px;
+  padding: var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -558,7 +558,7 @@
 }
 
 .tm-bil-plan:has(input:checked) {
-  padding: 23px;
+  padding: var(--s6);
   border: var(--b-expressive) solid var(--ink-950);
 }
 
@@ -581,7 +581,7 @@
   min-block-size: 18px;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--s2);
 }
 
 .tm-bil-plan__name {
@@ -608,14 +608,14 @@
 .tm-bil-stepper {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-bil-stepper__button {
   display: grid;
   place-items: center;
   inline-size: 38px;
-  block-size: 38px;
+  block-size: var(--app-control);
   flex: none;
   padding: 0;
   border: var(--b-quiet) solid var(--line-300);
@@ -642,12 +642,12 @@
   flex: 1 1 auto;
   min-inline-size: 0;
   block-size: 38px;
-  padding: 0 12px;
+  padding: 0 var(--s3);
   border: var(--b-quiet) solid var(--ink-950);
   border-radius: 12px;
   background: var(--paper-50);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--t-app-body);
   font-weight: 600;
   text-align: center;
   color: var(--ink-950);
@@ -661,7 +661,7 @@
 
 .tm-bil-pill-wide {
   display: block;
-  padding: 10px 16px;
+  padding: var(--s2) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
@@ -676,7 +676,7 @@
 .tm-bil-points {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -685,7 +685,7 @@
 .tm-bil-points li {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   font-size: var(--t-ui-sm);
   line-height: 19px;
 }
@@ -706,7 +706,7 @@
 .tm-bil-split {
   display: flex;
   align-items: stretch;
-  gap: 20px;
+  gap: var(--s5);
 }
 
 .tm-bil-split > * {
@@ -716,8 +716,8 @@
 
 .tm-bil-split > .tm-card--ink {
   flex-grow: 1.3;
-  padding: 26px;
-  gap: 14px;
+  padding: var(--s6);
+  gap: var(--s3);
 }
 
 .tm-card--ink .tm-bil-eyebrow {
@@ -743,7 +743,7 @@
 /* ── Forms inside the side cards ─────────────────────────────────────────────── */
 
 .tm-bil .tm-panel form {
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-bil .tm-field__control {
@@ -772,7 +772,7 @@
 /* BIL-03's black card holds the request's date and note side by side. */
 .tm-bil-request-fields {
   align-items: flex-start;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-bil-request-fields > .tm-field {
@@ -796,13 +796,13 @@
 }
 
 .tm-bil-stepper__field .tm-field__control {
-  block-size: 38px;
-  min-block-size: 38px;
-  padding: 0 12px;
+  block-size: var(--app-control);
+  min-block-size: var(--app-control);
+  padding: 0 var(--s3);
   border: var(--b-quiet) solid var(--ink-950);
   border-radius: 12px;
   background: var(--paper-50);
-  font-size: 15px;
+  font-size: var(--t-app-body);
   font-weight: 600;
   text-align: center;
 }
@@ -813,7 +813,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
-  gap: 22px 32px;
+  gap: var(--s5) var(--s8);
 }
 
 .tm-bil > form.tm-panel > :not(section):not(fieldset) {
@@ -825,7 +825,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   align-items: start;
-  gap: 14px 22px;
+  gap: var(--s3) var(--s5);
   min-inline-size: 0;
   margin: 0;
 }
@@ -840,8 +840,8 @@
   inline-size: 100%;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -876,7 +876,7 @@
 
 @media (max-width: 639px) {
   .tm-bil-figure__value {
-    font-size: 36px;
+    font-size: var(--t-heading-page);
     line-height: 40px;
   }
 
@@ -887,7 +887,7 @@
 
   .tm-bil-meter {
     flex-wrap: wrap;
-    gap: 6px 14px;
+    gap: var(--s1) var(--s3);
   }
 
   .tm-bil-meter__label {
@@ -902,18 +902,18 @@
 
   .tm-bil .tm-panel,
   .tm-bil-card {
-    padding: 18px;
+    padding: var(--s4);
   }
 
   .tm-bil .tm-panel > .tm-table,
   .tm-bil .tm-panel > .tm-table-scroll {
     inline-size: calc(100% + 36px);
-    margin-inline: -18px;
+    margin-inline: calc(var(--s4) * -1);
   }
 
   .tm-bil .tm-panel > .tm-table:last-child,
   .tm-bil .tm-panel > .tm-table-scroll:last-child {
-    margin-block-end: -18px;
+    margin-block-end: calc(var(--s4) * -1);
   }
 
   /* Tables become card rows on a phone (responsive-and-desktop.md), keeping the column order. */
@@ -934,8 +934,8 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 12px;
-    padding: 14px 18px;
+    gap: var(--s1) var(--s3);
+    padding: var(--s3) var(--s4);
     border-block-end: var(--b-quiet) solid var(--paper-150);
   }
 
@@ -959,22 +959,22 @@
   /* BIL-03's plan cards two-up on a phone, so the request is reachable without a long scroll. */
   .tm-bil-plans {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: var(--s2);
   }
 
   .tm-bil-plan {
     min-block-size: 0;
-    gap: 8px;
-    padding: 16px;
+    gap: var(--s2);
+    padding: var(--s4);
     border-radius: var(--r-compact);
   }
 
   .tm-bil-plan:has(input:checked) {
-    padding: 15px;
+    padding: var(--s4);
   }
 
   .tm-bil-plan__name {
-    font-size: 24px;
+    font-size: var(--t-heading-section);
     line-height: 28px;
   }
 

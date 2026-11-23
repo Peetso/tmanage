@@ -4,7 +4,7 @@
 .r7-voice-recorder {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .r7-voice-recorder__mic {
@@ -45,9 +45,9 @@
 .r7-voice-recorder__bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-block: 6px;
-  padding-inline: 12px;
+  gap: var(--s3);
+  padding-block: var(--s1);
+  padding-inline: var(--inset-capsule);
   border: 1px solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
@@ -69,7 +69,7 @@
 
 .r7-voice-recorder__hint {
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 .r7-voice-recorder__hint[data-cancel] {
@@ -80,8 +80,8 @@
 .r7-voice-recorder__send {
   border: 0;
   border-radius: var(--r-control);
-  padding-block: 6px;
-  padding-inline: 12px;
+  padding-block: var(--s1);
+  padding-inline: var(--s3);
   cursor: pointer;
   font: inherit;
 }
@@ -98,7 +98,7 @@
 
 .r7-voice-recorder__sending {
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 @keyframes r7-voice-blink {
@@ -112,7 +112,7 @@
   display: grid;
   grid-template-columns: 36px minmax(120px, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   min-inline-size: 240px;
   max-inline-size: 360px;
 }
@@ -165,7 +165,7 @@
 
 .r7-voice__time {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-variant-numeric: tabular-nums;
   color: var(--ink-650);
 }
@@ -175,23 +175,23 @@
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   padding-block: 2px;
-  padding-inline: 8px;
+  padding-inline: var(--inset-capsule);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   cursor: pointer;
 }
 
 /* Media grid and document cards */
 .r7-media {
   display: grid;
-  gap: 6px;
+  gap: var(--s1);
   max-inline-size: 360px;
 }
 
 .r7-media__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
+  gap: var(--s1);
   border-radius: var(--r-card);
   overflow: hidden;
 }
@@ -227,7 +227,7 @@
   background: var(--paper-150);
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   font-weight: 600;
 }
 
@@ -266,7 +266,7 @@
   place-items: center;
   background: color-mix(in srgb, var(--ink-950) 55%, transparent);
   color: var(--paper-0);
-  font-size: 24px;
+  font-size: var(--t-app-page-title);
   font-weight: 600;
 }
 
@@ -286,18 +286,18 @@
   inset-block-end: 6px;
   inset-inline-end: 6px;
   padding-block: 1px;
-  padding-inline: 6px;
+  padding-inline: var(--s1);
   border-radius: var(--r-micro);
   background: color-mix(in srgb, var(--ink-950) 70%, transparent);
   color: var(--paper-0);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .r7-media__scan {
-  padding: 8px;
+  padding: var(--s2);
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   text-align: center;
 }
 
@@ -309,8 +309,8 @@
   display: grid;
   grid-template-columns: 40px 1fr auto;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
+  gap: var(--s2);
+  padding: var(--s2);
   border: 1px solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -332,7 +332,7 @@
   border-radius: var(--r-control);
   background: var(--lime-100);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 600;
 }
 
@@ -350,12 +350,12 @@
 
 .r7-media__doc-meta {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .r7-media__doc-open {
   color: var(--ink-950);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   text-decoration: underline;
 }
 
@@ -363,7 +363,7 @@
    it reads the same from a dark own bubble, a light bubble or the Files page. */
 .r7-media-viewer {
   color: var(--ink-950);
-  font-size: 14px;
+  font-size: var(--t-app-body);
   font-weight: 400;
   line-height: 1.45;
   text-align: start;
@@ -374,7 +374,7 @@
   z-index: 60;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: var(--s4);
   background: color-mix(in srgb, var(--ink-950) 60%, transparent);
 }
 
@@ -407,16 +407,16 @@
   border-radius: 50%;
   background: var(--paper-150);
   color: var(--ink-950);
-  font-size: 20px;
+  font-size: var(--t-app-section);
   cursor: pointer;
 }
 
 .r7-media-viewer__head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-block: 12px;
-  padding-inline: 16px 56px;
+  gap: var(--s3);
+  padding-block: var(--s3);
+  padding-inline: var(--s4) var(--s12);
   border-block-end: 1px solid var(--line-300);
 }
 
@@ -429,9 +429,9 @@
 .r7-link-card {
   display: grid;
   grid-template-columns: 56px 1fr;
-  gap: 10px;
+  gap: var(--s2);
   max-inline-size: 360px;
-  padding: 8px;
+  padding: var(--s2);
   border: 1px solid var(--line-300);
   border-inline-start: 3px solid var(--lime-500);
   border-radius: var(--r-control);
@@ -447,7 +447,7 @@
   block-size: 56px;
   border-radius: var(--r-micro);
   background: var(--paper-150);
-  font-size: 22px;
+  font-size: var(--t-app-section);
   font-weight: 600;
 }
 
@@ -459,7 +459,7 @@
 
 .r7-link-card__site {
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .r7-link-card__title {
@@ -470,7 +470,7 @@
   display: -webkit-box;
   overflow: hidden;
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }

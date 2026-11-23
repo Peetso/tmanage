@@ -9,8 +9,8 @@
 
 /* The design's preferences title is 38/44 rather than the 36/42 page heading. */
 .tm-app:has(.tm-prefs) .tm-canvas-header__title {
-  font-size: 38px;
-  line-height: 44px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   letter-spacing: -0.025em;
 }
 
@@ -18,7 +18,7 @@
 .tm-context-rail:has(.tm-prefs-nav) {
   inline-size: 208px;
   min-inline-size: 208px;
-  padding: 22px 14px;
+  padding: var(--s5) var(--s3);
   border-width: 0;
   border-inline-end: var(--b-quiet) solid var(--line-300);
   border-radius: 0;
@@ -29,7 +29,7 @@
 .tm-prefs-nav {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--s1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -37,10 +37,10 @@
 
 .tm-prefs-nav__heading {
   margin: 0;
-  padding: 0 12px 8px;
+  padding: 0 var(--s3) var(--s2);
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -49,7 +49,7 @@
 
 .tm-prefs-nav__link {
   display: block;
-  padding: 8px 12px;
+  padding: var(--s2) var(--s3);
   border: var(--b-quiet) solid transparent;
   border-radius: var(--r-micro);
   font-size: var(--t-caption);
@@ -75,7 +75,7 @@
 .tm-prefs {
   display: flex;
   align-items: stretch;
-  gap: 22px;
+  gap: var(--s5);
   min-inline-size: 0;
 }
 
@@ -107,7 +107,7 @@
 
 .tm-prefs--notifications .tm-prefs__main {
   flex: 1.7;
-  gap: 18px;
+  gap: var(--s4);
 }
 
 .tm-prefs--notifications .tm-prefs__side {
@@ -120,7 +120,7 @@
 
 .tm-prefs--a11y .tm-prefs__side {
   flex: 1;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-prefs--keyboard .tm-prefs__main {
@@ -129,7 +129,7 @@
 
 .tm-prefs--keyboard .tm-prefs__side {
   flex: 1;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-prefs__pair {
@@ -148,7 +148,7 @@
 .tm-prefs-card {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--s4);
   margin: 0;
   padding: var(--s6);
   border: var(--b-quiet) solid var(--line-300);
@@ -160,12 +160,12 @@
 
 .tm-prefs-card--tight {
   gap: var(--s3);
-  padding: 22px;
+  padding: var(--s5);
 }
 
 .tm-prefs-card--paper {
-  gap: 10px;
-  padding: 22px;
+  gap: var(--s2);
+  padding: var(--s5);
   background: var(--paper-50);
 }
 
@@ -174,8 +174,8 @@
 }
 
 .tm-prefs-card--ink {
-  gap: 14px;
-  padding: 22px;
+  gap: var(--s3);
+  padding: var(--s5);
   border-color: var(--ink-950);
   background: var(--ink-950);
   color: var(--paper-50);
@@ -231,8 +231,8 @@
   margin: 0;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -285,7 +285,7 @@
 .tm-prefs-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px var(--s4);
+  gap: var(--s4) var(--s4);
 }
 
 .tm-prefs-field {
@@ -303,8 +303,8 @@
 .tm-prefs-field__label,
 .tm-prefs-field > .tm-field__label {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -379,14 +379,14 @@ select.tm-prefs-field__control {
 .tm-prefs-toggle {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-prefs-toggle__text {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--s1);
   min-inline-size: 0;
 }
 
@@ -398,8 +398,8 @@ select.tm-prefs-field__control {
 }
 
 .tm-prefs-toggle__hint {
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -409,7 +409,7 @@ select.tm-prefs-field__control {
   position: relative;
   box-sizing: border-box;
   inline-size: 44px;
-  block-size: 26px;
+  block-size: var(--app-control-sm);
   margin: 0;
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
@@ -459,7 +459,7 @@ select.tm-prefs-field__control {
 .tm-prefs-choices {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   padding: 0;
   border: 0;
@@ -469,7 +469,7 @@ select.tm-prefs-field__control {
   position: relative;
   display: inline-flex;
   align-items: center;
-  padding: 10px 18px;
+  padding: var(--s2) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -517,8 +517,8 @@ select.tm-prefs-field__control {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 13px;
+  gap: var(--s2);
+  padding: var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-0);
@@ -530,7 +530,7 @@ select.tm-prefs-field__control {
 }
 
 .tm-prefs-tile:has(input:checked) {
-  padding: 12px;
+  padding: var(--s3);
   border: var(--b-expressive) solid var(--ink-950);
   font-weight: 600;
   color: var(--ink-950);
@@ -539,10 +539,10 @@ select.tm-prefs-field__control {
 /* The tile thumbnails are pictures of a theme, so they keep their literal paints in both themes. */
 .tm-prefs-thumb {
   display: flex;
-  gap: 6px;
+  gap: var(--s1);
   block-size: 56px;
   box-sizing: border-box;
-  padding: 8px;
+  padding: var(--s2);
   border-radius: var(--r-micro);
 }
 
@@ -602,7 +602,7 @@ select.tm-prefs-field__control {
 .tm-prefs-scale {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-prefs-scale__a {
@@ -613,8 +613,8 @@ select.tm-prefs-field__control {
 }
 
 .tm-prefs-scale__a--big {
-  font-size: 20px;
-  line-height: 26px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   color: var(--ink-800);
 }
 
@@ -623,7 +623,7 @@ select.tm-prefs-field__control {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
-  padding: 0;
+  padding: 0 0;
   border: 0;
   border-radius: var(--r-capsule);
   background: var(--paper-150);
@@ -636,8 +636,8 @@ select.tm-prefs-field__control {
   justify-content: center;
   min-block-size: 30px;
   border-radius: var(--r-capsule);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-650);
   cursor: pointer;
@@ -687,12 +687,12 @@ select.tm-prefs-field__control {
   display: flex;
   align-items: center;
   block-size: 40px;
-  padding: 0 18px;
+  padding: 0 var(--s4);
   border-block-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-650);
   text-transform: uppercase;
@@ -708,8 +708,8 @@ select.tm-prefs-field__control {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  block-size: 44px;
-  padding: 0 18px;
+  block-size: var(--app-row);
+  padding: 0 var(--s4);
   border-block-end: var(--b-quiet) solid var(--paper-150);
   font-size: var(--t-ui-sm);
   line-height: 18px;
@@ -718,7 +718,7 @@ select.tm-prefs-field__control {
 }
 
 .tm-prefs-sample[data-density='compact'] .tm-prefs-sample__row {
-  block-size: 34px;
+  block-size: var(--app-row);
 }
 
 .tm-prefs-sample__row:last-child {
@@ -742,8 +742,8 @@ select.tm-prefs-field__control {
 
 .tm-prefs-sample__date {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-650);
   text-transform: uppercase;
@@ -787,7 +787,7 @@ select.tm-prefs-field__control {
 }
 
 .tm-prefs-pill {
-  padding: 5px 12px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--lime-500);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
@@ -807,7 +807,7 @@ select.tm-prefs-field__control {
 .tm-prefs-line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   margin: 0;
   font-size: var(--t-ui-md);
   line-height: 21px;
@@ -829,7 +829,7 @@ select.tm-prefs-field__control {
 
 .tm-prefs-focused {
   align-self: flex-start;
-  padding: 12px 20px;
+  padding: var(--s3) var(--s5);
   border: var(--b-expressive) solid var(--ink-950);
   border-radius: var(--r-capsule);
   background: var(--ink-950);
@@ -870,7 +870,7 @@ select.tm-prefs-field__control {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: 0 18px;
+  padding: 0 var(--s4);
 }
 
 .tm-prefs-table__head {
@@ -878,8 +878,8 @@ select.tm-prefs-field__control {
   border-block-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-650);
   text-transform: uppercase;
@@ -900,7 +900,7 @@ select.tm-prefs-field__control {
 
 .tm-prefs-table__row {
   min-block-size: 46px;
-  padding-block: 6px;
+  padding-block: var(--s1);
   border-block-end: var(--b-quiet) solid var(--paper-150);
 }
 
@@ -918,8 +918,8 @@ select.tm-prefs-field__control {
 
 .tm-prefs-table__hint {
   display: block;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -1003,7 +1003,7 @@ select.tm-prefs-field__control {
   flex-wrap: wrap;
   gap: var(--s2) var(--s3);
   min-block-size: 46px;
-  padding-block: 6px;
+  padding-block: var(--s1);
   border-block-end: var(--b-quiet) solid var(--paper-150);
 }
 
@@ -1022,8 +1022,8 @@ select.tm-prefs-field__control {
 
 .tm-prefs-key__custom {
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-650);
@@ -1032,13 +1032,13 @@ select.tm-prefs-field__control {
 .tm-prefs-kbd {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: var(--s1) var(--s2);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 8px;
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-800);
   white-space: nowrap;
@@ -1061,14 +1061,14 @@ button.tm-prefs-kbd:focus-visible {
 
 .tm-prefs-kbd-input {
   inline-size: 180px;
-  min-block-size: 30px;
-  padding: 0 10px;
+  min-block-size: var(--app-control);
+  padding: 0 var(--s2);
   border: var(--b-quiet) solid var(--ink-950);
   border-radius: 8px;
   background: var(--paper-50);
   color: var(--ink-950);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-prefs-kbd-input:focus-visible {
@@ -1083,7 +1083,7 @@ button.tm-prefs-kbd:focus-visible {
 }
 
 .tm-prefs-command {
-  padding: 14px var(--s4);
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--tm-inverted-line, #3a3e35);
   border-radius: 14px;
   background: #1b1d19;
@@ -1115,7 +1115,7 @@ button.tm-prefs-kbd:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: 11px 14px;
+  padding: var(--s3) var(--s3);
   border-radius: 12px;
   font-size: var(--t-ui-sm);
   line-height: 18px;
@@ -1138,8 +1138,8 @@ button.tm-prefs-kbd:focus-visible {
 
 .tm-prefs-command-list__chord {
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: #a7aca0;
   text-transform: uppercase;
@@ -1184,7 +1184,7 @@ button.tm-prefs-kbd:focus-visible {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--s1);
   min-inline-size: 0;
 }
 
@@ -1196,8 +1196,8 @@ button.tm-prefs-kbd:focus-visible {
 }
 
 .tm-prefs-token__meta {
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -1216,7 +1216,7 @@ button.tm-prefs-kbd:focus-visible {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
-  padding: 10px var(--s4);
+  padding: var(--s2) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -1256,8 +1256,8 @@ button.tm-prefs-kbd:focus-visible {
 }
 
 .tm-prefs-header-note {
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-650);
 }
@@ -1308,12 +1308,12 @@ button.tm-prefs-kbd:focus-visible {
 
 @media (max-width: 40rem) {
   .tm-app:has(.tm-prefs) .tm-canvas-header__title {
-    font-size: 30px;
-    line-height: 36px;
+    font-size: var(--t-app-page-title);
+    line-height: var(--t-app-page-title-line);
   }
 
   .tm-prefs-card {
-    padding: 18px;
+    padding: var(--s4);
   }
 
   .tm-prefs-fields,

@@ -10,8 +10,8 @@
 }
 
 .tm-app:has(.cl-screen) .tm-canvas-header__title {
-  font-size: 40px;
-  line-height: 46px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   letter-spacing: -0.02em;
 }
 
@@ -79,7 +79,7 @@
   display: inline-grid;
   place-items: center;
   min-inline-size: 22px;
-  padding-inline: var(--s2);
+  padding-inline: var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-150);
   color: var(--ink-650);
@@ -191,7 +191,7 @@
   align-items: center;
   gap: var(--s2);
   flex: none;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   border: var(--b-structural) solid var(--line-300);
   background: var(--paper-0);
@@ -227,7 +227,7 @@
 
 .cl-role {
   flex: none;
-  padding: 2px var(--s3);
+  padding: 2px var(--inset-capsule);
   border-radius: var(--r-capsule);
   border: var(--b-quiet) solid var(--client-500);
   color: var(--client-500);
@@ -342,7 +342,7 @@
 .cl-projects__chip {
   display: inline-flex;
   align-items: center;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--lime-500);
   border-radius: var(--r-capsule);
   background: var(--lime-100);

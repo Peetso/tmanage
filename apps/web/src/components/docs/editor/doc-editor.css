@@ -25,7 +25,7 @@
 .tm-doced__sep {
   inline-size: var(--b-quiet);
   block-size: 18px;
-  margin-inline: 6px;
+  margin-inline: var(--s1);
   background: var(--line-300);
 }
 
@@ -40,7 +40,7 @@
   inset-inline-end: 0;
   min-inline-size: 180px;
   margin: 0;
-  padding: 6px;
+  padding: var(--s1);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -51,8 +51,8 @@
 .tm-doced__menu-item {
   display: block;
   inline-size: 100%;
-  min-block-size: 40px;
-  padding-inline: 12px;
+  min-block-size: var(--app-row);
+  padding-inline: var(--s3);
   border: 0;
   border-radius: var(--r-control);
   background: transparent;
@@ -72,9 +72,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  padding-block: 6px;
-  padding-inline: 24px;
+  gap: var(--s1);
+  padding-block: var(--s1);
+  padding-inline: var(--s6);
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
@@ -85,13 +85,13 @@
 .tm-doced__linkform {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s1);
 }
 
 .tm-doced__input {
   inline-size: min(320px, 100%);
-  block-size: 36px;
-  padding-inline: 10px;
+  block-size: var(--app-control);
+  padding-inline: var(--s2);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-control);
   background: var(--paper-0);
@@ -109,7 +109,7 @@
 
 .tm-doced__bubble {
   display: flex;
-  padding: 4px;
+  padding: var(--s1);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -137,7 +137,7 @@
    where a click focused the page instead of the editor). */
 .tm-doced__body {
   min-block-size: 296px;
-  padding-block-start: 16px;
+  padding-block-start: var(--s4);
   color: var(--ink-950);
   font-size: 16px;
   line-height: 1.6;
@@ -156,15 +156,15 @@
 }
 
 .tm-doced__body h1 {
-  font-size: 28px;
+  font-size: var(--t-app-page-title);
 }
 
 .tm-doced__body h2 {
-  font-size: 22px;
+  font-size: var(--t-app-section);
 }
 
 .tm-doced__body h3 {
-  font-size: 18px;
+  font-size: var(--t-app-section);
 }
 
 .tm-doced__body p.is-editor-empty:first-child::before {
@@ -177,7 +177,7 @@
 
 .tm-doced__body ul,
 .tm-doced__body ol {
-  padding-inline-start: 24px;
+  padding-inline-start: var(--s6);
 }
 
 .tm-doced__body ul[data-type='taskList'] {
@@ -188,7 +188,7 @@
 .tm-doced__body li[data-type='taskItem'] {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-doced__body li[data-type='taskItem'] > label {
@@ -207,7 +207,7 @@
 
 .tm-doced__body blockquote {
   margin-inline: 0;
-  padding-inline-start: 14px;
+  padding-inline-start: var(--s3);
   border-inline-start: 3px solid var(--line-300);
   color: var(--ink-800);
 }
@@ -219,12 +219,12 @@
 
 /* Code stays left-to-right in an Arabic document (frame 11). */
 .tm-doced__body pre {
-  padding: 12px 14px;
+  padding: var(--s3) var(--s3);
   border-radius: var(--r-card);
   background: var(--ink-950);
   color: var(--paper-0);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   direction: ltr;
   text-align: start;
   overflow-x: auto;
@@ -236,13 +236,13 @@
 }
 
 .tm-doced__body :not(pre) > code {
-  padding-inline: 4px;
+  padding-inline: var(--s1);
   border-radius: var(--r-compact);
   background: var(--paper-150);
 }
 
 .tm-doced__body span[data-type='mention'] {
-  padding-inline: 4px;
+  padding-inline: var(--s1);
   border-radius: var(--r-compact);
   background: var(--lime-100);
   color: var(--ink-950);
@@ -277,7 +277,7 @@
 .tm-doced__body th,
 .tm-doced__body td {
   position: relative;
-  padding: 8px 12px;
+  padding: var(--s2) var(--s3);
   border-block-end: var(--b-quiet) solid var(--line-300);
   border-inline-end: var(--b-quiet) solid var(--line-300);
   text-align: start;
@@ -309,7 +309,7 @@
 }
 
 .tm-doced__body div[data-type='callout'] {
-  padding: 12px 16px;
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-inline-start-width: 4px;
   border-radius: var(--r-card);
@@ -338,8 +338,8 @@
 .tm-doced__body div[data-type='embed'] {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  gap: var(--s1);
+  padding: var(--s2);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-50);
@@ -355,7 +355,7 @@
 .tm-doced__body div[data-type='embed'] a {
   overflow: hidden;
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
   direction: ltr;
@@ -376,7 +376,7 @@
 .tm-doced__popup-hint {
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-doced__orb {
@@ -387,15 +387,15 @@
   border-radius: 50%;
   background: var(--paper-250);
   color: var(--ink-950);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-doced__drop {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 28px 16px;
+  gap: var(--s3);
+  padding: var(--s6) var(--s4);
   border: 2px dashed var(--line-300);
   border-radius: var(--r-card);
   color: var(--ink-650);
@@ -414,7 +414,7 @@
 .tm-doced__embedform {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .tm-doced__embedform .tm-doced__input {
@@ -422,9 +422,9 @@
 }
 
 .tm-doced__problem {
-  margin: 8px 0 0;
+  margin: var(--s2) 0 0;
   color: var(--danger-600);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 /* ── Conflict banner and presence chips (frame 8) ───────────────────────── */
@@ -432,36 +432,36 @@
 .tm-docconflict {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-block-end: 20px;
+  gap: var(--s3);
+  margin-block-end: var(--s5);
 }
 
 .tm-docconflict__note {
   display: flex;
-  gap: 12px;
+  gap: var(--s3);
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--s3) var(--s3);
   border: var(--b-quiet) solid var(--warning-600);
   border-radius: var(--r-card);
   color: var(--ink-950);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 
 .tm-docconflict__tag {
   flex: none;
   color: var(--warning-600);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-docconflict__actions {
   display: flex;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .tm-docpresence {
   display: flex;
-  gap: 6px;
+  gap: var(--s1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -470,19 +470,19 @@
 .tm-docpresence__chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  block-size: 32px;
-  padding-inline: 4px 12px;
+  gap: var(--s2);
+  block-size: var(--app-control);
+  padding-inline: var(--s1) var(--s3);
   border-radius: 999px;
   background: var(--paper-150);
   color: var(--ink-950);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 
 .tm-docpresence__live {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s1);
   color: var(--ink-650);
 }
 
@@ -527,13 +527,13 @@
   position: absolute;
   inset-block-end: 100%;
   inset-inline-start: -2px;
-  padding: 0 6px;
+  padding: 0 var(--s1);
   border-radius: 4px;
   background: var(--tm-collab);
   color: var(--paper-0);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 600;
-  line-height: 18px;
+  line-height: var(--t-app-overline-line);
   white-space: nowrap;
 }
 .tm-collab__selection {
@@ -542,7 +542,7 @@
 .tm-collab-bar {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s3);
 }
 .tm-collab-bar__orbs {
   display: flex;
@@ -556,14 +556,14 @@
   box-shadow: 0 0 0 2px var(--tm-collab);
 }
 .tm-collab-bar__orb + .tm-collab-bar__orb {
-  margin-inline-start: -6px;
+  margin-inline-start: calc(var(--s1) * -1);
 }
 .tm-collab-bar__live {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s1);
   color: var(--ink-650);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
   font-weight: 600;
 }
 .tm-collab-bar__dot {
@@ -575,7 +575,7 @@
 }
 .tm-collab-bar__status {
   color: var(--ink-500);
-  font-size: 12px;
+  font-size: var(--t-app-caption);
 }
 .tm-collab-bar__sr {
   position: absolute;
@@ -588,16 +588,16 @@
 .tm-collab-viewonly {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-block-end: 16px;
-  padding: 10px 14px;
+  gap: var(--s2);
+  margin-block-end: var(--s4);
+  padding: var(--s2) var(--s3);
   border-radius: 8px;
   background: var(--lime-100);
   color: var(--ink-650);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
 }
 .tm-collab-viewonly__pill {
-  padding: 4px 10px;
+  padding: var(--s1) var(--inset-capsule);
   border-radius: 999px;
   background: var(--paper-0);
   color: var(--ink-950);

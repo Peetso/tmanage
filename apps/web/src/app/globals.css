@@ -291,8 +291,8 @@ html[lang^='zh'] body {
 .tm-eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -439,8 +439,8 @@ html[lang^='zh'] body {
 .tm-identity__eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -621,7 +621,7 @@ html[lang^='zh'] body {
   block-size: 22px;
   border-radius: var(--r-capsule);
   border: var(--b-quiet) solid currentColor;
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-onboarding__step[data-state='current'] .tm-onboarding__step-index {
@@ -640,8 +640,8 @@ html[lang^='zh'] body {
   border-radius: var(--r-capsule);
   background: var(--ink-950);
   color: var(--paper-50);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -691,7 +691,8 @@ html[lang^='zh'] body {
 .tm-app__frame {
   flex: 1;
   display: grid;
-  grid-template-columns: var(--rail) minmax(0, 1fr);
+  /* Density v2: the 72px rail at every desktop width (Figma layout/rail `915:912`). */
+  grid-template-columns: var(--app-rail) minmax(0, 1fr);
   min-block-size: 0;
 }
 
@@ -799,8 +800,13 @@ html[lang^='zh'] body {
 }
 
 .tm-rail__label {
-  font-size: 9px;
-  line-height: 12px;
+  /* Density v2 rule 4: nothing below 11px (it was 9px). A long label in a long language is cut
+     with an ellipsis inside the 72px rail; its full name is the item's hover help. */
+  max-inline-size: calc(var(--app-rail) - var(--s2));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -814,7 +820,7 @@ html[lang^='zh'] body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-rail__account {
@@ -833,12 +839,12 @@ html[lang^='zh'] body {
 .tm-app__body {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: var(--s6);
   min-inline-size: 0;
   padding-block: var(--s5) var(--s8);
-  /* Owner 2026-11-23: the content sat 8px from the rail. The rail side gets the same 32px gutter
-     as the far side, in both directions (the Arabic rule below did this for RTL only). */
-  padding-inline: var(--s8);
+  /* Owner 2026-11-23: the content sat 8px from the rail. The rail side gets the same gutter as
+     the far side, in both directions: `--page-gutter`, 32 / 24 / 16 by Figma Layout mode. */
+  padding-inline: var(--page-gutter);
 }
 
 /* ── HOME-01's day capsule ─────────────────────────────────────────────── */
@@ -846,7 +852,7 @@ html[lang^='zh'] body {
 .tm-day-pulse {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-day-pulse__capsule {
@@ -855,7 +861,7 @@ html[lang^='zh'] body {
   display: flex;
   align-items: center;
   gap: var(--s2);
-  padding: var(--s2);
+  padding: var(--s2) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--tm-capsule-ground);
   color: var(--tm-inverted-ink);
@@ -867,7 +873,7 @@ html[lang^='zh'] body {
   align-items: center;
   gap: var(--s3);
   flex: none;
-  padding-inline: 6px var(--s4);
+  padding-inline: var(--s1) var(--s4);
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);
   font-weight: 500;
@@ -924,7 +930,7 @@ html[lang^='zh'] body {
 
 .tm-day-pulse__slot-done {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-day-pulse__now {
@@ -932,9 +938,9 @@ html[lang^='zh'] body {
   min-inline-size: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   block-size: var(--orb-comfortable);
-  padding-inline: var(--s4) 9px;
+  padding-inline: var(--s4) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
   color: var(--tm-on-lime);
@@ -945,7 +951,7 @@ html[lang^='zh'] body {
 
 .tm-day-pulse__now-time {
   flex: none;
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   white-space: nowrap;
 }
 
@@ -970,12 +976,12 @@ html[lang^='zh'] body {
   border-radius: var(--r-capsule);
   background: var(--tm-ink-absolute);
   color: var(--tm-accent-on-ink, var(--lime-500));
-  font-size: 10px;
+  font-size: var(--t-app-overline);
   font-weight: 600;
 }
 
 .tm-day-pulse__person + .tm-day-pulse__person {
-  margin-inline-start: -8px;
+  margin-inline-start: calc(var(--s2) * -1);
 }
 
 .tm-day-pulse__out {
@@ -997,7 +1003,7 @@ html[lang^='zh'] body {
   flex: none;
   inline-size: var(--orb-navigation);
   block-size: var(--orb-navigation);
-  padding: 0;
+  padding: 0 0;
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -1027,8 +1033,8 @@ html[lang^='zh'] body {
 .tm-canvas-header__context {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1044,10 +1050,11 @@ html[lang^='zh'] body {
 
 .tm-canvas-header__title {
   margin: 0;
-  font-size: var(--t-heading-page);
-  line-height: var(--t-heading-page-line);
-  letter-spacing: -0.02em;
-  font-weight: 500;
+  /* Density v2 rule 4: one page-title size, `App/Page title` 24/30 (36 line in Arabic). */
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
+  letter-spacing: -0.01em;
+  font-weight: var(--t-app-page-title-weight);
   color: var(--ink-950);
 }
 
@@ -1074,6 +1081,36 @@ html[lang^='zh'] body {
   margin-inline-start: auto;
 }
 
+/*
+ * Density v2 rule 2 (Figma `Header/Button` `918:1826`): one header row, every control in it 32
+ * high with one radius (14) and its text 12px from the edge. The screens' own actions and the
+ * shell's launchers (new, timer, getting started, help, AI) each brought their own size, so a
+ * header held up to five heights (review §2.1). The rule reaches every control in the row at any
+ * wrapper depth, never the menus, panels and dialogs those controls open.
+ */
+.tm-canvas-header__actions
+  :is(button, a, [role='button']):not(
+    :is([role='menu'], [role='dialog'], [role='listbox'], [popover], [class*='__panel']) *
+  ) {
+  --tm-control-h: var(--app-control);
+  block-size: var(--app-control);
+  min-block-size: var(--app-control);
+  padding-block: 0;
+  padding-inline: var(--inset-control);
+  border-radius: var(--app-radius);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* An icon-only control in the row is a 32px square with the same radius. */
+.tm-canvas-header__actions
+  :is(.tm-orb-button, .tm-day-pulse__orb):not(
+    :is([role='menu'], [role='dialog'], [role='listbox'], [popover], [class*='__panel']) *
+  ) {
+  inline-size: var(--app-control);
+  padding-inline: 0;
+}
+
 .tm-canvas-header[data-actions='inline'] .tm-canvas-header__actions {
   margin-inline-start: 0;
 }
@@ -1089,9 +1126,9 @@ html[lang^='zh'] body {
 
 .tm-canvas-header__aside {
   display: flex;
-  gap: 44px;
+  gap: var(--s10);
   margin-inline-start: auto;
-  padding-block-start: 22px;
+  padding-block-start: var(--s5);
 }
 
 /* HOME-01: "NORTHSTAR STUDIO · CLIENT DELIVERY" over a 64px uppercase display headline. */
@@ -1106,20 +1143,10 @@ html[lang^='zh'] body {
   letter-spacing: 0.06em;
 }
 
-.tm-canvas-header[data-title-variant='display'] .tm-canvas-header__title {
-  font-size: var(--t-display-metric);
-  line-height: var(--t-display-metric-line);
-  letter-spacing: -0.03em;
-  text-transform: uppercase;
-}
-
-/* FIX4 item 8: Arabic glyphs reach far above and below the Latin box, so "يومي" at a 1:1 line
-   height ran into the line under it. Arabic gets room to breathe and no negative tracking, which
-   would also break the joined letters apart. */
-[dir='rtl'] .tm-canvas-header[data-title-variant='display'] .tm-canvas-header__title {
-  line-height: 1.4;
+/* Density v2 rule 4: My Day's headline is the one page-title size too (it was 64px uppercase);
+   it keeps its own eyebrow above it. Arabic never takes negative tracking (joined letters). */
+[dir='rtl'] .tm-canvas-header__title {
   letter-spacing: 0;
-  padding-block: 0.05em;
 }
 
 .tm-app__columns {
@@ -1132,7 +1159,7 @@ html[lang^='zh'] body {
 
 .tm-context-rail {
   flex: none;
-  inline-size: var(--context-rail);
+  inline-size: var(--app-context-rail);
   min-inline-size: var(--context-rail-min);
   padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
@@ -1205,7 +1232,7 @@ html[lang^='zh'] body {
 .tm-portal__identity {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
 }
 
 .tm-portal__mark {
@@ -1265,7 +1292,7 @@ html[lang^='zh'] body {
 .tm-portal__nav-item {
   display: inline-flex;
   align-items: center;
-  min-block-size: 38px;
+  min-block-size: var(--app-row);
   padding-inline: var(--s4);
   border-radius: var(--r-capsule);
   color: var(--ink-650);
@@ -1416,7 +1443,7 @@ html[lang^='zh'] body {
 
 .tm-table th,
 .tm-table td {
-  padding: var(--s3) 18px;
+  padding: var(--s3) var(--s4);
   border-block-end: var(--b-quiet) solid var(--paper-150);
   text-align: start;
   vertical-align: middle;
@@ -1441,8 +1468,8 @@ html[lang^='zh'] body {
   border-block-end-color: var(--line-300);
   background: var(--paper-50);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1617,8 +1644,8 @@ html[lang^='zh'] body {
   display: none;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-650);
@@ -1693,8 +1720,8 @@ html[lang^='zh'] body {
 
 .tm-state__reference-label {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-650);
@@ -1719,7 +1746,7 @@ html[lang^='zh'] body {
   align-items: center;
   gap: var(--s6);
   min-block-size: 64px;
-  padding-inline: 28px;
+  padding-inline: var(--s6);
   border-block-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-350);
 }
@@ -1742,8 +1769,8 @@ html[lang^='zh'] body {
 .tm-state-screen__label {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-650);
@@ -1886,7 +1913,7 @@ html[lang^='zh'] body {
  */
 @media (max-width: 89.94rem) {
   .tm-app__frame {
-    grid-template-columns: var(--rail-compact) minmax(0, 1fr);
+    grid-template-columns: var(--app-rail) minmax(0, 1fr);
   }
 
   .tm-canvas-header {
@@ -1955,11 +1982,11 @@ html[lang^='zh'] body {
   place-items: center;
   min-inline-size: 18px;
   block-size: 18px;
-  padding-inline: 4px;
+  padding-inline: var(--s1);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
   color: var(--tm-on-lime);
-  font-size: 10px;
+  font-size: var(--t-app-overline);
   line-height: 1;
   font-weight: 700;
 }
@@ -2009,7 +2036,7 @@ html[lang^='zh'] body {
   .tm-app__body {
     gap: var(--s5);
     padding-block: var(--s5) 7rem;
-    padding-inline: var(--s5);
+    padding-inline: var(--page-gutter);
   }
 
   /* The header leads at the top, so the organization line and the avatar share one row. */
@@ -2031,7 +2058,7 @@ html[lang^='zh'] body {
     display: flex;
     align-items: center;
     min-block-size: 36px;
-    padding-inline-end: 52px;
+    padding-inline-end: var(--s12);
   }
 
   /* ph-tabbar's top bar names the organization alone; the screen's eyebrow waits for desktop. */
@@ -2042,11 +2069,6 @@ html[lang^='zh'] body {
   .tm-canvas-header__aside {
     gap: var(--s6);
     flex-wrap: wrap;
-  }
-
-  .tm-canvas-header[data-title-variant='display'] .tm-canvas-header__title {
-    font-size: 40px;
-    line-height: 44px;
   }
 
   .tm-day-pulse__date-label,
@@ -2072,7 +2094,7 @@ html[lang^='zh'] body {
 
   .tm-mobile-nav__list {
     margin: 0;
-    padding: 6px var(--s3);
+    padding: var(--s1) var(--inset-capsule);
     list-style: none;
     display: flex;
     justify-content: space-between;
@@ -2139,8 +2161,8 @@ html[lang^='zh'] body {
    * so the accessible name stays the full word (2.5.3 Label in Name).
    */
   .tm-mobile-nav__label {
-    font-size: 10px;
-    line-height: 13px;
+    font-size: var(--t-app-overline);
+    line-height: var(--t-app-overline-line);
     font-weight: 500;
     max-inline-size: 100%;
     overflow: hidden;
@@ -2162,7 +2184,7 @@ html[lang^='zh'] body {
     border-radius: var(--r-capsule);
     background: var(--tm-ink-absolute);
     color: var(--tm-accent-on-ink, var(--lime-500));
-    font-size: 24px;
+    font-size: var(--t-heading-section);
     line-height: 1;
     font-weight: 500;
     text-decoration: none;
@@ -2234,8 +2256,8 @@ html[lang^='zh'] body {
   .tm-more__section {
     margin: 0 0 var(--s3);
     font-family: var(--font-mono);
-    font-size: 11px;
-    line-height: 15px;
+    font-size: var(--t-app-overline);
+    line-height: var(--t-app-overline-line);
     font-weight: 500;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -2248,7 +2270,7 @@ html[lang^='zh'] body {
     list-style: none;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    gap: var(--s1);
   }
 
   .tm-more__tile {
@@ -2287,11 +2309,6 @@ html[lang^='zh'] body {
 }
 
 @media (max-width: 39.94rem) {
-  .tm-canvas-header__title {
-    font-size: 30px;
-    line-height: 36px;
-  }
-
   .tm-state-screen__main {
     padding: var(--s6) var(--s5);
   }
@@ -2317,7 +2334,7 @@ html[lang^='zh'] body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 96px var(--s4) var(--s4);
+  padding: var(--s24) var(--s4) var(--s4);
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--tm-scrim);
@@ -2354,7 +2371,7 @@ html[lang^='zh'] body {
   display: flex;
   align-items: center;
   gap: var(--s4);
-  padding: var(--s6) 28px;
+  padding: var(--s6) var(--s6);
   border-block-end: var(--b-quiet) solid var(--ink-800);
 }
 
@@ -2393,12 +2410,12 @@ html[lang^='zh'] body {
 
 .tm-command-palette__key {
   flex: none;
-  padding: 5px 10px;
+  padding: var(--s1) var(--s2);
   border: var(--b-quiet) solid var(--ink-650);
   border-radius: var(--r-micro);
   color: var(--line-300);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -2415,7 +2432,7 @@ html[lang^='zh'] body {
   align-items: center;
   gap: var(--s4);
   min-block-size: 56px;
-  padding: var(--s2) 28px;
+  padding: var(--s2) var(--s6);
   border-inline-start: 3px solid transparent;
   color: var(--paper-50);
   cursor: pointer;
@@ -2458,23 +2475,23 @@ html[lang^='zh'] body {
   flex: none;
   color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .tm-command-palette__empty {
-  padding: var(--s3) 28px;
+  padding: var(--s3) var(--s6);
   color: var(--line-300);
 }
 
 .tm-command-palette__foot {
   margin: 0;
-  padding: var(--s4) 28px;
+  padding: var(--s4) var(--s6);
   border-block-start: var(--b-quiet) solid var(--ink-800);
   color: var(--line-300);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -2538,7 +2555,7 @@ html[lang^='zh'] body {
   }
 
   .tm-mobile-nav__list {
-    padding-inline: 6px;
+    padding-inline: var(--s1);
   }
 
   .tm-phone-dock__fab {
@@ -2562,7 +2579,7 @@ html[lang^='zh'] body {
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  min-block-size: 38px;
+  min-block-size: var(--app-control);
   padding-inline: var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
@@ -2582,8 +2599,8 @@ html[lang^='zh'] body {
 
 .tm-portal-switcher__eyebrow {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -2627,7 +2644,7 @@ html[lang^='zh'] body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s1);
 }
 
 .tm-portal-switcher__option {
@@ -2728,7 +2745,7 @@ html[lang^='zh'] body {
 
   .tm-portal-menu__caret {
     color: var(--tm-accent-on-ink, var(--lime-500));
-    font-size: 8px;
+    font-size: var(--t-app-overline);
   }
 
   .tm-portal-menu__card {
@@ -2830,11 +2847,11 @@ html[lang^='zh'] body {
     min-inline-size: 20px;
     block-size: 20px;
     margin-inline-start: auto;
-    padding-inline: 5px;
+    padding-inline: var(--s1);
     border-radius: var(--r-capsule);
     background: var(--lime-500);
     color: var(--tm-on-lime);
-    font-size: 11px;
+    font-size: var(--t-app-overline);
     font-weight: 700;
   }
 

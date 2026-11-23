@@ -70,7 +70,7 @@
 .tm-storage__fact {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-storage__fact dt {
@@ -97,7 +97,7 @@
 .tm-storage__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-storage__capsule {
@@ -149,9 +149,9 @@
 .tm-drive-files__title {
   margin: 0;
   color: var(--ink-950);
-  font-size: 20px;
+  font-size: var(--t-app-section);
   font-weight: 500;
-  line-height: 28px;
+  line-height: var(--t-app-section-line);
 }
 
 .tm-drive-files__lede,
@@ -200,7 +200,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 /* 0236. OneDrive (Figma 395:5239): the library switch under a quiet rule, then the actions. */
@@ -275,7 +275,7 @@
 
 .tm-onedrive-attach__kind {
   flex: 0 0 auto;
-  padding: 2px var(--s2);
+  padding: 2px var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-50);
@@ -350,8 +350,8 @@
 .tm-storage__details {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding-inline-start: 44px;
+  gap: var(--s3);
+  padding-inline-start: var(--s10);
 }
 
 .tm-storage__note {
@@ -367,7 +367,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  padding: 18px var(--s5);
+  padding: var(--s4) var(--s5);
   border: var(--b-quiet) dashed var(--line-700);
   border-radius: var(--r-card);
   background: var(--paper-0);

@@ -25,8 +25,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  min-block-size: 28px;
-  padding: 0 var(--s3);
+  min-block-size: var(--app-control-sm);
+  padding: 0 var(--inset-capsule);
   border: var(--b-structural) solid var(--success-600);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -120,7 +120,7 @@
   inset-inline-end: var(--s3);
   inset-block-start: 50%;
   transform: translateY(-50%);
-  font-size: 8px;
+  font-size: var(--t-app-overline);
   color: var(--ink-650);
   pointer-events: none;
 }

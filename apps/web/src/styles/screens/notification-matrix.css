@@ -9,11 +9,11 @@
 
 .tm-notif-matrix__badge {
   display: inline-flex;
-  padding: 2px 8px;
+  padding: 2px var(--inset-capsule);
   border-radius: 999px;
   background: var(--lime-100);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   color: var(--ink-950);
 }
@@ -31,17 +31,17 @@
 .tm-notif-matrix__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--s1);
 }
 
 .tm-notif-matrix__chip {
-  padding: 4px 10px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: 999px;
   background: var(--paper-0);
   font: inherit;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   font-weight: 500;
   color: var(--ink-950);
   cursor: pointer;

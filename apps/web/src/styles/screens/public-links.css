@@ -33,11 +33,11 @@
   display: inline-grid;
   place-items: center;
   min-inline-size: 20px;
-  padding-inline: 5px;
+  padding-inline: var(--s1);
   border-radius: var(--r-capsule);
   background: var(--paper-150);
-  font-size: 11px;
-  line-height: 18px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
 }
 
 .pl-chip[aria-pressed='true'] {
@@ -190,7 +190,7 @@
   display: grid;
   justify-items: center;
   gap: var(--s4);
-  padding: 48px;
+  padding: var(--s12);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -208,8 +208,8 @@
 
 .pl-empty__title {
   margin: 0;
-  font-size: 20px;
-  line-height: 27px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   color: var(--ink-950);
 }
 
@@ -231,9 +231,9 @@
 
 .pl-empty__hint {
   display: grid;
-  gap: 4px;
+  gap: var(--s1);
   max-inline-size: 232px;
-  padding: 14px 16px;
+  padding: var(--s3) var(--s4);
   border-radius: var(--r-card);
   background: var(--paper-150);
   font-size: var(--t-caption);
@@ -284,8 +284,8 @@
   .pl-table .pl-row {
     display: grid;
     grid-template-columns: 20px 1fr auto;
-    gap: 6px var(--s3);
-    padding: 12px 8px 12px 14px;
+    gap: var(--s1) var(--s3);
+    padding: var(--s3) var(--s2) var(--s3) var(--s3);
     border: var(--b-quiet) solid var(--line-300);
     border-radius: var(--r-card);
     background: var(--paper-0);

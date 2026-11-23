@@ -60,7 +60,7 @@
 .tm-mic__bars {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--s1);
   block-size: 20px;
 }
 
@@ -114,7 +114,7 @@
 
 .tm-sa-panel .tm-mic-switch {
   margin: 0;
-  padding: var(--s4) 22px;
+  padding: var(--s4) var(--s5);
   border-block-start: var(--b-quiet) solid var(--line-300);
 }
 

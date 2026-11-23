@@ -9,9 +9,9 @@
 
 .tm-rq-filter select {
   appearance: none;
-  min-block-size: 36px;
+  min-block-size: var(--app-control);
   padding-block: var(--s2);
-  padding-inline: var(--s3) var(--s6);
+  padding-inline: var(--inset-capsule) var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0) linear-gradient(45deg, transparent 50%, var(--ink-650) 50%) no-repeat;
@@ -162,7 +162,7 @@
 .tm-rq-chip {
   display: inline-flex;
   align-items: center;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -199,7 +199,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   color: var(--ink-800);
@@ -330,7 +330,7 @@
 .tm-rq-state {
   align-self: start;
   margin: 0;
-  padding: var(--s1) var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   font-size: var(--t-ui-sm);

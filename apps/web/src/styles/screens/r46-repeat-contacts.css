@@ -50,7 +50,7 @@
 .tm-r46-day {
   inline-size: 36px;
   block-size: 36px;
-  padding: 0;
+  padding: 0 0;
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);

@@ -11,7 +11,7 @@
 .tm-fin-tabs__list {
   display: flex;
   flex-wrap: wrap;
-  gap: 26px;
+  gap: var(--s6);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -19,7 +19,7 @@
 
 .tm-fin-tabs__link {
   display: inline-flex;
-  padding-block-end: 9px;
+  padding-block-end: var(--s2);
   border-block-end: 2px solid transparent;
   color: var(--ink-500);
   font-size: var(--t-ui-md);
@@ -128,7 +128,7 @@
   flex-direction: column;
   gap: var(--s2);
   block-size: 100%;
-  padding: 22px;
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);

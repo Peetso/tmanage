@@ -10,7 +10,7 @@
 .tm-figma-mode {
   display: inline-flex;
   gap: var(--s1);
-  padding: var(--s1);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -307,7 +307,7 @@
   place-items: center;
   min-inline-size: 20px;
   block-size: 20px;
-  padding-inline: var(--s1);
+  padding-inline: var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
   color: var(--tm-on-lime);
@@ -456,7 +456,7 @@
 }
 
 .tm-fig-file__chip {
-  padding: var(--s1) var(--s2);
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
   color: var(--ink-650);

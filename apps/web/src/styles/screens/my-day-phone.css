@@ -199,7 +199,7 @@
 }
 
 .tm-sheet__date .tm-field__control {
-  padding-inline-end: calc(var(--s4) + 20px + var(--s2));
+  padding-inline-end: calc(var(--s4) + var(--s5) + var(--s2));
 }
 
 .tm-sheet__date-icon {

@@ -16,14 +16,14 @@
 .tm-r44-sub {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 17px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   letter-spacing: 0.04em;
   color: var(--ink-650);
 }
 
 .tm-r44-kpis .tm-cc-metric__value {
-  font-size: 36px;
+  font-size: var(--t-heading-page);
   line-height: 40px;
 }
 
@@ -63,8 +63,8 @@
 
 .tm-r44-bars__label {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 17px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-650);
 }
 
@@ -109,8 +109,8 @@
 /* 62-A3 (B14) Growth tiles (Figma 758:43241): smaller figures, muted when there is nothing to show. */
 .tm-growth-tile .tm-cc-metric__value {
   margin: 0;
-  font-size: 24px;
-  line-height: 32px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
 }
 
 .tm-growth-tile .tm-growth-tile__muted {

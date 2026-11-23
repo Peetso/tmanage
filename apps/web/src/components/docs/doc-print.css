@@ -100,7 +100,7 @@
 
 .tm-doc-print__body th,
 .tm-doc-print__body td {
-  padding: 4px 8px;
+  padding: var(--s1) var(--s2);
   border: 1px solid var(--line-300);
   text-align: start;
 }

@@ -43,7 +43,7 @@
 
   .tm-app .tm-canvas-header[data-title-variant] .tm-canvas-header__context,
   .tm-app .tm-canvas-header .tm-canvas-header__title-row {
-    padding-inline-end: 100px;
+    padding-inline-end: var(--s24);
   }
 
   .tm-app .tm-canvas-header[data-title-variant] .tm-canvas-header__context {
@@ -74,9 +74,9 @@
   }
 
   .tm-app .tm-canvas-header[data-title-variant='page'] .tm-canvas-header__title {
-    font-size: var(--t-display-lg);
-    line-height: var(--t-display-lg-line);
-    font-weight: 500;
+    font-size: var(--t-app-page-title);
+    line-height: var(--t-app-page-title-line);
+    font-weight: var(--t-app-page-title-weight);
     letter-spacing: -0.025em;
   }
 
@@ -131,7 +131,7 @@
     justify-content: center;
     gap: var(--s1);
     min-block-size: 60px;
-    padding: var(--s2) var(--s1);
+    padding: var(--s2) var(--inset-capsule);
     border-radius: var(--r-capsule);
     color: var(--tm-paper-absolute);
   }

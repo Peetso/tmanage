@@ -39,8 +39,8 @@
 }
 
 .tm-dm__message[data-selected='true'] {
-  margin-inline: -12px;
-  padding: 6px 12px;
+  margin-inline: calc(var(--s3) * -1);
+  padding: var(--s1) var(--s3);
   border: var(--b-quiet) solid var(--ink-950);
   border-radius: var(--r-control);
 }
@@ -51,7 +51,7 @@
   inset-inline-end: 0;
   z-index: 2;
   display: flex;
-  padding: 2px;
+  padding: 2px 2px;
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -86,7 +86,7 @@
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: 12px 18px 12px 16px;
+  padding: var(--s3) var(--s4) var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--success-600);
   border-radius: var(--r-card);
   background: var(--paper-0);

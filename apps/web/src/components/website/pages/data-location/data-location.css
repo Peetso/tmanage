@@ -10,8 +10,8 @@
 .tm-dloc__content {
   display: flex;
   flex-direction: column;
-  gap: var(--s12, 48px);
-  padding-block: var(--s16, 64px);
+  gap: var(--s12, var(--s12));
+  padding-block: var(--s16, var(--s16));
 }
 
 /* ── Hero ───────────────────────────────────────────────────────────────────── */

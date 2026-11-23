@@ -43,7 +43,7 @@
 .tm-account[data-placement='rail'] .tm-account__menu {
   position: fixed;
   inset-block-end: var(--s5);
-  inset-inline-start: calc(var(--rail) + var(--s3));
+  inset-inline-start: calc(var(--app-rail) + var(--s3));
 }
 
 .tm-account[data-placement='header'] .tm-account__menu {
@@ -151,7 +151,7 @@
   padding-inline: var(--s5);
   color: var(--ink-500);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   font-weight: 500;
 }
 

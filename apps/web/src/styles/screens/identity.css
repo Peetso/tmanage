@@ -9,8 +9,8 @@
 /* ── Shared type and controls ─────────────────────────────────────────── */
 
 .tm-identity .tm-identity__title {
-  font-size: 36px;
-  line-height: 40px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   letter-spacing: -0.02em;
   font-weight: 500;
 }
@@ -23,16 +23,16 @@
 
 .tm-id-lede {
   margin: 0;
-  font-size: 14px;
-  line-height: 21px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
   color: var(--ink-650);
 }
 
 .tm-id-mono {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -40,21 +40,21 @@
 }
 
 .tm-identity .tm-field__label {
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   font-weight: 500;
   color: var(--ink-800);
 }
 
 .tm-identity .tm-field__control {
   min-block-size: 50px;
-  padding: 13px var(--s4);
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-control);
   background: var(--paper-50);
   color: var(--ink-950);
-  font-size: 15px;
-  line-height: 22px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
 }
 
 .tm-identity .tm-field__control[type='email'] {
@@ -65,7 +65,7 @@
   outline: none;
   background: var(--paper-0);
   border: var(--b-expressive) solid var(--ink-950);
-  padding: 12px 15px;
+  padding: var(--s3) var(--s4);
   box-shadow: 0 0 0 3px var(--lime-500);
 }
 
@@ -80,14 +80,14 @@
 .tm-identity .tm-button--accessible {
   --tm-control-h: 48px;
   padding-inline: var(--s5);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
 }
 
 .tm-identity .tm-divider {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--ink-500);
@@ -100,10 +100,10 @@
 
 /* The export's alert: a ringed glyph, 12px copy, an 18px radius. */
 .tm-identity .tm-inline-alert {
-  padding: 14px;
+  padding: var(--s3);
   border-radius: var(--r-compact);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-650);
 }
 
@@ -115,7 +115,7 @@
   border-radius: var(--r-capsule);
   border: var(--b-structural) solid var(--ink-500);
   color: var(--ink-500);
-  font-size: 10px;
+  font-size: var(--t-app-overline);
   font-weight: 600;
   line-height: 1;
 }
@@ -150,8 +150,8 @@
 }
 
 .tm-identity .tm-inline-alert__title {
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
 }
 
 /* The expiry note on ID-03: dashed, warning-toned. */
@@ -179,8 +179,8 @@
 
 .tm-id-link {
   color: var(--ink-650);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   font-weight: 500;
   text-decoration: none;
   border-block-end: var(--b-quiet) solid var(--line-300);
@@ -228,7 +228,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  padding: 22px;
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -248,28 +248,28 @@
 
 .tm-id-card__title {
   margin: 0;
-  font-size: 20px;
-  line-height: 27px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   font-weight: 600;
   color: var(--ink-950);
 }
 
 .tm-id-card__body {
   margin: 0;
-  font-size: 13px;
-  line-height: 19px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   color: var(--ink-650);
 }
 
 .tm-id-step {
   align-self: flex-start;
-  padding: var(--s1) 10px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid transparent;
   border-radius: var(--r-capsule);
   background: var(--paper-50);
   color: var(--ink-650);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -298,7 +298,7 @@
 .tm-id-methods {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 /*
@@ -329,7 +329,7 @@
   background: var(--ink-800);
   color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   line-height: 1;
 }
 
@@ -351,8 +351,8 @@
 
 .tm-id-methods__note {
   margin: 0;
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-650);
   text-align: center;
 }
@@ -367,15 +367,15 @@
   border-radius: var(--r-compact);
   padding: var(--s3) var(--s4);
   background: var(--paper-50);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-650);
 }
 
 .tm-id-dev > summary {
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -387,17 +387,17 @@
 /* ── ID-02 Second factor ──────────────────────────────────────────────── */
 
 .tm-id-card.tm-id-mfa {
-  padding: 30px;
+  padding: var(--s8);
   border-radius: var(--r-feature);
 }
 
 .tm-id-mfa > .tm-fieldset {
-  gap: 18px;
+  gap: var(--s4);
 }
 
 .tm-id-mfa .tm-identity__title {
-  font-size: 32px;
-  line-height: 36px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
 }
 
 .tm-id-code {
@@ -407,8 +407,8 @@
 }
 
 .tm-id-code .tm-field__hint {
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-650);
 }
 
@@ -423,8 +423,8 @@
   border: 0;
   background: none;
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   text-transform: uppercase;
   text-decoration: underline;
   color: var(--ink-800);
@@ -434,8 +434,8 @@
 .tm-id-expiry {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-500);
   text-transform: uppercase;
   white-space: nowrap;
@@ -446,7 +446,7 @@
   flex-direction: column;
   gap: var(--s3);
   margin: 0;
-  padding: 22px;
+  padding: var(--s5);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -457,8 +457,8 @@
   margin: 0 0 var(--s1) 0;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -477,8 +477,8 @@
   border: 0;
   background: none;
   font: inherit;
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   text-align: start;
   color: var(--ink-800);
   cursor: pointer;
@@ -499,7 +499,7 @@
   background: var(--paper-50);
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   line-height: 1;
 }
 
@@ -523,15 +523,15 @@
 }
 
 .tm-id-fallback__detail {
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-500);
 }
 
 .tm-id-fallback__action {
   flex: none;
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   font-weight: 500;
   color: var(--ink-650);
 }
@@ -553,33 +553,33 @@
 
 .tm-id-inviter__name {
   margin: 0;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
   font-weight: 600;
   color: var(--ink-950);
 }
 
 .tm-id-inviter__meta {
   margin: 0;
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-500);
 }
 
 .tm-identity__body:has(.tm-id-inviter) {
-  padding: 30px;
-  gap: 18px;
+  padding: var(--s8);
+  gap: var(--s4);
 }
 
 .tm-identity__body:has(.tm-id-inviter) .tm-identity__title {
-  font-size: 32px;
-  line-height: 36px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
 }
 
 .tm-id-panels {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s2);
 }
 
 .tm-id-panel {
@@ -595,35 +595,35 @@
   flex-direction: row;
   align-items: center;
   gap: var(--s3);
-  padding: 14px var(--s4);
+  padding: var(--s3) var(--s4);
 }
 
 .tm-id-panel__label {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   text-transform: uppercase;
   color: var(--ink-500);
 }
 
 .tm-id-panel__value {
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
   font-weight: 600;
   color: var(--ink-950);
 }
 
 .tm-id-capsule {
   margin-inline-start: auto;
-  padding: 5px var(--s3);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-structural) solid var(--tm-ink-absolute, #090a09);
   border-radius: var(--r-capsule);
   background: var(--lime-500);
   color: var(--tm-on-lime, #090a09);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -641,8 +641,8 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
-  line-height: 19px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   font-weight: 500;
   color: var(--ink-800);
 }
@@ -651,8 +651,8 @@
   margin: var(--s1) 0 0;
   padding-block-start: var(--s3);
   border-block-start: var(--b-quiet) solid var(--paper-150);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-500);
 }
 
@@ -664,14 +664,14 @@
 
 .tm-identity .tm-id-orgs .tm-search-field__control {
   min-block-size: 44px;
-  padding-block: 11px;
-  padding-inline: 42px var(--s4);
+  padding-block: var(--s3);
+  padding-inline: var(--s10) var(--s4);
   inline-size: 100%;
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
 }
 
 .tm-id-org-list {
@@ -726,7 +726,7 @@
   background: var(--paper-50);
   border: var(--b-structural) solid var(--client-500);
   color: var(--client-500);
-  font-size: 15px;
+  font-size: var(--t-app-body);
 }
 
 .tm-id-org__text {
@@ -737,27 +737,27 @@
 }
 
 .tm-id-org__name {
-  font-size: 18px;
-  line-height: 24px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   font-weight: 600;
   color: var(--ink-950);
 }
 
 .tm-id-org__meta {
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-500);
 }
 
 .tm-id-org__chip {
   flex: none;
-  padding: 6px 14px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid transparent;
   border-radius: var(--r-capsule);
   background: var(--paper-50);
   color: var(--ink-650);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -778,7 +778,7 @@
   background: var(--tm-ink-absolute, var(--ink-950));
   color: var(--tm-accent-on-ink, var(--lime-500));
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: var(--t-app-body);
   line-height: 1;
 }
 
@@ -828,8 +828,8 @@
 }
 
 .tm-id-sessions__head .tm-identity__title {
-  font-size: 30px;
-  line-height: 36px;
+  font-size: var(--t-app-page-title);
+  line-height: var(--t-app-page-title-line);
   letter-spacing: -0.01em;
   font-weight: 600;
 }
@@ -840,9 +840,9 @@
 }
 
 .tm-id-sessions__head .tm-button {
-  --tm-control-h: 40px;
-  font-size: 13px;
-  line-height: 18px;
+  --tm-control-h: var(--app-control-lg);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   color: var(--danger-600);
 }
 
@@ -863,7 +863,7 @@
 .tm-id-session {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--s3);
   min-block-size: 56px;
   padding: var(--s2) var(--s5);
   border-block-end: var(--b-quiet) solid var(--paper-150);
@@ -884,7 +884,7 @@
   background: var(--paper-50);
   color: var(--ink-650);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   line-height: 1;
 }
 
@@ -895,8 +895,8 @@
 
 .tm-identity .tm-id-session__agent {
   margin: 0;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
   font-weight: 500;
   color: var(--ink-950);
   white-space: nowrap;
@@ -907,20 +907,20 @@
 .tm-id-session__meta {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   text-transform: uppercase;
   color: var(--ink-500);
 }
 
 .tm-id-session .tm-button {
-  --tm-control-h: 30px;
+  --tm-control-h: var(--app-control);
   flex: none;
-  padding-inline: 14px;
+  padding-inline: var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   color: var(--ink-500);
 }
 
@@ -935,8 +935,8 @@
 }
 
 .tm-id-cards .tm-id-card__body {
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   color: var(--ink-800);
 }
 
@@ -956,7 +956,7 @@
   .tm-id-org__orb {
     inline-size: 40px;
     block-size: 40px;
-    font-size: 14px;
+    font-size: var(--t-ui-md);
   }
 
   /* The meta line already says "Client portal"; the chip would crowd the arrow out. */
@@ -1002,8 +1002,8 @@
 
 .tm-id-terms {
   margin: 0;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-650);
 }
 
@@ -1029,8 +1029,8 @@
   grid-column: 1 / -1;
   margin: 0 0 var(--s2);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
   text-transform: uppercase;
   color: var(--ink-650);
 }
@@ -1057,7 +1057,7 @@
 }
 
 .tm-id-password .tm-field__control {
-  padding-inline-end: 72px;
+  padding-inline-end: var(--s16);
 }
 
 .tm-id-password__toggle {
@@ -1072,7 +1072,7 @@
   background: transparent;
   color: var(--ink-650);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   cursor: pointer;
 }
 
@@ -1110,7 +1110,7 @@
   border: 1px solid var(--ink-650);
   border-radius: var(--r-capsule);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--t-app-overline);
   color: var(--ink-650);
 }
 
@@ -1123,15 +1123,15 @@
 
 .tm-id-inapp__line {
   margin: 0;
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-650);
   overflow-wrap: anywhere;
 }
 
 .tm-id-inapp__status {
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-800);
 }
 

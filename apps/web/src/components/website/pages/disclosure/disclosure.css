@@ -12,7 +12,7 @@
   flex-direction: column;
   gap: var(--s6);
   max-inline-size: 760px;
-  padding-block: var(--s16, 64px);
+  padding-block: var(--s16, var(--s16));
 }
 
 .tm-disc-hero {

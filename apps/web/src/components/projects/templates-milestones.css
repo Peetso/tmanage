@@ -24,8 +24,8 @@
 
 .tm-a9-dialog__title {
   margin: 0;
-  font-size: 20px;
-  line-height: 28px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   font-weight: 600;
 }
 
@@ -58,7 +58,7 @@
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: 14px var(--s4);
+  padding: var(--s3) var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-control);
   background: var(--paper-0);
@@ -127,7 +127,7 @@
 
 .tm-a9-choice__check {
   flex: none;
-  font-size: 18px;
+  font-size: var(--t-app-section);
   line-height: 1;
 }
 
@@ -150,7 +150,7 @@
   box-sizing: border-box;
   inline-size: 100%;
   min-block-size: 48px;
-  padding: 10px var(--s4);
+  padding: var(--s2) var(--s4);
   border: var(--b-quiet) solid var(--ink-650);
   border-radius: var(--r-control);
   background: var(--paper-0);
@@ -177,9 +177,9 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--s2);
   min-block-size: 58px;
-  padding: 8px var(--s3);
+  padding: var(--s2) var(--s3);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-control);
   background: var(--paper-0);
@@ -196,8 +196,8 @@
 }
 
 .tm-a9-chip__label {
-  font-size: 12px;
-  line-height: 16px;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
   color: var(--ink-500);
 }
 
@@ -209,8 +209,8 @@
 
 .tm-a9-chip__caret {
   align-self: center;
-  margin-inline-start: 4px;
-  font-size: 8px;
+  margin-inline-start: var(--s1);
+  font-size: var(--t-app-overline);
   line-height: 1;
   color: var(--ink-650);
 }
@@ -237,7 +237,7 @@
   border-radius: var(--r-capsule);
   background: var(--paper-250);
   color: var(--ink-800);
-  font-size: 13px;
+  font-size: var(--t-app-ui);
   line-height: 1;
   font-weight: 500;
 }
@@ -286,7 +286,7 @@
 
 .tm-a9-btn {
   min-block-size: 48px;
-  padding: 12px 20px;
+  padding: var(--s3) var(--s5);
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);
   font-weight: 400;
@@ -343,8 +343,8 @@
 
 .tm-a9-ms__title {
   margin: 0;
-  font-size: 20px;
-  line-height: 28px;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
   font-weight: 600;
 }
 
@@ -393,20 +393,20 @@
 .tm-a9-tag {
   display: inline-flex;
   align-items: center;
-  padding: 3px 11px;
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-quiet) solid var(--client-500);
   border-radius: var(--r-capsule);
   color: var(--client-500);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
   white-space: nowrap;
 }
 
 .tm-a9-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
+  gap: var(--s1);
+  padding: var(--s1) var(--inset-capsule);
   border: var(--b-structural) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -432,7 +432,7 @@
 
 .tm-a9-pill--inProgress .tm-a9-pill__glyph {
   color: var(--warning-600);
-  font-size: 10px;
+  font-size: var(--t-app-overline);
 }
 
 .tm-a9-pill__glyph {
@@ -440,7 +440,7 @@
 }
 
 .tm-a9-edit {
-  padding: 4px 6px;
+  padding: var(--s1) var(--s1);
   border: 0;
   background: none;
   color: var(--ink-950);

@@ -56,5 +56,5 @@
 }
 
 .tm-inv-attach .tm-choice__row {
-  min-block-size: 44px;
+  min-block-size: var(--app-row);
 }
