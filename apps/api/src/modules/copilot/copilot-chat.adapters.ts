@@ -16,6 +16,7 @@ import {
 import { createAiClient, type AiClient } from './ai-client.js';
 import { AiChatRepository } from './ai-chat.repository.js';
 import type { ChangeApprovals } from './ai-change.service.js';
+import type { AiReadiness } from './ai-settings.service.js';
 import type { AiSpendingPool } from './ai-tiers.js';
 import type {
   ChatApprovalFreezer,
@@ -77,6 +78,21 @@ export function envClients(
       );
     }
     return clients.get(pool) ?? null;
+  };
+}
+
+/**
+ * AI-TWO-WAYS: what the owner's page says about the chat's own gates once the switch is on — the
+ * `copilot` module flag first, then this workspace's pool key (the same order as the chat).
+ */
+export function aiReadiness(
+  standing: (context: TenantContext) => Promise<ChatStanding>,
+  hasKey: (pool: AiSpendingPool) => boolean = (pool) => poolKey(process.env, pool) !== '',
+): (context: TenantContext) => Promise<AiReadiness> {
+  return async (context) => {
+    const read = await standing(context);
+    if (!read.copilotFlag) return 'flag_off';
+    return hasKey(read.poolClass) ? 'ready' : 'no_key';
   };
 }
 

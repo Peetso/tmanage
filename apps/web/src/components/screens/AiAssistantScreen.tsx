@@ -43,10 +43,12 @@ export interface AiAssistantScreenProps {
  * **AI assistant — connect in three steps** (55-15p, Figma 715:39480 / 715:39892 waiting,
  * 715:39681 / 715:40093 connected, review DESIGN-REVIEW-FIGMA-A points 7–9 and 16).
  *
- * TManage runs no paid AI model of its own: the assistant a person already uses reaches the
- * workspace through the hosted MCP endpoint. The page is three cards — pick your assistant, copy
- * one line, check the connection — and, when an assistant has asked for something that changes
- * work, a fourth card says how many actions wait for approval and links to them.
+ * This page is the "your own AI" direction of plan 62 (the other, TManage AI on credits, lives in
+ * Control Center › AI): the assistant a person already uses reaches the workspace through the
+ * hosted MCP endpoint, and nothing here depends on TManage AI being available. The page is three
+ * cards — pick your assistant, copy one line, check the connection — and, when an assistant has
+ * asked for something that changes work, a fourth card says how many actions wait for approval and
+ * links to them.
  *
  * The line to copy is always this deployment's own address, `connectorAddress(deploymentAddress())`
  * read after hydration, never a typed host. "Connected" is read from the member's own connected

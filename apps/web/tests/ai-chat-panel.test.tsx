@@ -80,7 +80,7 @@ function item(overrides: Partial<CardItem>): CardItem {
   };
 }
 
-function mount(routes: Record<string, Route>) {
+function mount(routes: Record<string, Route>, role = 'member') {
   const calls: { key: string; body: unknown; headers: Headers }[] = [];
   const api = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -107,6 +107,19 @@ function mount(routes: Record<string, Route>) {
     newCorrelationId: () => 'c',
   });
   const queries = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queries.setQueryData(
+    ['shell', 'organizations'],
+    [
+      {
+        id: 'o',
+        slug: 'northstar',
+        name: 'Northstar',
+        audience: 'internal',
+        role,
+        clientOrganizationName: null,
+      },
+    ],
+  );
   const result = render(
     <QueryClientProvider client={queries}>
       <AiChatPanel organizationSlug="northstar" client={api} onClose={() => {}} />
@@ -345,5 +358,127 @@ describe('AiChatPanel', () => {
     expect(confirm?.body).toEqual({ card: 'money-card', amounts: { 0: 18400 } });
     expect(confirm?.headers.get('x-reauth-token')).toBe('proof');
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+});
+
+/** A 404 `ai_unavailable` as the API sends it (AI-TWO-WAYS). */
+const unavailable = (reason: string): Reply => ({
+  status: 404,
+  body: {
+    error: {
+      code: 'ai_unavailable',
+      message: 'TManage AI is not available in this workspace',
+      correlationId: 'c',
+      details: [{ field: 'reason', message: reason }],
+    },
+  },
+});
+
+describe('AiChatPanel: TManage AI unavailable says why (AI-TWO-WAYS)', () => {
+  it('no key, owner: names the cause, not "Something went wrong", and keeps your own AI', async () => {
+    mount({ [CHAT]: unavailable('no_key') }, 'owner');
+    ask('What is late?');
+    expect(await screen.findByText(/no AI key is set for test workspaces/)).toBeTruthy();
+    expect(screen.queryByText('Something went wrong. Nothing was charged.')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Connect your AI' }).getAttribute('href')).toBe(
+      '/northstar/settings/ai-assistant',
+    );
+  });
+
+  it('switch off, owner: says where to turn it on and links there', async () => {
+    mount({ [CHAT]: unavailable('ai_off') }, 'owner');
+    ask('What is late?');
+    expect(await screen.findByText(/TManage AI is off for this workspace/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Open AI settings' }).getAttribute('href')).toBe(
+      '/northstar/admin/ai',
+    );
+  });
+
+  it('module off, owner: links to Modules', async () => {
+    mount({ [CHAT]: unavailable('flag_off') }, 'owner');
+    ask('What is late?');
+    expect(await screen.findByText(/“AI copilot” module is off/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Open Modules' }).getAttribute('href')).toBe(
+      '/northstar/admin/feature-flags',
+    );
+  });
+
+  it('a member reads only that it is not here yet, never the cause or a fix link', async () => {
+    mount({ [CHAT]: unavailable('no_key') }, 'member');
+    ask('What is late?');
+    expect(
+      await screen.findByText(
+        'TManage AI isn’t available in this workspace yet. Nothing was charged.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/AI key/)).toBeNull();
+    expect(screen.queryByRole('link', { name: /Open/ })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Connect your AI' })).toBeTruthy();
+  });
+});
+
+describe('AiChatPanel: past conversations (Figma 789:50401)', () => {
+  it('the icon is named on focus, lists titles and dates, and reopens a conversation', async () => {
+    const id = '0b6f2a8e-0000-4000-8000-000000000009';
+    mount({
+      [`GET ${BASE}/copilot/conversations`]: {
+        status: 200,
+        body: {
+          retentionDays: 30,
+          items: [
+            {
+              id,
+              title: 'Compare the three Cedar Foods proposals',
+              createdAt: '2026-11-18T09:00:00Z',
+              lastMessageAt: '2026-11-18T09:05:00Z',
+            },
+          ],
+        },
+      },
+      [`GET ${BASE}/copilot/conversations/${id}`]: {
+        status: 200,
+        body: {
+          conversation: {
+            id,
+            title: 'Compare the three Cedar Foods proposals',
+            createdAt: '2026-11-18T09:00:00Z',
+            lastMessageAt: '2026-11-18T09:05:00Z',
+          },
+          messages: [
+            {
+              id: 'm1',
+              role: 'member',
+              body: 'Compare the three Cedar Foods proposals',
+              taskId: null,
+              createdAt: '2026-11-18T09:00:00Z',
+            },
+            {
+              id: 'm2',
+              role: 'assistant',
+              body: 'The second proposal is the cheapest.',
+              taskId: null,
+              createdAt: '2026-11-18T09:05:00Z',
+            },
+          ],
+        },
+      },
+    });
+    const button = screen.getByRole('button', { name: 'Past conversations' });
+    fireEvent.focus(button);
+    const tipId = button.getAttribute('aria-describedby')!.split(' ').at(-1)!;
+    const tip = document.getElementById(tipId)!;
+    expect([tip.getAttribute('role'), tip.textContent]).toEqual(['tooltip', 'Past conversations']);
+
+    fireEvent.click(button);
+    const row = await screen.findByRole('button', {
+      name: /^Compare the three Cedar Foods proposals/,
+    });
+    expect(row.textContent).toMatch(/Compare the three Cedar Foods proposals.+\S/);
+    expect(row.textContent!.length).toBeGreaterThan(
+      'Compare the three Cedar Foods proposals'.length,
+    );
+    fireEvent.click(row);
+    expect(await screen.findByText('The second proposal is the cheapest.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'TManage AI' })).toBeTruthy();
   });
 });

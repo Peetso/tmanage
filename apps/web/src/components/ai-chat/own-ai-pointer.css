@@ -1,0 +1,13 @@
+/* AI-TWO-WAYS: the line that keeps "your own AI" in sight where TManage AI cannot answer. */
+.tm-own-ai-pointer {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-own-ai-pointer a {
+  color: var(--ink-950);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

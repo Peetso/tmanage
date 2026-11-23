@@ -5217,6 +5217,14 @@ type _aiBlockedMember = Assert<Exact<ApiAiBlockedMemberEntry, WebAiBlockedMember
 type _aiSettings = Assert<Exact<ApiAiSettingsView, WebAiSettingsView>>;
 type _aiShareChoice = Assert<Exact<ApiAiShareChoice, WebAiShareChoice>>;
 
+// AI-TWO-WAYS: the owner's readiness line and the `ai_unavailable` reason the panel words.
+import type { AiReadiness as ApiAiReadiness } from '../../apps/api/src/modules/copilot/ai-settings.service.js';
+import type { AiReadiness as WebAiReadiness } from '../../apps/web/src/lib/api/ai-settings.js';
+import type { AiUnavailableReason as ApiAiUnavailableReason } from '../../apps/api/src/modules/copilot/copilot-chat.service.js';
+import type { AiUnavailableReason as WebAiUnavailableReason } from '../../apps/web/src/lib/api/ai-chat.js';
+type _aiReadiness = Assert<Exact<ApiAiReadiness, WebAiReadiness>>;
+type _aiUnavailableReason = Assert<Exact<ApiAiUnavailableReason, WebAiUnavailableReason>>;
+
 /**
  * SEC-TRACKER (Attack tracker, 2026-11-22): the platform security area, read by
  * `apps/web/src/lib/api/platform-security.ts`.

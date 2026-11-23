@@ -19,6 +19,7 @@ import {
   AI_SETTINGS_MEMBER_BLOCKED_AUDIT_ACTION,
   AI_SETTINGS_UPDATED_AUDIT_ACTION,
   AiSettingsService,
+  type AiSettingsDeps,
 } from './ai-settings.service.js';
 
 /**
@@ -149,7 +150,7 @@ class World {
     } as unknown as AiSettingsRepository;
   }
 
-  service(): AiSettingsService {
+  service(readiness?: AiSettingsDeps['readiness']): AiSettingsService {
     const database = {
       read: (c: TenantContext, work: (r: unknown) => Promise<unknown>) => work({}),
       transaction: async (c: TenantContext, work: (r: unknown) => Promise<unknown>) => {
@@ -189,6 +190,7 @@ class World {
       },
       people: { countInternalPeople: async () => 4 },
       now: () => NOW,
+      ...(readiness === undefined ? {} : { readiness }),
     });
   }
 }
@@ -336,6 +338,17 @@ describe('reading and changing the settings (62-17)', () => {
       '404 copilot.settings:not_on_test_list',
     );
     expect(world.audit).toEqual([]);
+  });
+
+  it('tells the owner whether TManage AI can answer once on (AI-TWO-WAYS), after every write too', async () => {
+    const world = new World();
+    expect((await world.service(async () => 'no_key').view(contextFor(ORG_A))).readiness).toBe(
+      'no_key',
+    );
+    const after = await world
+      .service(async () => 'flag_off')
+      .update(contextFor(ORG_A), { aiEnabled: true });
+    expect([after.aiEnabled, after.readiness]).toEqual([true, 'flag_off']);
   });
 
   it('shows the credits the share stands for, and each choice', async () => {

@@ -61,6 +61,12 @@ export type ApiErrorCode =
   // reason token only); a client's 21st upload of the UTC day (429).
   | 'file_not_allowed'
   | 'daily_upload_limit'
+  // ---- 62 (AI-TWO-WAYS) ---- TManage AI cannot answer in this workspace (404). One detail,
+  // `reason`, names the workspace's own state so the member's panel can say what to do:
+  // `not_on_test_list`, `flag_off`, `ai_off` or `no_key`. Only a member of the workspace on an
+  // ordinary session ever gets this far (membership is resolved first), so it reveals nothing
+  // about any other organization; no secret or setting name is ever in it.
+  | 'ai_unavailable'
   | 'internal_error';
 
 export interface ApiErrorDetail {
@@ -73,7 +79,11 @@ export interface ApiErrorBody {
     readonly code: ApiErrorCode;
     readonly message: string;
     readonly correlationId: string;
-    /** Field-level validation only. Never used to explain an authorization decision. */
+    /**
+     * Field-level validation, or the one documented reason of a code that has one
+     * (`platform_permission_missing`, `ai_unavailable`). Never used to explain an authorization
+     * decision.
+     */
     readonly details?: readonly ApiErrorDetail[];
   };
 }
@@ -132,4 +142,5 @@ export const MESSAGES = {
   conflict: 'The resource was modified concurrently. Reload and try again',
   internal: 'The request could not be completed',
   rateLimited: 'Too many requests. Wait a moment and try again',
+  aiUnavailable: 'TManage AI is not available in this workspace',
 } as const;

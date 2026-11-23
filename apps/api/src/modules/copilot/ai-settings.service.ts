@@ -70,7 +70,15 @@ export interface AiSettingsView {
   };
   readonly providers: readonly AiProvider[];
   readonly updatedAt: string | null;
+  /**
+   * AI-TWO-WAYS: whether TManage AI can answer once it is on — `ready`, `flag_off` (the
+   * workspace's "AI copilot" module is off) or `no_key` (TManage has no AI key for this
+   * workspace's group yet). The owner sees it here before a member asks.
+   */
+  readonly readiness: AiReadiness;
 }
+
+export type AiReadiness = 'ready' | 'flag_off' | 'no_key';
 
 export interface AiSettingsDeps {
   readonly database: Pick<TenantDatabase, 'read' | 'transaction'>;
@@ -78,6 +86,8 @@ export interface AiSettingsDeps {
   readonly allowance: Pick<AiAllowanceService, 'resolveWith'>;
   readonly repository?: AiSettingsRepository;
   readonly people?: Pick<SubscriptionRepository, 'countInternalPeople'>;
+  /** AI-TWO-WAYS: the chat's own gates, read for the owner (unwired: `ready`, unit tests only). */
+  readonly readiness?: (context: TenantContext) => Promise<AiReadiness>;
   /** Whether search by meaning (Voyage embeddings) is wired; none is today. */
   readonly searchByMeaning?: () => boolean;
   readonly now?: () => Date;
@@ -112,11 +122,14 @@ export class AiSettingsService {
 
   async view(context: TenantContext): Promise<AiSettingsView> {
     requireMemberSession(context);
-    return this.deps.database.read(context, async (runner) => {
+    const view = await this.deps.database.read(context, async (runner) => {
       const row = await this.repository.read(runner, context);
       if (row === null || !row.onTestList) throw notFound('copilot.settings:not_on_test_list');
       return this.viewOf(runner, context, row);
     });
+    const readiness =
+      this.deps.readiness === undefined ? 'ready' : await this.deps.readiness(context);
+    return { ...view, readiness };
   }
 
   async update(context: TenantContext, patch: AiSettingsPatch): Promise<AiSettingsView> {
@@ -181,7 +194,7 @@ export class AiSettingsService {
     runner: TenantQueryRunner,
     context: TenantContext,
     row: AiOwnerSettingsRow,
-  ): Promise<AiSettingsView> {
+  ): Promise<Omit<AiSettingsView, 'readiness'>> {
     const blocked = await this.repository.blockedMembers(runner, context);
     const resolved = await this.deps.allowance.resolveWith(runner, context);
     const workspaceCredits = spendableCreditsOf(resolved);

@@ -82,6 +82,8 @@ function setup(
   script: Array<AiCallResult | Error>,
   options: {
     standing?: Partial<ChatStanding>;
+    /** The pool has no provider key (`clientFor` answers null). */
+    noKey?: boolean;
     refuseReserveAt?: { call: number; reason: AiBudgetRefusal };
     refuseOpen?: AiBudgetRefusal;
     conversations?: ChatConversations;
@@ -187,7 +189,7 @@ function setup(
     }),
     allowance: async () => ({ workspaceCredits: 1000, memberCredits: 1000 }),
     budget: budget as never,
-    clientFor: () => client,
+    clientFor: () => (options.noKey === true ? null : client),
     surface: (input) => {
       surfaces.push(input);
       return {
@@ -237,6 +239,29 @@ describe('gates before any spend', () => {
     // 62-17: the owner switched TManage AI off = absent (404 ai_off).
     const off = setup([], { standing: { aiEnabled: false } });
     expect(await status(off.turn('my tasks'))).toBe('404 copilot.chat:ai_off');
+    // AI-TWO-WAYS: each absent reason reaches the caller as `ai_unavailable` + its one reason.
+    const cases: readonly [Parameters<typeof setup>[1], string][] = [
+      [{ standing: { onTestList: false } }, 'not_on_test_list'],
+      [{ standing: { copilotFlag: false } }, 'flag_off'],
+      [{ standing: { aiEnabled: false } }, 'ai_off'],
+      [{ noKey: true }, 'no_key'],
+    ];
+    for (const [options, reason] of cases) {
+      const env = setup([], options);
+      const error = await env.turn('my tasks').then(
+        () => null,
+        (thrown: unknown) => thrown,
+      );
+      expect(error).toBeInstanceOf(ApiError);
+      const refused = error as ApiError;
+      expect([refused.status, refused.code, refused.auditCode]).toEqual([
+        404,
+        'ai_unavailable',
+        `copilot.chat:${reason}`,
+      ]);
+      expect(refused.details).toEqual([{ field: 'reason', message: reason }]);
+      expect(env.opened).toEqual([]);
+    }
     // 62-17: a member on the owner's block list = 403, nothing opened.
     const blocked = setup([], { standing: { memberBlocked: true } });
     expect(await status(blocked.turn('my tasks'))).toBe('403 copilot.chat:member_blocked');

@@ -36,7 +36,15 @@ export interface AiSettingsView {
   };
   readonly providers: readonly AiProvider[];
   readonly updatedAt: string | null;
+  /**
+   * AI-TWO-WAYS: can TManage AI answer once on? `flag_off` = the workspace's "AI copilot" module is
+   * off (Control Center › Modules); `no_key` = TManage has no AI key for this workspace's
+   * group yet (nothing for the owner to do).
+   */
+  readonly readiness: AiReadiness;
 }
+
+export type AiReadiness = 'ready' | 'flag_off' | 'no_key';
 
 /** The PATCH body: every field optional; the ids are this workspace's memberships (max 50 each). */
 export interface AiSettingsPatch {

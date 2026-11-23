@@ -42,6 +42,7 @@ import {
   CopilotChatController,
 } from './copilot-chat.controller.js';
 import {
+  aiReadiness,
   cardKeyFrom,
   databaseStanding,
   envClients,
@@ -198,7 +199,14 @@ export class CopilotModule {
             database: TenantDatabase,
             wired: { allowance: AiAllowanceService },
             audit: AuditService,
-          ) => new AiSettingsService({ database, audit, allowance: wired.allowance }),
+          ) =>
+            new AiSettingsService({
+              database,
+              audit,
+              allowance: wired.allowance,
+              // AI-TWO-WAYS: the owner sees the chat's own gates (module flag, pool key).
+              readiness: aiReadiness(databaseStanding(database)),
+            }),
         },
         {
           provide: AI_CONVERSATIONS_SERVICE,

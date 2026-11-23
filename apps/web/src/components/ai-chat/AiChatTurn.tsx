@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
-import type { ChatConfirmedRoute, CopilotChatView } from '../../lib/api/ai-chat';
+import type {
+  AiUnavailableReason,
+  ChatConfirmedRoute,
+  CopilotChatView,
+} from '../../lib/api/ai-chat';
 import type { AiCreditsView } from '../../lib/api/ai-credits';
 import { AiChangeCard } from './AiChangeCard';
 import { ReadAloudIcon, ReadingBar, spokenText } from './AiVoice';
@@ -16,7 +20,9 @@ import {
   type CardPhase,
   type ChatEntry,
 } from './ai-chat-model';
+import { useOrganizationRole } from '../../lib/use-organization-names';
 import { FileIcon, LayersIcon } from './icons';
+import { OwnAiPointer } from './OwnAiPointer';
 import { useAiText, type AiTextKey } from './use-ai-text';
 
 const TIER_KEY: Readonly<Record<string, AiTextKey>> = {
@@ -83,6 +89,16 @@ export function AiChatTurn({
         </p>
       );
     case 'failed':
+      if (typeof entry.reason === 'object') {
+        return (
+          <Unavailable
+            reason={entry.reason.unavailable}
+            organizationSlug={actions.organizationSlug}
+            busy={actions.busy}
+            onRetry={() => actions.onRetry(entry.id)}
+          />
+        );
+      }
       return (
         <div className="tm-aic-stop">
           <InlineAlert tone="danger" live>
@@ -104,6 +120,73 @@ export function AiChatTurn({
     case 'reply':
       return <Reply entry={entry} actions={actions} />;
   }
+}
+
+/** The owner's line and where to fix it, per reason; `fix: null` = nothing for the owner to do. */
+const OWNER_UNAVAILABLE: Readonly<
+  Record<
+    AiUnavailableReason,
+    { readonly message: AiTextKey; readonly fix: { path: string; label: AiTextKey } | null }
+  >
+> = {
+  not_on_test_list: { message: 'AiChat.unavailable.ownerNotListed', fix: null },
+  flag_off: {
+    message: 'AiChat.unavailable.ownerFlagOff',
+    fix: { path: 'admin/feature-flags', label: 'AiChat.unavailable.openFlags' },
+  },
+  ai_off: {
+    message: 'AiChat.unavailable.ownerAiOff',
+    fix: { path: 'admin/ai', label: 'AiChat.unavailable.openSettings' },
+  },
+  no_key: { message: 'AiChat.unavailable.ownerNoKey', fix: null },
+};
+
+/**
+ * AI-TWO-WAYS: TManage AI cannot answer here (404 `ai_unavailable`). The owner reads the cause and
+ * where to switch it on; a member reads that it is not here yet. Both keep Try again and the other
+ * direction, their own AI. The role only picks the wording; the API decides everything.
+ */
+function Unavailable({
+  reason,
+  organizationSlug,
+  busy,
+  onRetry,
+}: {
+  readonly reason: AiUnavailableReason;
+  readonly organizationSlug: string;
+  readonly busy: boolean;
+  readonly onRetry: () => void;
+}) {
+  const { t } = useAiText();
+  const owner = useOrganizationRole(organizationSlug).role === 'owner';
+  const said = owner ? OWNER_UNAVAILABLE[reason] : null;
+  return (
+    <div className="tm-aic-stop">
+      <InlineAlert tone="neutral" live>
+        {t(said?.message ?? 'AiChat.unavailable.member')}
+      </InlineAlert>
+      <div className="tm-aic-actions">
+        {said?.fix ? (
+          <Link
+            href={`/${encodeURIComponent(organizationSlug)}/${said.fix.path}`}
+            className="tm-button tm-button--outline tm-button--compact tm-aic-touch"
+          >
+            {t(said.fix.label)}
+          </Link>
+        ) : null}
+        <Button
+          tone="outline"
+          size="compact"
+          className="tm-aic-touch"
+          disabled={busy}
+          onClick={onRetry}
+        >
+          {t('AiChat.tryAgain')}
+        </Button>
+      </div>
+      <OwnAiPointer organizationSlug={organizationSlug} />
+    </div>
+  );
 }
 
 function MemberBubble({ text }: { readonly text: string }) {

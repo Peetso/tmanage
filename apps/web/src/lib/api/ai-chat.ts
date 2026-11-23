@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import { ApiRequestError } from './errors';
 import { REAUTH_HEADER } from './passkeys';
 
 /**
@@ -36,6 +37,8 @@ export type ChatStop =
   | 'provider_error'
   | 'model_refused'
   | 'not_understood'
+  | 'answer_cut_off'
+  | 'no_answer'
   | 'rate_limited'
   | 'scan_unavailable'
   | 'task_not_found'
@@ -258,4 +261,24 @@ export async function deleteAiConversation(
     method: 'DELETE',
     path: `${base(organizationSlug)}/conversations/${encodeURIComponent(conversationId)}`,
   });
+}
+
+/** Why TManage AI cannot answer in this workspace (the API's `ai_unavailable` reason). */
+export type AiUnavailableReason = 'not_on_test_list' | 'flag_off' | 'ai_off' | 'no_key';
+
+const AI_UNAVAILABLE_REASONS: readonly AiUnavailableReason[] = [
+  'not_on_test_list',
+  'flag_off',
+  'ai_off',
+  'no_key',
+];
+
+/**
+ * AI-TWO-WAYS: the reason of a 404 `ai_unavailable`, or `null` for any other failure. An unknown
+ * reason from a newer API reads as `not_on_test_list` (the plain "not available yet").
+ */
+export function aiUnavailableReason(error: unknown): AiUnavailableReason | null {
+  if (!(error instanceof ApiRequestError) || error.code !== 'ai_unavailable') return null;
+  const reason = error.fieldErrors().get('reason');
+  return AI_UNAVAILABLE_REASONS.find((known) => known === reason) ?? 'not_on_test_list';
 }

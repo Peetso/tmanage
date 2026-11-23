@@ -568,11 +568,28 @@ function parseFileQuestion(raw: unknown): ChatFileQuestion | null | undefined {
 const notFound = (auditCode: string) =>
   new ApiError(404, 'not_found', MESSAGES.notFound, undefined, auditCode);
 
+/** Why TManage AI cannot answer in this workspace (the one detail of `ai_unavailable`). */
+export type AiUnavailableReason = 'not_on_test_list' | 'flag_off' | 'ai_off' | 'no_key';
+
+/**
+ * 404 `ai_unavailable` with the workspace's own reason, so the panel can tell the owner what to
+ * switch on and a member that it is not there yet (AI-TWO-WAYS). Still a 404: to the caller the
+ * feature is absent; the audit code keeps the same `copilot.chat:<reason>` as before.
+ */
+export const aiUnavailable = (reason: AiUnavailableReason) =>
+  new ApiError(
+    404,
+    'ai_unavailable',
+    MESSAGES.aiUnavailable,
+    [{ field: 'reason', message: reason }],
+    `copilot.chat:${reason}`,
+  );
+
 /**
  * The gates every AI route shares (chat, confirm, undo): an internal member on an ordinary
  * session (403 otherwise), the workspace on the test list, the `copilot` flag on and the owner's
- * switch on (404: the feature is absent), and the member not on the owner's block list (403,
- * 62-17). Returns the standing it read.
+ * switch on (404 `ai_unavailable` with the reason: the feature is absent), and the member not on
+ * the owner's block list (403, 62-17). Returns the standing it read.
  */
 export async function openStanding(
   context: TenantContext,
@@ -582,9 +599,9 @@ export async function openStanding(
     throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'copilot.chat:caller');
   }
   const read = await standing(context);
-  if (!read.onTestList) throw notFound('copilot.chat:not_on_test_list');
-  if (!read.copilotFlag) throw notFound('copilot.chat:flag_off');
-  if (!read.aiEnabled) throw notFound('copilot.chat:ai_off');
+  if (!read.onTestList) throw aiUnavailable('not_on_test_list');
+  if (!read.copilotFlag) throw aiUnavailable('flag_off');
+  if (!read.aiEnabled) throw aiUnavailable('ai_off');
   if (read.memberBlocked) {
     throw new ApiError(
       403,
@@ -724,7 +741,7 @@ export class CopilotChatService {
       );
     }
     const client = this.deps.clientFor(standing.poolClass);
-    if (client === null) throw notFound('copilot.chat:no_key');
+    if (client === null) throw aiUnavailable('no_key');
     // 62-13: a conversation the turn continues must be the member's own (404 otherwise).
     const conversationId = input.conversationId ?? null;
     let history: readonly ChatHistoryMessage[] = [];

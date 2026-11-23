@@ -1,6 +1,7 @@
 import type {
   AiConfirmView,
   AiUndoView,
+  AiUnavailableReason,
   ChatTurnRequest,
   CopilotChatView,
 } from '../../lib/api/ai-chat';
@@ -10,6 +11,9 @@ import type {
  * changes it. Pure — no fetch, no clock, no DOM — so every state of Figma section 764:43270 is a
  * reducer case the unit tests drive directly.
  */
+
+/** Why a turn failed: offline, a plain failure, or an `ai_unavailable` reason (AI-TWO-WAYS). */
+export type ChatFailReason = 'offline' | 'error' | { readonly unavailable: AiUnavailableReason };
 
 /** Where a preview card (Figma G5 / G6 v2) stands after the member acted on it. */
 export type CardPhase =
@@ -48,8 +52,11 @@ export type ChatEntry =
       readonly kind: 'failed';
       readonly id: string;
       readonly request: ChatTurnRequest;
-      /** `offline` = no answer at all (unknown state, HT-2), `error` = the API refused or failed. */
-      readonly reason: 'offline' | 'error';
+      /**
+       * `offline` = no answer at all (unknown state, HT-2), `error` = the API refused or failed,
+       * `unavailable` = TManage AI cannot answer in this workspace, with the API's reason.
+       */
+      readonly reason: ChatFailReason;
     }
   /** A past conversation's message, read back from the history (text only). */
   | {
@@ -75,7 +82,7 @@ export type ChatEvent =
       readonly echo: string | null;
     }
   | { readonly type: 'answered'; readonly id: string; readonly view: CopilotChatView }
-  | { readonly type: 'failed'; readonly id: string; readonly reason: 'offline' | 'error' }
+  | { readonly type: 'failed'; readonly id: string; readonly reason: ChatFailReason }
   | { readonly type: 'estimate-settled'; readonly id: string }
   | { readonly type: 'card'; readonly id: string; readonly phase: CardPhase }
   | { readonly type: 'at-once'; readonly id: string; readonly phase: AtOncePhase }

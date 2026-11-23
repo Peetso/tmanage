@@ -24,6 +24,8 @@ export type ApiErrorCode =
   | 'conflict'
   | 'validation_failed'
   | 'rate_limited'
+  // AI-TWO-WAYS: TManage AI cannot answer in this workspace (404); one `reason` detail.
+  | 'ai_unavailable'
   | 'internal_error';
 
 export interface ApiErrorDetail {
@@ -50,6 +52,7 @@ const API_ERROR_CODES: readonly ApiErrorCode[] = [
   'conflict',
   'validation_failed',
   'rate_limited',
+  'ai_unavailable',
   'internal_error',
 ];
 

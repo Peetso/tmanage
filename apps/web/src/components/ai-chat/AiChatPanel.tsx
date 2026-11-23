@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, InlineAlert } from '@tmanage/ui';
+import { Badge, Button, InlineAlert, MOTION_DELAY_TOOLTIP_MS, Tooltip } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { NetworkError } from '../../lib/api/errors';
 import {
+  aiUnavailableReason,
   deleteAiConversation,
   getAiConversation,
   listAiConversations,
@@ -25,6 +26,7 @@ import { AiChatTurn, type TurnActions } from './AiChatTurn';
 import { AnswerReaderProvider, useAnswerReader } from './AiVoice';
 import { chatReducer, EMPTY_CHAT, type ChatEntry } from './ai-chat-model';
 import { BackIcon, CloseIcon, CommentIcon, PlusIcon } from './icons';
+import { OwnAiPointer } from './OwnAiPointer';
 import { useAiText, type AiTextKey } from './use-ai-text';
 import './ai-chat.css';
 
@@ -114,10 +116,16 @@ export function AiChatPanel({
         dispatch({ type: 'answered', id, view });
         void queries.invalidateQueries({ queryKey: AI_CREDITS_KEY(organizationSlug) });
       } catch (error) {
+        const unavailable = aiUnavailableReason(error);
         dispatch({
           type: 'failed',
           id,
-          reason: error instanceof NetworkError ? 'offline' : 'error',
+          reason:
+            unavailable !== null
+              ? { unavailable }
+              : error instanceof NetworkError
+                ? 'offline'
+                : 'error',
         });
       }
     },
@@ -305,23 +313,36 @@ export function AiChatPanel({
             {mode === 'chat' ? <Badge>{t('AiChat.testing')}</Badge> : null}
             <span className="tm-aic__spacer" />
             {mode === 'chat' ? (
+              // Figma 789:50401: the icon stays; its name shows on a delayed hover and on focus.
+              <Tooltip
+                content={t('AiChat.history')}
+                delayMs={MOTION_DELAY_TOOLTIP_MS}
+                placement="bottom"
+              >
+                <button
+                  type="button"
+                  className="tm-aic__icon"
+                  aria-label={t('AiChat.history')}
+                  onClick={() => setMode('history')}
+                >
+                  <CommentIcon />
+                </button>
+              </Tooltip>
+            ) : null}
+            <Tooltip
+              content={t('AiChat.newChat')}
+              delayMs={MOTION_DELAY_TOOLTIP_MS}
+              placement="bottom"
+            >
               <button
                 type="button"
                 className="tm-aic__icon"
-                aria-label={t('AiChat.history')}
-                onClick={() => setMode('history')}
+                aria-label={t('AiChat.newChat')}
+                onClick={newChat}
               >
-                <CommentIcon />
+                <PlusIcon />
               </button>
-            ) : null}
-            <button
-              type="button"
-              className="tm-aic__icon"
-              aria-label={t('AiChat.newChat')}
-              onClick={newChat}
-            >
-              <PlusIcon />
-            </button>
+            </Tooltip>
             {onClose ? (
               <button
                 type="button"
@@ -376,6 +397,7 @@ export function AiChatPanel({
           <div className="tm-aic__body">
             {state.entries.length === 0 ? (
               <EmptyState
+                organizationSlug={organizationSlug}
                 onExample={(key) => ask(t(key), false)}
                 onHelp={() => {
                   setHelpMode(true);
@@ -520,9 +542,11 @@ function VoiceHint({
 }
 
 function EmptyState({
+  organizationSlug,
   onExample,
   onHelp,
 }: {
+  readonly organizationSlug: string;
   readonly onExample: (key: AiTextKey) => void;
   readonly onHelp: () => void;
 }) {
@@ -554,6 +578,9 @@ function EmptyState({
           {t('AiChat.askHow')}
         </Button>
       </div>
+      {/* AI-TWO-WAYS: with TManage AI open, the top-bar button no longer offers the member's own
+          AI, so the other direction is named here. */}
+      <OwnAiPointer organizationSlug={organizationSlug} />
     </div>
   );
 }

@@ -42,7 +42,38 @@ const VIEW: AiSettingsView = {
   },
   providers: ['anthropic'],
   updatedAt: '2026-11-20T09:00:00Z',
+  readiness: 'ready',
 };
+
+const GRANTS = `${ORG}/oauth/grants`;
+const MY_CLAUDE = {
+  status: 200,
+  body: {
+    owner: true,
+    viewerName: 'Lina',
+    aiAccessEnabled: true,
+    apps: [
+      {
+        id: 'g1',
+        clientName: 'Claude Desktop',
+        verified: true,
+        scopes: [],
+        memberName: 'Lina',
+        mine: true,
+        connectedAt: '2026-11-20T09:00:00Z',
+        lastUsedAt: null,
+      },
+    ],
+  },
+};
+
+/** Both direction cards, by their headings (AI-TWO-WAYS). */
+async function bothCards() {
+  await waitFor(() => expect(screen.queryByText('Loading the AI settings…')).toBeNull());
+  const company = await screen.findByRole('region', { name: 'TManage AI for your company' });
+  const own = screen.getByRole('region', { name: 'Your own AI' });
+  return { company, own };
+}
 
 type Reply = { status: number; body: unknown };
 
@@ -200,5 +231,71 @@ describe('AiSettingsScreen (62-17)', () => {
     expect(
       await screen.findByText(/TManage AI is not available for your company yet/),
     ).toBeTruthy();
+  });
+});
+
+describe('AiSettingsScreen: both directions in every state (AI-TWO-WAYS)', () => {
+  it('loaded: the company switch beside your own AI, connected (770:44997)', async () => {
+    mount({ [`GET ${SETTINGS}`]: { status: 200, body: VIEW }, [`GET ${GRANTS}`]: MY_CLAUDE });
+    const { company, own } = await bothCards();
+    expect((within(company).getByRole('switch') as HTMLInputElement).checked).toBe(true);
+    expect(await within(own).findByText('Claude Desktop, through MCP')).toBeTruthy();
+    expect(within(own).getByRole('link', { name: 'Manage' }).getAttribute('href')).toBe(
+      '/northstar/settings/connected-apps',
+    );
+  });
+
+  it('404 (not on the test list): the company card stays, switch off and disabled, with why', async () => {
+    mount({ [`GET ${GRANTS}`]: MY_CLAUDE });
+    const { company, own } = await bothCards();
+    const toggle = (await within(company).findByRole('switch')) as HTMLInputElement;
+    expect([toggle.checked, toggle.disabled]).toEqual([false, true]);
+    expect(within(company).getByText(/not available for your company yet/)).toBeTruthy();
+    expect(await within(own).findByText('Claude Desktop, through MCP')).toBeTruthy();
+  });
+
+  it('403 (not the owner): read only, says who can change it; own AI still offered', async () => {
+    mount({
+      [`GET ${SETTINGS}`]: { status: 403, body: { error: { code: 'forbidden', message: 'x' } } },
+    });
+    const { company, own } = await bothCards();
+    expect(
+      await within(company).findByText(/Only the company owner can change the TManage AI/),
+    ).toBeTruthy();
+    expect(within(company).queryByRole('switch')).toBeNull();
+    expect(await within(own).findByText('No AI app of yours is connected.')).toBeTruthy();
+    expect(within(own).getByRole('link', { name: 'Connect' })).toBeTruthy();
+  });
+
+  it('could not load: the error and Try again sit in the company card; the read is retried', async () => {
+    let reads = 0;
+    mount({
+      [`GET ${SETTINGS}`]: () => {
+        reads += 1;
+        return reads === 1
+          ? { status: 500, body: { error: { code: 'internal_error', message: 'x' } } }
+          : { status: 200, body: VIEW };
+      },
+      [`GET ${GRANTS}`]: MY_CLAUDE,
+    });
+    const { company, own } = await bothCards();
+    expect(await within(company).findByText('The AI settings could not be loaded')).toBeTruthy();
+    expect(await within(own).findByText('Claude Desktop, through MCP')).toBeTruthy();
+    fireEvent.click(within(company).getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('button', { name: 'Save changes' })).toBeTruthy();
+    expect(reads).toBe(2);
+  });
+
+  it('on, but no AI key yet / the module off: the owner reads it in the card before anyone asks', async () => {
+    mount({ [`GET ${SETTINGS}`]: { status: 200, body: { ...VIEW, readiness: 'no_key' } } });
+    const { company } = await bothCards();
+    expect(await within(company).findByText(/no AI key is set for test workspaces/)).toBeTruthy();
+  });
+
+  it('the module off links to Modules', async () => {
+    mount({ [`GET ${SETTINGS}`]: { status: 200, body: { ...VIEW, readiness: 'flag_off' } } });
+    const { company } = await bothCards();
+    const link = await within(company).findByRole('link', { name: 'Turn it on in Modules' });
+    expect(link.getAttribute('href')).toBe('/northstar/admin/feature-flags');
   });
 });

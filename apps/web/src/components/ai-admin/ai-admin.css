@@ -463,3 +463,10 @@
     min-block-size: 44px;
   }
 }
+
+/* AI-TWO-WAYS: the company card while the settings load. */
+.tm-ais-set__loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}

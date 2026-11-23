@@ -23,6 +23,7 @@ import {
   AI_SETTINGS_KEY,
   fetchAiSettings,
   updateAiSettings,
+  type AiReadiness,
   type AiSettingsView,
 } from '../../lib/api/ai-settings';
 import { getConnectedApps } from '../../lib/api/connected-apps';
@@ -52,6 +53,11 @@ import './ai-admin.css';
  * 787:50065, off 787:50837, loading 787:51782, could not load 787:52370, turn-off confirm
  * 787:53287). The company switch works at once (turning it off asks first); the rest is one form
  * the owner saves. The API is owner only and decides every rule again (IP-2, AR-9).
+ *
+ * AI-TWO-WAYS (plan 62 §Decision, Peter 2026-11-23): the two directions are always two cards side
+ * by side. "Your own AI" (MCP) never depends on the settings read; "TManage AI for your company"
+ * is drawn in every state of it — loaded, not on the test list (404), not the owner (403), loading
+ * and could not load — never a lone line in place of both.
  */
 export function AiSettingsScreen({
   organizationSlug,
@@ -82,26 +88,53 @@ export function AiSettingsScreen({
       client={api}
     >
       <AiAdminTabs organizationSlug={organizationSlug} current="settings" />
-      {settings.isPending ? (
-        <div className="tm-ais-set" aria-busy="true">
-          <p className="tm-visually-hidden" role="status">
-            {t('AiSettings.loading')}
-          </p>
-          <Skeleton height="var(--s24)" />
-          <Skeleton height="var(--s24)" />
-        </div>
-      ) : null}
-      {settings.isError ? (
-        <LoadProblem error={settings.error} onRetry={() => void settings.refetch()} />
-      ) : null}
       {settings.isSuccess ? (
         <SettingsBody api={api} organizationSlug={organizationSlug} view={settings.data} />
-      ) : null}
+      ) : (
+        // AI-TWO-WAYS: whatever the TManage AI read answers, both directions stay on the page.
+        <div className="tm-ais-set">
+          <div className="tm-ais-set__cards">
+            <CompanyCard>
+              {settings.isPending ? (
+                <div className="tm-ais-set__loading" aria-busy="true">
+                  <p className="tm-visually-hidden" role="status">
+                    {t('AiSettings.loading')}
+                  </p>
+                  <Skeleton height="var(--s6)" />
+                  <Skeleton height="var(--s4)" />
+                </div>
+              ) : (
+                <CompanyProblem error={settings.error} onRetry={() => void settings.refetch()} />
+              )}
+            </CompanyCard>
+            <OwnAiCard api={api} organizationSlug={organizationSlug} />
+          </div>
+        </div>
+      )}
     </ControlCenterShell>
   );
 }
 
-function LoadProblem({
+/** "TManage AI for your company": the same card in every state of the settings read. */
+function CompanyCard({ children }: { readonly children: ReactNode }) {
+  const { t } = useAiText();
+  return (
+    <section className="tm-ais-set__card" aria-labelledby="ai-set-company">
+      <h2 id="ai-set-company" className="tm-ais-set__title">
+        {t('AiSettings.company.title')}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * The company card when the settings read failed (Figma G1 off 770:46185 / 787:50837, error
+ * 770:47104 / 787:52370): 404 = not on the test list (the switch, off and disabled, with why);
+ * 403 = not the owner (read only, with who can change it); anything else = could not load, with
+ * Try again. The own-AI card beside it never depends on this read.
+ */
+function CompanyProblem({
   error,
   onRetry,
 }: {
@@ -110,17 +143,58 @@ function LoadProblem({
 }) {
   const { t } = useAiText();
   if (error instanceof ApiRequestError && error.status === 404) {
-    return <InlineAlert tone="neutral">{t('AiSettings.notAvailable')}</InlineAlert>;
+    return (
+      <Switch
+        label={t('AiSettings.company.off')}
+        hint={t('AiSettings.notAvailable')}
+        checked={false}
+        disabled
+        readOnly
+      />
+    );
   }
   if (error instanceof ApiRequestError && error.status === 403) {
-    return <InlineAlert tone="neutral">{t('AiSettings.ownerOnly')}</InlineAlert>;
+    return <p className="tm-ais-set__text">{t('AiSettings.ownerOnly')}</p>;
   }
   return (
-    <InlineAlert tone="danger" title={t('AiSettings.loadError')} live>
-      {error instanceof NetworkError ? t('AiSettings.offline') : t('AiSettings.loadErrorBody')}{' '}
-      <Button type="button" tone="text" size="compact" onClick={onRetry}>
-        {t('AiSettings.retry')}
-      </Button>
+    <>
+      <InlineAlert tone="danger" title={t('AiSettings.loadError')} live>
+        {error instanceof NetworkError ? t('AiSettings.offline') : t('AiSettings.loadErrorBody')}
+      </InlineAlert>
+      <div className="tm-ais-set__actions">
+        <Button type="button" tone="outline" size="compact" onClick={onRetry}>
+          {t('AiSettings.retry')}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * AI-TWO-WAYS: on, but the chat's own gates would still refuse (the "AI copilot" module off, or
+ * no AI key for this workspace's group yet) — said in the card before a member asks.
+ */
+function ReadinessNotice({
+  organizationSlug,
+  readiness,
+}: {
+  readonly organizationSlug: string;
+  readonly readiness: AiReadiness;
+}) {
+  const { t } = useAiText();
+  if (readiness === 'ready') return null;
+  return (
+    <InlineAlert tone="neutral">
+      {readiness === 'flag_off' ? (
+        <>
+          {t('AiSettings.readiness.flagOff')}{' '}
+          <Link href={`/${encodeURIComponent(organizationSlug)}/admin/feature-flags`}>
+            {t('AiSettings.readiness.openFlags')}
+          </Link>
+        </>
+      ) : (
+        t('AiSettings.readiness.noKey')
+      )}
     </InlineAlert>
   );
 }
@@ -156,10 +230,7 @@ function SettingsBody({
         </InlineAlert>
       ) : null}
       <div className="tm-ais-set__cards">
-        <section className="tm-ais-set__card" aria-labelledby="ai-set-company">
-          <h2 id="ai-set-company" className="tm-ais-set__title">
-            {t('AiSettings.company.title')}
-          </h2>
+        <CompanyCard>
           <div ref={switchRef}>
             <Switch
               label={t(view.aiEnabled ? 'AiSettings.company.on' : 'AiSettings.company.off')}
@@ -177,7 +248,8 @@ function SettingsBody({
               {t('AiSettings.saveError')}
             </InlineAlert>
           ) : null}
-        </section>
+          <ReadinessNotice organizationSlug={organizationSlug} readiness={view.readiness} />
+        </CompanyCard>
         <OwnAiCard api={api} organizationSlug={organizationSlug} />
       </div>
       <p className="tm-aia-muted">

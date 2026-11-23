@@ -10,6 +10,7 @@ import { ApiRequestError } from '../../lib/api/errors';
 import { creditsTone, fetchAiCredits, requestAiPack } from '../../lib/api/ai-credits';
 import type { AiCreditsView } from '../../lib/api/ai-credits';
 import { AI_CREDITS_KEY } from '../ai-chat/AiChatPanel';
+import { OwnAiPointer } from '../ai-chat/OwnAiPointer';
 import '../ai-chat/ai-chat.css';
 import { useAiText } from '../ai-chat/use-ai-text';
 import './ai-admin.css';
@@ -67,10 +68,14 @@ export function AiCreditsBlock({ organizationSlug, client, placement }: AiCredit
     const status = credits.error instanceof ApiRequestError ? credits.error.status : 0;
     if (placement === 'plan') return null;
     if (status === 404 || status === 403) {
+      // AI-TWO-WAYS: TManage AI absent here never hides the member's own AI.
       return (
-        <InlineAlert tone="neutral">
-          {t(status === 404 ? 'AiUsage.notOn' : 'AiUsage.noAccess')}
-        </InlineAlert>
+        <div className="tm-aia-state">
+          <InlineAlert tone="neutral">
+            {t(status === 404 ? 'AiUsage.notOn' : 'AiUsage.noAccess')}
+          </InlineAlert>
+          {status === 404 ? <OwnAiPointer organizationSlug={organizationSlug} /> : null}
+        </div>
       );
     }
     return (

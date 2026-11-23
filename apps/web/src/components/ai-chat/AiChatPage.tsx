@@ -9,13 +9,15 @@ import { ApiRequestError } from '../../lib/api/errors';
 import { listAiConversations } from '../../lib/api/ai-chat';
 import { CopilotAnswerView } from '../screens/CopilotAnswerView';
 import { AiChatPanel, AI_CONVERSATIONS_KEY } from './AiChatPanel';
+import { OwnAiPointer } from './OwnAiPointer';
 import { useAiText } from './use-ai-text';
 
 /**
  * `/[orgSlug]/copilot` (plan 62-15): TManage AI as a page (the phone layout, Figma 765:43701)
  * where the workspace has it; anywhere else the earlier copilot answer view is unchanged. The
  * read that decides is the member's own conversation list: 404 = no TManage AI here. Any other
- * failure is the unknown state with a retry, never "absent" (AR-10, DC-1).
+ * failure is the unknown state with a retry, never "absent" (AR-10, DC-1), and keeps the member's
+ * own AI in sight (AI-TWO-WAYS).
  */
 export function AiChatPage({
   organizationSlug,
@@ -65,6 +67,7 @@ export function AiChatPage({
         <Button tone="outline" size="compact" onClick={() => void probe.refetch()}>
           {t('AiChat.tryAgain')}
         </Button>
+        <OwnAiPointer organizationSlug={organizationSlug} />
       </div>
     );
   }
