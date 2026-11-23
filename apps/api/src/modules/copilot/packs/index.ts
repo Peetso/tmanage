@@ -28,7 +28,6 @@ export const PACK_OPS: Readonly<Partial<Record<AiDomain, readonly string[]>>> = 
     'home.my_day.list',
     'work_items.list',
     'work_items.get',
-    'work_items.subtasks.list',
     'work_items.checklist.list',
     'work_items.comments.list',
     'work_items.blockers.list',
