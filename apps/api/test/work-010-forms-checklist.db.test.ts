@@ -305,6 +305,17 @@ describe('work item comments', () => {
       comments.findComment(tx, northstar, world.twin.workItemId, twinComment.id),
     );
     expect(asNorthstar).toBeNull();
+
+    // W-WEB-1 leftover: the author is named through this tenant's memberships only; the twin's
+    // membership does not resolve for Northstar.
+    const authors = await tenant.read(northstar, (tx) =>
+      comments.authors(tx, northstar, [
+        world.northstar.owner.membershipId,
+        world.twin.owner.membershipId,
+      ]),
+    );
+    expect(authors.map((row) => row.membershipId)).toEqual([world.northstar.owner.membershipId]);
+    expect(authors[0]?.displayName).toBeTruthy();
   });
 
   it('cannot comment on a work item in another org (composite foreign key)', async () => {

@@ -103,7 +103,7 @@ import { WorkDecision } from '../work/detail/WorkDecision';
 import { WorkPropertiesPanel } from '../work/detail/WorkPropertiesPanel';
 import { WorkSteps } from '../work/detail/WorkSteps';
 import { WorkTitle } from '../work/detail/WorkTitle';
-import { StageTrail, WorkStageControl } from '../work/stages/WorkStageControl';
+import { StageLine, StageTrail, WorkStageControl } from '../work/stages/WorkStageControl';
 import { useWorkStages, type WorkStages } from '../work/stages/use-work-stages';
 import '../work/detail/work-detail.css';
 import { DeleteWorkItemDialog } from '../work/DeleteWorkItemDialog';
@@ -434,6 +434,7 @@ export function WorkItemDetailScreen({
             api={api}
             organizationSlug={organizationSlug}
             projectName={projectName}
+            {...(now === undefined ? {} : { now })}
             onChanged={changed}
             onConflict={() => {
               void item.refetch();
@@ -535,6 +536,7 @@ function WorkLens({
 
   return (
     <>
+      <StageLine stages={stages} />
       <WorkPropertiesPanel
         api={api}
         organizationSlug={organizationSlug}
@@ -586,6 +588,8 @@ interface WorkItemBodyProps {
   onConflict: () => void;
   onDeleted: () => void;
   onOpenItem: (workItemId: string) => void;
+  /** The clock the comments' "2h ago" is read against (stories, tests). */
+  now?: Date;
 }
 
 type Overlay = { kind: 'delete' } | { kind: 'approval' } | { kind: 'why' } | null;
@@ -606,6 +610,7 @@ function WorkItemBody({
   onConflict,
   onDeleted,
   onOpenItem,
+  now,
 }: WorkItemBodyProps) {
   const ta = useA6T();
   const tOr = useTOr();
@@ -896,7 +901,12 @@ function WorkItemBody({
         </div>
         {tab === 'comments' ? (
           <div role="tabpanel" id="tm-wk-panel-comments" aria-labelledby="tm-wk-tab-comments">
-            <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+            <WorkCommentsPanel
+              organizationSlug={organizationSlug}
+              workItemId={item.id}
+              api={api}
+              {...(now === undefined ? {} : { now })}
+            />
           </div>
         ) : (
           <div role="tabpanel" id="tm-wk-panel-activity" aria-labelledby="tm-wk-tab-activity">

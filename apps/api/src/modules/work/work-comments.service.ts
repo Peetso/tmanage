@@ -10,6 +10,7 @@ import type { WorkItemCommentRow, WorkItemRow } from '../../common/database/sche
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
+import type { CommentAuthorRow } from './work-comments.repository.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { ReviewMentionCandidatesRepository } from '../files/review-mention-candidates.repository.js';
 import type { MentionCandidateRow } from '../files/review-mention-candidates.repository.js';
@@ -43,6 +44,9 @@ export interface WorkCommentView {
   readonly id: string;
   readonly workItemId: string;
   readonly authorMembershipId: string;
+  /** The author's user id and name, resolved through this tenant; `null` once unresolvable. */
+  readonly authorUserId: string | null;
+  readonly authorName: string | null;
   readonly body: string;
   readonly createdAt: string;
 }
@@ -141,7 +145,12 @@ export class WorkCommentsService {
     return this.database.read(context, async (runner) => {
       await this.readableParent(runner, context, principal, workItemId);
       const rows = await this.comments.listForWorkItem(runner, context, workItemId);
-      return rows.map(toView);
+      const authors = await this.comments.authors(
+        runner,
+        context,
+        rows.map((row) => row.authorMembershipId),
+      );
+      return rows.map((row) => toView(row, authors));
     });
   }
 
@@ -215,7 +224,7 @@ export class WorkCommentsService {
           metadata: { entry_id: row.id },
         });
       }
-      return toView(row);
+      return toView(row, await this.comments.authors(tx, context, [row.authorMembershipId]));
     });
   }
 
@@ -280,11 +289,14 @@ function dedupe(rows: readonly MentionCandidateRow[]): readonly MentionCandidate
   return out;
 }
 
-function toView(row: WorkItemCommentRow): WorkCommentView {
+function toView(row: WorkItemCommentRow, authors: readonly CommentAuthorRow[]): WorkCommentView {
+  const author = authors.find((entry) => entry.membershipId === row.authorMembershipId);
   return {
     id: row.id,
     workItemId: row.workItemId,
     authorMembershipId: row.authorMembershipId,
+    authorUserId: author?.userId ?? null,
+    authorName: author?.displayName ?? null,
     body: row.body,
     createdAt: row.createdAt.toISOString(),
   };

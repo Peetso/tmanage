@@ -14,6 +14,13 @@ import { VoiceControl } from '../voice/VoiceControl';
 import { useVoiceInput } from '../voice/use-voice-language';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { appIntlLocale } from '../../lib/i18n/app-locale';
+import {
+  activeIsEnglish,
+  compactUnit,
+  relativeAgo,
+  type CompactUnit,
+} from '../../lib/i18n/compact-time';
+import { initialsOf } from '../work/OwnerPickerDialog';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useMembers } from '../../lib/use-members';
 import {
@@ -31,6 +38,8 @@ export interface WorkCommentsPanelProps {
   organizationSlug: string;
   workItemId: string;
   api: ApiClient;
+  /** The clock "2h ago" is read against; injected in stories and tests. */
+  now?: Date;
 }
 
 const MAX_BODY_LENGTH = 5000;
@@ -40,6 +49,21 @@ function formatWhen(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   return at.toLocaleString(appIntlLocale());
+}
+
+/** "2h ago" (English as drawn), the platform's own phrase elsewhere; past a week, the date. */
+export function commentAge(iso: string, now: Date): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  const minutes = Math.max(1, Math.round((now.getTime() - at.getTime()) / 60_000));
+  const [value, unit]: [number, CompactUnit] =
+    minutes < 60
+      ? [minutes, 'minute']
+      : minutes < 60 * 24
+        ? [Math.round(minutes / 60), 'hour']
+        : [Math.round(minutes / (60 * 24)), 'day'];
+  if (unit === 'day' && value > 7) return at.toLocaleDateString(appIntlLocale());
+  return activeIsEnglish() ? `${compactUnit(value, unit)} ago` : relativeAgo(value, unit);
 }
 
 /**
@@ -54,7 +78,12 @@ function formatWhen(iso: string): string {
  * checklist), reads its own query, and invalidates that query on every write so the list reflects
  * the server rather than an optimistic guess. Comments are internal-only.
  */
-export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCommentsPanelProps) {
+export function WorkCommentsPanel({
+  organizationSlug,
+  workItemId,
+  api,
+  now,
+}: WorkCommentsPanelProps) {
   const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
@@ -229,13 +258,29 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
         ) : (
           <ul className="tm-list" aria-label={t('WorkCommentsPanel.listLabel')}>
             {items.map((comment) => (
-              <li key={comment.id} className="tm-stack">
-                <p className="tm-prose" dir="auto">
-                  {decodeMentions(comment.body, nameOf)}
-                </p>
-                <time className="tm-eyebrow" dateTime={comment.createdAt}>
-                  {formatWhen(comment.createdAt)}
-                </time>
+              <li key={comment.id} className="tm-wk-comment">
+                <span className="tm-wk-face tm-wk-comment__face" aria-hidden="true">
+                  {comment.authorName ? initialsOf(comment.authorName) : '?'}
+                </span>
+                <div className="tm-wk-comment__main">
+                  {/* Figma `WV2-02`: the author's name, then how long ago; the exact time on hover. */}
+                  <p className="tm-wk-comment__meta">
+                    <bdi className="tm-wk-comment__author">
+                      {comment.authorName ??
+                        tOr('MembersPresentation.formerOrHidden', 'Former or hidden member')}
+                    </bdi>
+                    <time
+                      className="tm-wk-comment__when"
+                      dateTime={comment.createdAt}
+                      title={formatWhen(comment.createdAt)}
+                    >
+                      {commentAge(comment.createdAt, now ?? new Date())}
+                    </time>
+                  </p>
+                  <p className="tm-prose" dir="auto">
+                    {decodeMentions(comment.body, nameOf)}
+                  </p>
+                </div>
               </li>
             ))}
           </ul>

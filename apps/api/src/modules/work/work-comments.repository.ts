@@ -1,7 +1,7 @@
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { workItemComments } from '../../common/database/schema.js';
+import { memberships, users, workItemComments } from '../../common/database/schema.js';
 import type { WorkItemCommentRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -27,7 +27,40 @@ export interface CreateCommentInput {
   readonly body: string;
 }
 
+/** Who wrote a comment: the author membership's person, read through this tenant only. */
+export interface CommentAuthorRow {
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly displayName: string;
+}
+
 export class WorkCommentsRepository {
+  /**
+   * The people behind these author memberships (W-WEB-1 leftover: comments show their author).
+   * Anchored on this tenant's own `memberships` rows, so `users` (global identity) is reached
+   * only through a membership of this organization — the `DocumentSharingRepository.people`
+   * pattern. A membership of another tenant, or one that is gone, simply does not resolve.
+   */
+  async authors(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipIds: readonly string[],
+  ): Promise<readonly CommentAuthorRow[]> {
+    const ids = [...new Set(membershipIds)];
+    if (ids.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({
+        membershipId: memberships.id,
+        userId: memberships.userId,
+        displayName: users.displayName,
+      })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(eq(memberships.organizationId, context.organizationId), inArray(memberships.id, ids)),
+      );
+  }
+
   /** One comment, scoped to the tenant and its parent work item; `null` if absent. */
   async findComment(
     runner: TenantQueryRunner,

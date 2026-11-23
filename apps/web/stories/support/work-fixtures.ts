@@ -91,8 +91,20 @@ const STEPS = [
 ] as const;
 
 const COMMENTS = [
-  ['m-sara', 'Wireframe is done. Moving to high fidelity today.', '2026-11-23T07:00:00.000Z'],
-  ['m-laila', 'Looks good. Keep the sign-up form on the first screen.', '2026-11-23T08:00:00.000Z'],
+  [
+    'm-sara',
+    'u-sara',
+    'Sara Adel',
+    'Wireframe is done. Moving to high fidelity today.',
+    '2026-11-23T07:00:00.000Z',
+  ],
+  [
+    'm-laila',
+    'u-laila',
+    'Laila Hassan',
+    'Looks good. Keep the sign-up form on the first screen.',
+    '2026-11-23T08:00:00.000Z',
+  ],
 ] as const;
 
 export interface WorkStoryRoutes {
@@ -158,13 +170,17 @@ export function workClient(routes: WorkStoryRoutes = {}): ApiClient {
         return reply({
           comments: fresh
             ? []
-            : COMMENTS.map(([authorMembershipId, body, createdAt], index) => ({
-                id: `c-${index + 1}`,
-                workItemId: 'wi-1',
-                authorMembershipId,
-                body,
-                createdAt,
-              })),
+            : COMMENTS.map(
+                ([authorMembershipId, authorUserId, authorName, body, createdAt], index) => ({
+                  id: `c-${index + 1}`,
+                  workItemId: 'wi-1',
+                  authorMembershipId,
+                  authorUserId,
+                  authorName,
+                  body,
+                  createdAt,
+                }),
+              ),
         });
       case '/work-items/wi-1/labels':
         return reply({

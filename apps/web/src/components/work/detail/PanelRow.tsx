@@ -33,6 +33,8 @@ export interface PanelRowProps {
   /** A row that only shows (the reader may not edit it). */
   readonly readOnly?: boolean;
   readonly testId?: string;
+  /** One of the four rows the phone shows before "Show all" (Figma `WV2-02` phone). */
+  readonly short?: boolean;
 }
 
 export function PanelRow({
@@ -46,6 +48,7 @@ export function PanelRow({
   href,
   readOnly = false,
   testId,
+  short = false,
 }: PanelRowProps) {
   const [open, setOpen] = useState(false);
   const labelId = useId();
@@ -67,7 +70,13 @@ export function PanelRow({
   useDismiss(open, row, (reason) => close(reason === 'escape'));
 
   return (
-    <div ref={row} className="tm-wk-prow" data-open={open || undefined} data-testid={testId}>
+    <div
+      ref={row}
+      className="tm-wk-prow"
+      data-open={open || undefined}
+      data-short={short || undefined}
+      data-testid={testId}
+    >
       <span id={labelId} className="tm-wk-prow__label">
         {label}
       </span>

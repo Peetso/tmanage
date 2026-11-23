@@ -72,6 +72,12 @@ class FakeCommentsRepository {
     return this.rows.find((row) => row.workItemId === workItemId && row.id === commentId) ?? null;
   }
 
+  async authors(_r: unknown, _c: TenantContext, membershipIds: readonly string[]) {
+    return membershipIds
+      .filter((id) => id === MEMBERSHIP)
+      .map((membershipId) => ({ membershipId, userId: 'user-author', displayName: 'Sara Adel' }));
+  }
+
   async listForWorkItem(_r: unknown, _c: TenantContext, workItemId: string) {
     return this.rows
       .filter((row) => row.workItemId === workItemId)
@@ -138,7 +144,12 @@ describe('WorkCommentsController', () => {
     const related = member([PROJECT]);
 
     const first = await controller.add(context, related, WORK_ID, { body: 'Kicked this off' });
-    expect(first).toMatchObject({ body: 'Kicked this off', authorMembershipId: MEMBERSHIP });
+    expect(first).toMatchObject({
+      body: 'Kicked this off',
+      authorMembershipId: MEMBERSHIP,
+      authorUserId: 'user-author',
+      authorName: 'Sara Adel',
+    });
 
     await controller.add(context, related, WORK_ID, { body: 'Draft is with the client' });
 
@@ -146,6 +157,19 @@ describe('WorkCommentsController', () => {
     expect(listed.comments).toHaveLength(2);
     expect(listed.comments[0]).toMatchObject({ id: first.id, body: 'Kicked this off' });
     expect(listed.comments[1]?.body).toBe('Draft is with the client');
+    // W-WEB-1 leftover: each comment names its author, resolved through this tenant.
+    expect(listed.comments[1]).toMatchObject({ authorName: 'Sara Adel' });
+  });
+
+  it('names no author when the author membership no longer resolves in this tenant', async () => {
+    const { controller, comments } = harnessed;
+    await comments.create({}, context, {
+      workItemId: WORK_ID,
+      authorMembershipId: 'membership-gone',
+      body: 'Written by somebody who has left',
+    });
+    const listed = await controller.list(context, member([PROJECT]), WORK_ID);
+    expect(listed.comments.at(-1)).toMatchObject({ authorUserId: null, authorName: null });
   });
 
   it('answers 404 and writes nothing when the parent work item is cross-tenant or absent', async () => {

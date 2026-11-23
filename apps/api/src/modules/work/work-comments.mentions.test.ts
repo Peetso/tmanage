@@ -59,6 +59,7 @@ function harness() {
   } as unknown as TenantDatabase;
   const workItems = { findById: async () => item } as unknown as WorkItemsRepository;
   const comments = {
+    authors: async () => [],
     create: async (_r: unknown, _c: unknown, input: { body: string }) =>
       ({
         id: 'comment-1',

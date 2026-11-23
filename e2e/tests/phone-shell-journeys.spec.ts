@@ -232,12 +232,12 @@ for (const lang of ['en', 'ar'] as const) {
         await page.goto(`/${ORG}/home`);
         await expectPhoneScreen(page, lang, phone);
 
-        // PH-03 — the lime orb opens Quick capture, title field first.
+        // PH-03 — the lime orb opens New work as a page (W-WEB-3), the name field first.
         await phone.fab.tap();
         await expect(page).toHaveURL(new RegExp(`/${ORG}/capture(\\?.*)?$`));
         await expectPhoneScreen(page, lang, phone);
         await expect(
-          page.getByRole('textbox', { name: word(lang, 'QuickCaptureScreen.titleLabel') }),
+          page.getByRole('textbox', { name: word(lang, 'WorkPage.renameLabel') }),
         ).toBeEditable();
       } finally {
         await owner.close();

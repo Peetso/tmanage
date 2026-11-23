@@ -50,6 +50,9 @@ import { PanelRow } from './PanelRow';
 /** Faces drawn in a panel row before the first name and "+N" (Figma `Panel/Row` people). */
 const FACES = 3;
 
+/** The rows of the panel, for the phone's "Show all 15". */
+const PANEL_ROWS = 15;
+
 export interface WorkPropertiesPanelProps {
   readonly api: ApiClient;
   readonly organizationSlug: string;
@@ -102,6 +105,8 @@ export function WorkPropertiesPanel({
   const candidates = useOwnerCandidates(api, organizationSlug, item.projectId);
   const [picking, setPicking] = useState<'doers' | 'supervisors' | 'watchers' | null>(null);
   const [failure, setFailure] = useState<string | undefined>(undefined);
+  // Phone (Figma `WV2-02` phone): four rows first, then "Show all 15" opens the rest in place.
+  const [all, setAll] = useState(false);
   const peopleKey = workItemPeopleKey(organizationSlug, item.id);
   const people = useQuery({
     queryKey: peopleKey,
@@ -228,7 +233,12 @@ export function WorkPropertiesPanel({
   const linkCount = links.data?.length ?? 0;
 
   return (
-    <section className="tm-wk-props" aria-labelledby="tm-wk-props-title" data-testid="work-props">
+    <section
+      className="tm-wk-props"
+      aria-labelledby="tm-wk-props-title"
+      data-testid="work-props"
+      data-all={all || undefined}
+    >
       <h2 id="tm-wk-props-title" className="tm-wk-props__title">
         {t('WorkPage.details')}
       </h2>
@@ -297,6 +307,7 @@ export function WorkPropertiesPanel({
         iconLabel={t('WorkPage.pickDoers')}
         onAction={() => setPicking('doers')}
         testId="prop-doers"
+        short
       />
       <PanelRow
         label={t('WorkPage.supervisor')}
@@ -306,6 +317,7 @@ export function WorkPropertiesPanel({
         iconLabel={t('WorkPage.pickSupervisor')}
         onAction={() => setPicking('supervisors')}
         testId="prop-supervisor"
+        short
       />
       <PanelRow
         label={t('WorkPage.due')}
@@ -327,6 +339,7 @@ export function WorkPropertiesPanel({
           />
         )}
         testId="prop-due"
+        short
       />
       <PanelRow
         label={t('WorkPage.client')}
@@ -344,6 +357,7 @@ export function WorkPropertiesPanel({
         iconLabel={t('WorkPage.changeClient')}
         popover={audienceEditor}
         testId="prop-client"
+        short
       />
       <PanelRow
         label={t('WorkPage.whoSees')}
@@ -469,6 +483,12 @@ export function WorkPropertiesPanel({
         popover={statusEditor}
         testId="prop-status"
       />
+
+      {all ? null : (
+        <button type="button" className="tm-wk-props__all" onClick={() => setAll(true)}>
+          {t('WorkPage.showAll', { count: PANEL_ROWS })}
+        </button>
+      )}
 
       {failure ? (
         <InlineAlert tone="danger" title={t('WorkPage.saveError')} live>

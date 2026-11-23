@@ -7,13 +7,8 @@ import type { WorkItemState } from '@tmanage/domain';
 import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../../lib/api/client';
 import { useDescribeApiError } from '../../../lib/api/describe-error';
-import {
-  moveWorkToStage,
-  setWorkStageSet,
-  type StageSetView,
-  type StageView,
-} from '../../../lib/api/work-stages';
-import { transitionWorkItem, type WorkItemSummary } from '../../../lib/api/work-items';
+import { setWorkStageSet, type StageSetView, type StageView } from '../../../lib/api/work-stages';
+import type { WorkItemSummary } from '../../../lib/api/work-items';
 import { workItemKeys } from '../../../lib/query-keys';
 import { useA6T } from '../DueDatePicker';
 import { CheckIcon, ChevronDownIcon, PlusIcon } from '../work-icons';
@@ -27,6 +22,7 @@ import {
   stageColorVar,
 } from './stage-model';
 import { useDismiss } from '../use-dismiss';
+import { moveToStage } from './move-to-stage';
 import { stageSetsKey, type WorkStages } from './use-work-stages';
 import './stages.css';
 
@@ -73,6 +69,24 @@ export function StageTrail({ stages }: { stages: WorkStages }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * The phone's stage line under the title (Figma `WV2-02` phone): "Stage 4 of 6 · Design
+ * thinking", where the desktop draws the whole trail.
+ */
+export function StageLine({ stages }: { stages: WorkStages }) {
+  const t = useA6T();
+  if (!stages.set || !stages.stage) return null;
+  const list = orderedStages(stages.set.stages);
+  const at = list.findIndex((stage) => stage.id === stages.stage?.id);
+  return (
+    <p className="tm-wk-stageline">
+      {t('WorkStages.stageOf', { n: at + 1, total: list.length })}
+      {' · '}
+      <bdi>{setName(stages.set, t)}</bdi>
+    </p>
   );
 }
 
@@ -221,18 +235,9 @@ function StageMenu({
 
   const move = useMutation({
     mutationFn: async ({ stage, extra }: { stage: StageView; extra: Record<string, string> }) => {
-      const run = movesTo(item.state, stage.stateKey as WorkItemState);
-      if (run === null) throw new Error(t('WorkStages.cannotMove'));
-      let at = item;
-      for (const to of run.before) {
-        at = await transitionWorkItem(api, organizationSlug, item.id, { version: at.version, to });
-      }
-      const { facts } = autoFacts(run.needs, at.ownerUserId, new Date());
-      return moveWorkToStage(api, organizationSlug, item.id, {
-        stageId: stage.id,
-        version: at.version,
-        facts: { ...facts, ...extra },
-      });
+      const next = await moveToStage(api, organizationSlug, item, stage, extra);
+      if (next === null) throw new Error(t('WorkStages.cannotMove'));
+      return next;
     },
     onSuccess: (next) => {
       void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });

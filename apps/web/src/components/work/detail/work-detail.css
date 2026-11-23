@@ -735,3 +735,115 @@ a.tm-wk-prow__value:focus-visible {
 .tm-wk-files .tm-panel {
   padding: var(--inset-card);
 }
+
+/* ── One comment (Figma `WV2-02`): face, the author and how long ago, then the words ── */
+
+.tm-wk-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.tm-wk-comment__face {
+  flex: none;
+  margin-inline-start: 0;
+}
+
+.tm-wk-comment__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-wk-comment__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-wk-comment__author {
+  color: var(--ink-950);
+  font-weight: var(--t-app-ui-strong-weight);
+}
+
+.tm-wk-comment__when {
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-wk-comment .tm-prose {
+  margin: 0;
+}
+
+/* ── Phone (Figma `WV2-02` phone): the short details card at the top ──────────
+   Under the title come "Stage 4 of 6 · Design thinking" and a card of four rows (Doers,
+   Supervisor, Due, Client) with "Show all 15"; the description follows. The lens moves above
+   the body and gives its card to the panel, so the stage line sits outside the card. */
+
+.tm-wk-stageline,
+.tm-wk-props__all {
+  display: none;
+}
+
+@media (max-width: 60rem) {
+  .tm-app__columns > .tm-lens:has(> .tm-wk-props) {
+    order: -1;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s4);
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .tm-wk-stageline {
+    display: block;
+    margin: 0;
+    color: var(--ink-650);
+    font-size: var(--t-app-caption);
+    line-height: var(--t-app-caption-line);
+  }
+
+  .tm-wk-trail {
+    display: none;
+  }
+
+  .tm-wk-props {
+    padding: var(--inset-card);
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+  }
+
+  .tm-wk-props:not([data-all]) > .tm-wk-prow:not([data-short]) {
+    display: none;
+  }
+
+  .tm-wk-props__all {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    min-block-size: var(--app-control);
+    margin-block-start: var(--s2);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink-950);
+    font: inherit;
+    font-size: var(--t-app-ui);
+    line-height: var(--t-app-ui-line);
+    cursor: pointer;
+  }
+
+  .tm-wk-props__all:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}

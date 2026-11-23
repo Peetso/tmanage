@@ -438,6 +438,9 @@ export interface WorkComment {
   readonly id: string;
   readonly workItemId: string;
   readonly authorMembershipId: string;
+  /** The author's user id and name (Figma `WV2-02` comment line); `null` once unresolvable. */
+  readonly authorUserId: string | null;
+  readonly authorName: string | null;
   readonly body: string;
   readonly createdAt: string;
 }

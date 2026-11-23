@@ -1,0 +1,497 @@
+/* New work (Work area v2, W-WEB-3; Figma WV2-03 quick, WV2-04 full, WV2-04b stage menu).
+   Density v2 tokens only: controls 32 (--app-control), footer buttons 40 (--app-control-lg),
+   dialog 560 (--dialog), inset 24 (--inset-dialog), label column 104 (--panel-label). */
+
+/* ── Frame: quick under the header's New work, full centred; phone sheet and page ── */
+
+.tm-nw-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: rgb(0 0 0 / 40%);
+}
+
+.tm-nw-scrim[data-mode='quick'] {
+  place-items: start end;
+  padding-block-start: var(--app-header-row);
+  padding-inline-end: var(--page-gutter);
+  background: transparent;
+}
+
+.tm-nw-sheet {
+  box-sizing: border-box;
+  inline-size: min(var(--dialog), 100%);
+  max-block-size: calc(100dvh - var(--s8));
+  overflow: auto;
+  padding: var(--inset-dialog);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 32%);
+}
+
+/* ── The form ── */
+
+.tm-nw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-nw[data-layout='page'] {
+  max-inline-size: var(--dialog);
+}
+
+.tm-nw__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-nw__title {
+  flex: 1;
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-app-card-title);
+  line-height: var(--t-app-card-title-line);
+  font-weight: var(--t-app-card-title-weight);
+}
+
+.tm-nw[data-layout='page'] .tm-nw__head {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.tm-nw__close.tm-icon-button {
+  border-color: var(--line-300);
+  border-radius: var(--r-capsule);
+}
+
+.tm-nw__head-create {
+  display: none;
+}
+
+/* The name with voice naming (Figma: 40 high, mic and language chip inside the box). */
+.tm-nw__name {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control-lg);
+  padding-inline: var(--inset-control) var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-nw__name:focus-within {
+  border-color: var(--ink-950);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-nw__name-input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+  outline: none;
+}
+
+/* The box draws the focus ring (focus-within); the bare input inside must not draw a second. */
+.tm-nw__name-input:focus-visible,
+.tm-nw .tm-wk-field input:focus-visible {
+  box-shadow: none;
+}
+
+.tm-nw__name-input::placeholder,
+.tm-nw__description::placeholder {
+  color: var(--ink-650);
+}
+
+/* Quick: six chips in reading order, wrapping (Fable must-fix 5: RTL wraps top-down too). */
+.tm-nw__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* Full: label column, then the control. */
+.tm-nw__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-nw-row {
+  display: grid;
+  grid-template-columns: var(--panel-label) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-nw-row--block {
+  align-items: start;
+}
+
+.tm-nw-row--block > .tm-nw-row__label {
+  min-block-size: var(--app-control);
+  display: flex;
+  align-items: center;
+}
+
+.tm-nw-row__label {
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* ── One property: chip (quick) or field (full) ── */
+
+.tm-nw-control {
+  position: relative;
+  display: inline-flex;
+  min-inline-size: 0;
+}
+
+.tm-nw-control[data-variant='field'] {
+  display: flex;
+}
+
+.tm-nw-chip,
+.tm-nw-select {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+  min-block-size: var(--app-control);
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-nw-chip {
+  padding-inline: var(--inset-capsule);
+  border-radius: var(--r-capsule);
+}
+
+.tm-nw-chip:not([data-empty]) {
+  border-color: transparent;
+  background: var(--lime-100);
+}
+
+.tm-nw-select {
+  flex: 1;
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding-inline: var(--inset-control);
+  border-radius: var(--r-control);
+}
+
+.tm-nw-chip[data-empty],
+.tm-nw-select[data-empty] {
+  color: var(--ink-650);
+}
+
+.tm-nw-chip:hover,
+.tm-nw-select:hover {
+  border-color: var(--ink-650);
+}
+
+.tm-nw-chip:focus-visible,
+.tm-nw-select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-nw-chip:disabled,
+.tm-nw-select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.tm-nw-select__value {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-nw-chip .tm-nw-select__value {
+  flex: none;
+}
+
+.tm-nw-select > .tm-wk-icon,
+.tm-nw-chip > .tm-wk-icon {
+  flex: none;
+  color: var(--ink-650);
+}
+
+input.tm-nw-select {
+  color: var(--ink-950);
+  cursor: text;
+}
+
+.tm-nw-popover {
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+}
+
+.tm-nw-control[data-variant='field'] .tm-nw-popover {
+  inline-size: 100%;
+}
+
+.tm-nw-stagemenu {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-nw-stagemenu__title {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-nw-stagemenu__kind {
+  color: var(--ink-650);
+  font-weight: 400;
+}
+
+.tm-nw-stagemenu .tm-wk-menu__item,
+.tm-nw-popover .tm-wk-choice .tm-wk-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  inline-size: 100%;
+  min-block-size: var(--app-control);
+  padding-block: var(--s1);
+}
+
+.tm-nw-popover .tm-wk-choice {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── Steps, description, More ── */
+
+.tm-nw-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-nw-steps .tm-wk-steps__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-nw-steps .tm-wk-tick {
+  border: var(--b-quiet) solid var(--ink-650);
+  border-radius: var(--r-capsule);
+}
+
+.tm-nw-steps__actions {
+  display: inline-flex;
+  gap: var(--s1);
+}
+
+.tm-nw__description {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--app-control);
+  padding: var(--s1) var(--inset-control);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-body-line);
+}
+
+.tm-nw__description:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-nw-more {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-nw-more:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-nw-more__label {
+  font-weight: var(--t-app-ui-strong-weight);
+}
+
+.tm-nw-more__list {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--ink-650);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-nw-more__chevron {
+  display: inline-flex;
+  margin-inline-start: auto;
+  color: var(--ink-650);
+}
+
+.tm-nw-more__chevron[data-open] {
+  transform: rotate(180deg);
+}
+
+.tm-nw-files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* ── Footer: flush text action on the start edge, Cancel and Create on the end (all 40) ── */
+
+.tm-nw__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-nw__foot-end {
+  display: inline-flex;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+/* ── Phone (Figma `934:98215` sheet, `935:98783` page) ── */
+
+@media (max-width: 60rem) {
+  .tm-nw-scrim,
+  .tm-nw-scrim[data-mode='quick'] {
+    place-items: end stretch;
+    padding: 0;
+    background: rgb(0 0 0 / 40%);
+  }
+
+  .tm-nw-sheet {
+    inline-size: 100%;
+    max-block-size: 90dvh;
+    padding: var(--inset-card);
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+    border-start-start-radius: var(--r-sheet);
+    border-start-end-radius: var(--r-sheet);
+  }
+
+  .tm-nw-scrim[data-mode='full'] {
+    place-items: stretch;
+  }
+
+  /* The quick sheet: a grab handle on top, and no Cancel (the close and the backdrop are it). */
+  .tm-nw-sheet[data-mode='quick']::before {
+    content: '';
+    display: block;
+    inline-size: var(--s10);
+    block-size: var(--s1);
+    margin: calc(var(--s3) - var(--inset-card)) auto var(--s3);
+    border-radius: var(--r-capsule);
+    background: var(--line-300);
+  }
+
+  .tm-nw-sheet[data-mode='quick'] .tm-nw__cancel {
+    display: none;
+  }
+
+  .tm-nw-sheet[data-mode='full'] {
+    block-size: 100dvh;
+    max-block-size: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* Full on phone is a page: close, title, Create in one header row; no footer Create. */
+  .tm-nw[data-mode='full'] .tm-nw__close {
+    order: -1;
+  }
+
+  .tm-nw[data-mode='full'] .tm-nw__head-create {
+    display: inline-flex;
+  }
+
+  .tm-nw[data-mode='full'] .tm-nw__foot-end {
+    display: none;
+  }
+
+  .tm-nw[data-layout='page'] .tm-nw__head {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+    justify-content: flex-end;
+  }
+
+  .tm-nw[data-layout='page'] .tm-nw__title {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .tm-nw-row--block {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-nw-row--block > .tm-nw-row__label {
+    color: var(--ink-950);
+    font-size: var(--t-app-section);
+    line-height: var(--t-app-section-line);
+    font-weight: var(--t-app-section-weight);
+  }
+
+  .tm-nw-more {
+    border-block-start: var(--b-quiet) solid var(--line-300);
+    padding-block-start: var(--s3);
+  }
+
+  .tm-nw-more__list {
+    display: none;
+  }
+}
