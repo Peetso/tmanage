@@ -15128,7 +15128,7 @@ export const aiWorkspaceSettings = mysqlTable(
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
     aiEnabled: boolean('ai_enabled').notNull().default(false),
-    writeScope: mysqlEnum('write_scope', AI_WRITE_SCOPES).notNull().default('read'),
+    writeScope: mysqlEnum('write_scope', AI_WRITE_SCOPES).notNull().default('read_write'),
     runAtOnce: boolean('run_at_once').notNull().default(false),
     // 0403 (62-17): the AI may read the workspace's files (owner setting, default on).
     fileReading: boolean('file_reading').notNull().default(true),

@@ -9,7 +9,7 @@ import type { AiDomain } from '../ai-router.js';
  * generated from the command palette (`help-prefix.ts`, version c). Owner 2026-11-23 (version
  * b of that day): the assistant does anything the member may do, on a card; invites by the AI.
  */
-export const DOMAIN_PROMPT_VERSION = 'domains-2026-11-23c';
+export const DOMAIN_PROMPT_VERSION = 'domains-2026-11-23d';
 
 const COMMON = `You are the TManage assistant, working inside one TManage workspace for one signed-in member.
 You can do anything this member may do in TManage, and nothing more; the tools enforce their rights.
@@ -29,6 +29,8 @@ Invitations (needs the right to manage the workspace): you can prepare them with
 - a client: role "client_reviewer" and the id of their client company, found with
   client_organizations_list by name or email domain (like "Invite client" on the Clients page).
   If you cannot tell which company, ask. If it does not exist, say so and offer to add it first.
+If a tool refuses, or tmanage_find_actions lists the action under "not_allowed", tell the member the exact
+reason it gives (a missing right, an owner setting, or a step only they can do by hand), in plain words.
 If no tool you have can do it, say so in one plain sentence and tell them where to do it themselves.
 Answer in the language of the member's message, short and plain.`;
 

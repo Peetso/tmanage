@@ -6,6 +6,7 @@ import type {
   CatalogTool,
   RunResult,
 } from '@tmanage/mcp-server';
+import { rankActions } from './action-search.js';
 import {
   OPS,
   callNeedsConfirmWithState,
@@ -22,6 +23,7 @@ import {
 import {
   allDetailsById,
   buildToolCatalog,
+  capabilitySatisfied,
   effectiveScopes,
   toolNameForOp,
 } from './tool-catalog.js';
@@ -162,10 +164,32 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     buildToolCatalog({ ...request, profile: 'full' }).tools.map((t) => [t.opId!, t] as const),
   );
 
+  /**
+   * Why an op the account cannot run here is refused, in words the AI can repeat to the member
+   * (owner 2026-11-23: "if he can't do anything let the ai say the reason why"). `null` when the op
+   * is runnable. Naming an op that exists reveals nothing: the catalogue is the same for everyone.
+   */
+  function refusalReason(op: AiActionOp): string | null {
+    if (isNever(op.method, op.path)) {
+      return 'This can only be done by hand in TManage: it needs your own sign-in, password or a file from your device.';
+    }
+    if (!grantCoversOp(options.scopes, op)) {
+      return op.scope === 'read'
+        ? 'This AI has no read access here.'
+        : `Changes of this kind ("${op.scope}") are switched off for this AI. In TManage AI the workspace owner chose "Answer questions only" (Admin > AI > What TManage AI may do); a connected AI was not given this access when it was connected.`;
+    }
+    if (!capabilitySatisfied(options.capabilities, op.capability)) {
+      return `Your role in this workspace does not have the right "${op.capability}". An owner or admin can give it under Admin > Roles.`;
+    }
+    return null;
+  }
+
   async function runOp(opId: string, args: Record<string, unknown>): Promise<RunResult> {
     const op = findOpById(opId);
-    if (op === undefined || isNever(op.method, op.path) || !permitted.has(opId)) {
-      return { isError: true, data: `Unknown or not permitted action: ${opId}` };
+    if (op === undefined) return { isError: true, data: `Unknown action: ${opId}` };
+    if (!permitted.has(opId)) {
+      const reason = refusalReason(op) ?? 'This action is not available over this connection.';
+      return { isError: true, data: `Not permitted: ${opId}. ${reason}` };
     }
     if (!grantCoversOp(options.scopes, op)) {
       return { isError: true, data: `insufficient_scope: ${opId} needs ${op.scope}` };
@@ -255,19 +279,36 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
   }
 
   function find(args: Record<string, unknown>): RunResult {
-    const words = String(args['query'] ?? '')
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((w) => w !== '');
     const limit = typeof args['limit'] === 'number' ? args['limit'] : 20;
-    const matches = [...permitted.values()]
-      .filter((t) => {
-        const text = `${t.opId} ${t.title} ${t.description}`.toLowerCase();
-        return words.every((w) => text.includes(w));
-      })
-      .slice(0, limit)
-      .map((t) => ({ action_id: t.opId, title: t.title, description: t.description }));
-    return { summary: `${matches.length} matching actions.`, data: { actions: matches } };
+    const searchable = [...permitted.values()].map((t) => ({
+      opId: t.opId!,
+      title: t.title,
+      description: t.description,
+    }));
+    const query = String(args['query'] ?? '');
+    const matches = rankActions(searchable, query, limit).map((t) => ({
+      action_id: t.opId,
+      title: t.title,
+      description: t.description,
+    }));
+    // Actions that match but this account cannot run here, with the reason, so the AI says why
+    // instead of claiming the action does not exist.
+    const blocked = rankActions(
+      [...allDetailsById.entries()]
+        .filter(([opId]) => !permitted.has(opId))
+        .map(([opId, detail]) => ({ opId, title: detail.title, description: detail.description })),
+      query,
+      5,
+    ).flatMap((t) => {
+      const op = findOpById(t.opId);
+      const reason = op === undefined ? null : refusalReason(op);
+      return reason === null ? [] : [{ action_id: t.opId, title: t.title, reason }];
+    });
+    return {
+      summary: `${matches.length} matching actions.`,
+      data:
+        blocked.length === 0 ? { actions: matches } : { actions: matches, not_allowed: blocked },
+    };
   }
 
   function describe(args: Record<string, unknown>): RunResult {
@@ -300,9 +341,9 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
         case 'tmanage_run_action': {
           const id = String(args['action_id'] ?? '');
           const parsed = allDetailsById.get(id)?.input.safeParse(args['args'] ?? {});
-          if (parsed === undefined || !permitted.has(id)) {
-            return { isError: true, data: `Unknown or not permitted action: ${id}` };
-          }
+          if (parsed === undefined) return { isError: true, data: `Unknown action: ${id}` };
+          // Not runnable here: runOp answers with the reason (owner setting, access, right).
+          if (!permitted.has(id)) return runOp(id, {});
           if (!parsed.success) return { isError: true, data: `Invalid arguments for ${id}.` };
           return runOp(id, parsed.data as Record<string, unknown>);
         }

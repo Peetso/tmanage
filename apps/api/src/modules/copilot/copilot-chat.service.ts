@@ -167,6 +167,15 @@ export type AiWriteScope = 'read' | 'read_write';
 export const CHAT_FULL_SCOPES = 'tmanage:read tmanage:write tmanage:manage tmanage:billing';
 
 /**
+ * Sent after the cached domain prompt when the owner chose "Answer questions only": the model
+ * must name that setting as the reason it cannot make a change (owner 2026-11-23).
+ */
+export const READ_ONLY_NOTE = `This workspace's owner set TManage AI to "Answer questions only", so you cannot make any change here.
+When the member asks for a change, say exactly that, plainly: the owner set the AI to answer questions only,
+and the owner can turn on "Answer and make changes" in Admin > AI > What TManage AI may do.
+Then say what you can do instead (find or explain), in the member's language.`;
+
+/**
  * The OAuth scopes a turn's tools run under. Owner 2026-11-23 ("the AI should do anything that I
  * can do"), replacing plan 62 §4.1 step 5's "never manage, never billing": with the owner's
  * `read_write` setting a turn may reach every op the member's own capabilities allow — the API's
@@ -1300,7 +1309,11 @@ export class CopilotChatService {
         maxTokens: MAX_TOKENS_PER_TIER[tier],
         thinking: THINKING_PER_TIER[tier],
         effort: tier === 'low' || tier === 'help' ? 'low' : 'medium',
-        system: [{ text: domainSystemPrompt(route.domain), cache: '1h' }],
+        system: [
+          { text: domainSystemPrompt(route.domain), cache: '1h' },
+          // Owner 2026-11-23: a read-only AI says so, and why, instead of "I have no tool for that".
+          ...(writeScope === 'read' ? [{ text: READ_ONLY_NOTE }] : []),
+        ],
         tools,
         messages,
         cacheConversation: '5m',

@@ -52,7 +52,7 @@ export class AiChatRepository {
       return {
         onTestList: false,
         poolClass: 'customers',
-        writeScope: 'read',
+        writeScope: 'read_write',
         runAtOnce: false,
         aiEnabled: false,
         fileReading: true,
