@@ -97,6 +97,7 @@ function setup(
     limits?: (context: TenantContext) => Promise<ChatLimitDecision>;
     toolData?: unknown;
     routerFailureLog?: (failure: RouteFailure) => void;
+    providerFailureLog?: (failure: AiClientError) => void;
   } = {},
 ) {
   const audits: AiTurnAudit[] = [];
@@ -215,6 +216,9 @@ function setup(
     ...(options.routerFailureLog === undefined
       ? {}
       : { routerFailureLog: options.routerFailureLog }),
+    ...(options.providerFailureLog === undefined
+      ? {}
+      : { providerFailureLog: options.providerFailureLog }),
     audit,
   });
   const turn = (
@@ -410,6 +414,28 @@ describe('the loop stops', () => {
     const view = await env.turn('my tasks');
     expect(view).toMatchObject({ state: 'stopped', stop: 'provider_error' });
     expect(env.settled.at(-1)).toMatchObject({ outputTokens: 1_024, cacheWrite1hTokens: 500 });
+  });
+
+  it('reports the cause of a failed model call so a provider_error is diagnosable', async () => {
+    const failures: AiClientError[] = [];
+    const env = setup(
+      [
+        route('tasks', 'low'),
+        new AiClientError(
+          'http',
+          'provider responded 400 (invalid_request_error)',
+          true,
+          false,
+          400,
+        ),
+      ],
+      { providerFailureLog: (failure) => failures.push(failure) },
+    );
+    const view = await env.turn('my tasks');
+    expect(view).toMatchObject({ state: 'stopped', stop: 'provider_error' });
+    expect(failures.map((f) => [f.kind, f.message])).toEqual([
+      ['http', 'provider responded 400 (invalid_request_error)'],
+    ]);
   });
 });
 

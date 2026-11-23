@@ -302,6 +302,12 @@ export interface CopilotChatDeps {
    */
   readonly routerFailureLog?: (failure: RouteFailure) => void;
   /**
+   * Where a model call that failed at the client or the provider is reported: the error kind and
+   * its cause line only (status and the API's error type), never the key, a header, the request or
+   * the question. Absent = the server log, so a `provider_error` stop is diagnosable from the host.
+   */
+  readonly providerFailureLog?: (failure: AiClientError) => void;
+  /**
    * 62-14 (OWASP ASVS 5.0 V16): the fail-closed audit row of a change the AI runs at once, written
    * before the change runs; it throws when the row cannot be written, and then nothing runs.
    * Absent: run at once is off (every change needs a card, whose confirm audits fail closed).
@@ -1550,6 +1556,7 @@ export class CopilotChatService {
       return { ok: true, response };
     } catch (error) {
       if (!(error instanceof AiClientError)) throw error;
+      (this.deps.providerFailureLog ?? logProviderFailure)(error);
       // Sent with an unknown result: settled in full at the hold (plan §5); never sent: released.
       must(
         await this.deps.budget.settleCall(context, {
@@ -1649,6 +1656,14 @@ function logRouterFailure(failure: RouteFailure): void {
     `router gave no route: stop_reason=${failure.stopReason} blocks=[${failure.blockTypes.join(',')}] ` +
       `route_calls=${failure.routeCalls} output_tokens=${failure.outputTokens} ` +
       `invalid_field=${failure.invalidField ?? 'none'}`,
+  );
+}
+
+/** The default {@link CopilotChatDeps.providerFailureLog}: one warning line, cause only. */
+function logProviderFailure(error: AiClientError): void {
+  routerLogger.warn(
+    `model call failed: kind=${error.kind} sent=${error.sent} retryable=${error.retryable} ` +
+      `cause=${error.message}`,
   );
 }
 
