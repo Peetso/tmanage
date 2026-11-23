@@ -156,6 +156,18 @@ describe('AI chat model', () => {
       { kind: 'text', text: ' or [x](https://evil.test)' },
     ]);
   });
+
+  it('shows **bold** as bold words, never as stars (2026-11-23 live answer)', () => {
+    expect(answerParts('- **My day:** empty, see [it](/home)', 'northstar')).toEqual([
+      { kind: 'text', text: '- ' },
+      { kind: 'strong', text: 'My day:' },
+      { kind: 'text', text: ' empty, see ' },
+      { kind: 'link', text: 'it', href: '/northstar/home' },
+    ]);
+    expect(answerParts('2 * 3 and **open', 'northstar')).toEqual([
+      { kind: 'text', text: '2 * 3 and **open' },
+    ]);
+  });
 });
 
 describe('AiChatPanel', () => {

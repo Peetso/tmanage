@@ -201,10 +201,25 @@ export function chatReducer(state: ChatState, event: ChatEvent): ChatState {
   }
 }
 
-/** One piece of an answer: plain text, or a link to a page inside TManage. */
+/** One piece of an answer: plain text, bold text, or a link to a page inside TManage. */
 export type AnswerPart =
   | { readonly kind: 'text'; readonly text: string }
+  | { readonly kind: 'strong'; readonly text: string }
   | { readonly kind: 'link'; readonly text: string; readonly href: string };
+
+/** `**words**` on one line: the model's bold, shown bold instead of as stars (2026-11-23 live). */
+const BOLD = /\*\*([^*\n]+?)\*\*/g;
+
+function pushText(parts: AnswerPart[], text: string): void {
+  let last = 0;
+  for (const match of text.matchAll(BOLD)) {
+    const start = match.index ?? 0;
+    if (start > last) parts.push({ kind: 'text', text: text.slice(last, start) });
+    parts.push({ kind: 'strong', text: match[1] ?? '' });
+    last = start + match[0].length;
+  }
+  if (last < text.length) parts.push({ kind: 'text', text: text.slice(last) });
+}
 
 /** An org-relative in-app path (`/work/…`) as a link inside this workspace. */
 export function inAppHref(path: string, organizationSlug: string): string {
@@ -223,12 +238,12 @@ export function answerParts(text: string, organizationSlug: string): AnswerPart[
   let last = 0;
   for (const match of text.matchAll(LINK)) {
     const start = match.index ?? 0;
-    if (start > last) parts.push({ kind: 'text', text: text.slice(last, start) });
+    if (start > last) pushText(parts, text.slice(last, start));
     const href = inAppHref(match[2] ?? '/', organizationSlug);
     parts.push({ kind: 'link', text: match[1] ?? href, href });
     last = start + match[0].length;
   }
-  if (last < text.length) parts.push({ kind: 'text', text: text.slice(last) });
+  if (last < text.length) pushText(parts, text.slice(last));
   return parts;
 }
 

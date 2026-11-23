@@ -213,6 +213,8 @@ function Answer({
           <Link key={index} href={part.href} className="tm-aic-answer__link">
             {part.text}
           </Link>
+        ) : part.kind === 'strong' ? (
+          <strong key={index}>{part.text}</strong>
         ) : (
           <span key={index}>{part.text}</span>
         ),
