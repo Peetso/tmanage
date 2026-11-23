@@ -344,6 +344,18 @@ describe('AI client: failure paths', () => {
       true,
     ]);
     expect(error.message).toBe(`provider responded ${status} (${type})`);
+    expect(error.detail).toBe(status === 400 ? 'details we do not repeat' : undefined);
+  });
+
+  it('a 400 keeps the provider text on one line, cut to 300 characters, for the log', async () => {
+    const long = `tools.0.input_schema:
+  ${'x'.repeat(400)}`;
+    const { client } = clientWith(async () =>
+      json({ type: 'error', error: { type: 'invalid_request_error', message: long } }, 400),
+    );
+    const error = await failure(client);
+    expect(error.detail).toHaveLength(300);
+    expect(error.detail?.startsWith('tools.0.input_schema: xxx')).toBe(true);
   });
 
   it('an error body that is not JSON still reports the status', async () => {

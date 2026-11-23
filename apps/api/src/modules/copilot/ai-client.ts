@@ -165,6 +165,11 @@ export class AiClientError extends Error {
     readonly sent: boolean,
     readonly retryable: boolean = false,
     readonly status?: number,
+    /**
+     * The provider's own error text for a 400 (which field it rejected), one line, at most 300
+     * characters. For the server log only: never shown to a member.
+     */
+    readonly detail?: string,
   ) {
     super(message);
   }
@@ -304,21 +309,35 @@ export function messagesBody(request: AiRequest): JsonObject {
 
 const RETRYABLE_STATUS: ReadonlySet<number> = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
 
-/** The API's error type (for example `rate_limit_error`), never its message text. */
-async function errorType(response: Response): Promise<string> {
+const MAX_ERROR_DETAIL = 300;
+
+/**
+ * The API's error type (for example `rate_limit_error`) and, for a 400, its message: the
+ * provider's description of which request field it rejected. The message goes to the server log
+ * only (through {@link AiClientError.detail}), cut to one line of at most 300 characters.
+ */
+async function errorInfo(
+  response: Response,
+): Promise<{ readonly type: string; readonly detail?: string }> {
   try {
     const body: unknown = await response.json();
     if (typeof body === 'object' && body !== null) {
       const error = (body as JsonObject)['error'];
       if (typeof error === 'object' && error !== null) {
         const type = (error as JsonObject)['type'];
-        if (typeof type === 'string' && /^[a-z_]{1,64}$/.test(type)) return type;
+        const message = (error as JsonObject)['message'];
+        const safeType = typeof type === 'string' && /^[a-z_]{1,64}$/.test(type) ? type : null;
+        if (safeType !== null) {
+          if (response.status !== 400 || typeof message !== 'string') return { type: safeType };
+          const detail = message.replace(/\s+/g, ' ').trim().slice(0, MAX_ERROR_DETAIL);
+          return { type: safeType, detail };
+        }
       }
     }
   } catch {
     // An unreadable error body says nothing more than its status.
   }
-  return 'unknown_error';
+  return { type: 'unknown_error' };
 }
 
 /** A client bound to one key. Refuses to exist without a key or a positive timeout. */
@@ -356,13 +375,14 @@ export function createAiClient(deps: AiClientDeps): AiClient {
   async function read(request: AiRequest, signal: AbortSignal): Promise<AiResponse> {
     const response = await send(request, signal);
     if (!response.ok) {
-      const type = await errorType(response);
+      const { type, detail } = await errorInfo(response);
       throw new AiClientError(
         'http',
         `provider responded ${response.status} (${type})`,
         true,
         RETRYABLE_STATUS.has(response.status),
         response.status,
+        detail,
       );
     }
     try {
