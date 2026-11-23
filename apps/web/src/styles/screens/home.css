@@ -172,6 +172,21 @@
 }
 
 .tm-home-card__eyebrow-text {
+  display: flex;
+  gap: 0.25em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/*
+ * A name in a one-line row truncates inside its own isolate, so its ellipsis falls at the name's
+ * own end. Truncating the whole line instead cut an English project name from its *start* in
+ * Arabic ("…ebsite Relaunch"), because an RTL line overflows on the left (My Day v4 visual check).
+ */
+.tm-home-card__eyebrow-text > bdi,
+.tm-home-rows__title > bdi,
+.tm-home-rows__project > bdi {
+  min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -263,14 +278,25 @@
 }
 
 .tm-home-rows__title {
+  display: flex;
   flex: 1;
+  gap: 0.25em;
   min-inline-size: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* The title keeps its width (up to the whole line); the project takes what is left. */
+.tm-home-rows__title > bdi {
+  flex: none;
+  max-inline-size: 100%;
+}
+
 .tm-home-rows__project {
+  display: flex;
+  flex: 0 1 auto;
+  gap: 0.25em;
+  min-inline-size: 0;
   color: var(--ink-650);
   font-weight: 400;
 }
@@ -1217,5 +1243,16 @@
 @media (max-width: 73.75rem) {
   .tm-home-side > .tm-home-lens {
     grid-column: 1 / -1;
+  }
+}
+
+/*
+ * The briefing's four-column grid was drawn for the full page width; in the 888 main column one
+ * group sat in a quarter and wrapped every line (My Day v4 visual check). Here the groups fill
+ * the row: one group spans it, four wrap three and one.
+ */
+@media (min-width: 48rem) {
+  .tm-home-part[data-widget='businessBriefing'] .tm-brief__groups {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   }
 }

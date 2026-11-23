@@ -11,22 +11,23 @@ import {
 } from '../setup/journey-kit.js';
 
 /**
- * TESTE2E (pass 2026-11-18), brought to My Day v3.1 (2026-11-22) — PHONE: a team member decides
+ * TESTE2E (pass 2026-11-18), brought to My Day v4 (2026-11-23) — PHONE: a team member decides
  * and logs time from My Day on a 390 px phone, without leaving the screen, in English and in Arabic.
  *
- * v3.1 puts the one thing to do now in **Next**: with nothing overdue, the first review waiting on
- * the member. Its Approve / Send back open the bottom sheet; the "On you" rows link to the review.
- * Work rows live in **Due & at risk**, whose row menu holds Log time; the item Next holds is not
- * repeated there, which is why the case logs time while a review still holds Next.
+ * v4 puts the one thing to do now in **Do this next** (spec MYDAY-V4 §4.4, part 3): with nothing
+ * overdue, the first review waiting on the member. Its Approve / Send back open the bottom sheet.
+ * Work cards live in **Due & at risk**; on a phone each has its own Log time button (the desktop's
+ * "⋯" menu holds the same action), which is why the case logs
+ * time while a review still holds Do this next.
  *
  * - **PM-01** — two deliverable reviews wait on Lina (the stack's approval fixture CLI, with an
- *   internal reviewer this time: the seed has none). Next holds one of them, so her work item is a
- *   Due & at risk row: its menu's "Log time" opens the sheet, a quick-minutes chip and the sheet's
+ *   internal reviewer this time: the seed has none). Do this next holds one of them, so her work item is a
+ *   Due & at risk card: its "Log time" button opens the sheet, a quick-minutes chip and the sheet's
  *   Log time save it, and the work item's time log carries the 30 minutes.
- * - **PM-02** — Next's "Approve" opens the sheet, which names the review and says what goes on
- *   the record; its Approve decides, and Next moves to the second review. Next's "Send back"
- *   opens the sheet with "What should change?", whose Send back stays disabled until there is a
- *   note. Then Next holds her work, and the API agrees: nothing waits on her.
+ * - **PM-02** — Do this next's "Approve" opens the sheet, which names the review and says what
+ *   goes on the record; its Approve decides, and Do this next moves to the second review. Its
+ *   "Send back" opens the sheet with "What should change?", whose Send back stays disabled until
+ *   there is a note. Then Do this next holds her work, and the API agrees: nothing waits on her.
  */
 
 interface SeededUser {
@@ -55,12 +56,10 @@ function startsWith(text: string): RegExp {
 
 for (const lang of LANGS) {
   test.describe.serial(`phone My Day decisions [${lang}]`, () => {
-    test(`PM-01 [${lang}]: Log time from a Due & at risk row's menu at 390 px`, async ({
-      signIn,
-    }) => {
+    test(`PM-01 [${lang}]: Log time from a Due & at risk card at 390 px`, async ({ signIn }) => {
       test.setTimeout(240_000);
       const { northstar } = world();
-      // The reviews PM-02 decides; while one holds Next, the work item is a list row.
+      // The reviews PM-02 decides; while one holds Do this next, the work item is a card.
       await seedApprovalFixture(databaseUrl(), {
         organizationId: northstar.organizationId,
         projectId: northstar.projectId,
@@ -81,19 +80,24 @@ for (const lang of LANGS) {
 
       await page.goto(inLang(`/${NORTHSTAR}/home`, lang));
       await expectLanguage(page, lang);
-      const next = page.getByRole('region', { name: word(lang, 'MyDay.w.next'), exact: true });
+      const next = page.getByRole('group', {
+        name: word(lang, 'MyDayScreen.doThisNext'),
+        exact: true,
+      });
       await expect(
         next.getByRole('button', { name: startsWith(word(lang, 'MyDay.approve')) }),
       ).toBeVisible();
 
-      const due = page.getByRole('region', { name: word(lang, 'MyDay.w.due'), exact: true });
+      const due = page.getByRole('region', {
+        name: word(lang, 'MyDayScreen.dueAtRisk'),
+        exact: true,
+      });
+      // On a phone the card's "⋯" menu gives way to its own Log time button (44 px, S-HIG-B).
       await due
-        .getByRole('button', {
-          name: word(lang, 'MyDay.rowMore', { title: northstar.workItemTitle }),
-          exact: true,
-        })
+        .getByRole('listitem')
+        .filter({ hasText: northstar.workItemTitle })
+        .getByRole('button', { name: startsWith(word(lang, 'PhoneHome.logTime')) })
         .click();
-      await page.getByRole('menuitem', { name: word(lang, 'MyDay.logTime'), exact: true }).click();
 
       const sheet = page.getByRole('dialog');
       await expect(sheet.getByText(word(lang, 'PhoneHome.minutesHint'))).toBeVisible();
@@ -113,7 +117,7 @@ for (const lang of LANGS) {
       await lina.close();
     });
 
-    test(`PM-02 [${lang}]: Approve and Send back from Next's bottom sheet at 390 px`, async ({
+    test(`PM-02 [${lang}]: Approve and Send back from Do this next's bottom sheet at 390 px`, async ({
       signIn,
     }) => {
       test.setTimeout(240_000);
@@ -126,7 +130,10 @@ for (const lang of LANGS) {
       await page.goto(inLang(`/${NORTHSTAR}/home`, lang));
       await expectLanguage(page, lang);
 
-      const next = page.getByRole('region', { name: word(lang, 'MyDay.w.next'), exact: true });
+      const next = page.getByRole('group', {
+        name: word(lang, 'MyDayScreen.doThisNext'),
+        exact: true,
+      });
       const approve = next.getByRole('button', { name: startsWith(word(lang, 'MyDay.approve')) });
       const sendBack = next.getByRole('button', {
         name: startsWith(word(lang, 'MyDay.sendBack')),
@@ -149,7 +156,7 @@ for (const lang of LANGS) {
         .click();
       await expect(sheet).toHaveCount(0);
       await expect(page.getByText(word(lang, 'PhoneHome.approvedNotice'))).toBeVisible();
-      // Next moves on to the second review.
+      // Do this next moves on to the second review.
       await expect(approve).toHaveCount(1);
 
       // Send back: no note, no sending.
@@ -167,9 +174,9 @@ for (const lang of LANGS) {
       await expect(sheet).toHaveCount(0);
       await expect(page.getByText(word(lang, 'PhoneHome.sentBackNotice'))).toBeVisible();
       await expect(approve).toHaveCount(0);
-      // With nothing waiting, Next holds her work.
+      // With nothing waiting, Do this next holds her work.
       await expect(
-        next.getByRole('link', { name: startsWith(word(lang, 'MyDay.open')) }),
+        next.getByRole('link', { name: startsWith(word(lang, 'MyDayScreen.openPrefix')) }),
       ).toBeVisible();
 
       // The server agrees: nothing waits on her any more.

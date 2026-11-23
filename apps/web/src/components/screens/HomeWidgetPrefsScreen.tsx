@@ -16,6 +16,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { getHomeBriefing, hasBriefing, homeBriefingQueryKey } from '../../lib/api/home-briefing';
+import { ALWAYS_SHOWN } from '../my-day/my-day-layout';
 
 export interface HomeWidgetPrefsScreenProps {
   organizationSlug: string;
@@ -96,8 +97,10 @@ export function HomeWidgetPrefsScreen({
     queryKey: homeBriefingQueryKey(organizationSlug),
     queryFn: () => getHomeBriefing(api, organizationSlug),
   });
+  // The day bar and "Do this next" are always on My Day (spec MYDAY-V4 §4.2 rule 1): a Show box
+  // or a move for them would be a control that does nothing (v4 visual check, 2026-11-23).
   const offered = (id: HomeWidgetId): boolean =>
-    id !== 'businessBriefing' || hasBriefing(briefing.data);
+    !ALWAYS_SHOWN.has(id) && (id !== 'businessBriefing' || hasBriefing(briefing.data));
 
   const [order, setOrder] = useState<HomeWidgetId[]>(() => foldOrder([]));
   const [hidden, setHidden] = useState<ReadonlySet<HomeWidgetId>>(new Set());

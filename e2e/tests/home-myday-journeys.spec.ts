@@ -3,10 +3,11 @@ import type { APIResponse, Browser, BrowserContext, Page } from '@playwright/tes
 import { API_URL, WEB_URL } from '../setup/stack.js';
 
 /**
- * Home / My Day v3.1 — the member's own Saved, Pinned and Recent widgets, and the one property
+ * Home / My Day v4 — the member's own Saved, Pinned and Recently viewed sections, and the one property
  * they exist to have: they are the *server's* memory of what the member kept, not the tab's, so
  * they are still there after a full reload (and would be there in a fresh browser too). Plus the
- * v3.1 page itself: the widgets are named regions, and Edit widgets saves the layout per member.
+ * v4 page itself (spec MYDAY-V4 §4): its parts are named, and Edit widgets (its own page since v4)
+ * saves the layout per member.
  *
  * The write surfaces these sections read — `POST .../home/pins`, `PUT .../home/recent-items`,
  * `POST .../home/saved-context` — have no screen control yet (the API lib exports the calls; no
@@ -58,6 +59,14 @@ async function openAs(
   userId: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext();
+  // A returning person (journey-kit's `asReturningPerson`): v4 restored the My Day coach-mark
+  // tour, whose dialog would otherwise open over the page on a first visit.
+  await context.addInitScript(() => {
+    for (const slug of ['northstar-studio', 'northstar-studios']) {
+      window.localStorage.setItem(`tm-coach:${slug}:never`, 'true');
+      window.localStorage.setItem(`tm.autotimer.asked.${slug}`, '1');
+    }
+  });
   const response = await context.request.post(`${API_URL}/v1/dev/sessions`, { data: { userId } });
   expect(response.ok()).toBe(true);
   const page = await context.newPage();
@@ -124,14 +133,15 @@ test.describe('Home / My Day — saved, pinned and recent context', () => {
     // reload is literally "the same checks again" rather than a second, looser copy.
     const title = world().northstar.workItemTitle;
     const assertHome = async (): Promise<void> => {
-      // Pinned reads the item's live title through its own authorized GET.
+      // Pinned reads the item's live title through its own authorized GET (restored in v4 by the
+      // 2026-11-23 visual check: the old section had read "Pinned work item" on every row).
       const pinned = manager.page.getByRole('region', { name: 'Pinned', exact: true });
       await expect(pinned.getByRole('link', { name: title, exact: true })).toHaveAttribute(
         'href',
         `/${SLUG}/work/${workItemId}`,
       );
 
-      const recents = manager.page.getByRole('region', { name: 'Recent', exact: true });
+      const recents = manager.page.getByRole('region', { name: 'Recently viewed', exact: true });
       await expect(recents.getByRole('link', { name: title, exact: true })).toHaveAttribute(
         'href',
         `/${SLUG}/work/${workItemId}`,
@@ -140,7 +150,7 @@ test.describe('Home / My Day — saved, pinned and recent context', () => {
       // out, rather than drawn as a row the member cannot open.
       await expect(recents.getByRole('link', { name: 'Meeting', exact: true })).toHaveCount(0);
 
-      // Saved shows the title the API read from the work item (My Day v3.1), not the kind word.
+      // Saved shows the title the API read from the work item, not the kind word.
       const savedRegion = manager.page.getByRole('region', { name: 'Saved', exact: true });
       await expect(savedRegion.getByRole('link', { name: title, exact: true })).toHaveAttribute(
         'href',
@@ -171,9 +181,9 @@ test.describe('Home / My Day — saved, pinned and recent context', () => {
     await expect(member.page.getByRole('region', { name: 'Pinned', exact: true })).toContainText(
       'Nothing pinned',
     );
-    await expect(member.page.getByRole('region', { name: 'Recent', exact: true })).toContainText(
-      'Nothing opened yet',
-    );
+    await expect(
+      member.page.getByRole('region', { name: 'Recently viewed', exact: true }),
+    ).toContainText('Nothing viewed yet');
     await expect(member.page.getByRole('region', { name: 'Saved', exact: true })).toContainText(
       'Nothing saved',
     );
@@ -248,7 +258,7 @@ test.describe('Home / My Day — saved, pinned and recent context', () => {
     await member.context.close();
   });
 
-  test('the v3.1 page draws its widgets, and Edit widgets keeps a hidden widget hidden after a reload', async ({
+  test('the v4 page draws its parts, and Edit widgets keeps a hidden part hidden after a reload', async ({
     browser,
   }) => {
     // The owner: nothing else in this file edits her layout, and the case puts it back at the end.
@@ -257,44 +267,49 @@ test.describe('Home / My Day — saved, pinned and recent context', () => {
     await page.goto(`/${SLUG}/home`);
 
     await expect(page.getByRole('heading', { level: 1, name: 'My Day' })).toBeVisible();
-    for (const name of ['Next', 'At a glance', 'Due & at risk', 'Waiting']) {
+    // Spec §4.2 rule 1: "Do this next" is the first part under the header.
+    await expect(page.getByRole('group', { name: 'Do this next', exact: true })).toBeVisible();
+    for (const name of ['Due & at risk', 'Waiting on you', 'Waiting on others']) {
       await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
     }
 
-    const recent = page.getByRole('region', { name: 'Recent', exact: true });
+    const recent = page.getByRole('region', { name: 'Recently viewed', exact: true });
     await expect(recent).toBeVisible();
 
-    await page.getByRole('button', { name: 'Edit widgets', exact: true }).click();
-    const panel = page.getByRole('dialog', { name: 'Edit widgets', exact: true });
-    await expect(panel).toBeVisible();
-    // Next is the anchor: it has no switch, so it can never be hidden.
-    await expect(panel.getByRole('switch', { name: 'Show Next' })).toHaveCount(0);
+    // Edit widgets is the last thing in the main column and opens its own page.
+    await page.getByRole('link', { name: 'Edit widgets', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/${SLUG}/home/widgets$`, 'u'));
+    const recentRow = page.getByRole('listitem').filter({ hasText: 'Recent' });
+    const show = recentRow.getByRole('checkbox', { name: 'Show', exact: true });
+    // "Do this next" is the anchor: it has no row, so it can never be hidden.
+    await expect(page.getByRole('listitem').filter({ hasText: /^Next/u })).toHaveCount(0);
+    await show.uncheck();
     const save = page.waitForResponse(
       (response) =>
         response.url().includes('/home/widget-prefs') && response.request().method() === 'PUT',
     );
-    await panel.getByRole('switch', { name: 'Show Recent', exact: true }).uncheck();
+    await page.getByRole('button', { name: 'Save layout', exact: true }).click();
     expect((await save).ok()).toBe(true);
-    await panel.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(recent).toHaveCount(0);
 
-    // The layout is the member's own row on the server: a full reload keeps Recent hidden.
+    // The layout is the member's own row on the server: My Day, reloaded, keeps it hidden.
+    await page.goto(`/${SLUG}/home`);
+    await expect(page.getByRole('group', { name: 'Do this next', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Recently viewed', exact: true })).toHaveCount(0);
     await page.reload();
-    await expect(page.getByRole('region', { name: 'Next', exact: true })).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Recent', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('group', { name: 'Do this next', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Recently viewed', exact: true })).toHaveCount(0);
 
     // Put it back for every later journey.
-    await page.getByRole('button', { name: 'Edit widgets', exact: true }).click();
+    await page.goto(`/${SLUG}/home/widgets`);
+    await show.check();
     const reset = page.waitForResponse(
       (response) =>
         response.url().includes('/home/widget-prefs') && response.request().method() === 'PUT',
     );
-    await page
-      .getByRole('dialog', { name: 'Edit widgets', exact: true })
-      .getByRole('button', { name: 'Reset', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'Save layout', exact: true }).click();
     expect((await reset).ok()).toBe(true);
-    await expect(page.getByRole('region', { name: 'Recent', exact: true })).toBeVisible();
+    await page.goto(`/${SLUG}/home`);
+    await expect(page.getByRole('region', { name: 'Recently viewed', exact: true })).toBeVisible();
 
     await owner.context.close();
   });

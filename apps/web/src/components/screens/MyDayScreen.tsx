@@ -1115,7 +1115,7 @@ function WorkCard({
             {typeGlyph(entry.workItem.type)}
           </span>
           <span className="tm-home-card__eyebrow-text">
-            {typeName(entry.workItem.type)} · <bdi>{projectName}</bdi>
+            <span>{typeName(entry.workItem.type)} ·</span> <bdi dir="auto">{projectName}</bdi>
           </span>
         </span>
         <span className="tm-home-card__orbs">
@@ -1332,9 +1332,9 @@ function WaitingRow({
         {isApproval ? '◆' : '◎'}
       </span>
       <span className="tm-home-rows__title">
-        <bdi>{title}</bdi>{' '}
+        <bdi dir="auto">{title}</bdi>{' '}
         <span className="tm-home-rows__project">
-          · <bdi>{projectName}</bdi>
+          · <bdi dir="auto">{projectName}</bdi>
         </span>
       </span>
       <span className="tm-home-rows__status" data-tone={waitingTone(entry.reason)}>

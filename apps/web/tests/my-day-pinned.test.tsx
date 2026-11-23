@@ -18,8 +18,12 @@ import { expectNoAxeViolations } from './axe';
 const WORK_ITEM = '00000000-0000-4000-8000-0000000000d1';
 
 /** A client that answers every Home read this screen makes, routing on the request URL. */
-function homeClient(pins: unknown[]): ApiClient {
+function homeClient(
+  pins: unknown[],
+  extra: readonly { match: string; body: unknown }[] = [],
+): ApiClient {
   const bodies: { match: string; body: unknown }[] = [
+    ...extra,
     { match: '/home/my-day', body: { items: [] } },
     { match: '/home/waiting', body: { items: [] } },
     {
@@ -83,6 +87,33 @@ describe('MyDayScreen — HOME-05 follow-up Pinned section', () => {
     expect(link).toHaveAttribute('href', `/northstar-studio/work/${WORK_ITEM}`);
 
     await expectNoAxeViolations(container);
+  });
+
+  it("names a pinned item by its live title, read through the item's own GET", async () => {
+    const client = homeClient(
+      [
+        {
+          id: 'pin-1',
+          targetKind: 'work',
+          targetId: WORK_ITEM,
+          createdAt: '2026-09-21T00:00:00.000Z',
+        },
+      ],
+      [{ match: `/work-items/${WORK_ITEM}`, body: { id: WORK_ITEM, title: 'Atlas launch plan' } }],
+    );
+    render(
+      withQuery(
+        <MyDayScreen
+          organizationSlug="northstar-studio"
+          organizationName="Northstar Studio"
+          client={client}
+        />,
+      ),
+    );
+
+    const list = await screen.findByRole('list', { name: 'Pinned to your Home' });
+    const link = await within(list).findByRole('link', { name: 'Atlas launch plan' });
+    expect(link).toHaveAttribute('href', `/northstar-studio/work/${WORK_ITEM}`);
   });
 
   it('shows the empty state when nothing is pinned', async () => {
