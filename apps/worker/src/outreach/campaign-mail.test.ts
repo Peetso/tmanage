@@ -69,7 +69,12 @@ describe('LANE-Q campaign mail — one teammate, plain text, personal unsubscrib
     expect(lines[0]).toBe('Hi Eeva,');
     expect(mail.text).not.toMatch(/Hi there/u);
     expect(mail.text).toContain('like Eta Studio.');
-    expect(mail.text).toContain('Best,\nEmma\nTManage · tmanageapp.com\nCairo, Egypt\n\n');
+    // Owner 2026-11-23: no city line, the eight languages, what comes next, 3 free months after.
+    expect(mail.text).toContain('Best,\nEmma\nTManage · tmanageapp.com\n\n');
+    expect(mail.text).not.toContain('Cairo');
+    expect(mail.text).toContain('Fully localized: English, Arabic, French');
+    expect(mail.text).toContain('Coming in the next 1-2 months:');
+    expect(mail.text).toContain('3 more months after the beta ends');
     expect(lines.at(-1)).toBe(
       `If this isn't relevant, just say so, or use this link and I won't write again: ${LINK_TOKENS.unsubscribe}`,
     );
@@ -83,17 +88,17 @@ describe('LANE-Q campaign mail — one teammate, plain text, personal unsubscrib
     expect(mail.html).toBeUndefined();
   });
 
-  it('gives a US recipient the postal address in place of the city line', () => {
+  it('gives a US recipient the postal address (CAN-SPAM), and only them', () => {
     const mail = composeCampaignIntro({ ...INPUT, country: 'US' });
     expect(mail.text).toContain('TManage · tmanageapp.com\n1 Al Horeya St. - Cairo - Egypt\n');
-    expect(mail.text).not.toContain('Cairo, Egypt\n');
   });
 
-  it('writes the Arabic text with the Arabic city and unsubscribe lines', () => {
+  it('writes the Arabic text with no city line and the unsubscribe line', () => {
     const mail = composeCampaignIntro({ ...INPUT, language: 'ar', senderName: 'مريم' });
     expect(mail.subject).toBe('موافقات العملاء دون ملاحقة عبر البريد');
     expect(mail.text.split('\n')[0]).toBe('مرحباً Eeva،');
-    expect(mail.text).toContain('مريم\nTManage · tmanageapp.com\nالقاهرة، مصر\n');
+    expect(mail.text).toContain('مريم\nTManage · tmanageapp.com\n\n');
+    expect(mail.text).not.toContain('القاهرة، مصر');
     expect(mail.text.split('\n').at(-1)).toBe(
       `إن لم يكن هذا مناسباً لكم، يكفي الرد بذلك، أو من هذا الرابط ولن أراسلكم مجدداً: ${LINK_TOKENS.unsubscribe}`,
     );

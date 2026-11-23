@@ -6,10 +6,10 @@ import type { MailMessage } from '@tmanage/mail';
  * owner's 2026-11-20 changes): plain text, written by one teammate, no boilerplate block.
  *
  * - Greeting with the person's first name (every imported row has one; no "Hi there").
- * - Signature "{name}\nTManage · tmanageapp.com" and the city line ("Cairo, Egypt" /
- *   "القاهرة، مصر"). For a US recipient the city line is the postal address from
- *   CAMPAIGN_POSTAL_ADDRESS instead (CAN-SPAM, 15 U.S.C. §7704(a)(5)(A)(iii); the address names
- *   the city already). Nobody else gets the postal address.
+ * - Signature "{name}\nTManage · tmanageapp.com". A US recipient also gets the postal address from
+ *   CAMPAIGN_POSTAL_ADDRESS (CAN-SPAM); nobody else gets an address line (owner 2026-11-23).
+ * - Owner 2026-11-23: the eight languages, the features coming in the next 1-2 months, and the
+ *   3 free months after the beta.
  * - The unsubscribe is the personal last line; the sender resolver fills the link token with the
  *   signed one-click link and stamps the RFC 8058 List-Unsubscribe headers (ADR-0013).
  * - Replies go to the sender's own mailbox (the resolver's person identity).
@@ -36,10 +36,14 @@ export const CAMPAIGN_SUBJECT = {
   ar: 'موافقات العملاء دون ملاحقة عبر البريد',
 } as const;
 
-function cityLine(input: CampaignMailInput): string {
+/**
+ * The postal address, for US recipients only (CAN-SPAM, 15 U.S.C. §7704(a)(5)(A)(iii)); nobody else
+ * gets an address line (owner 2026-11-23: no "Cairo, Egypt").
+ */
+function addressLines(input: CampaignMailInput): string[] {
   if (input.country === 'US' && input.postalAddress.trim() !== '')
-    return input.postalAddress.trim();
-  return input.language === 'ar' ? 'القاهرة، مصر' : 'Cairo, Egypt';
+    return [input.postalAddress.trim()];
+  return [];
 }
 
 function englishText(input: CampaignMailInput): string {
@@ -53,9 +57,18 @@ function englishText(input: CampaignMailInput): string {
     '- Clients approve each version in their own portal. Every approval is tied to the exact file, with a certificate.',
     '- Tasks, timelines, workload and time tracking for the team.',
     '- Team chat that turns any message into a task or a recorded decision.',
-    '- Invoices from tracked time, with full English and Arabic.',
+    '- Invoices from tracked time.',
     '',
-    "It's free while we're in beta. Your workspace is ready here, with no card needed:",
+    '- Fully localized: English, Arabic, French, Spanish, German, Portuguese, Chinese and Urdu.',
+    '',
+    'Coming in the next 1-2 months:',
+    '',
+    '- AI employees you invite like teammates, who take on tasks and hand in the work.',
+    '- A sales pipeline and contracts.',
+    '- A help desk for client requests.',
+    '- HR and purchasing.',
+    '',
+    "It's free while we're in beta, and your team keeps it free for 3 more months after the beta ends. Your workspace is ready here, with no card needed:",
     input.trialUrl,
     '',
     'If a 20-minute walkthrough would help, pick a time that suits you:',
@@ -64,7 +77,7 @@ function englishText(input: CampaignMailInput): string {
     'Best,',
     input.senderName,
     'TManage · tmanageapp.com',
-    cityLine(input),
+    ...addressLines(input),
     '',
     `If this isn't relevant, just say so, or use this link and I won't write again: ${LINK_TOKENS.unsubscribe}`,
   ].join('\n');
@@ -81,9 +94,17 @@ function arabicText(input: CampaignMailInput): string {
     '- يعتمد العميل كل نسخة من بوابته الخاصة، وكل موافقة مرتبطة بالملف نفسه مع شهادة توثّقها.',
     '- مهام وجداول زمنية وتوزيع للعمل وتتبع للوقت لفريقك.',
     '- محادثات للفريق، يمكن تحويل أي رسالة فيها إلى مهمة أو قرار موثّق.',
-    '- فواتير من الوقت المسجّل، والنظام كامل بالعربية والإنجليزية.',
+    '- فواتير من الوقت المسجّل.',
+    '- النظام مترجم بالكامل: العربية والإنجليزية والفرنسية والإسبانية والألمانية والبرتغالية والصينية والأردية.',
     '',
-    'الاستخدام مجاني طوال الفترة التجريبية، ومساحة عملكم جاهزة من هنا دون بطاقة دفع:',
+    'قريباً، خلال الشهر أو الشهرين القادمين:',
+    '',
+    '- موظفون بالذكاء الاصطناعي تدعونهم مثل أي عضو في الفريق، يستلمون المهام ويسلّمون العمل.',
+    '- مسار للمبيعات والعقود.',
+    '- مكتب دعم لطلبات العملاء.',
+    '- الموارد البشرية والمشتريات.',
+    '',
+    'الاستخدام مجاني طوال الفترة التجريبية، ويبقى مجانياً لفريقكم 3 أشهر إضافية بعد انتهائها. مساحة عملكم جاهزة من هنا دون بطاقة دفع:',
     input.trialUrl,
     '',
     'وإذا رغبتم في جولة تعريفية مدتها 20 دقيقة مع أحد أعضاء فريقنا، اختاروا الموعد المناسب:',
@@ -92,7 +113,7 @@ function arabicText(input: CampaignMailInput): string {
     'مع خالص التحية،',
     input.senderName,
     'TManage · tmanageapp.com',
-    cityLine(input),
+    ...addressLines(input),
     '',
     `إن لم يكن هذا مناسباً لكم، يكفي الرد بذلك، أو من هذا الرابط ولن أراسلكم مجدداً: ${LINK_TOKENS.unsubscribe}`,
   ].join('\n');
