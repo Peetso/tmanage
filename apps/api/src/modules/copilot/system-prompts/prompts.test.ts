@@ -25,6 +25,7 @@ describe('prompts read Arabic and Franco requests by meaning', () => {
     ] as const) {
       const prompt = domainSystemPrompt(domain);
       expect(prompt).toContain('Never swap their request for a different action');
+      expect(prompt).toContain('create the client company');
       expect(prompt).toContain('You can do anything this member may do');
       expect(prompt).toContain('they do not have the right');
       expect(prompt).toContain('You prepare every change on a card');
