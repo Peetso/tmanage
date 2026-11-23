@@ -158,6 +158,7 @@ export function WorkViewsShell({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
+      header="compact"
       title={title ?? tOr('WorkViewsShell.work', 'Work')}
       {...(titleMeta === undefined ? {} : { titleMeta })}
       {...(lens === undefined ? {} : { lens })}

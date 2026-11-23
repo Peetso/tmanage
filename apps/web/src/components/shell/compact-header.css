@@ -1,0 +1,338 @@
+/*
+ * The compact page header of Work area v2 (Figma `WV2-01`, `WV2-02`, `WV2-05`, `WV2-08`;
+ * WORK-BUILD-FABLE-REVIEW must-fix 3, 4 and 13; UX-27 one header row; UX-14 logical properties).
+ * Only screens that pass `header="compact"` to AppShell draw it; every other screen is unchanged.
+ */
+
+/* ── Shell tools: Help and "Let AI do the job" (Figma: "AI" and "?" at the foot of the rail) ── */
+
+.tm-shell-tools {
+  position: fixed;
+  z-index: 20;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  inline-size: var(--app-rail);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  padding-block: var(--s3) var(--s5);
+  background: var(--paper-350);
+}
+
+.tm-shell-tools .tm-day-pulse__orb {
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* The menus open beside the rail, upwards from the orb, never below the window's edge. */
+.tm-shell-tools :is(.tm-support-menu, .tm-ai-popover) {
+  inset-block-start: auto;
+  inset-block-end: 0;
+  inset-inline-start: calc(100% + var(--s3));
+  inset-inline-end: auto;
+}
+
+/* The rail's own foot (Control Center, account) scrolls clear of the two orbs over it. */
+.tm-app[data-header='compact'] .tm-rail {
+  padding-block-end: calc(var(--s5) + var(--s3) + 2 * var(--orb-compact) + var(--s2));
+}
+
+/* ── The organization line: the phone top bar only (kept for assistive technology above) ── */
+
+.tm-compact-org {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── Desktop: the rail, the context rail at full height, then the pane ───────────────────── */
+
+@media (min-width: 56.2rem) {
+  .tm-app[data-header='compact'] .tm-app__body {
+    gap: 0;
+    padding: 0;
+  }
+
+  .tm-app__columns[data-layout='compact'] {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    min-block-size: 100vh;
+  }
+
+  .tm-app__columns[data-layout='compact'] > .tm-context-rail {
+    inline-size: var(--app-context-rail);
+    min-inline-size: var(--context-rail-min);
+    border: 0;
+    border-inline-end: var(--b-quiet) solid var(--line-300);
+    border-radius: 0;
+  }
+}
+
+.tm-app__pane {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* One 56px row and the line under it. The row does not wrap: the count stays on the title's
+   line and the controls stay at the end. */
+.tm-app .tm-compact-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-app .tm-compact-header[data-trail] {
+  border-block-end: 0;
+}
+
+.tm-compact-header__trail-row,
+.tm-app[data-header='compact'] .tm-compact-header .tm-compact-header__title-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: var(--app-header-row);
+  padding-inline: var(--page-gutter);
+}
+
+.tm-compact-header__trail-row {
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+/* A detail page's title row sits under the trail's line. */
+.tm-app[data-header='compact'] .tm-compact-header[data-trail] .tm-compact-header__title-row {
+  padding-block: var(--s4) var(--s2);
+}
+
+/* …and its body follows straight on (Figma: the stage trail sits under the title). */
+.tm-compact-header[data-trail] ~ .tm-app__pane-body {
+  padding-block-start: 0;
+}
+
+.tm-compact-header__title-row > .tm-canvas-header__title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+
+.tm-compact-header__title-row > .tm-canvas-header__meta {
+  flex: none;
+  align-self: center;
+  padding-block-end: 0;
+  white-space: nowrap;
+}
+
+.tm-compact-header .tm-canvas-header__actions {
+  flex: none;
+  flex-wrap: nowrap;
+  margin-inline-start: auto;
+}
+
+/* In one row a button must not give up width: its label would cross its 12px inset (UX-26).
+   A search field is the one control that may narrow. */
+.tm-compact-header .tm-canvas-header__actions > :not(.tm-search-field) {
+  flex-shrink: 0;
+}
+
+/* The trail: plain 14px sentence case, "Website relaunch › Work" (no mono capitals, no dot). */
+.tm-compact-header__trail {
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tm-compact-header__trail a {
+  /* 24px high, so each link of the trail is a whole target (WCAG 2.2 SC 2.5.8). */
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--s6);
+  vertical-align: middle;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-compact-header__trail a:hover {
+  color: var(--ink-950);
+}
+
+.tm-compact-header__back {
+  display: none;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control);
+  min-inline-size: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  text-decoration: none;
+}
+
+.tm-compact-header__back-icon {
+  font-size: var(--t-body-lg);
+  color: var(--ink-950);
+}
+
+[dir='rtl'] .tm-compact-header__back-icon {
+  transform: scaleX(-1);
+}
+
+.tm-app__pane > .tm-app__topbar {
+  padding-block-start: var(--s4);
+  padding-inline: var(--page-gutter);
+}
+
+.tm-app__pane-body {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s6);
+  padding-block: var(--s4) var(--s8);
+  padding-inline: var(--page-gutter);
+}
+
+@media (max-width: 73.69rem) {
+  .tm-app__pane-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ── No rail (below 900px): the orbs join the top bar; the pane loses its own gutter ─────── */
+/* (The AI launcher is not drawn below 900px, `ai-panel.css`: the phone has no room beside the
+   assistant. Help stays.) */
+
+@media (max-width: 56.19rem) {
+  .tm-shell-tools {
+    position: absolute;
+    z-index: 5;
+    inset-block-start: var(--s5);
+    inset-block-end: auto;
+    inset-inline-start: auto;
+    inset-inline-end: calc(var(--s5) + var(--orb-default) + var(--s2));
+    inline-size: auto;
+    flex-direction: row;
+    padding: 0;
+    background: none;
+  }
+
+  /* The menus open downwards under the top bar again. */
+  .tm-shell-tools :is(.tm-support-menu, .tm-ai-popover) {
+    inset-block-start: calc(100% + var(--s2));
+    inset-block-end: auto;
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+  }
+
+  .tm-compact-org {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-block-size: var(--orb-default);
+    padding-inline-end: calc(2 * var(--orb-compact) + var(--orb-default) + var(--s12));
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+    font-weight: 500;
+    text-transform: uppercase;
+    color: var(--ink-650);
+  }
+
+  .tm-compact-org__name {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tm-app__columns[data-layout='compact'] > .tm-context-rail {
+    display: none;
+  }
+
+  .tm-compact-header__trail-row,
+  .tm-app[data-header='compact'] .tm-compact-header .tm-compact-header__title-row,
+  .tm-app__pane > .tm-app__topbar,
+  .tm-app__pane-body {
+    padding-inline: 0;
+  }
+
+  .tm-app .tm-compact-header,
+  .tm-compact-header__trail-row {
+    border-block-end: 0;
+  }
+
+  .tm-compact-header__trail {
+    display: none;
+  }
+
+  .tm-compact-header__back {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  /* The phone top bar's bell (44) and avatar (40) sit at the end; the orbs go before them. */
+  .tm-shell-tools {
+    inset-block-start: calc(var(--s5) + var(--s2));
+    inset-inline-end: calc(var(--s4) + var(--orb-comfortable) + var(--orb-default) + 2 * var(--s2));
+  }
+
+  .tm-compact-org {
+    min-block-size: var(--orb-comfortable);
+    padding-inline-end: calc(
+      2 * var(--orb-compact) + var(--orb-comfortable) + var(--orb-default) + var(--s12)
+    );
+  }
+
+  .tm-app[data-header='compact'] .tm-app__body {
+    gap: var(--s4);
+  }
+
+  .tm-app[data-header='compact'] .tm-compact-header .tm-compact-header__title-row {
+    padding-inline-end: 0;
+  }
+
+  /* Figma's phone header is the title and its controls; the count waits for a wider screen. */
+  .tm-compact-header__title-row > .tm-canvas-header__meta {
+    display: none;
+  }
+
+  /* A detail page: title (with its mic and language) on one line, its controls on the next. */
+  .tm-app[data-header='compact'] .tm-compact-header[data-trail] .tm-compact-header__title-row {
+    flex-wrap: wrap;
+    padding-block: var(--s2) 0;
+  }
+
+  .tm-compact-header[data-trail] .tm-compact-header__title-row > .tm-canvas-header__actions {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    margin-inline-start: 0;
+  }
+
+  .tm-compact-header[data-trail] ~ .tm-app__pane-body {
+    padding-block-start: var(--s4);
+  }
+
+  /* A screen that draws its own back link and title on the phone (an opened team). */
+  .tm-app .tm-compact-header[data-phone='hidden'] {
+    display: none;
+  }
+}

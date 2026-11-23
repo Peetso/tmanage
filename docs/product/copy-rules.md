@@ -53,6 +53,7 @@ Claude, ChatGPT, MCP). The full list is `brands` in the glossary. Keyboard keys 
 | `forbidden-term`      | error   | tenant, projection, principal, idempotent, entitlement                |
 | `internal-leak`       | error   | `something_id`, `SQLSTATE`, `ER_...`, stack traces, `undefined`       |
 | `untranslated-ar`     | error   | the Arabic value has Latin words but no Arabic letters (brands aside) |
+| `term-clash`          | error   | English uses a term, Arabic uses a stem in that term's `avoid` list   |
 | `glossary`            | warning | English uses a glossary term and Arabic uses none of its forms        |
 | `jargon`              | warning | baseline, payload, slug, UUID, enum, schema, outbox                   |
 | `sentence-length`     | warning | over 14 words (UI) or 20 words (keys that name help text)             |
@@ -70,5 +71,7 @@ the same time.
 ## 4. Changing the glossary
 
 Add or change a term in `glossary.json`: `en`, `ar`, `accept` (the Arabic stems that count as the
-same word, written without diacritics) and `lint` (true only for terms whose meaning does not
-change with context). Ask the Arabic reader panel before changing an existing Arabic term.
+same word, written without diacritics), `lint` (true only for terms whose meaning does not
+change with context) and, where two things were being given one word, `avoid` (another term's
+stems: «شغل» for work, which reads «العمل» or «مهمة»; «مرحلة» for a milestone, which reads «محطة»
+because «مرحلة» is a stage). Ask the Arabic reader panel before changing an existing Arabic term.

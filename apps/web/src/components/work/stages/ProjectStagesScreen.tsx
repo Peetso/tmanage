@@ -79,6 +79,7 @@ export function ProjectStagesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
+      header="compact"
       title={project.data?.name ?? t('WorkStages.editor.projectTitle')}
       titleMeta={<span className="tm-stg-project__meta">{t('WorkStages.editor.title')}</span>}
       topBar={

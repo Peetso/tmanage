@@ -87,10 +87,13 @@ function openBeside(site: AssistantSite): void {
 export function AiPanelLauncher({
   organizationSlug,
   variant = 'button',
+  tipPlacement = 'bottom',
 }: {
   readonly organizationSlug: string;
   /** `orb`: My Day's AI orb at the end of the day bar (spec MYDAY-V4 §4.1), named in a tooltip. */
   readonly variant?: 'button' | 'orb';
+  /** Where the orb's name shows: `end` beside the rail (Work area v2 header, Figma `WV2`). */
+  readonly tipPlacement?: 'bottom' | 'end';
 }) {
   const t = useAiPanelT();
   const locale = useActiveLocale();
@@ -260,7 +263,11 @@ export function AiPanelLauncher({
   return (
     <div className="tm-ai-launcher" ref={anchor}>
       {variant === 'orb' ? (
-        <Tooltip content={t('AiPanel.launch')} delayMs={MOTION_DELAY_TOOLTIP_MS} placement="bottom">
+        <Tooltip
+          content={t('AiPanel.launch')}
+          delayMs={MOTION_DELAY_TOOLTIP_MS}
+          placement={tipPlacement}
+        >
           <button
             type="button"
             className="tm-day-pulse__search tm-day-pulse__orb"

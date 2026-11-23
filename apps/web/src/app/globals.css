@@ -171,6 +171,19 @@ html[lang^='zh'] body {
 }
 
 /*
+ * WX1 (review must-fix 5): Arabic is a joined script, and tracking pulls the joined letters apart
+ * (the letter-spaced overlines showed «حسابك» and «التفاصيل» as loose letters). W3C alreq §4.3.7.1:
+ * moving joined characters apart "creates undesirable results"; CSS Text 3 §7.2.1: authors should
+ * avoid letter-spacing on cursive scripts, since browsers differ in how (or whether) they keep the
+ * joins. One rule for every Arabic page, as for Urdu above, so no overline, eyebrow or label class
+ * can bring the fault back.
+ */
+:lang(ar),
+:lang(ar) * {
+  letter-spacing: 0 !important;
+}
+
+/*
  * Links in running text, as the handoff draws them: quiet ink with a `--line-300` rule beneath
  * that turns lime on hover. `:where()` keeps the specificity at zero, so every class that styles
  * an anchor (`.tm-button`, rail items, chips) wins without having to undo this. The `:hover` sits

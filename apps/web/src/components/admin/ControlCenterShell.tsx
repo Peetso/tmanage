@@ -786,6 +786,11 @@ export interface ControlCenterShellProps {
    * `'sections'` is the menu alone.
    */
   rail?: 'sections' | ReactNode;
+  /**
+   * `hide` drops the page header on a phone, where the page draws its own back link and title
+   * (a stage set opened from Settings › Stages, Figma `WV2-07` phone).
+   */
+  phoneHeader?: 'show' | 'hide';
   /** Injected in tests. Defaults to the browser client. */
   client?: ApiClient;
   children: ReactNode;
@@ -808,6 +813,7 @@ export function ControlCenterShell({
   actions,
   tabs,
   rail,
+  phoneHeader = 'show',
   client,
   children,
 }: ControlCenterShellProps) {
@@ -872,7 +878,12 @@ export function ControlCenterShell({
 
           <main id="tm-main" className="tm-canvas tm-cc-main" tabIndex={-1}>
             {tabs && !denied ? tabs : null}
-            <header className="tm-canvas-header" data-title-variant="page" data-actions="end">
+            <header
+              className="tm-canvas-header"
+              data-title-variant="page"
+              data-actions="end"
+              data-phone={phoneHeader === 'hide' ? 'hidden' : undefined}
+            >
               <div className="tm-canvas-header__titles">
                 {eyebrow ? <p className="tm-canvas-header__context">{eyebrow}</p> : null}
                 <div className="tm-canvas-header__title-row">

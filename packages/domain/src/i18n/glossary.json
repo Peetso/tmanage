@@ -1,5 +1,5 @@
 {
-  "$comment": "TManage EN/AR glossary (55-13). One English term, one Arabic term, used the same way everywhere. 'accept' lists the Arabic stems the copy lint treats as the same term (after removing diacritics and normalising alef, ta marbuta and alef maqsura). 'lint: true' makes scripts/i18n/copy-lint.mjs warn when an English string uses the term and its Arabic string uses none of the accepted stems. Rules: docs/product/copy-rules.md.",
+  "$comment": "TManage EN/AR glossary (55-13). One English term, one Arabic term, used the same way everywhere. 'accept' lists the Arabic stems the copy lint treats as the same term (after removing diacritics and normalising alef, ta marbuta and alef maqsura). 'lint: true' makes scripts/i18n/copy-lint.mjs warn when an English string uses the term and its Arabic string uses none of the accepted stems. 'avoid' lists stems that belong to another term (work: «شغل»; milestone: the stage word «مرحلة»); the lint fails when an English string uses the term and its Arabic string uses an avoided stem, unless the English also names the term that owns it (rule term-clash). Rules: docs/product/copy-rules.md.",
   "version": 1,
   "brands": [
     "TManage",
@@ -95,6 +95,13 @@
   ],
   "terms": [
     { "en": "project", "ar": "مشروع", "accept": ["مشروع", "مشاريع"], "lint": true },
+    {
+      "en": "work",
+      "ar": "العمل / مهمة",
+      "accept": ["عمل", "مهم", "مهام"],
+      "lint": false,
+      "avoid": ["شغل"]
+    },
     { "en": "work item", "ar": "مهمة", "accept": ["مهم", "مهام"], "lint": true },
     { "en": "task", "ar": "مهمة", "accept": ["مهم", "مهام"], "lint": true },
     { "en": "subtask", "ar": "مهمة فرعية", "accept": ["فرعي"], "lint": true },
@@ -107,7 +114,15 @@
     { "en": "publish to client", "ar": "نشر للعميل", "accept": ["نشر", "انشر"], "lint": true },
     { "en": "decision", "ar": "قرار", "accept": ["قرار"], "lint": true },
     { "en": "risk", "ar": "خطر", "accept": ["خطر", "مخاطر"], "lint": true },
-    { "en": "milestone", "ar": "مرحلة", "accept": ["مرحله", "مراحل"], "lint": true },
+    {
+      "en": "milestone",
+      "ar": "محطة",
+      "accept": ["محطه", "محطات"],
+      "lint": true,
+      "avoid": ["مرحل", "مراحل"]
+    },
+    { "en": "stage", "ar": "مرحلة", "accept": ["مرحل", "مراحل"], "lint": false },
+    { "en": "phase", "ar": "مرحلة رئيسية", "accept": ["مرحل", "مراحل"], "lint": false },
     { "en": "workload", "ar": "عبء العمل", "accept": ["عبء"], "lint": true },
     { "en": "quiet hours", "ar": "ساعات الهدوء", "accept": ["هدوء"], "lint": true },
     { "en": "digest", "ar": "ملخّص", "accept": ["ملخص"], "lint": true },

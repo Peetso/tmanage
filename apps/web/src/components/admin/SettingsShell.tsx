@@ -38,6 +38,7 @@ export function SettingsShell({
   headerAside,
   topBar,
   lens,
+  phoneHeader,
   client,
   children,
 }: SettingsShellProps) {
@@ -66,6 +67,7 @@ export function SettingsShell({
       {...(description === undefined ? {} : { description })}
       {...(actions === undefined ? {} : { actions })}
       rail={contextRail ?? 'sections'}
+      {...(phoneHeader ? { phoneHeader } : {})}
       {...(client ? { client } : {})}
     >
       {page}

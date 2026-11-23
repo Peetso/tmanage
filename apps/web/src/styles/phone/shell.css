@@ -120,22 +120,43 @@
   }
 
   .tm-phone-dock .tm-mobile-nav__list {
-    padding: var(--s2);
-    gap: var(--s1);
+    /* 20px + a resting tile's 4px puts the first and last label 24px from the rounded ends
+       (rule 1, a tall capsule); the tiles carry their own space, so they need no gap. */
+    padding: var(--s2) var(--s5);
+    gap: 0;
     border: 0;
     background: var(--tm-ink-absolute);
     box-shadow: var(--tm-phone-elevation-high);
+  }
+
+  /*
+   * WX1 (review must-fix 1): every label cut to "M…" because each of the five equal tiles kept
+   * 16px of capsule inset on both sides (32 of its ~51px). The tile is a rounded square now, so
+   * the capsule rule no longer applies: a resting tile is unfilled and keeps 4px; the current,
+   * lime tile is a control and keeps the 12px control inset (UX-26). A tile starts at its
+   * label's width (`flex: 1 1 auto`) and gives up room down to its longest word
+   * (`min-content`), so a short label is never cut and a long one ("Bandeja de entrada") wraps
+   * to a second line between words. The 320px reflow band below keeps the old floor of 0.
+   */
+  .tm-phone-dock .tm-mobile-nav__list > li {
+    flex: 1 1 auto;
+    min-inline-size: min-content;
   }
 
   .tm-phone-dock .tm-mobile-nav__item {
     justify-content: center;
     gap: var(--s1);
     min-block-size: 60px;
-    padding: var(--s2) var(--inset-capsule);
+    padding: var(--s2) var(--s1);
     /* A rounded tile, not a capsule: the label under the icon sat in the capsule's curve, 16px
        from a 60px-high rounded end (rule 1 asks 24). The 18px corner clears it. */
     border-radius: var(--r-compact);
     color: var(--tm-paper-absolute);
+  }
+
+  .tm-phone-dock .tm-mobile-nav__item[aria-current='page'],
+  .tm-phone-dock .tm-mobile-nav__item[data-active='true'] {
+    padding-inline: var(--inset-control);
   }
 
   .tm-phone-dock .tm-mobile-nav__item:hover {
@@ -173,6 +194,14 @@
     line-height: var(--t-caption-line);
     font-weight: 500;
     opacity: 0.72;
+    /* Two lines at most, broken between words (or hyphenated in the page's language). */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    text-align: center;
+    hyphens: auto;
   }
 
   .tm-phone-dock .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__label,
@@ -307,5 +336,9 @@
   .tm-phone-dock .tm-mobile-nav__list {
     padding: var(--s1);
     gap: 0;
+  }
+
+  .tm-phone-dock .tm-mobile-nav__list > li {
+    min-inline-size: 0;
   }
 }

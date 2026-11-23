@@ -40,6 +40,7 @@ import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
 import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
 import { NewMenu } from './NewMenu';
+import { CompactLayout, ShellStateControls } from './CompactLayout';
 import { appDateLocale } from '../../lib/i18n/app-locale';
 
 export interface AppShellProps {
@@ -96,7 +97,23 @@ export interface AppShellProps {
    * as orbs at the end of the day bar, the timer pill after New project, Getting started and the
    * Auto timer as rows of its side column.
    */
-  header?: 'standard' | 'page';
+  header?: 'standard' | 'page' | 'compact';
+  /**
+   * `compact` only (Work area v2, Figma `WV2-02` `933:95423`): the plain trail above the title,
+   * "Website relaunch › Work", drawn as the 56px header row with `crumbActions` at its end. The
+   * title row then sits under that line. On a phone the trail gives way to `back`.
+   */
+  crumbs?: ReactNode;
+  /** `compact` only: the controls at the end of the trail row ("Start timer", ⋯). */
+  crumbActions?: ReactNode;
+  /** `compact` only: the phone's back link ("‹ Website relaunch") in place of the trail. */
+  back?: { readonly href: string; readonly label: string };
+  /**
+   * `hide` drops the page header on a phone, where the screen draws its own back link and title
+   * (a team opened from the Teams list, Figma `WV2-06` phone): the list's title is not drawn
+   * above the detail's.
+   */
+  phoneHeader?: 'show' | 'hide';
   /** The contextual sidebar — saved views, channels, admin sections. */
   contextRail?: ReactNode;
   children: ReactNode;
@@ -228,6 +245,10 @@ export function AppShell({
   headerAside,
   topBar,
   header = 'standard',
+  crumbs,
+  crumbActions,
+  back,
+  phoneHeader = 'show',
   contextRail,
   children,
   lens,
@@ -241,9 +262,10 @@ export function AppShell({
   const queryClient = useContext(QueryClientContext);
   const t = useT();
   const pageControls = header === 'page';
+  const compact = header === 'compact';
   const shell = (
     <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
-      <div className="tm-app">
+      <div className="tm-app" {...(compact ? { 'data-header': 'compact' } : {})}>
         <SkipLink targetId="tm-main">{t('Shell.skipLink')}</SkipLink>
 
         {/* Platform admin v2 (PA-05): the Support mode banner and the platform announcement, above
@@ -309,91 +331,153 @@ export function AppShell({
           </nav>
 
           <div className="tm-app__body">
+            {/* Work area v2 (Figma WV2, "AI" and "?" at the foot of the rail): in the compact
+                header Help and "Let AI do the job" leave the page header. One element holds both:
+                fixed over the rail's foot on a desktop, in the phone top bar once the rail is
+                hidden. One instance, so the launchers' state is never split. */}
+            {compact ? (
+              <div className="tm-shell-tools">
+                {queryClient ? (
+                  <>
+                    <AiPanelLauncher
+                      organizationSlug={organizationSlug}
+                      variant="orb"
+                      tipPlacement="end"
+                    />
+                    <SupportLauncher
+                      organizationSlug={organizationSlug}
+                      variant="orb"
+                      tipPlacement="end"
+                    />
+                  </>
+                ) : (
+                  <HelpContextLink />
+                )}
+              </div>
+            ) : null}
             {/* Phone top bar: the bell and avatar orbs at the end of the organization line. Hidden
                 above the dock breakpoint, where the rail's account orb is the one on screen. */}
             <PhoneHeaderActions
               organizationSlug={organizationSlug}
               initials={phoneInitials(accountInitials, accountName)}
             />
-            {topBar ? <div className="tm-app__topbar">{topBar}</div> : null}
+            {topBar && !compact ? <div className="tm-app__topbar">{topBar}</div> : null}
 
-            <header
-              className="tm-canvas-header"
-              data-title-variant={titleVariant}
-              data-actions={actionsPlacement}
-            >
-              <div className="tm-canvas-header__titles">
-                <p className="tm-canvas-header__context">
-                  <BetaTag placement="phone" />
-                  <span className="tm-canvas-header__org">{displayedOrganizationName}</span>
-                  {eyebrow ? (
+            {compact ? (
+              <CompactLayout
+                organizationName={displayedOrganizationName}
+                title={titleContent ?? title}
+                titleMeta={titleMeta}
+                actions={
+                  actions || queryClient ? (
                     <>
-                      <span aria-hidden="true"> · </span>
-                      <span>{eyebrow}</span>
-                    </>
-                  ) : null}
-                </p>
-                <div className="tm-canvas-header__title-row">
-                  <h1 className="tm-canvas-header__title">{titleContent ?? title}</h1>
-                  {titleMeta ? <span className="tm-canvas-header__meta">{titleMeta}</span> : null}
-                  {pageControls ? (
-                    actions ? (
-                      <div className="tm-canvas-header__actions">{actions}</div>
-                    ) : null
-                  ) : actions || queryClient ? (
-                    <div className="tm-canvas-header__actions">
                       {actions}
-                      {/* Row 55-05: the global "+ New" menu, filtered by role (needs the query
-                          client for the role read). */}
-                      {queryClient ? <NewMenu organizationSlug={organizationSlug} /> : null}
-                      {/* 52-01: the running-timer pill, only while a timer runs (needs the
-                          query client). */}
                       {queryClient ? (
-                        <FeatureOn organizationSlug={organizationSlug} flag="time_tracking">
-                          <RunningTimerPill organizationSlug={organizationSlug} />
-                          {/* FIX-2026-11-10: the automatic timer (whole-computer activity). */}
-                          <AutoTimerStatus organizationSlug={organizationSlug} />
-                        </FeatureOn>
+                        <ShellStateControls organizationSlug={organizationSlug} />
                       ) : null}
-                      {/* Row 55-11: the getting-started checklist, until dismissed or done. */}
-                      {queryClient ? (
-                        <GettingStartedLauncher organizationSlug={organizationSlug} />
+                    </>
+                  ) : undefined
+                }
+                crumbs={crumbs}
+                crumbActions={crumbActions}
+                back={back}
+                description={description}
+                contextRail={contextRail}
+                lens={lens}
+                phoneHeader={phoneHeader}
+                topBar={topBar}
+              >
+                {children}
+              </CompactLayout>
+            ) : (
+              <>
+                <header
+                  className="tm-canvas-header"
+                  data-title-variant={titleVariant}
+                  data-actions={actionsPlacement}
+                >
+                  <div className="tm-canvas-header__titles">
+                    <p className="tm-canvas-header__context">
+                      <BetaTag placement="phone" />
+                      <span className="tm-canvas-header__org">{displayedOrganizationName}</span>
+                      {eyebrow ? (
+                        <>
+                          <span aria-hidden="true"> · </span>
+                          <span>{eyebrow}</span>
+                        </>
                       ) : null}
-                      {/* Row 55-16: the Help centre article for this screen. FIX3 item 10: with a
-                          query client it is the first entry of the Help menu below, so "?" and
-                          "Help" are one button; the bare "?" stays only where that menu cannot. */}
-                      {queryClient ? null : <HelpContextLink />}
-                      {/* Row 55-17: the help menu with "Contact support" (needs the query client). */}
-                      {queryClient ? <SupportLauncher organizationSlug={organizationSlug} /> : null}
-                      {/* "Let AI do the job" (Figma 400:5399): needs the query client. */}
-                      {queryClient ? <AiPanelLauncher organizationSlug={organizationSlug} /> : null}
+                    </p>
+                    <div className="tm-canvas-header__title-row">
+                      <h1 className="tm-canvas-header__title">{titleContent ?? title}</h1>
+                      {titleMeta ? (
+                        <span className="tm-canvas-header__meta">{titleMeta}</span>
+                      ) : null}
+                      {pageControls ? (
+                        actions ? (
+                          <div className="tm-canvas-header__actions">{actions}</div>
+                        ) : null
+                      ) : actions || queryClient ? (
+                        <div className="tm-canvas-header__actions">
+                          {actions}
+                          {/* Row 55-05: the global "+ New" menu, filtered by role (needs the query
+                            client for the role read). */}
+                          {queryClient ? <NewMenu organizationSlug={organizationSlug} /> : null}
+                          {/* 52-01: the running-timer pill, only while a timer runs (needs the
+                            query client). */}
+                          {queryClient ? (
+                            <FeatureOn organizationSlug={organizationSlug} flag="time_tracking">
+                              <RunningTimerPill organizationSlug={organizationSlug} />
+                              {/* FIX-2026-11-10: the automatic timer (whole-computer activity). */}
+                              <AutoTimerStatus organizationSlug={organizationSlug} />
+                            </FeatureOn>
+                          ) : null}
+                          {/* Row 55-11: the getting-started checklist, until dismissed or done. */}
+                          {queryClient ? (
+                            <GettingStartedLauncher organizationSlug={organizationSlug} />
+                          ) : null}
+                          {/* Row 55-16: the Help centre article for this screen. FIX3 item 10: with a
+                            query client it is the first entry of the Help menu below, so "?" and
+                            "Help" are one button; the bare "?" stays only where that menu cannot. */}
+                          {queryClient ? null : <HelpContextLink />}
+                          {/* Row 55-17: the help menu with "Contact support" (needs the query client). */}
+                          {queryClient ? (
+                            <SupportLauncher organizationSlug={organizationSlug} />
+                          ) : null}
+                          {/* "Let AI do the job" (Figma 400:5399): needs the query client. */}
+                          {queryClient ? (
+                            <AiPanelLauncher organizationSlug={organizationSlug} />
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
+                    {description ? (
+                      <p className="tm-canvas-header__description">{description}</p>
+                    ) : null}
+                  </div>
+                  {headerAside ? (
+                    <div className="tm-canvas-header__aside">{headerAside}</div>
+                  ) : null}
+                </header>
+
+                <div className="tm-app__columns">
+                  {contextRail ? (
+                    <nav className="tm-context-rail" aria-label={t('shell.rail.sectionNav')}>
+                      {contextRail}
+                    </nav>
+                  ) : null}
+
+                  <main id="tm-main" className="tm-canvas" tabIndex={-1}>
+                    {children}
+                  </main>
+
+                  {lens ? (
+                    <aside className="tm-lens" aria-label={t('shell.lens.details')}>
+                      {lens}
+                    </aside>
                   ) : null}
                 </div>
-                {description ? (
-                  <p className="tm-canvas-header__description">{description}</p>
-                ) : null}
-              </div>
-              {headerAside ? <div className="tm-canvas-header__aside">{headerAside}</div> : null}
-            </header>
-
-            <div className="tm-app__columns">
-              {contextRail ? (
-                <nav className="tm-context-rail" aria-label={t('shell.rail.sectionNav')}>
-                  {contextRail}
-                </nav>
-              ) : null}
-
-              <main id="tm-main" className="tm-canvas" tabIndex={-1}>
-                {children}
-              </main>
-
-              {lens ? (
-                <aside className="tm-lens" aria-label={t('shell.lens.details')}>
-                  {lens}
-                </aside>
-              ) : null}
-            </div>
+              </>
+            )}
           </div>
         </div>
 

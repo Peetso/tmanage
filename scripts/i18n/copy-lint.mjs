@@ -11,6 +11,9 @@
  *   forbidden-term     an internal word (tenant, projection, ...) in user-facing copy
  *   internal-leak      an internal identifier or a stack trace in user-facing copy
  *   untranslated-ar    the AR value equals EN, or has no Arabic letters, while EN has words
+ *   term-clash         EN uses a glossary term and AR uses a stem the glossary lists in that
+ *                      term's `avoid` (another term's word: «شغل» for work, «مرحلة» for a
+ *                      milestone), unless EN also names the term that owns the stem
  * Warnings (reported, never fail the run):
  *   placeholder-dropped AR leaves out an EN {placeholder} (often fine: Arabic singular/dual forms)
  *   glossary           EN uses a glossary term, AR uses none of its accepted forms
@@ -36,6 +39,7 @@ export const ERROR_RULES = new Set([
   'forbidden-term',
   'internal-leak',
   'untranslated-ar',
+  'term-clash',
 ]);
 
 const UI_WORD_LIMIT = 14;
@@ -100,6 +104,14 @@ export function lintCatalogs({ en, ar, glossary, baseline = [] }) {
     .filter((t) => t.lint)
     .map((t) => ({ ...t, re: wordRe(t.en), stems: t.accept.map(foldArabic) }))
     .sort((a, b) => b.en.length - a.en.length);
+  // WX1 (2026-11-24): one Arabic word per thing. A term's `avoid` stems are another term's word.
+  const clashing = glossary.terms
+    .filter((t) => Array.isArray(t.avoid) && t.avoid.length > 0)
+    .map((t) => ({ ...t, re: wordRe(t.en), avoid: t.avoid.map(foldArabic) }));
+  const owners = glossary.terms.map((t) => ({
+    re: wordRe(t.en),
+    stems: t.accept.map(foldArabic),
+  }));
 
   for (const key of Object.keys(ar)) if (!(key in en)) add('missing-key', key, 'only in ar.json');
 
@@ -139,6 +151,15 @@ export function lintCatalogs({ en, ar, glossary, baseline = [] }) {
       rest = rest.replace(new RegExp(t.re.source, 'gi'), ' ');
       if (ARABIC.test(arValue) && !t.stems.some((s) => arFolded.includes(s)))
         add('glossary', key, `"${t.en}" should read "${t.ar}"`);
+    }
+
+    for (const t of clashing) {
+      if (!t.re.test(enText)) continue;
+      for (const stem of t.avoid) {
+        if (!arFolded.includes(stem)) continue;
+        const owned = owners.some((o) => o.stems.includes(stem) && o.re.test(enText));
+        if (!owned) add('term-clash', key, `"${t.en}" reads "${t.ar}", not "${stem}"`);
+      }
     }
 
     const limit = HELP_KEY.test(key.split('.').pop() ?? key) ? HELP_WORD_LIMIT : UI_WORD_LIMIT;

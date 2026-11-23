@@ -24,11 +24,14 @@ export function SupportLauncher({
   organizationSlug,
   pathname,
   variant = 'button',
+  tipPlacement = 'bottom',
 }: {
   readonly organizationSlug: string;
   readonly pathname?: string;
   /** `orb`: My Day's "?" orb at the end of the day bar (spec MYDAY-V4 §4.1), named in a tooltip. */
   readonly variant?: 'button' | 'orb';
+  /** Where the orb's name shows: `end` beside the rail (Work area v2 header, Figma `WV2`). */
+  readonly tipPlacement?: 'bottom' | 'end';
 }) {
   const tOr = useTOr();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -53,7 +56,7 @@ export function SupportLauncher({
         <Tooltip
           content={tOr('MyDay.info.help', 'Help, shortcuts and the tour.')}
           delayMs={MOTION_DELAY_TOOLTIP_MS}
-          placement="bottom"
+          placement={tipPlacement}
         >
           <button
             type="button"

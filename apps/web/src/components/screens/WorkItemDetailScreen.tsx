@@ -275,7 +275,11 @@ export function WorkItemDetailScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow={
+      // Figma WV2-02 (WX1, must-fix 3, 4, 13): the plain trail and the row's own controls in
+      // the 56px row; the title with the stage and the decision under its line; on a phone a
+      // back link to the project in place of the trail.
+      header="compact"
+      crumbs={
         <span className="tm-wk-crumbs">
           {item.data && projectName !== '' ? (
             <>
@@ -288,6 +292,33 @@ export function WorkItemDetailScreen({
           <Link href={`/${organizationSlug}/work`}>{ta('WorkDetail.work')}</Link>
         </span>
       }
+      back={
+        item.data && projectName !== ''
+          ? { href: `/${organizationSlug}/projects/${item.data.projectId}`, label: projectName }
+          : { href: `/${organizationSlug}/work`, label: ta('WorkDetail.work') }
+      }
+      {...(item.data
+        ? {
+            crumbActions: (
+              <div className="tm-wk-head-actions">
+                {/* 52-01: the start/stop timer (Figma 574:32611). */}
+                <WorkItemTimerButton
+                  organizationSlug={organizationSlug}
+                  workItemId={workItemId}
+                  workItemTitle={item.data.title}
+                  client={api}
+                />
+                {/* FIX-2026-11-10: "Work on this now" for the automatic timer. */}
+                <CurrentTaskButton
+                  organizationSlug={organizationSlug}
+                  workItemId={workItemId}
+                  client={api}
+                />
+                <WorkItemActionsMenu itemTitle={item.data.title} onAction={dispatch} />
+              </div>
+            ),
+          }
+        : {})}
       title={item.data?.title ?? t('WorkItemDetailScreen.fallbackTitle')}
       {...(item.data
         ? {
@@ -321,20 +352,6 @@ export function WorkItemDetailScreen({
               onChanged={changed}
               onError={setHeaderFailure}
             />
-            {/* 52-01: the start/stop timer (Figma 574:32611). */}
-            <WorkItemTimerButton
-              organizationSlug={organizationSlug}
-              workItemId={workItemId}
-              workItemTitle={item.data.title}
-              client={api}
-            />
-            {/* FIX-2026-11-10: "Work on this now" for the automatic timer. */}
-            <CurrentTaskButton
-              organizationSlug={organizationSlug}
-              workItemId={workItemId}
-              client={api}
-            />
-            <WorkItemActionsMenu itemTitle={item.data.title} onAction={dispatch} />
           </div>
         ) : undefined
       }

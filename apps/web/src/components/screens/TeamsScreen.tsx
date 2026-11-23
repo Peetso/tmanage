@@ -122,6 +122,10 @@ export function TeamsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
+      header="compact"
+      // Figma WV2-06 phone: an opened team draws its own "‹ Teams" and name; the list's title
+      // is not drawn above them.
+      phoneHeader={requested !== null ? 'hide' : 'show'}
       title={t('TeamsScreen.title')}
       {...(meta === undefined ? {} : { titleMeta: meta })}
       contextRail={<PeopleSectionNav organizationSlug={organizationSlug} current="teams" />}

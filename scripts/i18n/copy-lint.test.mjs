@@ -24,3 +24,36 @@ test('errors, warnings and the baseline', () => {
   expect(ids(r.baselined)).toEqual(['forbidden-term|a']);
   expect(r.stale).toEqual(['missing-key|zz']);
 });
+
+test('term-clash: one Arabic word per thing (WX1)', () => {
+  const g = {
+    brands: [],
+    forbidden: [],
+    jargon: [],
+    terms: [
+      { en: 'work', ar: 'العمل', accept: ['عمل', 'مهام'], lint: false, avoid: ['شغل'] },
+      { en: 'milestone', ar: 'محطة', accept: ['محطه'], lint: false, avoid: ['مرحل', 'مراحل'] },
+      { en: 'phase', ar: 'مرحلة رئيسية', accept: ['مرحل', 'مراحل'], lint: false },
+    ],
+  };
+  const e = {
+    w1: 'All work',
+    w2: 'All work',
+    m1: 'Milestones',
+    m2: 'Milestones',
+    m3: 'Group milestones into phases',
+    s: 'Stages',
+  };
+  const a = {
+    w1: 'كل الشغل',
+    w2: 'كل المهام',
+    m1: 'المراحل',
+    m2: 'المحطات',
+    m3: 'قسّم المحطات إلى مراحل رئيسية',
+    s: 'المراحل',
+  };
+  const r = lintCatalogs({ en: e, ar: a, glossary: g });
+  const clashes = r.errors.filter((f) => f.rule === 'term-clash').map((f) => f.key);
+  // «الشغل» for work and «المراحل» (the stage word) for milestones fail; a phase owns «مراحل».
+  expect(clashes.sort()).toEqual(['m1', 'w1']);
+});

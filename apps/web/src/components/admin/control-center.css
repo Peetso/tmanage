@@ -358,3 +358,11 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* A page that draws its own back link and title on a phone (`phoneHeader="hide"`): an opened
+   stage set shows "‹ Stages" and its name, not the page title above them (Figma WV2-07 phone). */
+@media (max-width: 47.99rem) {
+  .tm-cc-main > .tm-canvas-header[data-phone='hidden'] {
+    display: none;
+  }
+}

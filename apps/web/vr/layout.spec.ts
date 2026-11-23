@@ -100,6 +100,41 @@ test.describe('the check sees the owner-reported defects (fixture)', () => {
   });
 });
 
+/**
+ * WX1 (review must-fix 1): the phone dock's labels were cut to "M…" on every phone screen. The
+ * layout run above measures at 1024 wide, where the dock is not drawn, so the dock is measured
+ * here at the 390px phone width the design draws, in both directions. The proof puts back the
+ * old dock (five equal tiles, 16px a side, one-line labels) and must see `label-cut`.
+ */
+test.describe('the phone dock names every destination (390px)', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+  const story = 'work-works-list--phone';
+  const dockCuts = (found: readonly LayoutViolation[]) =>
+    found.filter((v) => v.rule === 'label-cut' || v.where.includes('tm-mobile-nav'));
+
+  for (const globals of ['theme:dark;direction:ltr', 'theme:light;direction:rtl']) {
+    test(`no dock label is cut or crowded (${globals})`, async ({ page }) => {
+      const found = await measureStory(page, story, globals, false);
+      expect(dockCuts(found), JSON.stringify(found)).toEqual([]);
+    });
+  }
+
+  test('BeforeFix: the old dock (equal tiles, 16px padding) is reported as cut labels', async ({
+    page,
+  }) => {
+    await measureStory(page, story, 'theme:dark;direction:ltr', false);
+    await page.addStyleTag({
+      content:
+        '.tm-phone-dock .tm-mobile-nav__list { padding-inline: 8px !important; gap: 4px !important; }' +
+        '.tm-phone-dock .tm-mobile-nav__list > li { flex: 1 1 0 !important; min-inline-size: 0 !important; }' +
+        '.tm-phone-dock .tm-mobile-nav__item { padding-inline: 16px !important; }' +
+        '.tm-phone-dock .tm-mobile-nav__label { display: block !important; white-space: nowrap !important; }',
+    });
+    const found = await page.evaluate(measureLayout, { ...DENSITY_V2, root: '#storybook-root' });
+    expect(found.filter((v) => v.rule === 'label-cut').length).toBeGreaterThan(0);
+  });
+});
+
 test('every vr screen story stays within its layout baseline', async ({ browser, baseURL }) => {
   test.setTimeout(30 * 60_000);
   expect(screens.length).toBeGreaterThan(0);

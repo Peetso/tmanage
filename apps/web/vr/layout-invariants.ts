@@ -15,6 +15,8 @@
  * - `header-height`  every control in the page header row has one height (rule 2)
  * - `text-size`      no visible text below 11px (rule 4)
  * - `target-size`    every pointer target is at least 24 × 24 (rule 4, WCAG 2.2 SC 2.5.8)
+ * - `label-cut`      a destination label in the shell's primary navigation (the rail, the phone
+ *                    dock) is cut with an ellipsis: "M…" names no destination (review WX1 1)
  *
  * What counts as "the shape behind the text" (refined in design sweep 2, 2026-11-23, so the count
  * is of real defects, not of measuring artefacts):
@@ -35,7 +37,8 @@ export type LayoutRule =
   | 'container-inset'
   | 'header-height'
   | 'text-size'
-  | 'target-size';
+  | 'target-size'
+  | 'label-cut';
 
 export interface LayoutViolation {
   readonly rule: LayoutRule;
@@ -226,9 +229,19 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
   const body = scope.querySelector('.tm-app__body');
   if (rail && body && visible(rail)) {
     const r = rail.getBoundingClientRect();
-    const first = [...body.children].find((c) => visible(c));
+    // Out-of-flow boxes (the compact header's "AI" and "?" orbs, fixed at the rail's foot) do not
+    // sit beside the rail; the gutter is measured to the first box in the flow.
+    const first = [...body.children].find(
+      (c) => visible(c) && !['fixed', 'absolute'].includes(getComputedStyle(c).position),
+    );
     if (first) {
-      const c = first.getBoundingClientRect();
+      // The compact layout (Work area v2) starts with a full-height panel that adjoins the rail,
+      // as the Figma draws it; there the gutter is the distance to that panel's first text.
+      const compact = first.matches('[data-layout="compact"]');
+      const firstText = compact
+        ? [...first.querySelectorAll('*')].find((d) => visible(d) && ownTextRect(d))
+        : undefined;
+      const c = (firstText && ownTextRect(firstText)) ?? first.getBoundingClientRect();
       const rtl = getComputedStyle(body).direction === 'rtl';
       const gap = rtl ? r.left - c.right : c.left - r.right;
       // The gutter token changes with the Figma Layout mode (32 / 24 / 16); read the live value.
@@ -361,6 +374,27 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
           side,
         });
       }
+    }
+  }
+
+  // label-cut — a primary-navigation label cut short. The ellipsis keeps the accessible name
+  // whole (2.5.3), but the eye reads "M…": the destination has no visible name.
+  for (const el of scope.querySelectorAll('.tm-rail *, .tm-mobile-nav *')) {
+    if (!visible(el) || !ownTextRect(el)) continue;
+    const s = getComputedStyle(el);
+    // A label clamped to N lines (`line-clamp`) is cut when its text needs more lines.
+    const clamped = s.webkitLineClamp !== 'none' && el.scrollHeight > el.clientHeight + 1;
+    const ellipsis =
+      s.textOverflow === 'ellipsis' &&
+      s.overflowX !== 'visible' &&
+      el.scrollWidth > el.clientWidth + 1;
+    if (clamped || ellipsis) {
+      out.push({
+        rule: 'label-cut',
+        where: describe(el),
+        measured: round(el.clientWidth),
+        required: round(el.scrollWidth),
+      });
     }
   }
 
