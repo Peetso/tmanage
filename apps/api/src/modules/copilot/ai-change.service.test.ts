@@ -616,6 +616,53 @@ describe('undo', () => {
   });
 });
 
+describe('full rights, always on a card (owner 2026-11-23)', () => {
+  it('"invite X as an employee and Y as a client": two frozen invitation cards, nothing sent, even with run at once', async () => {
+    const env = setup(
+      [
+        route('people', 'medium'),
+        runAction('t1', 'invitations.create', {
+          email: 'tmanageorg@gmail.com',
+          role: 'member',
+          clientOrganizationId: null,
+        }),
+        runAction('t2', 'invitations.create', {
+          email: 'amrtestie@gmail.com',
+          role: 'client_reviewer',
+          clientOrganizationId: 'co_1',
+        }),
+        text('Two invitations are ready for you to confirm.'),
+      ],
+      { runAtOnce: true },
+    );
+    const view = await env.turn(
+      'عايزك تعمل انفايت لtmanageorg@gmail.com كموظف و amrtestie@gmail.com ككلاينت',
+    );
+    expect(view.state).toBe('preview');
+    expect(view.card!.items.map((i) => [i.opId, i.approvalId])).toEqual([
+      ['invitations.create', 'pending_1'],
+      ['invitations.create', 'pending_1'],
+    ]);
+    expect(env.ws.calls.some((c) => c.opId === 'invitations.create')).toBe(false);
+    expect(env.audits).toEqual([]);
+  });
+
+  it('a manage-scope write (a new client company) never runs at once', async () => {
+    const env = setup(
+      [
+        route('clients', 'medium'),
+        runAction('t1', 'client_organizations.create', { name: 'Amr Test Co' }),
+        text('Proposed.'),
+      ],
+      { runAtOnce: true },
+    );
+    const view = await env.turn('add the client company Amr Test Co');
+    expect(view.state).toBe('preview');
+    expect(view.card!.items[0]).toMatchObject({ opId: 'client_organizations.create' });
+    expect(env.ws.calls.some((c) => c.opId === 'client_organizations.create')).toBe(false);
+  });
+});
+
 describe('audit fails closed for changes (ASVS 5.0 V16)', () => {
   it('a confirm whose audit row cannot be written runs nothing', async () => {
     const env = setup(

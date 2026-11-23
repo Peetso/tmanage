@@ -104,8 +104,9 @@ import { isUntrustedOpId, markUntrusted } from './untrusted-sources.js';
  *    first (Sonnet) returns an estimate and stops; the member confirms by sending it back.
  * 4. **The loop:** the tier's model with the domain prompt and the chat tools; every model call is
  *    held, marked sent and settled through {@link AiBudgetService}; every tool call goes through
- *    `liveMcpSurface` as the member, with scopes from the owner's setting (`read`, or `read` +
- *    `write`; never `manage`, never `billing`). `stop_reason` is checked before any tool runs; the
+ *    `liveMcpSurface` as the member, with scopes from the owner's setting (`read`, or every scope:
+ *    the member's full rights, owner 2026-11-23 "the AI should do anything that I can do"; the
+ *    API's capability checks still decide per member). `stop_reason` is checked before any tool runs; the
  *    tier caps the tool calls of a turn; the tier is fixed (no silent upgrade: the tier ceiling
  *    stops the turn and names the next tier, it never opens one).
  * 5. **Changes (62-11):** a change the model asks for is validated by the op's schema and gated by
@@ -162,9 +163,20 @@ export const THINKING_PER_TIER: Readonly<Record<AiTier, AiThinking>> = Object.fr
 /** The owner's write setting (`ai_workspace_settings.write_scope`). */
 export type AiWriteScope = 'read' | 'read_write';
 
-/** The OAuth scopes a turn's tools run under. Never `manage`, never `billing` (§4.1 step 5). */
+/** The scopes a turn runs under when the owner allows changes: the member's full rights. */
+export const CHAT_FULL_SCOPES = 'tmanage:read tmanage:write tmanage:manage tmanage:billing';
+
+/**
+ * The OAuth scopes a turn's tools run under. Owner 2026-11-23 ("the AI should do anything that I
+ * can do"), replacing plan 62 §4.1 step 5's "never manage, never billing": with the owner's
+ * `read_write` setting a turn may reach every op the member's own capabilities allow — the API's
+ * `@RequireCapability` checks still decide per member, so the AI never exceeds the member. The
+ * owner's `read` setting stays read only. Safety is the card, not the scope: every change is
+ * proposed on a card, and a `manage` / `billing` / destructive op always needs it
+ * (`changeGateFor`). External MCP and OAuth clients keep their own granted scopes.
+ */
 export function chatScopesFor(writeScope: AiWriteScope): string {
-  return writeScope === 'read_write' ? 'tmanage:read tmanage:write' : 'tmanage:read';
+  return writeScope === 'read_write' ? CHAT_FULL_SCOPES : 'tmanage:read';
 }
 
 /** The next tier up, named when the tier ceiling stops a turn. */

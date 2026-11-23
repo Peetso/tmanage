@@ -15,6 +15,9 @@ import type { CardWarning } from './packs/billing.js';
  * - **Run at once** (owner setting, default off) skips the card only for a `write`-class op with
  *   sensitivity `none` that has an undo. `confirm`-class ops always ask.
  * - `external` and `destructive` always show a card.
+ * - Owner 2026-11-23: a turn runs with the member's full rights (`chatScopesFor`), so an op of
+ *   scope `manage` or `billing`, and every `DELETE`, also always shows a card, whatever its
+ *   sensitivity: "run at once" covers only everyday `write`-scope changes.
  * - `money` and `hr` also need a fresh step-up, the amount typed by the member (money) and the
  *   workspace's approval rule; they are never run at once and never confirmed by voice (62-16).
  * - An op without an undo says "cannot be undone" on its card.
@@ -47,14 +50,19 @@ export interface AiChangeGateInput {
 
 /** The gate of one change, or `null` for a read (reads never need one). */
 export function changeGateFor(
-  op: Pick<AiActionOp, 'id' | 'risk'>,
+  op: Pick<AiActionOp, 'id' | 'risk' | 'scope' | 'method'>,
   input: AiChangeGateInput,
 ): AiChangeGate | null {
   if (op.risk === 'read') return null;
   const sensitivity = sensitivityOf(op);
   const sensitive = sensitivity === 'money' || sensitivity === 'hr';
   const runsAtOnce =
-    input.runAtOnce && input.hasUndo && op.risk === 'write' && sensitivity === 'none';
+    input.runAtOnce &&
+    input.hasUndo &&
+    op.risk === 'write' &&
+    op.scope === 'write' &&
+    op.method !== 'DELETE' &&
+    sensitivity === 'none';
   return {
     sensitivity,
     card: !runsAtOnce,

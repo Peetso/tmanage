@@ -481,19 +481,19 @@ describe('the tier and the model', () => {
   });
 });
 
-describe('scopes never reach manage or billing', () => {
-  it('read, or read + write, from the owner’s setting', async () => {
+describe('scopes: the member’s full rights, or read only (owner 2026-11-23)', () => {
+  it('read only, or every scope, from the owner’s setting', async () => {
     expect(chatScopesFor('read')).toBe('tmanage:read');
-    expect(chatScopesFor('read_write')).toBe('tmanage:read tmanage:write');
-    for (const scopes of [chatScopesFor('read'), chatScopesFor('read_write')]) {
-      expect(scopes.split(' ')).not.toContain('tmanage:manage');
-      expect(scopes.split(' ')).not.toContain('tmanage:billing');
-    }
+    expect(chatScopesFor('read_write')).toBe(
+      'tmanage:read tmanage:write tmanage:manage tmanage:billing',
+    );
     const env = setup([route('tasks', 'low'), runAction('t1', 'work_items.list'), text('ok')], {
       standing: { writeScope: 'read_write' },
     });
     await env.turn('tasks');
-    expect(env.surfaces.map((s) => s.scopes)).toEqual(['tmanage:read tmanage:write']);
+    expect(env.surfaces.map((s) => s.scopes)).toEqual([
+      'tmanage:read tmanage:write tmanage:manage tmanage:billing',
+    ]);
     expect(env.surfaces[0]?.orgSlug).toBe('northstar');
   });
 });

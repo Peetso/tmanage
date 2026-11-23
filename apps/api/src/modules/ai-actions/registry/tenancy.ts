@@ -20,15 +20,34 @@ export const tenancyDetails: readonly AiActionDetail[] = [
   det({
     id: 'invitations.create',
     title: 'Invite someone to the workspace',
-    description: 'Send an email invitation to join in a role. Confirm-class: it emails a person.',
+    description:
+      'Send an email invitation to join in a role. Confirm-class: it emails a person. ' +
+      'An employee or teammate: role "member" and no clientOrganizationId (as the People page ' +
+      '"Invite person"). A client: role "client_reviewer" (or "client_admin") and the ' +
+      'clientOrganizationId of an existing client company from client_organizations.list (as ' +
+      '"Invite client"). projectIds: projects to share; note: an optional personal note.',
+    // The body of `POST …/invitations` (invitations.controller.ts `issue`): projectIds are at
+    // most 36-character ids, the note at most 500 characters (`MAX_INVITATION_NOTE_LENGTH`).
     input: bodyArgs([], {
       email: f.shortText(254),
       role: f.shortText(40),
       clientOrganizationId: f.id().nullish(),
+      projectIds: z.array(f.id(36)).max(50).optional(),
+      note: f.text(500).nullish(),
     }),
     redact: 'standard',
     notifies: true,
-    examples: [{ summary: 'Invite a member', args: { email: 'sam@example.com', role: 'member' } }],
+    examples: [
+      { summary: 'Invite a member', args: { email: 'sam@example.com', role: 'member' } },
+      {
+        summary: 'Invite a client',
+        args: {
+          email: 'lee@client.example',
+          role: 'client_reviewer',
+          clientOrganizationId: 'co_1',
+        },
+      },
+    ],
   }),
   det({
     id: 'invitations.delete',

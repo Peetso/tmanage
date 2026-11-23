@@ -18,8 +18,9 @@ import { packToolSchema } from './pack-schema.js';
  * knowledge pack's structured finders (62-22); `billing` is the billing assistant (62-29,
  * `billing.ts`). `help` has no tools.
  *
- * Changes in a pack (`work_items.create`, `work_items.update`, timer start/stop) go through the
- * same preview / confirm / undo path as a `run_action` change (62-11).
+ * Changes in a pack (`work_items.create`, `work_items.update`, timer start/stop, invitations, a
+ * new client company) go through the same preview / confirm / undo path as a `run_action` change
+ * (62-11); a `manage` or confirm-class one always on a card.
  */
 
 export const PACK_OPS: Readonly<Partial<Record<AiDomain, readonly string[]>>> = {
@@ -55,6 +56,11 @@ export const PACK_OPS: Readonly<Partial<Record<AiDomain, readonly string[]>>> = 
     'people.teams.list',
     'people.load.get',
     'members.list',
+    // Owner 2026-11-23: "invite X as an employee and Y as a client" in one message. The client
+    // company is found by name or domain (never invented); the invite is a confirm-class card.
+    'client_organizations.list',
+    'invitations.list',
+    'invitations.create',
   ],
   clients: [
     'client_organizations.list',
@@ -65,6 +71,11 @@ export const PACK_OPS: Readonly<Partial<Record<AiDomain, readonly string[]>>> = 
     'client_requests.get',
     'approvals.deliverables.list',
     'quotes.list',
+    // Owner 2026-11-23: invite a client contact (the client company's id from the list above);
+    // a missing company can be proposed on its own card first ("Invite client" creates it too).
+    'invitations.list',
+    'invitations.create',
+    'client_organizations.create',
   ],
   // 62-22: the knowledge pack's structured finders (level 1, plan §4.4) across clients,
   // projects, files, documents, invoices and quotes; `search_knowledge` (level 2) follows every

@@ -64,6 +64,24 @@ describe('every class stops at its gate', () => {
     expect(changeGateFor(confirmNone!, AT_ONCE)?.card).toBe(true);
   });
 
+  it('full rights (owner 2026-11-23): every manage, billing or DELETE change asks, even with run at once', () => {
+    const always = OPS.filter(
+      (o) =>
+        o.risk !== 'read' &&
+        (o.scope === 'manage' || o.scope === 'billing' || o.method === 'DELETE'),
+    );
+    expect(always.length).toBeGreaterThan(0);
+    for (const o of always) expect(changeGateFor(o, AT_ONCE)?.card, o.id).toBe(true);
+    // The scope rule holds on its own: a manage write with no other sensitivity still asks.
+    const everydayManage = OPS.find(
+      (o) => o.scope === 'manage' && o.risk === 'write' && sensitivityOf(o) === 'none',
+    );
+    expect(everydayManage).toBeDefined();
+    expect(changeGateFor(everydayManage!, AT_ONCE)?.card).toBe(true);
+    // An everyday write-scope change keeps the owner's run at once.
+    expect(changeGateFor(op('work_items.create'), AT_ONCE)?.card).toBe(false);
+  });
+
   it('an unclassified change fails closed as destructive', () => {
     expect(sensitivityOf({ id: 'future.op', risk: 'write' })).toBe('destructive');
   });
