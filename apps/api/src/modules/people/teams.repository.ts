@@ -43,6 +43,14 @@ export interface TeamMember {
   readonly status: string;
 }
 
+/** One person in one team, for the Teams list's faces and people count. */
+export interface TeamRosterEntry {
+  readonly teamId: string;
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly displayName: string;
+}
+
 /** One team plus how many members it has — the list row. */
 export interface TeamWithCount {
   readonly definition: TeamDefinition;
@@ -183,6 +191,44 @@ export class PeopleTeamsRepository {
         ),
       )
       .orderBy(asc(users.displayName), asc(memberships.id));
+  }
+
+  /**
+   * Work area (Teams page): every team's people in one read, for the list's faces and the header's
+   * distinct-people count. One query over all assignments in the tenant instead of a roster read
+   * per team; bounded by members × teams, which is small for a studio. The same joins and the same
+   * hidden Support-mode filter as {@link listMembers}, so a face is never someone the roster hides.
+   */
+  async listRosters(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly TeamRosterEntry[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        teamId: memberTeams.teamId,
+        membershipId: memberships.id,
+        userId: memberships.userId,
+        displayName: users.displayName,
+      })
+      .from(memberTeams)
+      .innerJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.id, memberTeams.membershipId),
+        ),
+      )
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          eq(memberTeams.organizationId, context.organizationId),
+          isNotNull(memberTeams.teamId),
+          isNotNull(memberTeams.membershipId),
+          ne(memberships.role, PLATFORM_SUPPORT_ROLE),
+        ),
+      )
+      .orderBy(asc(users.displayName), asc(memberships.id));
+    return rows.map((row) => ({ ...row, teamId: row.teamId ?? '' }));
   }
 
   /** Whether this (team, membership) assignment already exists — the idempotency check. */

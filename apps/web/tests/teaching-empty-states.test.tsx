@@ -32,7 +32,6 @@ import { RequestInboxScreen } from '../src/components/screens/RequestInboxScreen
 import { SavedMessagesScreen } from '../src/components/screens/SavedMessagesScreen';
 import { SavedInsightViewsScreen } from '../src/components/screens/SavedInsightViewsScreen';
 import { SavedSearchesScreen } from '../src/components/screens/SavedSearchesScreen';
-import { TeamsScreen } from '../src/components/screens/TeamsScreen';
 import { WebhookEndpointsScreen } from '../src/components/screens/WebhookEndpointsScreen';
 import { WorkLabelsScreen } from '../src/components/screens/WorkLabelsScreen';
 import { WorkCalendarScreen } from '../src/components/screens/WorkCalendarScreen';
@@ -325,7 +324,6 @@ describe('teaching empty states (55-10p)', () => {
       '/automations/webhooks': { endpoints: [] },
       '/announcements': { announcements: [] },
       '/client-requests': { clientRequests: [] },
-      '/people/teams': { teams: [] },
     };
     const props = { organizationSlug: 'acme', organizationName: 'Acme' };
     const cases: readonly [string, (client: ApiClient) => ReactElement, RegExp, string][] = [
@@ -498,7 +496,6 @@ describe('teaching empty states (55-10p)', () => {
       ['Notifications', NotificationsFeedScreen, /nothing to catch up on/i],
       ['Report snapshots', InsightSnapshotsScreen, /no snapshots yet/i],
       ['Metric alerts', InsightMetricAlertsScreen, /no alerts yet/i],
-      ['Teams', TeamsScreen, /no teams yet/i],
     ] as const)('%s: teaches, with nothing to start', async (_name, View, title) => {
       mount((client) => <View {...props} client={client} />, routes);
       const section = (await teaching(title)).closest('section') as HTMLElement;

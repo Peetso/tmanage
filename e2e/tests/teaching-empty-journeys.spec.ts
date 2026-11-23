@@ -92,8 +92,10 @@ const AREAS: readonly Area[] = [
   {
     area: 'people',
     path: `/${TWIN}/people/teams`,
-    title: 'teachEmpty.teamsTitle',
-    body: 'teachEmpty.teamsBody',
+    // W-WEB-4 (Figma WV2-09 "no teams yet"): one sentence and New team, no separate title.
+    title: 'TeamsScreen.emptyBody',
+    body: 'TeamsScreen.emptyBody',
+    action: 'TeamsScreen.newTeam',
   },
   {
     area: 'projects',

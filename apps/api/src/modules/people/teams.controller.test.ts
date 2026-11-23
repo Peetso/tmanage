@@ -122,6 +122,16 @@ function build(
       if (row) row.name = name;
       return row !== undefined;
     },
+    listRosters: async (_r: unknown, ctx: TenantContext) =>
+      scoped(ctx.organizationId)
+        .filter((r) => r.name === null)
+        .map((r) => ({
+          teamId: r.teamId ?? '',
+          membershipId: r.membershipId ?? '',
+          userId: `user-of-${r.membershipId ?? ''}`,
+          displayName: `Person ${r.membershipId ?? ''}`,
+        }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     openWorkCounts: async (_r: unknown, _c: unknown, ids: readonly string[]) =>
       new Map(ids.map((id) => [id, 3])),
     deleteAssignment: async (_r: unknown, ctx: TenantContext, teamId: string, mid: string) => {
@@ -303,6 +313,28 @@ describe('work area (2026-11-23): rename, open work and an audit row for every t
       'team.member_removed',
     ]);
     expect(audits[2]?.metadata).toEqual({ membership_id: MEMBERSHIP });
+  });
+
+  it('lists each team with its first three faces and counts a person in two teams once', async () => {
+    const ids = ['m1', 'm2', 'm3', 'm4'];
+    const { controller } = build(ids);
+    const design = await controller.create(context, admin, { name: 'Design' });
+    const dev = await controller.create(context, admin, { name: 'Development' });
+    for (const id of ids) await controller.assign(context, admin, design.id, id);
+    await controller.assign(context, admin, dev.id, 'm1');
+
+    const listed = await controller.list(context, admin);
+    const byName = new Map(listed.teams.map((row) => [row.name, row]));
+    expect(byName.get('Design')?.memberCount).toBe(4);
+    expect(byName.get('Design')?.faces.map((face) => face.displayName)).toEqual([
+      'Person m1',
+      'Person m2',
+      'Person m3',
+    ]);
+    expect(byName.get('Development')?.faces).toEqual([
+      { userId: 'user-of-m1', displayName: 'Person m1' },
+    ]);
+    expect(listed.peopleCount).toBe(4);
   });
 
   it('shows each member with the open work they do', async () => {

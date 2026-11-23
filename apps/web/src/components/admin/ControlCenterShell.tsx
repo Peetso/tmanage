@@ -35,6 +35,8 @@ import { BrandLogo } from '../brand/BrandLogo';
 export type ControlCenterSection =
   | 'overview'
   | 'members'
+  // W-WEB-4: Teams (people grouped to assign work to), the menu entry the owner found missing.
+  | 'teams'
   | 'roles'
   | 'client-organizations'
   | 'invitations'
@@ -250,6 +252,7 @@ const GROUPS: readonly SectionGroup[] = [
         capability: 'org.manage',
       },
       { id: 'members', labelKey: 'ControlCenterShell.membersAndRoles', href: '/people' },
+      { id: 'teams', labelKey: 'ControlCenterShell.teams', href: '/people/teams' },
       {
         id: 'roles',
         labelKey: 'ControlCenterShell.roles',
@@ -430,6 +433,7 @@ const GROUPS: readonly SectionGroup[] = [
 export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>> = {
   overview: 'layoutDashboard',
   members: 'users',
+  teams: 'layers',
   roles: 'key',
   'client-organizations': 'handshake',
   invitations: 'userPlus',

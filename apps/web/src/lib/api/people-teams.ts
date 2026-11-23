@@ -21,6 +21,17 @@ export interface TeamView {
   readonly createdAt: string;
 }
 
+/** Work area (Teams page): a list row also carries its first three people, drawn as faces. */
+export interface TeamListRowView extends TeamView {
+  readonly faces: readonly TeamFaceView[];
+}
+
+/** One face on a team's list row: who, by name. */
+export interface TeamFaceView {
+  readonly userId: string;
+  readonly displayName: string;
+}
+
 /** One member of a team — the non-sensitive header the directory also exposes. */
 export interface TeamMemberView {
   readonly membershipId: string;
@@ -44,12 +55,15 @@ function base(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/people/teams`;
 }
 
-/** The organization's teams, each with a member count. */
-export async function listTeams(
-  client: ApiClient,
-  organizationSlug: string,
-): Promise<{ readonly teams: readonly TeamView[] }> {
-  const { data } = await client.request<{ teams: readonly TeamView[] }>({
+/** The Teams list: each team with its member count and faces, and how many distinct people. */
+export interface TeamListing {
+  readonly teams: readonly TeamListRowView[];
+  readonly peopleCount: number;
+}
+
+/** The organization's teams, each with a member count and its first faces. */
+export async function listTeams(client: ApiClient, organizationSlug: string): Promise<TeamListing> {
+  const { data } = await client.request<TeamListing>({
     path: base(organizationSlug),
   });
   return data;

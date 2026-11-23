@@ -307,6 +307,7 @@ export const APP_NAMESPACES: readonly string[] = [
   'PeopleCapacity',
   'PeopleCapacityTabs',
   'PeopleDirectoryScreen',
+  'PeopleNav',
   'PeopleTimeOff',
   'PeriodLock',
   'PermissionEditor',

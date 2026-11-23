@@ -26,6 +26,8 @@ describe('controlCenterSectionsFor', () => {
       [
         ['overview', '/admin'],
         ['members', '/people'],
+        // W-WEB-4: Teams, the menu entry the owner found missing.
+        ['teams', '/people/teams'],
         ['roles', '/admin/roles'],
         ['client-organizations', null],
         ['invitations', '/people#invitations'],
@@ -88,8 +90,14 @@ describe('controlCenterSectionsFor', () => {
     ];
     // 55-15p: AI actions (behind `ai.use`) sits under AI assistant once the role is known.
     const withAiActions = own.flatMap((id) => (id === 'ai-assistant' ? [id, 'ai-actions'] : [id]));
-    expect(ids('member')).toEqual([...withAiActions, 'members', 'connected-apps', 'audit']);
-    expect(ids(undefined)).toEqual([...own, 'members']);
+    expect(ids('member')).toEqual([
+      ...withAiActions,
+      'members',
+      'teams',
+      'connected-apps',
+      'audit',
+    ]);
+    expect(ids(undefined)).toEqual([...own, 'members', 'teams']);
   });
 
   it('keeps the parent entry marked on sub-pages the frame does not list', () => {

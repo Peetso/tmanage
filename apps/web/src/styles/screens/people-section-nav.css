@@ -1,0 +1,73 @@
+/* People area menu (W-WEB-4, Figma WV2-05 context rail): PEOPLE · Directory, Teams, Org chart,
+   Availability, Time off, Allocations. Density v2 tokens only; the same flat filled rail as the
+   Work area (rows 12 in, their text 24 from the rail edge, UX-26). */
+
+.tm-context-rail:has(.tm-people-nav) {
+  padding: var(--inset-card) var(--inset-control);
+  border: 0;
+  border-inline-end: var(--b-quiet) solid var(--line-300);
+  border-radius: 0;
+  background: var(--paper-50);
+  inline-size: var(--context-rail-min);
+  align-self: stretch;
+}
+
+.tm-people-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-people-nav__heading {
+  margin: 0;
+  padding-inline: var(--inset-control);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+  font-weight: var(--t-app-overline-weight);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tm-people-nav__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-people-nav__link {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--app-row);
+  padding-inline: var(--inset-control);
+  border-radius: var(--r-control);
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  font-weight: var(--t-app-ui-weight);
+  text-decoration: none;
+}
+
+.tm-people-nav__link:hover {
+  color: var(--ink-950);
+}
+
+.tm-people-nav__link[aria-current='page'] {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+/* Arabic letters join: spacing them apart breaks the word (Figma AR shows "الناس" unspaced). */
+.tm-people-nav__heading:lang(ar) {
+  letter-spacing: 0;
+}
+
+/* Phone (Figma WV2-05 phone): no section menu; the More sheet and the back link lead here. */
+@media (max-width: 60rem) {
+  .tm-context-rail:has(.tm-people-nav) {
+    display: none;
+  }
+}

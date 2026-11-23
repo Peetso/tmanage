@@ -54,6 +54,23 @@ export interface TeamView {
   readonly createdAt: string;
 }
 
+/** Work area (Teams page): a list row also carries its first three people, drawn as faces. */
+export interface TeamListRowView extends TeamView {
+  readonly faces: readonly TeamFaceView[];
+}
+
+/** The Teams list read: each row, and how many distinct people are in any team. */
+export interface TeamListView {
+  readonly teams: readonly TeamListRowView[];
+  readonly peopleCount: number;
+}
+
+/** One face on a team's list row: who, by name. */
+export interface TeamFaceView {
+  readonly userId: string;
+  readonly displayName: string;
+}
+
 /** One member of a team — the non-sensitive header the directory also exposes. */
 export interface TeamMemberView {
   readonly membershipId: string;
@@ -86,16 +103,18 @@ export class PeopleTeamsController {
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
-  ): Promise<{ readonly teams: readonly TeamView[] }> {
+  ): Promise<TeamListView> {
     this.requireOrgRead(principal, context);
-    const rows = await this.service.listTeams(context);
+    const listing = await this.service.listTeams(context);
     return {
-      teams: rows.map((row) => ({
+      teams: listing.teams.map((row) => ({
         id: row.definition.id,
         name: row.definition.name,
         memberCount: row.memberCount,
+        faces: row.faces.map((face) => ({ userId: face.userId, displayName: face.displayName })),
         createdAt: row.definition.createdAt.toISOString(),
       })),
+      peopleCount: listing.peopleCount,
     };
   }
 

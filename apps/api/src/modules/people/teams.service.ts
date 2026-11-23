@@ -24,6 +24,21 @@ const MAX_NAME_LENGTH = 120;
 export type { TeamWithCount, TeamMember };
 
 /** One member of a team with how much open work they do (work area: the "Open work" column). */
+/** Work area (Teams page): the first people of a team, drawn as faces on its list row. */
+export interface TeamFace {
+  readonly userId: string;
+  readonly displayName: string;
+}
+
+/** The Teams list: each team with its first faces, and how many distinct people are in any team. */
+export interface TeamListing {
+  readonly teams: readonly (TeamWithCount & { readonly faces: readonly TeamFace[] })[];
+  readonly peopleCount: number;
+}
+
+/** How many faces a list row draws (Figma WV2-05: three). */
+const MAX_FACES = 3;
+
 export interface TeamMemberWithLoad extends TeamMember {
   readonly openWorkCount: number;
 }
@@ -73,8 +88,22 @@ export class PeopleTeamsService {
   }
 
   /** List the tenant's teams with their member counts. */
-  async listTeams(context: TenantContext): Promise<readonly TeamWithCount[]> {
-    return this.database.read(context, (runner) => this.teams.listTeams(runner, context));
+  async listTeams(context: TenantContext): Promise<TeamListing> {
+    return this.database.read(context, async (runner) => {
+      const rows = await this.teams.listTeams(runner, context);
+      const rosters = await this.teams.listRosters(runner, context);
+      const faces = new Map<string, TeamFace[]>();
+      for (const entry of rosters) {
+        const list = faces.get(entry.teamId) ?? [];
+        if (list.length < MAX_FACES)
+          list.push({ userId: entry.userId, displayName: entry.displayName });
+        faces.set(entry.teamId, list);
+      }
+      return {
+        teams: rows.map((row) => ({ ...row, faces: faces.get(row.definition.id) ?? [] })),
+        peopleCount: new Set(rosters.map((entry) => entry.membershipId)).size,
+      };
+    });
   }
 
   /**

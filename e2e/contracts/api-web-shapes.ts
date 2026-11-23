@@ -344,6 +344,9 @@ import type { MemberProfileView as ApiMemberProfileView } from '../../apps/api/s
 import type { MyProfileView as ApiMyProfileView } from '../../apps/api/src/modules/people/my-profile.controller.js';
 import type {
   TeamView as ApiTeamView,
+  TeamListRowView as ApiTeamListRowView,
+  TeamFaceView as ApiTeamFaceView,
+  TeamListView as ApiTeamListView,
   TeamMemberView as ApiTeamMemberView,
   TeamDetailView as ApiTeamDetailView,
 } from '../../apps/api/src/modules/people/teams.controller.js';
@@ -981,6 +984,9 @@ import type {
 } from '../../apps/web/src/lib/api/member-profile';
 import type {
   TeamView as WebTeamView,
+  TeamListRowView as WebTeamListRowView,
+  TeamFaceView as WebTeamFaceView,
+  TeamListing as WebTeamListing,
   TeamMemberView as WebTeamMemberView,
   TeamDetailView as WebTeamDetailView,
 } from '../../apps/web/src/lib/api/people-teams';
@@ -1973,6 +1979,9 @@ type _myProfile = Assert<Exact<ApiMyProfileView, WebMyProfileView>>;
  * `TeamsScreen`'s web consumer, so the API projections and the screen cannot drift.
  */
 type _teamView = Assert<Exact<ApiTeamView, WebTeamView>>;
+type _teamListRowView = Assert<Exact<ApiTeamListRowView, WebTeamListRowView>>;
+type _teamFaceView = Assert<Exact<ApiTeamFaceView, WebTeamFaceView>>;
+type _teamListView = Assert<Exact<ApiTeamListView, WebTeamListing>>;
 type _teamMemberView = Assert<Exact<ApiTeamMemberView, WebTeamMemberView>>;
 type _teamDetailView = Assert<Exact<ApiTeamDetailView, WebTeamDetailView>>;
 

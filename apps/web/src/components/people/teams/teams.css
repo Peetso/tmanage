@@ -1,0 +1,812 @@
+/* Teams (Work area v2, W-WEB-4; Figma WV2-05 list, WV2-06 new team / team page, WV2-09 states).
+   Density v2 tokens only (UX-25): controls 32 (--app-control), round icon buttons 28, rows 36
+   (--app-row), dialog 560 (--dialog) with 24 inset (--inset-dialog), cards 24 in (--inset-card),
+   footer buttons 40. Text clears every edge by the UX-26 insets. */
+
+/* ── Header: search and New team (one 32 px header row, UX-27) ── */
+
+.tm-teams-search {
+  inline-size: min(17.5rem, 100%);
+}
+
+.tm-teams-search .tm-search-field__control {
+  block-size: var(--app-control);
+  min-block-size: var(--app-control);
+  border-color: var(--line-300);
+  background: var(--paper-0);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* ── Page ── */
+
+.tm-teams {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-teams__body {
+  display: grid;
+  grid-template-columns: minmax(0, 21.25rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s6);
+}
+
+.tm-teams__notice,
+.tm-teams__nomatch {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-teams__nomatch {
+  padding: var(--inset-card);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+}
+
+.tm-teams__loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+/* ── Faces (the work panel's face, Figma Panel/Row people) ── */
+
+.tm-team-faces {
+  display: inline-flex;
+  flex: none;
+}
+
+.tm-team-face {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+  border: var(--b-quiet) solid var(--paper-0);
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  color: var(--ink-950);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+}
+
+.tm-team-faces .tm-team-face + .tm-team-face {
+  margin-inline-start: calc(var(--s1) * -1);
+}
+
+/* ── The team list (a card; rows 36, the chosen one filled) ── */
+
+.tm-team-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  list-style: none;
+}
+
+.tm-team-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  inline-size: 100%;
+  min-block-size: var(--app-row);
+  padding-inline: var(--s4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-800);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-team-list__row:hover {
+  color: var(--ink-950);
+}
+
+.tm-team-list__row[aria-pressed='true'] {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+.tm-team-list__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-team-list__name {
+  overflow: hidden;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  font-weight: var(--t-app-ui-weight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Desktop shows the count as a number; the words stay for a screen reader. */
+.tm-team-list__sub {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-team-list__count {
+  min-inline-size: var(--s4);
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+  text-align: end;
+}
+
+.tm-team-list__chevron {
+  display: none;
+}
+
+/* ── One team ── */
+
+.tm-team-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.tm-team-panel__back,
+.tm-team-panel [data-size='phone'] {
+  display: none;
+}
+
+.tm-team-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control);
+}
+
+.tm-team-panel__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
+  font-weight: var(--t-app-section-weight);
+}
+
+.tm-team-panel__meta {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-team-panel__end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s4);
+  margin-inline-start: auto;
+}
+
+.tm-team-panel__work {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  color: var(--ink-800);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  text-decoration: none;
+}
+
+.tm-team-panel__work:hover {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+.tm-team-panel__problem,
+.tm-team-dialog__problem {
+  margin: 0;
+  color: var(--danger-600);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* The round 28 icon buttons: rename pencil, ⋯ and the remove × (review fix: one round control). */
+.tm-team-round.tm-icon-button {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+}
+
+/* Rename in place */
+.tm-team-rename {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-team-rename__input {
+  flex: 1;
+  min-inline-size: 12rem;
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-control);
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+}
+
+.tm-team-rename .tm-team-panel__problem {
+  flex-basis: 100%;
+}
+
+/* The ⋯ menu */
+.tm-team-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-team-menu__list {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s1));
+  inset-inline-end: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 11rem;
+  margin: 0;
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 24%);
+  list-style: none;
+}
+
+.tm-team-menu__item {
+  inline-size: 100%;
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-control);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-team-menu__item:hover,
+.tm-team-menu__item:focus-visible {
+  background: var(--paper-150);
+}
+
+.tm-team-menu__item[data-tone='danger'] {
+  color: var(--danger-600);
+}
+
+/* ── The people picker: "Add people to Design" field and the New team chips box ── */
+
+.tm-team-combo {
+  position: relative;
+}
+
+.tm-team-combo__box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-control) var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-650);
+}
+
+.tm-team-combo__box:focus-within {
+  border-color: var(--ink-950);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-team-combo[data-variant='chips'] .tm-team-combo__box {
+  min-block-size: calc(var(--app-control-sm) * 2 + var(--s2) * 3);
+  padding: var(--s1);
+  align-content: flex-start;
+}
+
+.tm-team-combo__lead {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-800);
+}
+
+.tm-team-combo__input {
+  flex: 1;
+  min-inline-size: 8rem;
+  min-block-size: var(--app-control-sm);
+  padding: 0 var(--s2);
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  outline: none;
+}
+
+.tm-team-combo__input:focus-visible {
+  box-shadow: none;
+}
+
+.tm-team-combo__input::placeholder {
+  color: var(--ink-650);
+}
+
+.tm-team-combo__toggle {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  border: 0;
+  background: transparent;
+  color: var(--ink-650);
+  cursor: pointer;
+}
+
+.tm-team-combo__list {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s1));
+  inset-inline: 0;
+  z-index: 20;
+  max-block-size: calc(var(--app-row) * 7);
+  margin: 0;
+  padding: var(--s1);
+  overflow: auto;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 24%);
+  list-style: none;
+}
+
+.tm-team-combo__option,
+.tm-team-combo__note {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-control);
+  border-radius: var(--r-control);
+  color: var(--ink-950);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-team-combo__option {
+  cursor: pointer;
+}
+
+.tm-team-combo__option[aria-selected='true'],
+.tm-team-combo__option:hover {
+  background: var(--paper-150);
+}
+
+.tm-team-combo__note {
+  color: var(--ink-650);
+}
+
+.tm-team-combo__name {
+  flex: 1;
+}
+
+.tm-team-combo__tag {
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+/* A chosen person in the New team box (Figma: face, name, round ×). */
+.tm-team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control);
+  /* The face's letters clear the rounded end by 16 (UX-26 capsule inset); the × sits 4 in. */
+  padding-inline: var(--s2) var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  color: var(--ink-950);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-team-chip__remove {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-800);
+  cursor: pointer;
+}
+
+/* ── Members table (Name · Open work · Remove) ── */
+
+.tm-team-table {
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-team-table__head,
+.tm-team-table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9.5rem var(--app-control);
+  align-items: center;
+  gap: var(--s3);
+  padding-inline: var(--inset-cell) var(--s4);
+}
+
+.tm-team-table__head {
+  min-block-size: var(--app-control);
+  background: var(--paper-50);
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-team-table__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-team-table__row {
+  min-block-size: var(--app-row);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-team-table__name {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-team-table__who {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-team-table__link {
+  overflow: hidden;
+  color: var(--ink-950);
+  font-weight: var(--t-app-ui-strong-weight);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-team-table__link:hover {
+  text-decoration: underline;
+}
+
+.tm-team-table__sub {
+  display: none;
+}
+
+.tm-team-table__open {
+  color: var(--ink-950);
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-team-table__remove {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+/* ── Empty states (Figma WV2-09: no teams yet, team with no members) ── */
+
+.tm-team-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  min-block-size: calc(var(--app-control-lg) * 5);
+  padding: var(--inset-card);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+  text-align: center;
+}
+
+.tm-team-empty[data-kind='teams'] {
+  min-block-size: calc(var(--app-control-lg) * 10.5);
+}
+
+.tm-team-empty__icon {
+  color: var(--ink-650);
+}
+
+.tm-team-empty__text {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* ── Dialogs: New team, Delete the team (native <dialog>, 560, inset 24) ── */
+
+.tm-team-dialog {
+  box-sizing: border-box;
+  inline-size: min(var(--dialog), calc(100% - var(--s8)));
+  max-block-size: calc(100dvh - var(--s8));
+  padding: var(--inset-dialog);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 32%);
+}
+
+.tm-team-dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.tm-team-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.tm-team-dialog__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-team-dialog__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
+  font-weight: var(--t-app-section-weight);
+}
+
+.tm-team-dialog__close.tm-icon-button {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+}
+
+.tm-team-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-team-dialog__label {
+  color: var(--ink-800);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-team-dialog__body {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+}
+
+.tm-team-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s3);
+}
+
+/* The name with voice naming (the create dialog's box: 40 high, mic and language chip inside). */
+.tm-team-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control-lg);
+  padding-inline: var(--inset-control) var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-team-name:focus-within {
+  border-color: var(--ink-950);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-team-name[data-invalid] {
+  border-color: var(--danger-600);
+}
+
+.tm-team-name__input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+  outline: none;
+}
+
+.tm-team-name__input:focus-visible {
+  box-shadow: none;
+}
+
+.tm-team-name__input::placeholder {
+  color: var(--ink-650);
+}
+
+/* ── Phone (Figma WV2-05 / WV2-06 phone): the list and the team are two pages ── */
+
+@media (max-width: 60rem) {
+  .tm-teams-search {
+    display: none;
+  }
+
+  .tm-teams__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-teams[data-chosen] .tm-teams__list,
+  .tm-teams:not([data-chosen]) .tm-teams__detail {
+    display: none;
+  }
+
+  .tm-team-list {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tm-team-list__row {
+    min-block-size: calc(var(--app-row) + var(--s5));
+    padding-inline: 0;
+    border-block-end: var(--b-quiet) solid var(--line-300);
+    border-radius: 0;
+  }
+
+  .tm-team-list__row[aria-pressed='true'] {
+    background: transparent;
+  }
+
+  .tm-team-list__name {
+    font-size: var(--t-app-body);
+    line-height: var(--t-app-body-line);
+    font-weight: var(--t-app-ui-strong-weight);
+  }
+
+  .tm-team-list__sub {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    clip-path: none;
+    color: var(--ink-650);
+    font-size: var(--t-app-ui);
+    line-height: var(--t-app-ui-line);
+  }
+
+  .tm-team-list__count {
+    display: none;
+  }
+
+  .tm-team-list__chevron {
+    display: inline-grid;
+    color: var(--ink-650);
+  }
+
+  .tm-team-panel__back {
+    display: flex;
+  }
+
+  .tm-team-panel [data-size='phone'] {
+    display: revert;
+  }
+
+  .tm-team-panel [data-size='desktop'] {
+    display: none;
+  }
+
+  .tm-team-panel__back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    min-block-size: var(--app-control);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink-650);
+    font: inherit;
+    font-size: var(--t-app-ui);
+    line-height: var(--t-app-ui-line);
+    cursor: pointer;
+  }
+
+  /* "‹": the forward chevron turned round; it mirrors again in Arabic with the icon set's flip. */
+  .tm-team-panel__back-icon {
+    display: inline-grid;
+    transform: scaleX(-1);
+  }
+
+  .tm-team-panel__title {
+    font-size: var(--t-app-page-title);
+    line-height: var(--t-app-page-title-line);
+    font-weight: var(--t-app-page-title-weight);
+  }
+
+  .tm-team-panel__head .tm-team-panel__end {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+  }
+
+  .tm-team-table {
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tm-team-table__head {
+    display: none;
+  }
+
+  .tm-team-table__row {
+    grid-template-columns: minmax(0, 1fr) var(--app-control);
+    min-block-size: calc(var(--app-row) + var(--s5));
+    padding-inline: 0;
+    border-block-start: 0;
+    border-block-end: var(--b-quiet) solid var(--line-300);
+  }
+
+  .tm-team-table__open {
+    display: none;
+  }
+
+  .tm-team-table__sub {
+    display: block;
+    color: var(--ink-650);
+    font-size: var(--t-app-caption);
+    line-height: var(--t-app-caption-line);
+  }
+
+  .tm-team-dialog {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    margin-block-end: 0;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+}

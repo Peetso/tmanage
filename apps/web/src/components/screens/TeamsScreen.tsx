@@ -1,331 +1,253 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Button, InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { TeachingEmptyState } from '../help/TeachingEmptyState';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { pluralPhrase } from '../../lib/i18n/plural';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { deleteTeam, fetchTeam, listTeams } from '../../lib/api/people-teams';
-import type { TeamDetailView, TeamView } from '../../lib/api/people-teams';
-import { useRoleDescription } from '../../lib/use-role-description';
 import type { ApiClient } from '../../lib/api/client';
 import { useShellCapability } from '../shell/use-shell-capability';
-import { ConfirmActionButton } from './ConfirmActionButton';
-import { describePeopleError, initialsOf } from './peopleShared';
-import '../../styles/screens/people.css';
+import { PeopleSectionNav } from '../people/PeopleSectionNav';
+import { EyeIcon } from '../work/work-icons';
+import { TeamList } from '../people/teams/TeamList';
+import { TeamPanel } from '../people/teams/TeamPanel';
+import { DeleteTeamDialog, NewTeamDialog } from '../people/teams/TeamDialogs';
+import { filterTeams, selectedTeamId, type Candidate } from '../people/teams/teams-model';
+import { useTeam, useTeamCandidates, useTeamsList, useTeamWrites } from '../people/teams/use-teams';
+import { describePeopleError } from './peopleShared';
+import '../people/teams/teams.css';
 
 export interface TeamsScreenProps {
   organizationSlug: string;
   organizationName: string;
   /** Injected in tests. Defaults to the browser client. */
   client?: ApiClient;
+  /** Stories: open with this team chosen, as `?team=` does in the app. */
+  initialTeamId?: string;
+  /** Stories: open with a dialog showing. */
+  initialDialog?: 'new' | 'delete';
+  /** Stories: what New team opens with. */
+  initialDraft?: { readonly name: string; readonly people: readonly Candidate[] };
 }
 
+type Dialog = { readonly kind: 'new' } | { readonly kind: 'delete'; readonly teamId: string };
+
 /**
- * **People teams** — x262, the "teams" surface of module 14 (38-MODULE-MAP §People), drawn as
- * PEO-03 "Team detail". It reads `GET …/people/teams` (the team list) and `GET …/people/teams/:id`
- * (the selected team's members) — both gated on the server by `work.read`.
+ * **Teams** (Work area v2, W-WEB-4; Figma `WV2-05`, `WV2-06`, `WV2-09` team states). People's own
+ * menu on the left (the menu entry Teams lacked), the team list, and the chosen team beside it:
+ * rename in place, ⋯ (Rename, Delete team), "Add people to …", and the members as Name · Open
+ * work · Remove. "New team" sits in the header with "Search teams". On a phone the list and the
+ * team are two pages: a row opens `?team=<id>`, "‹ Teams" goes back.
  *
- * The frame's two columns: the team list as the soft member cards on the left (the selected one
- * carries the ink leading edge), and the selected team's roster as the bordered inner table on the
- * right. The first team is selected on arrival so the page is never an empty half.
- *
- * The decisions are the sibling internal screens':
- * 1. **Authorization is the API's.** A refusal becomes a sentence in the card's own alert; the
- *    screen never guesses a capability of its own and never renders blank on a refusal.
- * 2. **No invented data.** Teams, member counts and rosters are the API's projection. The frame's
- *    WIP limit, commitments and cover rows have no read behind them yet, so they are not drawn.
+ * Authorization is the API's: reading needs `work.read`, every write `org.manage`. The writes are
+ * drawn only for a role that holds `org.manage` (the shell's capability read); a refusal that
+ * still happens is said in place, never as a blank screen.
  */
-export function TeamsScreen({ organizationSlug, organizationName, client }: TeamsScreenProps) {
+export function TeamsScreen({
+  organizationSlug,
+  organizationName,
+  client,
+  initialTeamId,
+  initialDialog,
+  initialDraft,
+}: TeamsScreenProps) {
   const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
   const api = client ?? browserApiClient();
-  const [chosenId, setChosenId] = useState<string | null>(null);
-  const queryClient = useQueryClient();
-  // Fix lane C: Delete team is drawn only for a role that holds `org.manage` (the API's gate).
   const mayManage = useShellCapability(organizationSlug, client)('org.manage');
+  const params = useSearchParams();
+  const [localChoice, setLocalChoice] = useState<string | null>(initialTeamId ?? null);
+  const [query, setQuery] = useState('');
+  const [wantPeople, setWantPeople] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<Dialog | null>(
+    initialDialog === 'new' ? { kind: 'new' } : null,
+  );
+  const [storyDelete, setStoryDelete] = useState(initialDialog === 'delete');
 
-  const teams = useQuery({
-    queryKey: ['people-teams', organizationSlug],
-    queryFn: () => listTeams(api, organizationSlug),
-  });
+  const list = useTeamsList(api, organizationSlug);
+  const teams = list.data?.teams ?? [];
+  const shown = filterTeams(teams, query);
+  const requested = params?.get('team') ?? localChoice;
+  const selectedId = selectedTeamId(shown, requested);
+  const team = useTeam(api, organizationSlug, selectedId);
+  const candidates = useTeamCandidates(api, organizationSlug, wantPeople || dialog?.kind === 'new');
+  const writes = useTeamWrites(api, organizationSlug);
+  const deleting =
+    dialog?.kind === 'delete'
+      ? dialog
+      : storyDelete && team.data
+        ? { kind: 'delete' as const, teamId: team.data.id }
+        : null;
 
-  const teamList = teams.isSuccess && Array.isArray(teams.data.teams) ? teams.data.teams : [];
-  const selectedId = chosenId ?? teamList[0]?.id ?? null;
+  /**
+   * Choose a team (or none: the phone's list). In the app the address follows, so the team can be
+   * shared, reloaded and left with Back; Next keeps `useSearchParams` in step with the history
+   * API. Outside the app router (`params` is null: a story, a unit test) the choice is local only.
+   */
+  const choose = (teamId: string | null) => {
+    setLocalChoice(teamId);
+    if (params === null) return;
+    const base = `/${organizationSlug}/people/teams`;
+    window.history.pushState(
+      null,
+      '',
+      teamId ? `${base}?team=${encodeURIComponent(teamId)}` : base,
+    );
+  };
+  const count = (key: string, value: number, one: string, other: string) =>
+    pluralPhrase(tOr, locale, key, value, { one, other });
+  const meta = list.isSuccess
+    ? [
+        count('TeamsScreen.teamCount', teams.length, '1 team', '{count} teams'),
+        ...(teams.length > 0
+          ? [count('TeamsScreen.peopleCount', list.data.peopleCount, '1 person', '{count} people')]
+          : []),
+      ].join(' · ')
+    : undefined;
 
-  const detail = useQuery({
-    queryKey: ['people-team', organizationSlug, selectedId],
-    queryFn: () => fetchTeam(api, organizationSlug, selectedId as string),
-    enabled: selectedId !== null,
-  });
+  const newTeam = mayManage ? (
+    <Button tone="lime" size="header" onClick={() => setDialog({ kind: 'new' })}>
+      {t('TeamsScreen.newTeam')}
+    </Button>
+  ) : null;
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      eyebrow={
-        teams.isSuccess
-          ? `${t('TeamsScreen.eyebrowPrefix')} ${teamList.length} ${
-              teamList.length === 1 ? t('TeamsScreen.teamSingular') : t('TeamsScreen.teamPlural')
-            }`
-          : t('TeamsScreen.eyebrowBase')
-      }
       title={t('TeamsScreen.title')}
-      description={t('TeamsScreen.description')}
+      {...(meta === undefined ? {} : { titleMeta: meta })}
+      contextRail={<PeopleSectionNav organizationSlug={organizationSlug} current="teams" />}
+      actions={
+        <>
+          {teams.length > 0 ? (
+            <SearchField
+              label={t('TeamsScreen.search')}
+              placeholder={t('TeamsScreen.search')}
+              className="tm-teams-search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          ) : null}
+          {newTeam}
+        </>
+      }
     >
-      <div className="ppl-screen">
-        <div className="ppl-body ppl-body--wide-gap">
-          <div className="ppl-aside ppl-aside--392">
-            <section className="ppl-card" aria-labelledby="tm-teams-heading">
-              <h2 id="tm-teams-heading" className="ppl-mono">
-                {t('TeamsScreen.teamsHeading')}
-              </h2>
+      <div className="tm-teams" data-chosen={requested !== null || undefined}>
+        {notice ? (
+          <p className="tm-teams__notice" role="status">
+            {notice}
+          </p>
+        ) : null}
 
-              {teams.isPending ? (
-                <LoadingRegion
-                  label={t('TeamsScreen.loadingTeams')}
-                  className="tm-stack tm-stack--tight"
-                >
-                  <Skeleton height="var(--row)" />
-                  <Skeleton height="var(--row)" />
+        {list.isPending ? (
+          <LoadingRegion label={t('TeamsScreen.loading')} className="tm-teams__loading">
+            <Skeleton height="var(--app-row)" />
+            <Skeleton height="var(--app-row)" />
+          </LoadingRegion>
+        ) : null}
+
+        {list.isError ? (
+          <InlineAlert tone="danger" title={t('TeamsScreen.loadError')} live>
+            {describePeopleError(list.error)}
+          </InlineAlert>
+        ) : null}
+
+        {list.isSuccess && teams.length === 0 ? (
+          <section className="tm-team-empty" data-kind="teams" aria-label={t('TeamsScreen.title')}>
+            <span className="tm-team-empty__icon" aria-hidden="true">
+              <EyeIcon />
+            </span>
+            <p className="tm-team-empty__text">{t('TeamsScreen.emptyBody')}</p>
+            {newTeam}
+          </section>
+        ) : null}
+
+        {list.isSuccess && teams.length > 0 ? (
+          <div className="tm-teams__body">
+            <div className="tm-teams__list">
+              {shown.length === 0 ? (
+                <p className="tm-teams__nomatch">{t('TeamsScreen.noMatch')}</p>
+              ) : (
+                <TeamList teams={shown} selectedId={selectedId} onChoose={choose} />
+              )}
+            </div>
+            <div className="tm-teams__detail">
+              {team.isPending && selectedId !== null ? (
+                <LoadingRegion label={t('TeamsScreen.loading')} className="tm-teams__loading">
+                  <Skeleton height="var(--app-row)" />
                 </LoadingRegion>
               ) : null}
-
-              {teams.isError ? (
-                <InlineAlert tone="danger" title={t('TeamsScreen.teamsLoadError')} live>
-                  {describePeopleError(teams.error)}
+              {team.isError ? (
+                <InlineAlert tone="danger" title={t('TeamsScreen.teamLoadError')} live>
+                  {describePeopleError(team.error)}
                 </InlineAlert>
               ) : null}
-
-              {teams.isSuccess ? (
-                <TeamsList teams={teamList} selectedId={selectedId} onSelect={setChosenId} />
+              {team.isSuccess ? (
+                <TeamPanel
+                  organizationSlug={organizationSlug}
+                  team={team.data}
+                  mayManage={mayManage}
+                  candidates={candidates.data}
+                  candidatesLoading={candidates.isPending}
+                  onWantCandidates={() => setWantPeople(true)}
+                  onRename={(name) => writes.rename(team.data.id, name)}
+                  onAdd={(people) => writes.addMembers(team.data.id, people)}
+                  onRemove={(membershipId) => writes.removeMember(team.data.id, membershipId)}
+                  onDelete={() => setDialog({ kind: 'delete', teamId: team.data.id })}
+                  onBack={() => choose(null)}
+                />
               ) : null}
-            </section>
-
-            <section className="ppl-card" aria-labelledby="tm-teams-how">
-              <h2 id="tm-teams-how" className="ppl-card__title">
-                {t('TeamsScreen.howShapedHeading')}
-              </h2>
-              <p className="ppl-dashed-note">{t('TeamsScreen.howShapedBody')}</p>
-            </section>
+            </div>
           </div>
-
-          <div className="ppl-main">
-            {selectedId !== null ? (
-              <section className="ppl-card" aria-labelledby="tm-team-detail-heading">
-                {detail.isPending ? (
-                  <>
-                    <h2 id="tm-team-detail-heading" className="ppl-card__title ppl-card__title--lg">
-                      {t('TeamsScreen.teamDetailHeading')}
-                    </h2>
-                    <LoadingRegion
-                      label={t('TeamsScreen.loadingTeam')}
-                      className="tm-stack tm-stack--tight"
-                    >
-                      <Skeleton height="var(--row)" />
-                    </LoadingRegion>
-                  </>
-                ) : null}
-
-                {detail.isError ? (
-                  <>
-                    <h2 id="tm-team-detail-heading" className="ppl-card__title ppl-card__title--lg">
-                      {t('TeamsScreen.teamDetailHeading')}
-                    </h2>
-                    <InlineAlert tone="danger" title={t('TeamsScreen.teamLoadError')} live>
-                      {describePeopleError(detail.error)}
-                    </InlineAlert>
-                  </>
-                ) : null}
-
-                {detail.isSuccess ? (
-                  <TeamDetail
-                    team={detail.data}
-                    organizationSlug={organizationSlug}
-                    removeAction={
-                      mayManage ? (
-                        <DeleteTeamAction
-                          api={api}
-                          organizationSlug={organizationSlug}
-                          team={detail.data}
-                          onDeleted={async (teamId) => {
-                            // The list first, so the next selection is never the gone team.
-                            await queryClient.invalidateQueries({
-                              queryKey: ['people-teams', organizationSlug],
-                            });
-                            setChosenId(null);
-                            queryClient.removeQueries({
-                              queryKey: ['people-team', organizationSlug, teamId],
-                            });
-                          }}
-                        />
-                      ) : null
-                    }
-                  />
-                ) : null}
-              </section>
-            ) : teams.isSuccess ? (
-              <section className="ppl-card" aria-label={t('TeamsScreen.teamDetailAria')}>
-                <p className="ppl-dashed-note">{t('TeamsScreen.noTeamsBody')}</p>
-              </section>
-            ) : null}
-          </div>
-        </div>
+        ) : null}
       </div>
+
+      {dialog?.kind === 'new' ? (
+        <NewTeamDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          teams={teams}
+          candidates={candidates.data}
+          candidatesLoading={candidates.isPending}
+          onWantCandidates={() => setWantPeople(true)}
+          peopleOf={writes.peopleOf}
+          onCreate={writes.create}
+          onCreated={(created) => {
+            setDialog(null);
+            setQuery('');
+            choose(created.team.id);
+            setNotice(created.notAdded.length > 0 ? t('TeamsScreen.someNotAdded') : null);
+          }}
+          onClose={() => setDialog(null)}
+          {...(initialDraft
+            ? { initialName: initialDraft.name, initialPeople: initialDraft.people }
+            : {})}
+        />
+      ) : null}
+
+      {deleting && team.data && team.data.id === deleting.teamId ? (
+        <DeleteTeamDialog
+          team={{ id: team.data.id, name: team.data.name, people: team.data.members.length }}
+          onDelete={writes.remove}
+          onDeleted={() => {
+            setDialog(null);
+            setStoryDelete(false);
+            choose(null);
+          }}
+          onClose={() => {
+            setDialog(null);
+            setStoryDelete(false);
+          }}
+        />
+      ) : null}
     </AppShell>
-  );
-}
-
-function TeamsList({
-  teams,
-  selectedId,
-  onSelect,
-}: {
-  teams: readonly TeamView[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-}) {
-  const t = useT();
-  if (teams.length === 0) {
-    return (
-      <TeachingEmptyState
-        title={t('teachEmpty.teamsTitle')}
-        explanation={t('teachEmpty.teamsBody')}
-        helpSlug="invite-your-team"
-        helpLabel={t('EmptyStates.howInvitingWorks')}
-      />
-    );
-  }
-  return (
-    <ul className="ppl-soft-list" aria-label={t('TeamsScreen.teamsListAria')}>
-      {teams.map((team) => (
-        <li key={team.id}>
-          <button
-            type="button"
-            className="ppl-member"
-            aria-pressed={team.id === selectedId}
-            onClick={() => onSelect(team.id)}
-          >
-            <span className="ppl-avatar ppl-avatar--44" aria-hidden="true">
-              {initialsOf(team.name)}
-            </span>
-            <span>
-              <span className="ppl-person__name">{team.name}</span>
-              <span className="ppl-person__sub">
-                {team.memberCount === 1
-                  ? t('TeamsScreen.oneMember')
-                  : `${team.memberCount} ${t('TeamsScreen.memberPlural')}`}
-              </span>
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Fix lane C. Delete a team after one confirm; its people stay in the workspace. */
-function DeleteTeamAction({
-  api,
-  organizationSlug,
-  team,
-  onDeleted,
-}: {
-  api: ApiClient;
-  organizationSlug: string;
-  team: TeamDetailView;
-  onDeleted: (teamId: string) => Promise<void>;
-}) {
-  const tOr = useTOr();
-  return (
-    <ConfirmActionButton
-      triggerLabel={tOr('TeamsScreen.deleteTeam', 'Delete team')}
-      title={tOr('TeamsScreen.deleteTeamTitle', 'Delete the team “{name}”?')
-        .split('{name}')
-        .join(team.name)}
-      body={tOr(
-        'TeamsScreen.deleteTeamBody',
-        'Its members stay in the workspace with their projects and work. Only the team goes. This cannot be undone.',
-      )}
-      confirmLabel={tOr('TeamsScreen.deleteTeamConfirm', 'Delete team')}
-      busyLabel={tOr('TeamsScreen.deletingTeam', 'Deleting…')}
-      failedTitle={tOr('TeamsScreen.deleteTeamFailed', 'Team not deleted')}
-      onConfirm={() => deleteTeam(api, organizationSlug, team.id)}
-      onDone={() => void onDeleted(team.id)}
-    />
-  );
-}
-
-function TeamDetail({
-  team,
-  organizationSlug,
-  removeAction,
-}: {
-  team: TeamDetailView;
-  organizationSlug: string;
-  removeAction: ReactNode;
-}) {
-  const t = useT();
-  const describeRole = useRoleDescription();
-  return (
-    <>
-      <div className="ppl-card__head">
-        <h2 id="tm-team-detail-heading" className="ppl-card__title ppl-card__title--lg">
-          {team.name}
-        </h2>
-        <span className="ppl-mono ppl-mono--meta">
-          {team.members.length}{' '}
-          {team.members.length === 1
-            ? t('TeamsScreen.memberSingular')
-            : t('TeamsScreen.memberPlural')}
-        </span>
-        {removeAction}
-      </div>
-
-      {team.members.length === 0 ? (
-        <p className="ppl-dashed-note">{t('TeamsScreen.noMembersYet')}</p>
-      ) : (
-        <div className="ppl-inner-table">
-          <div className="ppl-table-head" aria-hidden="true">
-            <span className="ppl-col-person">{t('TeamsScreen.memberCol')}</span>
-            <span className="ppl-col-owner">{t('TeamsScreen.roleCol')}</span>
-            <span className="ppl-col-when">{t('TeamsScreen.statusCol')}</span>
-          </div>
-          <ul className="ppl-people" aria-label={`${t('TeamsScreen.membersOf')} ${team.name}`}>
-            {team.members.map((member) => (
-              <li key={member.membershipId} className="ppl-inner-row">
-                <span className="ppl-col-person ppl-person__who">
-                  <span className="ppl-avatar ppl-avatar--32" aria-hidden="true">
-                    {initialsOf(member.displayName)}
-                  </span>
-                  <Link
-                    href={`/${organizationSlug}/people/${member.membershipId}`}
-                    className="ppl-commitment__title"
-                  >
-                    {member.displayName}
-                  </Link>
-                </span>
-                <span className="ppl-col-owner ppl-cell-strong">
-                  {describeRole(member.role).label}
-                </span>
-                <span className="ppl-col-when">
-                  <span
-                    className={
-                      member.status === 'active' ? 'ppl-status' : 'ppl-status ppl-status--quiet'
-                    }
-                  >
-                    {member.status === 'active' ? t('TeamsScreen.activeStatus') : member.status}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </>
   );
 }
