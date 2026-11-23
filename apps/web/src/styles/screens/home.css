@@ -527,6 +527,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /*
+   * The title takes its own direction from its text, so an English title on an Arabic page is
+   * cut at its own end ("Homepage Concept v2 — publish…"), not its start; it still sits on the
+   * row's side (match-parent). 2026-11-23 manager check of the My Day v4 Arabic shots.
+   */
+  unicode-bidi: plaintext;
+  text-align: match-parent;
 }
 
 .tm-home-saved__title a {
