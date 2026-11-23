@@ -193,10 +193,34 @@ function invalid(message: string): AiClientError {
   return new AiClientError('invalid_request', message, false);
 }
 
+/**
+ * Keywords a strict tool schema may not carry: the API answers them with a 400
+ * `invalid_request_error` (structured outputs, "JSON Schema limitations": no numerical or string
+ * length constraints). Found 2026-11-23 when `limit: {minimum, maximum}` on a chat tool failed
+ * every answer call. Bounds belong in the description and in the server-side validation.
+ */
+const UNSUPPORTED_STRICT_KEYWORDS = [
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+  'minLength',
+  'maxLength',
+] as const;
+
 /** Every object level of a schema is strict, or the request is refused before it is sent. */
 function assertStrict(schema: unknown, path: string): void {
   if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return;
   const node = schema as JsonObject;
+  for (const keyword of UNSUPPORTED_STRICT_KEYWORDS) {
+    if (node[keyword] !== undefined) {
+      throw invalid(`tool schema ${path} uses ${keyword}, which strict tools do not accept`);
+    }
+  }
+  if (Array.isArray(node['anyOf'])) {
+    node['anyOf'].forEach((option, i) => assertStrict(option, `${path}|${i}`));
+  }
   if (node['type'] === 'object') {
     const properties = node['properties'];
     const required = node['required'];

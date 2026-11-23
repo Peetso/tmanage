@@ -247,6 +247,35 @@ describe('AI client: request shape', () => {
       'invalid_request',
     ],
     [
+      'a numeric bound, which strict tools reject with a 400',
+      {
+        tools: [
+          {
+            name: 'bounded',
+            description: 'x',
+            inputSchema: strict({ n: { type: 'integer', minimum: 1, maximum: 20 } }, ['n']),
+          },
+        ],
+      },
+      'invalid_request',
+    ],
+    [
+      'a string length inside anyOf',
+      {
+        tools: [
+          {
+            name: 'long',
+            description: 'x',
+            inputSchema: strict(
+              { s: { anyOf: [{ type: 'string', maxLength: 5 }, { type: 'null' }] } },
+              ['s'],
+            ),
+          },
+        ],
+      },
+      'invalid_request',
+    ],
+    [
       'two tools with the same name',
       {
         tools: [

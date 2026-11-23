@@ -46,10 +46,14 @@ const strict = (properties: JsonObject): AiStrictSchema => ({
 export const CHAT_TOOLS: readonly AiToolDefinition[] = [
   {
     name: META_TOOL_NAMES.find,
-    description: 'Find TManage actions by words. Returns action ids, titles and descriptions.',
+    // Strict tool schemas take no numeric bounds (the API answers `minimum`/`maximum` with a 400),
+    // so the range is stated in words and enforced in planToolCall.
+    description:
+      'Find TManage actions by words. Returns action ids, titles and descriptions. ' +
+      'limit is how many to return, 1 to 20.',
     inputSchema: strict({
       query: { type: 'string' },
-      limit: { type: 'integer', minimum: 1, maximum: 20 },
+      limit: { type: 'integer' },
     }),
   },
   {
@@ -102,6 +106,12 @@ const refuse = (opId: string | null, message: string): ChatToolPlan => ({
   message,
 });
 
+/** The find limit the model asked for, as a whole number from 1 to 20 (10 when not usable). */
+function findLimit(value: unknown): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : 10;
+  return Math.min(20, Math.max(1, n));
+}
+
 /** Turn one model tool call into what runs, or a refusal the model reads as the tool result. */
 export function planToolCall(name: string, input: JsonObject): ChatToolPlan {
   switch (name) {
@@ -109,7 +119,7 @@ export function planToolCall(name: string, input: JsonObject): ChatToolPlan {
       return {
         kind: 'run',
         catalogTool: name,
-        args: { query: String(input['query'] ?? ''), limit: Number(input['limit'] ?? 10) },
+        args: { query: String(input['query'] ?? ''), limit: findLimit(input['limit']) },
         opId: null,
       };
     case META_TOOL_NAMES.describe:
