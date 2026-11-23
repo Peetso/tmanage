@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import type { CampaignLanguage } from '@tmanage/mail';
+import { isCampaignLanguage } from '@tmanage/mail';
 import { ApiError } from '../../common/http/errors.js';
 
 /**
@@ -21,6 +23,7 @@ import { ApiError } from '../../common/http/errors.js';
  * - A `contact_type` other than `general` or `named`, when the column is present.
  * - The same address twice (in the file, or already imported in any campaign).
  * - A second person at the same company: one person per company, the first usable row wins.
+ * - An address on the suppression list (unsubscribed or bounced before; OUTREACH MANAGER).
  *
  * Language: `ar` only when the row says so in a `language` column; otherwise English (owner
  * decision 2026-11-20: everyone in the current file gets the English text). Senders: Arabic mail
@@ -110,11 +113,15 @@ export type OutreachExclusion =
   | 'flagged'
   | 'contact_type'
   | 'duplicate_address'
-  | 'second_at_company';
+  | 'second_at_company'
+  | 'suppressed';
 
 export interface OutreachSender {
   readonly id: string;
   readonly address: string;
+  /** The names the registry signs with (the `{sender name}` placeholder). */
+  readonly nameEn?: string;
+  readonly nameAr?: string;
 }
 
 export interface PlannedRecipient {
@@ -125,7 +132,7 @@ export interface PlannedRecipient {
   readonly emailHash: string;
   readonly country: string;
   readonly timeZone: string;
-  readonly language: 'en' | 'ar';
+  readonly language: CampaignLanguage;
   readonly senderPersonId: string;
 }
 
@@ -144,6 +151,14 @@ export interface OutreachPlanOptions {
   readonly knownHashes: ReadonlySet<string>;
   /** Normalised company names already imported (any campaign). */
   readonly knownCompanies: ReadonlySet<string>;
+  /**
+   * OUTREACH MANAGER: the campaign's languages (the first is the default). A row's `language`
+   * column is used when it names one of them. Without the option: English, or Arabic when the
+   * row says so (the LANE-Q rule).
+   */
+  readonly languages?: readonly CampaignLanguage[];
+  /** OUTREACH MANAGER: address hashes on the suppression list (never imported). */
+  readonly suppressedHashes?: ReadonlySet<string>;
 }
 
 const invalid = (message: string): ApiError =>
@@ -229,18 +244,15 @@ export function planOutreachImport(
   const skip = (reason: OutreachExclusion) => {
     excluded[reason] = (excluded[reason] ?? 0) + 1;
   };
-  const pools = {
-    ar: options.senders.filter((s) => ARABIC_SENDER_LOCALS.has(localPart(s.address))),
-    en: options.senders.filter((s) => !ARABIC_SENDER_LOCALS.has(localPart(s.address))),
-  };
+  const pools = senderPools(options.senders);
   const turn = { ar: 0, en: 0 };
   const hashes = new Set(options.knownHashes);
   const companies = new Set(options.knownCompanies);
   const recipients: PlannedRecipient[] = [];
 
   for (const row of rows) {
-    const place = COUNTRIES[(row['country'] ?? '').trim().toLowerCase()];
-    if (place === undefined) {
+    const place = placeCountry(row['country'] ?? '');
+    if (place === null) {
       skip('unknown_country');
       continue;
     }
@@ -280,6 +292,10 @@ export function planOutreachImport(
       continue;
     }
     const emailHash = outreachAddressHash(email);
+    if (options.suppressedHashes?.has(emailHash) === true) {
+      skip('suppressed');
+      continue;
+    }
     if (hashes.has(emailHash)) {
       skip('duplicate_address');
       continue;
@@ -289,17 +305,18 @@ export function planOutreachImport(
       skip('second_at_company');
       continue;
     }
-    const language: 'en' | 'ar' = (row['language'] ?? '').toLowerCase() === 'ar' ? 'ar' : 'en';
-    const pool = pools[language];
-    const sender = pool[turn[language] % Math.max(pool.length, 1)];
+    const language = rowLanguage(row['language'], options.languages);
+    const side = language === 'ar' ? 'ar' : 'en';
+    const pool = pools[side];
+    const sender = pool[turn[side] % Math.max(pool.length, 1)];
     if (sender === undefined) {
       throw new ApiError(
         409,
         'conflict',
-        `No active ${language === 'ar' ? 'Arabic' : 'English'} sender in E-mail people.`,
+        `No active ${side === 'ar' ? 'Arabic' : 'English'} sender in E-mail people.`,
       );
     }
-    turn[language] += 1;
+    turn[side] += 1;
     hashes.add(emailHash);
     companies.add(companyKey);
     recipients.push({
@@ -315,6 +332,78 @@ export function planOutreachImport(
     });
   }
   return { recipients, excluded, rows: rows.length };
+}
+
+/** The row's language within the campaign's languages (the first is the default). */
+function rowLanguage(
+  raw: string | undefined,
+  languages: readonly CampaignLanguage[] | undefined,
+): CampaignLanguage {
+  const asked = (raw ?? '').trim();
+  const match = CAMPAIGN_LANGUAGE_ALIASES[asked.toLowerCase()];
+  if (languages === undefined || languages.length === 0) return match === 'ar' ? 'ar' : 'en';
+  if (match !== undefined && languages.includes(match)) return match;
+  return languages[0] as CampaignLanguage;
+}
+
+/** The `language` column's spellings: the site's codes, any case. */
+const CAMPAIGN_LANGUAGE_ALIASES: Readonly<Record<string, CampaignLanguage>> = {
+  en: 'en',
+  ar: 'ar',
+  fr: 'fr',
+  es: 'es',
+  de: 'de',
+  'pt-br': 'pt-BR',
+  pt: 'pt-BR',
+  'zh-cn': 'zh-CN',
+  zh: 'zh-CN',
+  ur: 'ur',
+};
+
+/** True for a code the campaign may use (re-exported for the manager's parsers). */
+export function isOutreachLanguage(value: unknown): value is CampaignLanguage {
+  return isCampaignLanguage(value);
+}
+
+/** The ISO code and time zone of a country as the list names it, or `null`. */
+export function placeCountry(name: string): { code: string; zone: string } | null {
+  const byName = COUNTRIES[name.trim().toLowerCase()];
+  if (byName !== undefined) return byName;
+  const code = name.trim().toUpperCase();
+  return Object.values(COUNTRIES).find((place) => place.code === code) ?? null;
+}
+
+/** Arabic mail from the Arabic-named teammates, every other language from the others. */
+export function senderPools(senders: readonly OutreachSender[]): {
+  readonly ar: readonly OutreachSender[];
+  readonly en: readonly OutreachSender[];
+} {
+  return {
+    ar: senders.filter((s) => ARABIC_SENDER_LOCALS.has(localPart(s.address))),
+    en: senders.filter((s) => !ARABIC_SENDER_LOCALS.has(localPart(s.address))),
+  };
+}
+
+/**
+ * Queued recipients spread again over a new sender set (a sender-pool change), in list order,
+ * each by its language's side. A recipient whose side has no sender keeps its sender.
+ */
+export function reassignSenders(
+  recipients: readonly { readonly id: string; readonly language: string }[],
+  senders: readonly OutreachSender[],
+): { id: string; senderPersonId: string }[] {
+  const pools = senderPools(senders);
+  const turn = { ar: 0, en: 0 };
+  const moves: { id: string; senderPersonId: string }[] = [];
+  for (const r of recipients) {
+    const side = r.language === 'ar' ? 'ar' : 'en';
+    const pool = pools[side];
+    const sender = pool[turn[side] % Math.max(pool.length, 1)];
+    if (sender === undefined) continue;
+    turn[side] += 1;
+    moves.push({ id: r.id, senderPersonId: sender.id });
+  }
+  return moves;
 }
 
 function localPart(address: string): string {

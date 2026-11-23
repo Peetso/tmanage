@@ -35,6 +35,15 @@ export interface WalkthroughSubmitRequest {
   readonly correlationId: string;
 }
 
+/**
+ * OUTREACH MANAGER — a booking that came from a campaign mail carries the recipient's signed
+ * trial token as `invite`. Only a token that verifies stamps the recipient (once); anything else
+ * is ignored and the request is handled like any other.
+ */
+export interface WalkthroughInvites {
+  stampBooking(token: unknown, at: Date, correlationId: string): Promise<boolean>;
+}
+
 export type WalkthroughSubmitResult =
   | { readonly kind: 'accepted'; readonly reference: string }
   | { readonly kind: 'rate_limited'; readonly retryAfterSeconds: number };
@@ -47,6 +56,7 @@ export class WalkthroughService {
     private readonly assess: AssessPublicWrite | null,
     private readonly now: () => Date = () => new Date(),
     private readonly log: (line: string) => void = (line) => console.warn(line),
+    private readonly invites: WalkthroughInvites | null = null,
   ) {}
 
   async submit(request: WalkthroughSubmitRequest): Promise<WalkthroughSubmitResult> {
@@ -98,6 +108,13 @@ export class WalkthroughService {
       },
       request.correlationId,
     );
+    if (decision === 'allow' && this.invites !== null && request.body['invite'] !== undefined) {
+      try {
+        await this.invites.stampBooking(request.body['invite'], at, request.correlationId);
+      } catch {
+        this.log(`[walkthrough] the campaign booking for ${reference} was not recorded`);
+      }
+    }
     if (decision === 'allow' && this.mailer !== null) {
       try {
         await this.mailer.send(composeSalesNotification(input, reference));

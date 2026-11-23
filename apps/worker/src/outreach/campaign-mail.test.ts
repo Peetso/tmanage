@@ -4,10 +4,12 @@ import { campaignLinks, composeCampaignIntro } from './campaign-mail.js';
 import type { CampaignMailInput } from './campaign-mail.js';
 import {
   MAX_PER_MAILBOX_PER_DAY,
+  campaignCap,
   dailyCap,
   inSendWindow,
   mailboxMaySend,
   spacingMs,
+  workingDaysBetween,
 } from './campaign-pace.js';
 
 /** LANE-Q — the campaign's pace rules and the introduction's exact shape. */
@@ -109,9 +111,50 @@ describe('LANE-Q campaign mail — one teammate, plain text, personal unsubscrib
     expect(en.trialUrl).toBe(
       'https://tmanageapp.com/sign-up?trial=v1.abc&utm_source=campaign&utm_medium=email&utm_campaign=outreach-v1',
     );
-    expect(en.bookingUrl).toBe('https://tmanageapp.com/walkthrough?utm_source=campaign');
+    expect(en.bookingUrl).toBe(
+      'https://tmanageapp.com/walkthrough?utm_source=campaign&invite=v1.abc',
+    );
     expect(campaignLinks('https://tmanageapp.com', 'ar', 'x').trialUrl).toMatch(
       /^https:\/\/tmanageapp\.com\/ar\/sign-up\?trial=x&/u,
     );
+    const fr = campaignLinks('https://tmanageapp.com', 'fr', 'x');
+    expect(fr.trialUrl).toMatch(/^https:\/\/tmanageapp\.com\/sign-up\?trial=x&.*&lang=fr$/u);
+    expect(fr.bookingUrl).toBe(
+      'https://tmanageapp.com/walkthrough?utm_source=campaign&invite=x&lang=fr',
+    );
+  });
+});
+
+describe('OUTREACH MANAGER pace — the campaign cap and working days', () => {
+  it('ramps under the campaign cap while warming up, and holds the cap without warm-up', () => {
+    const at = (days: number) => new Date(START.getTime() + days * DAY);
+    const pace = { firstStartedAt: START, dailyCap: 8, warmup: true };
+    expect(campaignCap(pace, at(0))).toBe(5);
+    expect(campaignCap(pace, at(8))).toBe(8);
+    expect(campaignCap({ ...pace, dailyCap: 3 }, at(0))).toBe(3);
+    expect(campaignCap({ ...pace, warmup: false }, at(0))).toBe(8);
+    expect(campaignCap({ ...pace, warmup: false, dailyCap: 99 }, at(0))).toBe(20);
+    expect(campaignCap({ ...pace, warmup: false, dailyCap: 0 }, at(0))).toBe(1);
+  });
+
+  it('counts Monday to Friday on the recipient calendar', () => {
+    const friday = new Date('2026-11-20T12:00:00Z');
+    const zone = 'Europe/Helsinki';
+    expect(workingDaysBetween(friday, new Date('2026-11-23T12:00:00Z'), zone)).toBe(1);
+    expect(workingDaysBetween(friday, new Date('2026-11-24T12:00:00Z'), zone)).toBe(2);
+    expect(workingDaysBetween(friday, friday, zone)).toBe(0);
+    // 23:30 UTC Friday is already Saturday in Dubai: nothing counts until Monday.
+    const lateFriday = new Date('2026-11-20T23:30:00Z');
+    expect(workingDaysBetween(lateFriday, new Date('2026-11-22T12:00:00Z'), 'Asia/Dubai')).toBe(0);
+    expect(workingDaysBetween(friday, friday, 'Not/AZone')).toBeNull();
+  });
+});
+
+describe('OUTREACH MANAGER mail — the default text renders exactly as before', () => {
+  it('ends the English default with the signature, then the unsubscribe line', () => {
+    const mail = composeCampaignIntro(INPUT);
+    expect(mail.text).toContain(`${INPUT.bookingUrl}\n\nBest,\nEmma\nTManage · tmanageapp.com\n\n`);
+    expect(mail.text.startsWith("Hi Eeva,\n\nI'm Emma from TManage.")).toBe(true);
+    expect(mail.language).toBe('en');
   });
 });

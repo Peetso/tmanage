@@ -1649,6 +1649,10 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // start/pause/stop), the sign-up that redeems a trial link, and the worker's campaign sender.
   'outreach_campaigns',
   'outreach_recipients',
+  // 0409 (OUTREACH MANAGER). A campaign's saved e-mail versions and its chosen senders: GLOBAL
+  // platform tables like the campaign itself, written by platform admins, read by the worker.
+  'outreach_email_versions',
+  'outreach_campaign_senders',
   // ---- SEC-ALERTS ----
   // 0404. The API's findings over the sign-in log (rule, SHA-256 source hash, counts). GLOBAL: a
   // source address belongs to no company. Written by the API job on `identityTransaction`, read by

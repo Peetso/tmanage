@@ -12,7 +12,12 @@ import {
   readDecisionMakersCsv,
 } from './outreach-import.js';
 import { OutreachCampaignService, type OutreachStore } from './outreach-campaign.service.js';
-import type { CampaignRecord, RecipientInsert, TrialRecipient } from './outreach.repository.js';
+import type {
+  CampaignRecord,
+  NewCampaign,
+  RecipientInsert,
+  TrialRecipient,
+} from './outreach.repository.js';
 import { TrialInvites } from './trial-invites.js';
 
 /**
@@ -141,19 +146,26 @@ class FakeStore implements OutreachStore {
   inserted: RecipientInsert[] = [];
   audits: PlatformAuditInput[] = [];
   activeSenders = () => Promise.resolve(SENDERS);
-  known = () => Promise.resolve({ hashes: new Set<string>(), companies: [] as string[] });
-  insertCampaign = (
-    c: { id: string; name: string; createdBy: string; at: Date },
-    r: readonly RecipientInsert[],
-    audit: PlatformAuditInput,
-  ) => {
+  known = () => Promise.resolve({ hashes: new Set<string>(), companies: [] as string[], rows: [] });
+  suppressed = () => Promise.resolve(new Set<string>());
+  latestVersions = () => Promise.resolve([]);
+  versionsSeeded: NewCampaign['versions'][] = [];
+  insertCampaign = (c: NewCampaign, r: readonly RecipientInsert[], audit: PlatformAuditInput) => {
     this.campaignsList.unshift({
       id: c.id,
       name: c.name,
       status: 'paused',
+      languages: c.languages,
+      senderPool: c.senderPool,
+      dailyCap: c.dailyCap,
+      warmup: c.warmup,
+      followupEnabled: c.followupEnabled,
+      followupDays: c.followupDays,
+      archivedAt: null,
       firstStartedAt: null,
       createdAt: c.at,
     });
+    this.versionsSeeded.push(c.versions);
     this.inserted.push(...r);
     this.audits.push(audit);
     return Promise.resolve();
@@ -235,8 +247,20 @@ describe('LANE-Q trial link — the pre-fill works once, for 30 days', () => {
     language: 'en',
     redeemed,
   });
+  const stamped: string[] = [];
   const invites = (row: TrialRecipient | null, at = now) =>
-    new TrialInvites({ trialRecipient: () => Promise.resolve(row) }, CIPHER, key, () => at);
+    new TrialInvites(
+      {
+        trialRecipient: () => Promise.resolve(row),
+        stampWalkthrough: (recipientId: string) => {
+          stamped.push(recipientId);
+          return Promise.resolve(true);
+        },
+      },
+      CIPHER,
+      key,
+      () => at,
+    );
   const token = signTrialLink(
     key,
     { recipientId: id, email: 'lead@atlas.example', company: 'Atlas Studio' },
@@ -262,5 +286,15 @@ describe('LANE-Q trial link — the pre-fill works once, for 30 days', () => {
     expect((await invites(null).lookup(token, 'c')).kind).toBe('invalid');
     expect((await invites(recipient()).lookup('v1.x', 'c')).kind).toBe('invalid');
     expect(await invites(recipient(true)).validRecipient(token, 'c')).toBeNull();
+  });
+
+  it('credits a walkthrough booking only for a token that verifies (used or not)', async () => {
+    stamped.length = 0;
+    expect(await invites(recipient(true)).stampBooking(token, now, 'c')).toBe(true);
+    const late = new Date(now.getTime() + 31 * 86_400_000);
+    expect(await invites(recipient(), late).stampBooking(token, late, 'c')).toBe(false);
+    expect(await invites(recipient(false, 'Other Co')).stampBooking(token, now, 'c')).toBe(false);
+    expect(await invites(recipient()).stampBooking('v1.x', now, 'c')).toBe(false);
+    expect(stamped).toEqual([id]);
   });
 });

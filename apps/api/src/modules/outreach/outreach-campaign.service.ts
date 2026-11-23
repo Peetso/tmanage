@@ -6,12 +6,21 @@ import { requireId } from '../platform-admin/platform-admin.access.js';
 import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
 import type { RequestContext } from '../platform-admin/platform-admin.service.js';
 import { platformAuditFor } from '../platform-admin/platform-audit.service.js';
+import { DEFAULT_CAMPAIGN_EMAILS, isCampaignLanguage } from '@tmanage/mail';
+import type { CampaignLanguage } from '@tmanage/mail';
 import {
   normaliseCompany,
+  outreachAddressHash,
   planOutreachImport,
   readDecisionMakersCsv,
   type OutreachExclusion,
 } from './outreach-import.js';
+import {
+  campaignView,
+  recipientView,
+  type OutreachCampaignView,
+  type OutreachRecipientView,
+} from './outreach-views.js';
 import type { OutreachRepository, RecipientInsert } from './outreach.repository.js';
 
 /**
@@ -25,6 +34,8 @@ export type OutreachStore = Pick<
   OutreachRepository,
   | 'activeSenders'
   | 'known'
+  | 'suppressed'
+  | 'latestVersions'
   | 'insertCampaign'
   | 'campaigns'
   | 'campaign'
@@ -56,27 +67,7 @@ const AUDIT_ACTION: Readonly<Record<OutreachAction, string>> = {
 
 const CIPHER_PURPOSE = 'outreach_email' as const;
 
-export interface OutreachRecipientView {
-  readonly id: string;
-  readonly company: string;
-  readonly firstName: string;
-  readonly country: string;
-  readonly language: string;
-  readonly sender: string | null;
-  readonly status: string;
-  readonly sentAt: string | null;
-  readonly trialRedeemedAt: string | null;
-}
-
-export interface OutreachCampaignView {
-  readonly id: string;
-  readonly name: string;
-  readonly status: OutreachCampaignStatus;
-  readonly firstStartedAt: string | null;
-  readonly createdAt: string;
-  readonly counts: Readonly<Record<string, number>>;
-  readonly trialsRedeemed: number;
-}
+export type { OutreachCampaignView, OutreachRecipientView } from './outreach-views.js';
 
 export interface OutreachView {
   readonly campaigns: readonly OutreachCampaignView[];
@@ -112,26 +103,8 @@ export class OutreachCampaignService {
     const recipients =
       newest === undefined ? [] : await this.store.recipients(newest.id, context.correlationId);
     return {
-      campaigns: campaigns.map((c) => ({
-        id: c.id,
-        name: c.name,
-        status: c.status,
-        firstStartedAt: c.firstStartedAt?.toISOString() ?? null,
-        createdAt: c.createdAt.toISOString(),
-        counts: counts.get(c.id)?.byStatus ?? {},
-        trialsRedeemed: counts.get(c.id)?.redeemed ?? 0,
-      })),
-      recipients: recipients.map((r) => ({
-        id: r.id,
-        company: r.company,
-        firstName: r.firstName,
-        country: r.country,
-        language: r.language,
-        sender: r.senderAddress,
-        status: r.status,
-        sentAt: r.sentAt?.toISOString() ?? null,
-        trialRedeemedAt: r.trialRedeemedAt?.toISOString() ?? null,
-      })),
+      campaigns: campaigns.map((c) => campaignView(c, counts.get(c.id))),
+      recipients: recipients.map(recipientView),
       postalAddressSet: this.postalAddress() !== '',
     };
   }
@@ -153,15 +126,25 @@ export class OutreachCampaignService {
         'Addresses cannot be stored: FIELD_CIPHER_KEYS is not set on this server.',
       );
     }
-    const [senders, known] = await Promise.all([
+    const languages = importLanguages(body['languages']);
+    const [senders, known, suppressed] = await Promise.all([
       this.store.activeSenders(context.correlationId),
       this.store.known(context.correlationId),
+      this.store.suppressed(
+        rows
+          .map((row) => (row['work_email'] ?? '').trim().toLowerCase())
+          .filter((email) => email !== '')
+          .map(outreachAddressHash),
+        context.correlationId,
+      ),
     ]);
     const plan = planOutreachImport(rows, {
       senders,
       postalAddressSet: this.postalAddress() !== '',
       knownHashes: known.hashes,
       knownCompanies: new Set(known.companies.map(normaliseCompany)),
+      ...(languages === null ? {} : { languages }),
+      suppressedHashes: suppressed,
     });
     if (plan.recipients.length === 0) {
       throw new ApiError(400, 'validation_failed', 'No row in the file can be written to.', [
@@ -186,8 +169,27 @@ export class OutreachCampaignService {
         senderPersonId: r.senderPersonId,
       };
     });
+    // The languages the rows use (the LANE-Q rule: English, Arabic where the row says so).
+    const used: CampaignLanguage[] =
+      languages ?? (plan.recipients.some((r) => r.language === 'ar') ? ['en', 'ar'] : ['en']);
     await this.store.insertCampaign(
-      { id: campaignId, name, createdBy: actor.account.userId, at },
+      {
+        id: campaignId,
+        name,
+        languages: used,
+        senderPool: 'auto',
+        dailyCap: 20,
+        warmup: true,
+        followupEnabled: false,
+        followupDays: 4,
+        createdBy: actor.account.userId,
+        at,
+        senderIds: [],
+        versions: {
+          intro: pick(DEFAULT_CAMPAIGN_EMAILS.intro, used),
+          followup: pick(DEFAULT_CAMPAIGN_EMAILS.followup, used),
+        },
+      },
       recipients,
       platformAuditFor(actor, context, {
         action: 'platform.outreach_imported',
@@ -222,9 +224,17 @@ export class OutreachCampaignService {
     const campaign = await this.store.campaign(id, context.correlationId);
     if (campaign === null) throw new ApiError(404, 'not_found', 'That campaign does not exist.');
     const move = MOVES[action];
+    if (campaign.archivedAt !== null) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'An archived campaign cannot change. Bring it back first.',
+      );
+    }
     if (!move.from.includes(campaign.status)) {
       throw new ApiError(409, 'conflict', `A ${campaign.status} campaign cannot ${action}.`);
     }
+    if (action === 'start') await this.requireTexts(campaign, context);
     const moved = await this.store.setStatus(
       id,
       campaign.status,
@@ -242,6 +252,29 @@ export class OutreachCampaignService {
     );
     if (!moved) throw new ApiError(409, 'conflict', 'The campaign changed meanwhile. Reload.');
     return this.view(context);
+  }
+
+  /** Every language of the campaign has an introduction (and a follow-up when it is on). */
+  private async requireTexts(
+    campaign: { id: string; languages: readonly CampaignLanguage[]; followupEnabled: boolean },
+    context: RequestContext,
+  ): Promise<void> {
+    const saved = await this.store.latestVersions(campaign.id, context.correlationId);
+    const kinds = campaign.followupEnabled
+      ? (['intro', 'followup'] as const)
+      : (['intro'] as const);
+    for (const kind of kinds) {
+      for (const language of campaign.languages) {
+        const has =
+          saved.some((row) => row.kind === kind && row.language === language) ||
+          DEFAULT_CAMPAIGN_EMAILS[kind][language] !== undefined;
+        if (!has) {
+          throw new ApiError(409, 'conflict', 'Write the e-mail in every language first.', [
+            { field: `texts.${language}`, message: kind },
+          ]);
+        }
+      }
+    }
   }
 
   async markBounced(
@@ -266,4 +299,28 @@ export class OutreachCampaignService {
     if (!done) throw new ApiError(404, 'not_found', 'That recipient does not exist.');
     return this.view(context);
   }
+}
+
+/** The import's optional `languages` list (a new campaign from a file), or `null`. */
+function importLanguages(raw: unknown): CampaignLanguage[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const list = [...new Set(raw.filter(isCampaignLanguage))];
+  if (list.length !== raw.length) {
+    throw new ApiError(400, 'validation_failed', 'That language is not offered.', [
+      { field: 'languages', message: 'That language is not offered.' },
+    ]);
+  }
+  return list;
+}
+
+function pick<T>(
+  texts: Readonly<Partial<Record<CampaignLanguage, T>>>,
+  languages: readonly CampaignLanguage[],
+): Partial<Record<CampaignLanguage, T>> {
+  const out: Partial<Record<CampaignLanguage, T>> = {};
+  for (const language of languages) {
+    const text = texts[language];
+    if (text !== undefined) out[language] = text;
+  }
+  return out;
 }

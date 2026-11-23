@@ -237,6 +237,8 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // (hashed sources and counts) instead of the sign-in log.
     // ---- SEC-ALERTS 0405 ---- +2: the block-list refresh reads its own `network_block_lists`
     // and `network_block_ranges` state.
+    // ---- OUTREACH MANAGER 0409 ---- +2: the campaign sender reads the newest
+    // `outreach_email_versions` row and a chosen campaign's `outreach_campaign_senders`.
     expect(reads).toHaveLength(
       26 +
         15 +
@@ -284,6 +286,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
         3 +
         1 +
         1 +
+        2 +
         2,
     );
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);

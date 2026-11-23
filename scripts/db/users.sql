@@ -2789,6 +2789,15 @@ GRANT INSERT, UPDATE ON `tmanage`.`outreach_campaigns` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`outreach_recipients` TO 'tmanage_app'@'%';
 GRANT SELECT ON `tmanage`.`outreach_campaigns` TO 'tmanage_worker'@'%';
 GRANT SELECT, UPDATE ON `tmanage`.`outreach_recipients` TO 'tmanage_worker'@'%';
+-- 0409 (OUTREACH MANAGER). The editor saves each e-mail version (INSERT only: a version is never
+-- changed) and the chosen senders (INSERT, DELETE: a change replaces the set). A queued recipient
+-- may be removed (DELETE on `outreach_recipients`; the sealed address goes with the row). The
+-- worker reads the versions (it sends the newest) and the chosen senders; it writes neither.
+GRANT INSERT ON `tmanage`.`outreach_email_versions` TO 'tmanage_app'@'%';
+GRANT INSERT, DELETE ON `tmanage`.`outreach_campaign_senders` TO 'tmanage_app'@'%';
+GRANT DELETE ON `tmanage`.`outreach_recipients` TO 'tmanage_app'@'%';
+GRANT SELECT ON `tmanage`.`outreach_email_versions` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`outreach_campaign_senders` TO 'tmanage_worker'@'%';
 
 -- 0392 (62-13 AI CONVERSATIONS). The worker's `ai-conversation-purge` reads each workspace's
 -- `conversation_retention_days` and deletes conversations (and first their messages) whose last

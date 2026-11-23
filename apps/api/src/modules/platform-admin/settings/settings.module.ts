@@ -59,6 +59,11 @@ import {
   PlatformOutreachController,
 } from '../../outreach/outreach-campaign.controller.js';
 import { OutreachCampaignService } from '../../outreach/outreach-campaign.service.js';
+import {
+  PLATFORM_OUTREACH_MANAGER_SERVICE,
+  PlatformOutreachManagerController,
+} from '../../outreach/outreach-manager.controller.js';
+import { OutreachManagerService } from '../../outreach/outreach-manager.service.js';
 import { OutreachRepository } from '../../outreach/outreach.repository.js';
 
 /**
@@ -152,6 +157,22 @@ export class PlatformSettingsModule {
               createFieldCipher(loadFieldCipherKeyring(process.env)),
             ),
         },
+        // ---- OUTREACH MANAGER ---- one campaign's settings, e-mail versions, preview, test send
+        // (to the signed-in admin only, through the person's own mailbox) and recipients.
+        {
+          provide: PLATFORM_OUTREACH_MANAGER_SERVICE,
+          inject: [TENANT_DATABASE, { token: MAILER, optional: true }],
+          useFactory: (database: TenantDatabase, mailer: Mailer | null | undefined) =>
+            new OutreachManagerService(
+              new OutreachRepository(database),
+              createFieldCipher(loadFieldCipherKeyring(process.env)),
+              {
+                mailer: mailer ?? null,
+                webPublicUrl:
+                  (process.env['WEB_PUBLIC_URL'] ?? '').trim() || 'https://tmanageapp.com',
+              },
+            ),
+        },
         // ---- 62-A3 GROWTH (B14) ---- the monthly unit costs behind "cost per active company".
         {
           provide: PLATFORM_UNIT_COSTS_SERVICE,
@@ -173,6 +194,7 @@ export class PlatformSettingsModule {
       controllers: [
         PlatformSettingsController,
         PlatformOutreachController,
+        PlatformOutreachManagerController,
         PlatformFlagsController,
         PlatformAnnouncementsController,
         PlatformKeysController,

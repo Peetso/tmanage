@@ -63,3 +63,51 @@ export function mailboxMaySend(state: MailboxState, cap: number, now: Date): boo
   if (state.lastAttemptAt === null) return true;
   return now.getTime() - state.lastAttemptAt.getTime() >= spacingMs(cap);
 }
+
+/** A campaign's own pace (OUTREACH MANAGER 0409): its daily cap, and whether it warms up. */
+export interface CampaignPace {
+  readonly firstStartedAt: Date;
+  /** 1-20 per mailbox per day (`outreach_campaigns.daily_cap`). */
+  readonly dailyCap: number;
+  /** When on, the cap ramps 5 / 10 / then `dailyCap` by campaign week. */
+  readonly warmup: boolean;
+}
+
+/** The day's cap for one mailbox in this campaign: never above the ramp (if on) nor above 20. */
+export function campaignCap(pace: CampaignPace, now: Date): number {
+  const own = Math.max(1, Math.min(Math.floor(pace.dailyCap), MAX_PER_MAILBOX_PER_DAY));
+  return pace.warmup ? Math.min(dailyCap(pace.firstStartedAt, now), own) : own;
+}
+
+/** The calendar date (YYYY-MM-DD) at `at` in `timeZone`, or `null` for an unknown zone. */
+function localDate(at: Date, timeZone: string): string | null {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(at);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Working days (Monday to Friday) after `from` up to and including `to`, counted on the calendar
+ * of `timeZone`. Sent on a Friday, checked the next Tuesday: 2. `null` for an unknown zone.
+ */
+export function workingDaysBetween(from: Date, to: Date, timeZone: string): number | null {
+  const start = localDate(from, timeZone);
+  const end = localDate(to, timeZone);
+  if (start === null || end === null) return null;
+  const day = Date.parse(`${start}T00:00:00Z`);
+  const last = Date.parse(`${end}T00:00:00Z`);
+  let count = 0;
+  // Bounded: a follow-up is at most a few weeks out; past 400 days the answer no longer matters.
+  for (let at = day + DAY_MS, i = 0; at <= last && i < 400; at += DAY_MS, i += 1) {
+    const weekday = new Date(at).getUTCDay();
+    if (weekday !== 0 && weekday !== 6) count += 1;
+  }
+  return count;
+}

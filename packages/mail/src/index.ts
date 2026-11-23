@@ -200,3 +200,28 @@ export {
   verifyTrialLink,
 } from './trial-link.js';
 export type { TrialLinkClaim, TrialLinkSubject, TrialLinkVerdict } from './trial-link.js';
+// OUTREACH MANAGER: the editable outreach e-mail (preview, test send and the real send share it).
+export {
+  CAMPAIGN_BODY_MAX,
+  CAMPAIGN_EMAIL_KINDS,
+  CAMPAIGN_LANGUAGES,
+  CAMPAIGN_PLACEHOLDERS,
+  CAMPAIGN_SUBJECT_MAX,
+  CAMPAIGN_UNSUBSCRIBE_LINES,
+  DEFAULT_CAMPAIGN_EMAILS,
+  campaignMailLanguage,
+  campaignLinks,
+  campaignTextProblems,
+  isCampaignLanguage,
+  normaliseCampaignText,
+  renderCampaignEmail,
+} from './campaign-template.js';
+export type {
+  CampaignEmailKind,
+  CampaignEmailText,
+  CampaignLanguage,
+  CampaignPlaceholder,
+  CampaignRenderInput,
+  CampaignRenderValues,
+  CampaignTextProblem,
+} from './campaign-template.js';

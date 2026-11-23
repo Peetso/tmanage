@@ -55,7 +55,7 @@ export interface SignupTrialInvites {
 
 export class TrialInvites implements SignupTrialInvites {
   constructor(
-    private readonly store: Pick<OutreachRepository, 'trialRecipient'>,
+    private readonly store: Pick<OutreachRepository, 'trialRecipient' | 'stampWalkthrough'>,
     private readonly cipher: FieldCipher,
     /** `deriveTrialLinkKey(SESSION_SECRET)`, or `null` (no secret: every link is invalid). */
     private readonly key: Buffer | null,
@@ -88,6 +88,32 @@ export class TrialInvites implements SignupTrialInvites {
       email,
       language: row.language === 'ar' ? 'ar' : 'en',
     };
+  }
+
+  /**
+   * OUTREACH MANAGER — "Book a walkthrough" from a campaign mail: a token that verifies (used or
+   * not: a person who already signed up may still book) stamps the recipient's `walkthrough_at`
+   * once. An invalid or expired token stamps nothing.
+   */
+  async stampBooking(token: unknown, at: Date, correlationId: string): Promise<boolean> {
+    const claim = readTrialLink(token);
+    if (claim === null || this.key === null) return false;
+    const row = await this.store.trialRecipient(claim.recipientId, correlationId);
+    if (row === null) return false;
+    let email: string;
+    try {
+      email = this.cipher.decrypt(row.emailEnc, { purpose: CIPHER_PURPOSE, ownerId: row.id });
+    } catch {
+      return false;
+    }
+    const verdict = verifyTrialLink(
+      this.key,
+      token as string,
+      { recipientId: row.id, email, company: row.company },
+      this.now(),
+    );
+    if (verdict !== 'valid') return false;
+    return this.store.stampWalkthrough(row.id, at, correlationId);
   }
 
   async validRecipient(token: unknown, correlationId: string): Promise<string | null> {

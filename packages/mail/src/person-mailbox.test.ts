@@ -209,8 +209,9 @@ describe('PERSONMAIL — one shared mailbox password, every mailbox signs in as 
 
   it('no other template ever signs in as a person mailbox', async () => {
     const h = harness();
-    // LANE-Q: `campaign_intro` is the other person template (a teammate's own outreach mail).
-    const personal = new Set(['tip', 'campaign_intro']);
+    // LANE-Q: `campaign_intro` is the other person template (a teammate's own outreach mail);
+    // OUTREACH MANAGER: its one follow-up, `campaign_followup`, leaves from the same mailbox.
+    const personal = new Set(['tip', 'campaign_intro', 'campaign_followup']);
     for (const templateKey of TEMPLATE_KEYS.filter((key) => !personal.has(key))) {
       const { optional: _optional, ...required } = tip;
       await h.resolver.send({ ...required, templateKey });

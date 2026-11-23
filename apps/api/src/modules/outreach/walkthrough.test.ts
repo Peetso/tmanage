@@ -110,6 +110,7 @@ const KEYRING = createFieldCipher(
 function service(options: { verdict?: PublicWriteVerdict; failMail?: boolean } = {}) {
   const store = new FakeStore();
   const mails: MailMessage[] = [];
+  const invites: unknown[] = [];
   const svc = new WalkthroughService(
     store,
     KEYRING,
@@ -125,10 +126,16 @@ function service(options: { verdict?: PublicWriteVerdict; failMail?: boolean } =
       : () => Promise.resolve(options.verdict as PublicWriteVerdict),
     () => NOW,
     () => undefined,
+    {
+      stampBooking: (token) => {
+        invites.push(token);
+        return Promise.resolve(true);
+      },
+    },
   );
   const submit = (raw: Record<string, unknown>) =>
     svc.submit({ body: raw, ip: '198.51.100.7', acceptLanguage: 'en', correlationId: 'c-1' });
-  return { store, mails, submit };
+  return { store, mails, submit, invites };
 }
 
 describe('LANE-Q walkthrough — the door', () => {
@@ -165,6 +172,15 @@ describe('LANE-Q walkthrough — the door', () => {
       verdict: { decision: 'blocked', score: 100, reasons: [], retryAfterSeconds: 60 },
     });
     expect(await limited.submit(body())).toEqual({ kind: 'rate_limited', retryAfterSeconds: 60 });
+  });
+
+  it('passes a campaign invite on to be verified, only for an allowed request', async () => {
+    const h = service();
+    await h.submit(body({ invite: 'v1.token' }));
+    expect(h.invites).toEqual(['v1.token']);
+    const spam = service({ verdict: { decision: 'spam', score: 80, reasons: [] } });
+    await spam.submit(body({ invite: 'v1.token' }));
+    expect(spam.invites).toEqual([]);
   });
 
   it('a mail failure keeps the request and leaves it unnotified', async () => {

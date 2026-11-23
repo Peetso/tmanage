@@ -35,6 +35,10 @@ function walkthroughProvider(): Provider {
         createFieldCipher(loadFieldCipherKeyring(process.env)),
         mailer ?? null,
         assess ?? null,
+        undefined,
+        undefined,
+        // OUTREACH MANAGER: a booking from a campaign mail is credited to its recipient.
+        createTrialInvites(database),
       ),
   };
 }

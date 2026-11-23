@@ -279,11 +279,14 @@ function holdsPlatformAdminGuard(guards: unknown): boolean {
 // ADR-0015 part 2 (AI platform admin): no route added. 236 platform routes (and keys/status,
 // keys/rotate) move from NEVER to `platform.*` ops; step-up (K1) and the content file download
 // (K4) stay NEVER, and org support-session GET becomes an op.
-const EXPECTED_ROUTE_COUNT = 1627;
+const EXPECTED_ROUTE_COUNT = 1644;
 // 60-03: +8 NEVER (ai-employees list, get, hire, edit, pause, resume, sponsor, retire).
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
+// OUTREACH MANAGER: +17 platform ops under /v1/platform/outreach (campaigns create, get, update,
+// duplicate, archive, unarchive, e-mail save and version, preview, test-send, recipients list and
+// add, import, export; recipients update, remove, replied).
 
 interface LiveRoute {
   readonly method: string;

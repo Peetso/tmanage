@@ -15665,6 +15665,14 @@ export const outreachCampaigns = mysqlTable(
     id: char('id', { length: 36 }).primaryKey(),
     name: varchar('name', { length: 120 }).notNull(),
     status: varchar('status', { length: 16 }).notNull().default('paused'),
+    // 0409 (OUTREACH MANAGER): the campaign's own languages, senders, pace and follow-up.
+    languages: varchar('languages', { length: 64 }).notNull().default('en'),
+    senderPool: varchar('sender_pool', { length: 16 }).notNull().default('auto'),
+    dailyCap: tinyint('daily_cap', { unsigned: true }).notNull().default(20),
+    warmup: boolean('warmup').notNull().default(true),
+    followupEnabled: boolean('followup_enabled').notNull().default(false),
+    followupDays: tinyint('followup_days', { unsigned: true }).notNull().default(4),
+    archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
     firstStartedAt: datetime('first_started_at', { mode: 'date', fsp: 3 }),
     createdBy: char('created_by', { length: 36 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -15697,8 +15705,16 @@ export const outreachRecipients = mysqlTable(
     status: varchar('status', { length: 16 }).notNull().default('queued'),
     sentAt: datetime('sent_at', { mode: 'date', fsp: 3 }),
     lastError: varchar('last_error', { length: 64 }),
+    // 0409 (OUTREACH MANAGER): the version sent, the one follow-up, a marked reply, a booking.
+    introVersion: int('intro_version', { unsigned: true }),
+    followupStatus: varchar('followup_status', { length: 16 }),
+    followupSentAt: datetime('followup_sent_at', { mode: 'date', fsp: 3 }),
+    followupVersion: int('followup_version', { unsigned: true }),
+    followupError: varchar('followup_error', { length: 64 }),
+    repliedAt: datetime('replied_at', { mode: 'date', fsp: 3 }),
     trialRedeemedAt: datetime('trial_redeemed_at', { mode: 'date', fsp: 3 }),
     trialUserId: char('trial_user_id', { length: 36 }),
+    walkthroughAt: datetime('walkthrough_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },
@@ -15706,14 +15722,61 @@ export const outreachRecipients = mysqlTable(
     uniqueIndex('uq_outreach_recipients_email').on(table.emailHash),
     index('ix_outreach_recipients_queue').on(table.campaignId, table.status),
     index('ix_outreach_recipients_sender').on(table.senderPersonId, table.sentAt),
+    index('ix_outreach_recipients_followup').on(
+      table.campaignId,
+      table.status,
+      table.followupStatus,
+    ),
+    index('ix_outreach_recipients_followup_sender').on(table.senderPersonId, table.followupSentAt),
   ],
 );
 
 export type OutreachRecipientRow = typeof outreachRecipients.$inferSelect;
 
+/**
+ * 0409 (OUTREACH MANAGER). One saved version of a campaign's e-mail in one language. GLOBAL
+ * (NON_TENANT_TABLES). `kind` is `intro` or `followup`; a save writes one row per language under
+ * the next `version` number. Rows are never updated: a version that went out stays as it was.
+ */
+export const outreachEmailVersions = mysqlTable(
+  'outreach_email_versions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    campaignId: char('campaign_id', { length: 36 }).notNull(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    version: int('version', { unsigned: true }).notNull(),
+    language: varchar('language', { length: 8 }).notNull(),
+    subject: varchar('subject', { length: 200 }).notNull(),
+    body: text('body').notNull(),
+    createdBy: char('created_by', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_outreach_email_versions').on(
+      table.campaignId,
+      table.kind,
+      table.version,
+      table.language,
+    ),
+  ],
+);
+
+/** 0409 (OUTREACH MANAGER). The chosen senders of a `sender_pool = 'chosen'` campaign. GLOBAL. */
+export const outreachCampaignSenders = mysqlTable(
+  'outreach_campaign_senders',
+  {
+    campaignId: char('campaign_id', { length: 36 }).notNull(),
+    personId: char('person_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.campaignId, table.personId] })],
+);
+
 Object.assign(TABLES, {
   outreach_campaigns: outreachCampaigns,
   outreach_recipients: outreachRecipients,
+  outreach_email_versions: outreachEmailVersions,
+  outreach_campaign_senders: outreachCampaignSenders,
 });
 
 // ---- 60-02 · plan 60 v2 · AI employees ----

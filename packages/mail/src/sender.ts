@@ -88,6 +88,8 @@ const CATEGORY_BY_TEMPLATE: Readonly<Record<string, SenderCategory>> = Object.fr
   tip: 'person',
   // LANE-Q: the platform outreach campaign's first e-mail, from the assigned person's own mailbox.
   campaign_intro: 'person',
+  // OUTREACH MANAGER: the campaign's one optional follow-up, from the same person's mailbox.
+  campaign_followup: 'person',
   // An agency writing to its own client or invitee.
   invitation: 'workspace',
   client_request: 'workspace',

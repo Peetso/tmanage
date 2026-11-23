@@ -330,8 +330,8 @@ export function createScheduledJobs(
           // Read per pass, so the address set in hPanel applies without a rebuild.
           postalAddress: () => process.env['CAMPAIGN_POSTAL_ADDRESS'] ?? '',
         });
-        return r.sent + r.failed + r.suppressed > 0
-          ? `${String(r.sent)} sent, ${String(r.failed)} failed, ${String(r.suppressed)} suppressed`
+        return r.sent + r.failed + r.suppressed + r.followupsSent > 0
+          ? `${String(r.sent)} sent, ${String(r.followupsSent)} follow-ups, ${String(r.failed)} failed, ${String(r.suppressed)} suppressed`
           : null;
       },
     },
