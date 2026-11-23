@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { findOpById, sensitivityOf } from '../ai-actions/registry/index.js';
+import { APPROVAL_TTL_SHORT_MS } from '../ai-actions/approval-lifetime.js';
 import type { AiActionOp, Sensitivity } from '../ai-actions/registry/index.js';
 import { argsSha256 } from '../mcp/internal-grant.js';
 import { mcpBodyShapeRefusal } from '../mcp/mcp-body-shape.js';
@@ -208,8 +209,13 @@ export function buildCardItem(
   };
 }
 
-/** A card lives as long as a pending AI action (plan §4.3: 10 minutes). */
-export const AI_CARD_TTL_MS = 10 * 60 * 1000;
+/**
+ * How long an in-app card waits for the member's confirm. Fix 6 (2026-11-23): 30 minutes (was 10).
+ * A card can carry a manage, billing, money or removal change, so it takes the SHORT approval
+ * lifetime (`APPROVAL_TTL_SHORT_MS`), and so it never outlives a pending action frozen on it (those
+ * live 30 minutes or 24 hours, `approval-lifetime.ts`).
+ */
+export const AI_CARD_TTL_MS = APPROVAL_TTL_SHORT_MS;
 
 /** At most this many changes on one card; the model is told the rest were not proposed. */
 export const MAX_CARD_ITEMS = 10;

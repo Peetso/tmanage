@@ -7,6 +7,7 @@ import { allDetailsById } from './tool-catalog.js';
 import { argsSha256 } from './internal-grant.js';
 import { mcpBodyShapeRefusal } from './mcp-body-shape.js';
 import { amountOf, changeGateFor } from '../copilot/ai-preview.js';
+import { APPROVAL_TTL_LONG_MS, expiryInWords } from '../ai-actions/approval-lifetime.js';
 
 /**
  * **Confirm-class approvals — the pure half (MCP connector S10, plan §4.3, architecture F3).**
@@ -23,8 +24,12 @@ import { amountOf, changeGateFor } from '../copilot/ai-preview.js';
  * `requestState` a retried call carries.
  */
 
-/** A pending approval lives ten minutes (plan §4.3). */
-export const PENDING_AI_ACTION_TTL_MS = 10 * 60 * 1000;
+/**
+ * The longest a pending approval lives. Since fix 6 (2026-11-23) each op gets its own lifetime from
+ * `approvalLifetimeMs` (`ai-actions/approval-lifetime.ts`): 30 minutes for manage, billing, money,
+ * HR, removals and platform ops; 24 hours for an ordinary write. This is the upper bound.
+ */
+export const PENDING_AI_ACTION_TTL_MS = APPROVAL_TTL_LONG_MS;
 
 /** The cap on a stored op result (architecture B4: pages ≤ 64 KB). */
 export const MAX_RESULT_BYTES = 64 * 1024;
@@ -416,20 +421,31 @@ export interface ApprovalRequiredInput {
   readonly requestState: string;
 }
 
-/** The plain-text sentence both answers carry, so a model that only reads text still has the link. */
-export function approvalMessage(title: string, url: string): string {
-  return `"${title}" needs your approval before it runs. Open this link in TManage, signed in as yourself, and approve it there: ${url}`;
+/**
+ * The plain-text sentence both answers carry, so a model that only reads text still has the link.
+ * With `expiresAt` it also says, in words, how long the link works (fix 6).
+ */
+export function approvalMessage(
+  title: string,
+  url: string,
+  expiresAt?: Date,
+  now: Date = new Date(),
+): string {
+  const base = `"${title}" needs your approval before it runs. Open this link in TManage, signed in as yourself, and approve it there: ${url}`;
+  return expiresAt === undefined ? base : `${base} ${expiryInWords(expiresAt, now)}`;
 }
 
 /** The structured `status: "pending"` answer every approval channel returns. Nothing has run. */
 export function pendingApproval(
   input: Pick<ApprovalRequiredInput, 'id' | 'url' | 'expiresAt'>,
+  now: Date = new Date(),
 ): Record<string, string> {
   return {
     status: 'pending',
     approval_id: input.id,
     approval_url: input.url,
     expires_at: input.expiresAt.toISOString(),
+    expires_in_words: expiryInWords(input.expiresAt, now),
   };
 }
 
@@ -440,7 +456,7 @@ export function pendingApproval(
  * `status: "pending"`. Either way nothing has run.
  */
 export function approvalRequiredResult(input: ApprovalRequiredInput): Record<string, unknown> {
-  const message = approvalMessage(input.title, input.url);
+  const message = approvalMessage(input.title, input.url, input.expiresAt);
   const pending = pendingApproval(input);
   if (input.supportsUrlElicitation) {
     return {

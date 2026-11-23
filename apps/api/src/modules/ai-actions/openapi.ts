@@ -423,7 +423,13 @@ export function buildAiOpenApiDocument(options: OpenApiOptions = {}): OpenApiDoc
                   },
                   expires_at: {
                     type: 'string',
-                    description: 'When the pending approval expires (ISO-8601).',
+                    description:
+                      'When the pending approval expires (ISO-8601): 30 minutes for settings, ' +
+                      'billing, money, HR and removals; 24 hours for an ordinary change.',
+                  },
+                  expires_in_words: {
+                    type: 'string',
+                    description: 'The same expiry in plain words, to tell the person.',
                   },
                 },
                 required: ['status', 'approval_id', 'approval_url'],

@@ -85,7 +85,8 @@ describe('pending AI actions (S10)', () => {
       { workItemId: 'wi_1' },
       '01890000-0000-7000-8000-000000000002',
     );
-    expect(created.expiresAt.getTime() - NOW.getTime()).toBe(10 * 60 * 1000);
+    // Fix 6: a removal's approval waits 30 minutes (an ordinary write's 24 hours).
+    expect(created.expiresAt.getTime() - NOW.getTime()).toBe(30 * 60 * 1000);
     expect(repository.insert).toHaveBeenCalledOnce();
     expect(execute).not.toHaveBeenCalled();
   });

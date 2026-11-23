@@ -158,6 +158,8 @@ describe('NV01 — confirm-class ops do not run on the personal-access-token cha
       approval_id: 'pending-1',
       approval_url: 'https://app.example.test/acme/ai/approve/pending-1',
       expires_at: '2026-10-25T12:10:00.000Z',
+      // Fix 6: the expiry in words, for the AI to relay.
+      expires_in_words: expect.stringContaining('until 25 October 2026 at 12:10 UTC'),
     });
     expect(approvals.request).toHaveBeenCalledWith(
       {

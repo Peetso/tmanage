@@ -1,12 +1,12 @@
 import { uuidv7 } from '@tmanage/domain';
 import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import { isPlatformOp } from '../ai-actions/registry/index.js';
+import { approvalLifetimeMs } from '../ai-actions/approval-lifetime.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { createServiceContext } from '../../common/database/tenant-context.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { InternalGrantPayload } from './internal-grant.js';
 import {
-  PENDING_AI_ACTION_TTL_MS,
   approvalGateOf,
   approvalRequiredResult,
   approvalUrl,
@@ -168,7 +168,8 @@ export class PendingAiActionsService {
     }
     const now = this.now();
     const id = uuidv7();
-    const expiresAt = new Date(now.getTime() + PENDING_AI_ACTION_TTL_MS);
+    // Fix 6: 30 minutes for manage/billing/money/HR/removals/platform, 24 hours otherwise.
+    const expiresAt = new Date(now.getTime() + approvalLifetimeMs(frozen.op));
     const context = this.serviceContext(requester.organizationId, correlationId);
     await this.database.transaction(context, (tx) =>
       this.repository.insert(tx, context, {

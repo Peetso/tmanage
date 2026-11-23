@@ -331,7 +331,7 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     }
     const url = approvalUrl(approvals.webOrigin, options.orgSlug, created.id);
     return {
-      summary: approvalMessage(created.title, url),
+      summary: approvalMessage(created.title, url, created.expiresAt),
       data: pendingApproval({ id: created.id, url, expiresAt: created.expiresAt }),
     };
   }

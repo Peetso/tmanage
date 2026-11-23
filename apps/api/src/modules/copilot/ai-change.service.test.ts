@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { OPS } from '../ai-actions/registry/index.js';
 import { allDetailsById } from '../mcp/tool-catalog.js';
-import { MAX_CARD_FIELDS } from './ai-preview.js';
+import { AI_CARD_TTL_MS, MAX_CARD_FIELDS } from './ai-preview.js';
 import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { createTenantContext, type TenantContext } from '../../common/database/tenant-context.js';
@@ -464,14 +464,14 @@ describe('confirm rules', () => {
     expect(env.ws.calls.filter((c) => c.opId === 'work_items.update')).toEqual([]);
   });
 
-  it('after 10 minutes the card has expired', async () => {
+  it('after its lifetime (30 minutes, fix 6) the card has expired', async () => {
     const env = setup([
       route('tasks', 'medium'),
       moveDue('2026-11-23T09:00:00Z'),
       text('Proposed.'),
     ]);
     const view = await env.turn('move it');
-    env.advance(10 * 60 * 1000 + 1);
+    env.advance(AI_CARD_TTL_MS + 1);
     expect(await status(env.confirm(view.card!.token))).toBe('409 ai_card_expired');
   });
 

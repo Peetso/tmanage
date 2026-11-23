@@ -20,6 +20,7 @@ import { mcpBodyShapeRefusal } from '../mcp/mcp-body-shape.js';
 import { approvalUrl } from '../mcp/pending-actions.js';
 import { PENDING_AI_ACTIONS_SERVICE } from '../mcp/pending-actions.service.js';
 import type { PendingAiActionsService } from '../mcp/pending-actions.service.js';
+import { expiryInWords } from './approval-lifetime.js';
 
 /**
  * **Bound-token confirm gate — audit run 1, NV01 and F11 (defence in depth).**
@@ -255,6 +256,7 @@ export class BoundTokenConfirmInterceptor implements NestInterceptor {
       approval_id: created.id,
       approval_url: approvalUrl(webOrigin, orgSlug, created.id),
       expires_at: created.expiresAt.toISOString(),
+      expires_in_words: expiryInWords(created.expiresAt, new Date()),
     };
   }
 }
