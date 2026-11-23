@@ -4,7 +4,7 @@ import { allDetailsById, toolNameForOp } from '../../mcp/tool-catalog.js';
 import type { AiToolDefinition } from '../ai-client.js';
 import type { AiDomain } from '../ai-router.js';
 import { BILLING_PACK_OPS } from './billing.js';
-import { strictToolSchema } from './pack-schema.js';
+import { packToolSchema } from './pack-schema.js';
 
 /**
  * 62-10 (plan 62 §4.1 step 4) — the domain packs v1: 8 to 15 direct tools per domain, each one
@@ -121,7 +121,10 @@ function packTool(opId: string): AiToolDefinition {
   return {
     name: toolNameForOp(opId),
     description: detail.description,
-    inputSchema: strictToolSchema(detail.input),
+    inputSchema: packToolSchema(detail.input),
+    // Non-strict: the op's own schema validates on the server; strict would spend the request's
+    // shared union/optional budget (see pack-schema.ts).
+    strict: false,
   };
 }
 

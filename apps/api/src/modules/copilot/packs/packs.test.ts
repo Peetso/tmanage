@@ -6,24 +6,26 @@ import { AI_DOMAINS } from '../ai-router.js';
 import { HELP_PREFIX } from '../help-prefix.js';
 import { domainSystemPrompt } from '../system-prompts/domains.js';
 import { PACK_MAX_TOOLS, PACK_MIN_TOOLS, PACK_OPS, packOpFor, packTools } from './index.js';
-import { dropNulls, strictToolSchema } from './pack-schema.js';
+import { STRICT_LIMITS } from '../ai-client.js';
+import { dropNulls, packToolSchema } from './pack-schema.js';
 
 /**
  * 62-10 (plan 62 §4.1 step 4, §9 row) — every pack tool maps to one registry op; packs are 8–15
- * tools under strict schemas generated from the op's own schema; the prefix is constant.
+ * non-strict tools with closed schemas generated from the op's own schema; the prefix is constant.
  */
 
-function assertStrict(node: unknown, path: string): void {
+function assertClosed(node: unknown, path: string): void {
   if (typeof node !== 'object' || node === null) return;
   const schema = node as Record<string, unknown>;
   if (schema['type'] === 'object') {
     expect(schema['additionalProperties'], path).toBe(false);
     const properties = schema['properties'] as Record<string, unknown>;
-    expect(schema['required'], path).toEqual(Object.keys(properties));
-    for (const [key, child] of Object.entries(properties)) assertStrict(child, `${path}.${key}`);
+    for (const name of schema['required'] as string[])
+      expect(properties, path).toHaveProperty(name);
+    for (const [key, child] of Object.entries(properties)) assertClosed(child, `${path}.${key}`);
   }
-  for (const child of (schema['anyOf'] as unknown[] | undefined) ?? []) assertStrict(child, path);
-  if (schema['items'] !== undefined) assertStrict(schema['items'], `${path}[]`);
+  for (const child of (schema['anyOf'] as unknown[] | undefined) ?? []) assertClosed(child, path);
+  if (schema['items'] !== undefined) assertClosed(schema['items'], `${path}[]`);
 }
 
 describe('domain packs v1', () => {
@@ -42,7 +44,8 @@ describe('domain packs v1', () => {
       const tools = packTools(domain as never);
       for (const tool of tools) {
         expect(packOpFor(tool.name)?.id).toBe(ids![tools.indexOf(tool)]);
-        assertStrict(tool.inputSchema, tool.name);
+        assertClosed(tool.inputSchema, tool.name);
+        expect(tool.strict, tool.name).toBe(false);
       }
     }
   });
@@ -70,11 +73,19 @@ describe('domain packs v1', () => {
     expect(dropNulls({ a: null, b: { c: null, d: 1 } })).toEqual({ b: { d: 1 } });
   });
 
-  it('optional fields are required-but-nullable; validation keywords stay on the server', () => {
-    const schema = strictToolSchema(allDetailsById.get('work_items.update')!.input);
+  it('optional fields are left out of required, never nullable; validation stays on the server', () => {
+    const schema = packToolSchema(allDetailsById.get('work_items.update')!.input);
     expect(schema.properties['workItemId']).toMatchObject({ type: 'string' });
-    expect(schema.properties['title']).toEqual({ anyOf: [{ type: 'string' }, { type: 'null' }] });
+    expect(schema.required).toContain('workItemId');
+    expect(schema.required).not.toContain('title');
+    expect(schema.properties['title']).toEqual({ type: 'string' });
     expect(JSON.stringify(schema)).not.toMatch(/maxLength|minLength|minimum|maximum|pattern/);
+  });
+
+  it('the strict tools of an answer call stay inside the API limits (2026-11-23 live 400)', () => {
+    const strictTools = CHAT_TOOLS.filter((tool) => tool.strict !== false);
+    expect(strictTools.length).toBeLessThanOrEqual(STRICT_LIMITS.tools);
+    expect(JSON.stringify(strictTools)).not.toMatch(/anyOf|"type":\[/);
   });
 
   it('the prefix (tools + system) is constant: the same bytes every time, for every workspace', () => {

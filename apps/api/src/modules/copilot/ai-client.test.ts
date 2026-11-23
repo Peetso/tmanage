@@ -188,6 +188,24 @@ describe('AI client: request shape', () => {
     expect(sent(fetchMock).body['thinking']).toEqual(wire);
   });
 
+  it('sends a strict: false tool without strict and outside the strict limits', async () => {
+    const { client, fetchMock } = clientWith(async () => json(message()));
+    const loose = strict(
+      Object.fromEntries(
+        Array.from({ length: 30 }, (_, i) => [
+          `u${i}`,
+          { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        ]),
+      ),
+      [],
+    );
+    await client.call(
+      request({ tools: [{ name: 'pack', description: 'x', inputSchema: loose, strict: false }] }),
+    );
+    const tools = sent(fetchMock).body['tools'] as { strict: boolean }[];
+    expect(tools[0]?.strict).toBe(false);
+  });
+
   it('sends no tool fields when the request has no tools', async () => {
     const { client, fetchMock } = clientWith(async () =>
       json(message({ stop_reason: 'end_turn' })),
@@ -294,6 +312,100 @@ describe('AI client: request shape', () => {
           { text: 'c', cache: '5m' as const },
         ],
         cacheConversation: '5m' as const,
+      },
+      'invalid_request',
+    ],
+    [
+      'strict tools holding more than 16 union-typed parameters together',
+      {
+        tools: [
+          {
+            name: 'unions',
+            description: 'x',
+            inputSchema: strict(
+              {
+                u0: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u1: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u2: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u3: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u4: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u5: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u6: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u7: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u8: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u9: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u10: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u11: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u12: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u13: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u14: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u15: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                u16: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+              },
+              [
+                'u0',
+                'u1',
+                'u2',
+                'u3',
+                'u4',
+                'u5',
+                'u6',
+                'u7',
+                'u8',
+                'u9',
+                'u10',
+                'u11',
+                'u12',
+                'u13',
+                'u14',
+                'u15',
+                'u16',
+              ],
+            ),
+          },
+        ],
+      },
+      'invalid_request',
+    ],
+    [
+      'strict tools holding more than 24 optional parameters together',
+      {
+        tools: [
+          {
+            name: 'optional',
+            description: 'x',
+            inputSchema: strict(
+              {
+                o0: { type: 'string' },
+                o1: { type: 'string' },
+                o2: { type: 'string' },
+                o3: { type: 'string' },
+                o4: { type: 'string' },
+                o5: { type: 'string' },
+                o6: { type: 'string' },
+                o7: { type: 'string' },
+                o8: { type: 'string' },
+                o9: { type: 'string' },
+                o10: { type: 'string' },
+                o11: { type: 'string' },
+                o12: { type: 'string' },
+                o13: { type: 'string' },
+                o14: { type: 'string' },
+                o15: { type: 'string' },
+                o16: { type: 'string' },
+                o17: { type: 'string' },
+                o18: { type: 'string' },
+                o19: { type: 'string' },
+                o20: { type: 'string' },
+                o21: { type: 'string' },
+                o22: { type: 'string' },
+                o23: { type: 'string' },
+                o24: { type: 'string' },
+              },
+              [],
+            ),
+          },
+        ],
       },
       'invalid_request',
     ],

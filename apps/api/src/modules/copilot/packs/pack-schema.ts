@@ -3,14 +3,17 @@ import type { AiStrictSchema } from '../ai-client.js';
 import type { JsonObject } from '../ai-response.js';
 
 /**
- * 62-10 (plan 62 §4.1 step 4) — a strict tool schema generated from a registry op's own zod input
- * schema (IP-2: one schema; the pack never restates it). The model gets the shape; the server
- * still validates with the op's schema before anything runs, so constraints the strict tool format
- * does not need (lengths, ranges, patterns, formats) are left out of the tool and enforced there.
+ * 62-10 (plan 62 §4.1 step 4) — a pack tool's input schema generated from a registry op's own zod
+ * input schema (IP-2: one schema; the pack never restates it). The model gets the shape; the server
+ * still validates with the op's schema before anything runs, so constraints the tool does not need
+ * (lengths, ranges, patterns, formats) are left out of the tool and enforced there.
  *
- * Strict means: every object closes (`additionalProperties: false`) and names every property in
- * `required`; an optional field is required-but-nullable (`anyOf [type, null]`), and a `null` the
- * model sends is dropped before validation ({@link dropNulls}).
+ * Every object closes (`additionalProperties: false`); a required field is listed in `required`
+ * and an optional one is simply left out of it. Pack tools are sent NON-strict (2026-11-23): the
+ * API caps all strict schemas of one request together at 16 union-typed and 24 optional
+ * parameters, and the earlier required-but-nullable form put 39 unions in one request, so every
+ * answer call failed with a 400. A `null` the model still sends is dropped before validation
+ * ({@link dropNulls}).
  */
 
 const KEEP = new Set(['type', 'properties', 'items', 'enum', 'const', 'anyOf', 'description']);
@@ -31,20 +34,17 @@ function strictNode(node: unknown): JsonObject {
     const required = new Set(
       Array.isArray(source['required']) ? (source['required'] as string[]) : [],
     );
-    const strictProps: Record<string, unknown> = {};
-    for (const [name, child] of Object.entries(properties)) {
-      const strict = strictNode(child);
-      strictProps[name] = required.has(name) ? strict : { anyOf: [strict, { type: 'null' }] };
-    }
-    out['properties'] = strictProps;
-    out['required'] = Object.keys(strictProps);
+    const closedProps: Record<string, unknown> = {};
+    for (const [name, child] of Object.entries(properties)) closedProps[name] = strictNode(child);
+    out['properties'] = closedProps;
+    out['required'] = Object.keys(closedProps).filter((name) => required.has(name));
     out['additionalProperties'] = false;
   }
   return out as JsonObject;
 }
 
-/** The strict tool schema of an op's input schema (an object schema; anything else = no args). */
-export function strictToolSchema(input: z.ZodTypeAny): AiStrictSchema {
+/** The pack tool schema of an op's input schema (an object schema; anything else = no args). */
+export function packToolSchema(input: z.ZodTypeAny): AiStrictSchema {
   const json = z.toJSONSchema(input, { io: 'input', unrepresentable: 'any' });
   const strict = strictNode(json);
   if (strict['type'] !== 'object') {

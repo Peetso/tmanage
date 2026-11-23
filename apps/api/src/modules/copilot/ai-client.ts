@@ -73,6 +73,11 @@ export interface AiToolDefinition {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: AiStrictSchema;
+  /**
+   * `false` sends the tool without `strict` (the server validates its input instead). Omitted =
+   * strict. Strict tools of one request share {@link STRICT_LIMITS}.
+   */
+  readonly strict?: false;
   /** A breakpoint after this tool (put it on the last tool of a cached prefix). */
   readonly cache?: AiCacheTtl;
 }
@@ -237,6 +242,37 @@ function assertStrict(schema: unknown, path: string): void {
   if (node['items'] !== undefined) assertStrict(node['items'], `${path}[]`);
 }
 
+/**
+ * The API's limits on the strict schemas of one request, counted across all of them together
+ * (structured outputs, "Schema complexity limits"). Over any of them the request is a 400; the
+ * live answer call hit the union limit on 2026-11-23 ("39 parameters with type arrays or anyOf …
+ * limit: 16"). Checked here so the cause is named before anything is sent.
+ */
+export const STRICT_LIMITS = { tools: 20, optional: 24, unions: 16 } as const;
+
+/** Optional parameters (left out of `required`) and union-typed ones (`anyOf` / type array). */
+function strictCost(schema: unknown): { optional: number; unions: number } {
+  let optional = 0;
+  let unions = 0;
+  const walk = (node: unknown, isParameter: boolean): void => {
+    if (typeof node !== 'object' || node === null || Array.isArray(node)) return;
+    const n = node as JsonObject;
+    if (isParameter && (Array.isArray(n['anyOf']) || Array.isArray(n['type']))) unions += 1;
+    if (Array.isArray(n['anyOf'])) for (const option of n['anyOf']) walk(option, false);
+    if (n['items'] !== undefined) walk(n['items'], false);
+    const properties = n['properties'];
+    if (typeof properties === 'object' && properties !== null && !Array.isArray(properties)) {
+      const required = new Set(Array.isArray(n['required']) ? (n['required'] as string[]) : []);
+      for (const [key, child] of Object.entries(properties)) {
+        if (!required.has(key)) optional += 1;
+        walk(child, true);
+      }
+    }
+  };
+  walk(schema, false);
+  return { optional, unions };
+}
+
 function validate(request: AiRequest): void {
   if (!isPricedModel(request.model)) {
     throw new AiClientError('unpriced_model', 'model is not in the price table', false);
@@ -251,7 +287,28 @@ function validate(request: AiRequest): void {
   for (const tool of request.tools) {
     if (names.has(tool.name)) throw invalid(`tool ${tool.name} is defined twice`);
     names.add(tool.name);
-    assertStrict(tool.inputSchema, tool.name);
+    if (tool.strict === false) {
+      if (tool.inputSchema.type !== 'object') throw invalid(`tool ${tool.name} is not an object`);
+    } else {
+      assertStrict(tool.inputSchema, tool.name);
+    }
+  }
+  const strictTools = request.tools.filter((tool) => tool.strict !== false);
+  const cost = strictTools.reduce(
+    (sum, tool) => {
+      const one = strictCost(tool.inputSchema);
+      return { optional: sum.optional + one.optional, unions: sum.unions + one.unions };
+    },
+    { optional: 0, unions: 0 },
+  );
+  if (strictTools.length > STRICT_LIMITS.tools) {
+    throw invalid(`${strictTools.length} strict tools (limit ${STRICT_LIMITS.tools})`);
+  }
+  if (cost.optional > STRICT_LIMITS.optional) {
+    throw invalid(`strict tools hold ${cost.optional} optional parameters (limit 24)`);
+  }
+  if (cost.unions > STRICT_LIMITS.unions) {
+    throw invalid(`strict tools hold ${cost.unions} union-typed parameters (limit 16)`);
   }
   const choice = request.toolChoice;
   if (choice?.type === 'tool') {
@@ -305,7 +362,7 @@ export function messagesBody(request: AiRequest): JsonObject {
             name: tool.name,
             description: tool.description,
             input_schema: tool.inputSchema,
-            strict: true,
+            strict: tool.strict !== false,
             ...(tool.cache === undefined ? {} : { cache_control: cacheControl(tool.cache) }),
           })),
         }),
