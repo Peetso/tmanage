@@ -9,6 +9,7 @@
  * the grant (architecture B3/T-TEN-01).
  */
 import { z } from 'zod';
+import { WORK_ITEM_STATES } from '@tmanage/domain';
 import { det, pathOnly, listArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 export const workDetails: readonly AiActionDetail[] = [
@@ -90,14 +91,23 @@ export const workDetails: readonly AiActionDetail[] = [
   }),
   det({
     id: 'work_items.bulk_transition.create',
-    title: 'Create work item bulk transition',
-    description: 'Create work item bulk transition.',
+    title: 'Move many work items to one state',
+    description:
+      'Move up to 500 work items to one state, answered per item. `targetStatus` is one of ' +
+      'backlog, ready, in_progress, blocked, internal_review, done, archived. Items whose move ' +
+      'needs facts (blocked, leaving blocked, done, reopening) are reported as refused; move ' +
+      'those one at a time with work_items.transitions.create.',
     input: bodyArgs([], {
-      ids: z.array(f.id()).max(500).optional(),
-      targetStatus: f.shortText().optional(),
+      ids: z.array(f.id()).min(1).max(500),
+      targetStatus: z.enum(WORK_ITEM_STATES),
     }),
     redact: 'standard',
-    examples: [{ summary: 'Create work item bulk transition', args: {} }],
+    examples: [
+      {
+        summary: 'Send three tasks back to the backlog',
+        args: { ids: ['wi_1', 'wi_2', 'wi_3'], targetStatus: 'backlog' },
+      },
+    ],
   }),
   det({
     id: 'work_items.checklist.create',
@@ -588,16 +598,35 @@ export const workDetails: readonly AiActionDetail[] = [
   }),
   det({
     id: 'work_items.transitions.create',
-    title: 'Create work item transitions',
-    description: 'Create work item transitions.',
+    title: 'Move a work item to another state',
+    description:
+      'Move one work item to another state. `version` is the current version of the item: read it ' +
+      'from work_items.get just before this call (a stale version is refused). `to` is one of ' +
+      'backlog, ready, in_progress, blocked, internal_review, done, archived. Some moves need ' +
+      '`facts`: to blocked needs blockerReason and blockerAsk (blockerOwnerUserId optional); ' +
+      'leaving blocked needs blockerResolution; done (only from internal_review) needs ownerId ' +
+      '(a member user id) and completedAt (an ISO 8601 time, not in the future); reopening a ' +
+      'done item needs reopenReason.',
     input: bodyArgs(['workItemId'], {
-      version: f.int().optional(),
-      to: f.shortText().optional(),
+      version: f.int(),
+      to: z.enum(WORK_ITEM_STATES),
       facts: f.config().optional(),
     }),
     redact: 'standard',
     examples: [
-      { summary: 'Create work item transitions', args: { workItemId: 'wi_1', to: 'done' } },
+      {
+        summary: 'Start work on a task',
+        args: { workItemId: 'wi_1', version: 3, to: 'in_progress' },
+      },
+      {
+        summary: 'Mark a reviewed task done',
+        args: {
+          workItemId: 'wi_1',
+          version: 5,
+          to: 'done',
+          facts: { ownerId: 'usr_1', completedAt: '2026-11-23T09:00:00Z' },
+        },
+      },
     ],
   }),
   det({
