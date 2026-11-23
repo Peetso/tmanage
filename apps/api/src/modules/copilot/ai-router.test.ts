@@ -139,7 +139,7 @@ describe('the router request', () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const sent = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(sent['tool_choice']).toMatchObject({ type: 'tool', name: 'route' });
-    expect(sent).not.toHaveProperty('thinking');
+    expect(sent['thinking']).toEqual({ type: 'disabled' });
     expect(parseRoute(result)).toEqual({ domain: 'projects', tier: 'medium_high' });
   });
 });

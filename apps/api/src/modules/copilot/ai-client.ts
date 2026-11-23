@@ -29,7 +29,32 @@ const API_VERSION = '2026-10-21';
 const MAX_CACHE_BREAKPOINTS = 4;
 
 export type AiCacheTtl = '5m' | '1h';
+/**
+ * Thinking off (`disabled` / `between_tools`) is accepted only at effort `high` or below, so this
+ * type stops at `high` on purpose: `xhigh` and `max` would turn a thinking-off request into a 400.
+ */
 export type AiEffort = 'low' | 'medium' | 'high';
+
+/**
+ * AI-ROUTER-FIX: whether the model thinks before it answers, said explicitly on every request.
+ * Claude Haiku 5.5 and Sonnet 5.5 think by default (adaptive) and thinking counts toward
+ * `max_tokens`, so with thinking on a reply can end at `max_tokens` with no visible answer.
+ * `off` gives the whole `max_tokens` to the answer; the client writes the model's own form of it
+ * ({@link THINKING_OFF}), so a model swap can never send a form the model rejects.
+ */
+export type AiThinking = 'off' | 'adaptive';
+
+/**
+ * The wire form of "thinking off" for each priced model (Anthropic, current model docs):
+ * Claude Haiku 5.5 accepts `{type: "disabled"}` at effort `high` or below; Claude Sonnet 5.5
+ * rejects `disabled` (400) and turns thinking off with `{type: "between_tools"}` (no other field;
+ * its short notes between tool calls come back as `thinking` blocks and are replayed unchanged).
+ * A `Record` over the price table: a newly priced model does not compile until it says.
+ */
+export const THINKING_OFF: Readonly<Record<AiModelId, JsonObject>> = Object.freeze({
+  'claude-haiku-5-5': { type: 'disabled' },
+  'claude-sonnet-5-5': { type: 'between_tools' },
+});
 
 /**
  * A strict tool input schema: an object schema that names every required field and allows no other
@@ -105,6 +130,8 @@ export interface AiRequest {
   readonly model: AiModelId;
   readonly maxTokens: number;
   readonly effort: AiEffort;
+  /** Required: no request leaves thinking to the model's default. */
+  readonly thinking: AiThinking;
   readonly system: readonly AiSystemBlock[];
   readonly tools: readonly AiToolDefinition[];
   readonly messages: readonly AiMessage[];
@@ -237,6 +264,7 @@ export function messagesBody(request: AiRequest): JsonObject {
   return {
     model: request.model,
     max_tokens: request.maxTokens,
+    thinking: request.thinking === 'off' ? THINKING_OFF[request.model] : { type: 'adaptive' },
     output_config: { effort: request.effort },
     ...(request.tools.length === 0
       ? {}

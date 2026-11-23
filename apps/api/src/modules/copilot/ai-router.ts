@@ -65,6 +65,8 @@ export function routerRequest(message: string): AiRequest {
     model: AI_TIER_SPECS.low.model,
     maxTokens: ROUTER_MAX_TOKENS,
     effort: 'low',
+    // A forced call skips thinking already; said explicitly so no default decides it.
+    thinking: 'off',
     system: [{ text: ROUTER_SYSTEM_PROMPT, cache: '1h' }],
     tools: [ROUTE_TOOL],
     // AI-ROUTER-FIX: forced, so the reply is exactly one `route` call and never text or thinking.

@@ -7,14 +7,21 @@ import type { AiCallResult, AiClient, AiRequest } from './ai-client.js';
 import { AiClientError } from './ai-client.js';
 import type { AiBudgetRefusal, AiBudgetResult, OpenTaskInput } from './ai-budget.service.js';
 import { CHAT_TOOLS, META_TOOL_NAMES, isAiSelfOp, planToolCall } from './ai-chat-tools.js';
-import type { AiReplay, AiResponseBlock, AiStopReason } from './ai-response.js';
+import {
+  readResponse,
+  type AiReplay,
+  type AiResponseBlock,
+  type AiStopReason,
+} from './ai-response.js';
 import { parseRoute, routerRequest, type RouteFailure } from './ai-router.js';
-import { AI_TIER_SPECS, type AiTier } from './ai-tiers.js';
+import { AI_TIER_SPECS, AI_TIERS, type AiTier } from './ai-tiers.js';
+import { messagesBody } from './ai-client.js';
 import type { ChatConversations } from './ai-conversations.service.js';
 import type { AiTurnAudit, ChatAudit } from './ai-audit.js';
 import type { ChatLimitDecision } from './copilot-chat.service.js';
 import {
   CopilotChatService,
+  THINKING_PER_TIER,
   TOOL_CALLS_PER_TURN,
   chatScopesFor,
   idempotencyKeyOf,
@@ -883,5 +890,95 @@ describe('Explain this alert (62-28)', () => {
     const env = setup([route('tasks', 'low'), text('ok')]);
     await env.turn('what is due?');
     expect(env.requests[1]!.tools.map((t) => t.name)).not.toContain('explain_signal');
+  });
+});
+
+/**
+ * AI-ROUTER-FIX: the answer calls. Bodies have the documented Messages API shape of Claude Haiku
+ * 5.5 (thinking text omitted by default: an empty `thinking` field and a signature) and go through
+ * `readResponse`, the same parser production uses.
+ */
+const apiReply = (stopReason: string, content: unknown[], outputTokens = 40): AiCallResult => ({
+  ...readResponse({
+    id: `msg_${uuidv7()}`,
+    type: 'message',
+    role: 'assistant',
+    model: 'claude-haiku-5-5',
+    content,
+    stop_reason: stopReason,
+    stop_sequence: null,
+    stop_details: null,
+    usage: { input_tokens: 900, output_tokens: outputTokens, cache_read_input_tokens: 0 },
+  }),
+  cost: { microUsd: 50, model: 'claude-haiku-5-5' } as never,
+  latencyMs: 5,
+});
+const THINKING = { type: 'thinking', thinking: '', signature: 'EqQBCkYIBxgCKkB' };
+
+describe('answer calls: thinking is explicit and never leaves an empty reply', () => {
+  it('every tier sends thinking off, in the form its model accepts', () => {
+    for (const tier of AI_TIERS) {
+      expect(THINKING_PER_TIER[tier]).toBe('off');
+      const body = messagesBody({
+        model: AI_TIER_SPECS[tier].model,
+        maxTokens: 64,
+        effort: 'low',
+        thinking: THINKING_PER_TIER[tier],
+        system: [],
+        tools: [],
+        messages: [{ role: 'user', content: 'x' }],
+      });
+      expect(body['thinking']).toEqual(
+        AI_TIER_SPECS[tier].model === 'claude-sonnet-5-5'
+          ? { type: 'between_tools' }
+          : { type: 'disabled' },
+      );
+    }
+  });
+
+  it('the answer call of a turn carries thinking off', async () => {
+    const env = setup([route('tasks', 'low'), text('ok')]);
+    await env.turn('what is due?');
+    expect(env.requests.map((r) => r.thinking)).toEqual(['off', 'off']);
+  });
+
+  it('thinking + text: the text is the answer', async () => {
+    const env = setup([
+      route('projects', 'low'),
+      apiReply('end_turn', [THINKING, { type: 'text', text: 'You have 3 projects.' }]),
+    ]);
+    const view = await env.turn('how many projects?');
+    expect(view).toMatchObject({
+      state: 'answer',
+      answer: 'You have 3 projects.',
+      truncated: false,
+    });
+  });
+
+  it('thinking only, stopped at max_tokens: a clear stop, charged 0, never an empty answer', async () => {
+    const env = setup([route('projects', 'low'), apiReply('max_tokens', [THINKING], 1_024)]);
+    const view = await env.turn('summarise my projects this week');
+    expect(view).toMatchObject({
+      state: 'stopped',
+      stop: 'answer_cut_off',
+      answer: null,
+      chargedCredits: 0,
+    });
+    expect(env.finished.map((f) => f.outcome)).toEqual(['failed']);
+  });
+
+  it('text cut at max_tokens: shown, flagged truncated', async () => {
+    const env = setup([
+      route('projects', 'low'),
+      apiReply('max_tokens', [THINKING, { type: 'text', text: 'Your projects this week: Home' }]),
+    ]);
+    const view = await env.turn('summarise my projects this week');
+    expect(view).toMatchObject({ state: 'answer', truncated: true });
+  });
+
+  it('end_turn with no visible text: a clear stop, charged 0', async () => {
+    const env = setup([route('projects', 'low'), apiReply('end_turn', [THINKING])]);
+    const view = await env.turn('how many projects?');
+    expect(view).toMatchObject({ state: 'stopped', stop: 'no_answer', chargedCredits: 0 });
   });
 });

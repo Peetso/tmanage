@@ -461,6 +461,7 @@ describe('the document block (62-25)', () => {
       model: 'claude-sonnet-5-5',
       maxTokens: 100,
       effort: 'medium',
+      thinking: 'off',
       system: [],
       tools: [],
       messages: [

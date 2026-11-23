@@ -9,6 +9,7 @@ import {
   type AiClient,
   type AiMessage,
   type AiRequest,
+  type AiThinking,
   type AiToolDefinition,
   type AiUserBlock,
 } from './ai-client.js';
@@ -141,6 +142,21 @@ export const MAX_TOKENS_PER_TIER: Readonly<Record<AiTier, number>> = Object.free
   medium: 2_048,
   medium_high: 4_096,
   high: 8_192,
+});
+
+/**
+ * AI-ROUTER-FIX: thinking per tier, explicit. Every tier runs with thinking off, so its whole
+ * `max_tokens` above is answer and a reply can never be used up by thinking (Haiku 5.5 and
+ * Sonnet 5.5 both think by default, and thinking counts toward `max_tokens`). The client writes
+ * each model's own "off" (`disabled` on Haiku 5.5, `between_tools` on Sonnet 5.5). Turning a tier
+ * back to `adaptive` needs its `max_tokens` re-sized for thinking plus the answer first.
+ */
+export const THINKING_PER_TIER: Readonly<Record<AiTier, AiThinking>> = Object.freeze({
+  help: 'off',
+  low: 'off',
+  medium: 'off',
+  medium_high: 'off',
+  high: 'off',
 });
 
 /** The owner's write setting (`ai_workspace_settings.write_scope`). */
@@ -350,6 +366,10 @@ export type ChatStop =
   | 'provider_error'
   | 'model_refused'
   | 'not_understood'
+  /** AI-ROUTER-FIX: the model hit `max_tokens` (or its context) before any visible answer. */
+  | 'answer_cut_off'
+  /** AI-ROUTER-FIX: the model ended its turn with no visible answer and no tool call. */
+  | 'no_answer'
   | 'rate_limited'
   /** 62-25: the scan the member accepted cannot be read (see `file.reasonCode`). */
   | 'scan_unavailable';
@@ -1217,6 +1237,7 @@ export class CopilotChatService {
       const request: AiRequest = {
         model: AI_TIER_SPECS[tier].model,
         maxTokens: MAX_TOKENS_PER_TIER[tier],
+        thinking: THINKING_PER_TIER[tier],
         effort: tier === 'low' || tier === 'help' ? 'low' : 'medium',
         system: [{ text: domainSystemPrompt(route.domain), cache: '1h' }],
         tools,
@@ -1231,7 +1252,14 @@ export class CopilotChatService {
       }
       // stop_reason decides: tools run only when the model stopped to call them.
       if (response.stopReason !== 'tool_use') {
-        return end(null, textOf(response), response.stopReason === 'max_tokens');
+        const answer = textOf(response);
+        const cut =
+          response.stopReason === 'max_tokens' ||
+          response.stopReason === 'model_context_window_exceeded';
+        // AI-ROUTER-FIX: never an empty answer. No visible text is a clear stop (failed work,
+        // charged 0); a cut answer with text is shown with its `truncated` flag.
+        if (answer === null) return end(cut ? 'answer_cut_off' : 'no_answer');
+        return end(null, answer, cut);
       }
       const uses = response.content.filter(
         (b): b is Extract<AiResponse['content'][number], { type: 'tool_use' }> =>

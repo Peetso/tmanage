@@ -59,6 +59,7 @@ const request = (overrides: Partial<AiRequest> = {}): AiRequest => ({
   model: 'claude-haiku-5-5',
   maxTokens: 2_048,
   effort: 'low',
+  thinking: 'off',
   system: [{ text: 'You are the TManage assistant.', cache: '1h' }],
   tools: [
     { name: 'list_tasks', description: 'List tasks', inputSchema: strict({}, []) },
@@ -135,6 +136,7 @@ describe('AI client: request shape', () => {
     expect(body).toEqual({
       model: 'claude-haiku-5-5',
       max_tokens: 2_048,
+      thinking: { type: 'disabled' },
       output_config: { effort: 'low' },
       tool_choice: { type: 'auto' },
       tools: [
@@ -172,7 +174,18 @@ describe('AI client: request shape', () => {
       ],
       cache_control: { type: 'ephemeral' },
     });
-    expect(Object.keys(body)).not.toContain('thinking');
+  });
+
+  // AI-ROUTER-FIX: thinking is explicit on every request, in the model's own accepted form.
+  it.each([
+    ['claude-haiku-5-5', 'off', { type: 'disabled' }],
+    ['claude-sonnet-5-5', 'off', { type: 'between_tools' }],
+    ['claude-haiku-5-5', 'adaptive', { type: 'adaptive' }],
+    ['claude-sonnet-5-5', 'adaptive', { type: 'adaptive' }],
+  ] as const)('%s with thinking %s sends %j', async (model, thinking, wire) => {
+    const { client, fetchMock } = clientWith(async () => json(message()));
+    await client.call(request({ model, thinking }));
+    expect(sent(fetchMock).body['thinking']).toEqual(wire);
   });
 
   it('sends no tool fields when the request has no tools', async () => {

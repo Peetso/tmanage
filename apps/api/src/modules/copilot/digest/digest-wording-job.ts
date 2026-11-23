@@ -116,6 +116,8 @@ export function digestWordingRequest(lines: readonly BriefingLine[], model: stri
     model: model as AiRequest['model'],
     maxTokens: DIGEST_WORDING_MAX_TOKENS,
     effort: 'low',
+    // AI-ROUTER-FIX: thinking off, so the 400-token cap is all wording, never eaten by thinking.
+    thinking: 'off',
     system: [{ text: DIGEST_WORDING_SYSTEM, cache: '1h' }],
     tools: [],
     messages: [{ role: 'user', content: JSON.stringify({ facts: digestWordingFacts(lines) }) }],
