@@ -1,4 +1,7 @@
 import type { Sensitivity } from './types.js';
+import { securitySensitivity } from './parity-b2-security.js';
+import { filesSensitivity } from './parity-b2-files.js';
+import { workSensitivity } from './parity-b2-work.js';
 
 /**
  * 62-11 (plan 62 §4.3) — the sensitivity of every op that changes something (`write` and
@@ -17,6 +20,10 @@ import type { Sensitivity } from './types.js';
  * Plan 59 (payments, refunds, payroll) inherits the gates by classifying its new ops here.
  */
 export const OP_SENSITIVITY: Readonly<Record<string, Sensitivity>> = {
+  // Parity 2026-11-23 batch 2: classified next to each op in its batch file.
+  ...securitySensitivity,
+  ...filesSensitivity,
+  ...workSensitivity,
   // Parity 2026-11-23 batch 1: planning changes; no money, people or outside reach.
   'iterations.complete': 'none',
   'iterations.create': 'none',

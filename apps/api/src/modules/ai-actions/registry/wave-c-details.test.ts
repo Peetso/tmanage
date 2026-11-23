@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { OPS, opsById, neverByKey, routeKey } from './index.js';
 import { REDACT_PROFILES } from './detail.js';
 import { waveCDetails, waveCDetailsById } from './wave-c.js';
+import { PARITY_DETAIL_IDS } from './parity-2026-11-23.js';
 
 /**
  * Slice S4 (registry wave C) — the enrichment layer for clients/portal, people, tenancy, insights,
@@ -52,7 +53,10 @@ function isWaveC(id: string): boolean {
   return WAVE_C_PREFIXES.some((p) => id === p || id.startsWith(`${p}.`));
 }
 
-const waveCOpIds = OPS.map((op) => op.id).filter(isWaveC);
+// Ops whose detail a parity batch wrote are checked by the parity tests instead.
+const waveCOpIds = OPS.map((op) => op.id)
+  .filter(isWaveC)
+  .filter((id) => !PARITY_DETAIL_IDS.has(id));
 
 describe('AI action registry — wave C details (S4)', () => {
   it('has a detail for every wave-C op, and no duplicates', () => {

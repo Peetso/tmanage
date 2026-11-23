@@ -18,9 +18,10 @@
  *   is `write`/write. Everything that reaches a client, issues a numbered document, opens a public
  *   door, turns outside content into work, or changes what a tax document claims is `confirm`/
  *   manage: one approval runs one frozen op with its exact, hash-bound arguments, once.
- * - Still `NEVER` (see {@link FINANCE_DOCUMENTS_STILL_NEVER}): recording a payment, voiding,
- *   crediting (money), creating or deleting a period lock, the accounting export, and every PDF /
- *   print / e-invoice file. An approval cannot reach them: `freezeConfirmAction` knows no op there.
+ * - Still `NEVER` (see {@link FINANCE_DOCUMENTS_STILL_NEVER}): the accounting export (it needs a
+ *   password step-up the in-process call cannot carry) and the anonymous form submission. Parity
+ *   batch 2 (owner 2026-11-23) made the payment, void, credit note, period-lock and PDF / print /
+ *   e-invoice routes confirm-class ops (`parity-b2-work.ts`, sensitivity `money`).
  * - Free text from the assistant (notes, terms, messages) is data validated by the schemas below
  *   and again by the service rules; a form submission's text is returned wrapped as untrusted.
  */
@@ -165,23 +166,11 @@ export const financeDocumentOps: readonly AiActionOp[] = [
 ];
 
 /**
- * The 52 routes that stay off the AI surface on purpose: money movements (payment, void, credit
- * note), period-lock changes, the books export and every document file. The slice test asserts
- * each one is still `NEVER`.
+ * The routes of this area that stay off the AI surface on purpose (ADR-0015 K1/K4): the books
+ * export (a password step-up the in-process call cannot carry) and the anonymous form door. The
+ * slice test asserts each one is still `NEVER`.
  */
 export const FINANCE_DOCUMENTS_STILL_NEVER: readonly (readonly [HttpMethod, string])[] = [
-  ['POST', `${ORG}/client-invoices/:invoiceId/payments`],
-  ['POST', `${ORG}/client-invoices/:invoiceId/void`],
-  ['POST', `${ORG}/client-invoices/:invoiceId/credit-notes`],
-  ['GET', `${ORG}/client-invoices/:invoiceId/print`],
-  ['GET', `${ORG}/client-invoices/:invoiceId/pdf`],
-  ['GET', `${ORG}/client-invoices/:invoiceId/einvoice`],
-  ['GET', `${ORG}/portal/invoices/:invoiceId/print`],
-  ['GET', `${ORG}/portal/invoices/:invoiceId/pdf`],
-  ['GET', `${ORG}/quotes/:quoteId/pdf`],
-  ['GET', `${ORG}/portal/quotes/:quoteId/pdf`],
-  ['POST', `${ORG}/time/locks/`],
-  ['DELETE', `${ORG}/time/locks/:lockId`],
   ['POST', `${ORG}/finance/exports/`],
   ['POST', '/v1/public/forms/:slug/submissions'],
 ];

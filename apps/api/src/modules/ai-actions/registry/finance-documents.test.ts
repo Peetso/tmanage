@@ -17,7 +17,7 @@ import {
   financeDocumentDetails,
   financeDocumentOps,
 } from './finance-documents.js';
-import { findOpById, findOpByRoute, neverByKey, routeKey } from './index.js';
+import { findOpById, findOpByRoute, neverByKey, routeKey, sensitivityOf } from './index.js';
 
 /**
  * 52-22 (MCPWRITE). The quote, invoice, lock-request and form-triage routes left NEVER for ops:
@@ -127,14 +127,15 @@ describe('52-22 quotes, invoices, lock requests and form triage on the AI surfac
     }
   });
 
-  it('(c) keeps payments, voids, credit notes, lock changes, the export and files blocked', () => {
+  it('(c) keeps the step-up export and the anonymous form door blocked', () => {
     for (const [method, path] of FINANCE_DOCUMENTS_STILL_NEVER) {
       expect(neverByKey.has(routeKey(method, path)), `${method} ${path}`).toBe(true);
       expect(findOpByRoute(method, path), `${method} ${path}`).toBeUndefined();
     }
-    expect(() =>
-      freezeConfirmAction('client_invoices.payments.create', { invoiceId: 'inv_1' }),
-    ).toThrow(/Unknown action/);
+    // Parity batch 2: a payment is an op now, but only ever through an approval (money gate).
+    const payment = findOpById('client_invoices.payments.record')!;
+    expect(payment.risk).toBe('confirm');
+    expect(sensitivityOf(payment)).toBe('money');
   });
 
   it("(a) mirrors each controller's capability, re-checked as the approving member", async () => {

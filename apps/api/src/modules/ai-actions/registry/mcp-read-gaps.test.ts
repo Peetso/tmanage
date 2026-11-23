@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { OPS, opsById } from './index.js';
-import { MCP_READ_GAPS_WITHHELD, mcpReadGapDetails } from './mcp-read-gaps.js';
+import {
+  MCP_READ_GAPS_IN_PARITY,
+  MCP_READ_GAPS_WITHHELD,
+  mcpReadGapDetails,
+} from './mcp-read-gaps.js';
 import { allDetailsById, buildToolCatalog, toolNameForOp } from '../../mcp/tool-catalog.js';
 
 /** The 23 classified GET reads that had no MCP tool when 52-22 started (of 52 gaps in all). */
@@ -70,8 +74,10 @@ describe('52-22 MCP read-gap coverage', () => {
       const withheld = id in MCP_READ_GAPS_WITHHELD;
       expect(allDetailsById.has(id), `${id}`).toBe(!withheld);
     }
-    expect(mcpReadGapDetails.length + Object.keys(MCP_READ_GAPS_WITHHELD).length).toBe(
-      READ_GAPS_52_22.length,
-    );
+    expect(
+      mcpReadGapDetails.length +
+        MCP_READ_GAPS_IN_PARITY.length +
+        Object.keys(MCP_READ_GAPS_WITHHELD).length,
+    ).toBe(READ_GAPS_52_22.length);
   });
 });

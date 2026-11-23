@@ -22,6 +22,9 @@ import { activityOps } from './activity.js';
 import { knowledgeOps } from './knowledge.js';
 import { businessMemoryOps } from './business-memory.js';
 import { billingAssistantOps } from './billing-assistant.js';
+import { securityOps } from './parity-b2-security.js';
+import { filesOps } from './parity-b2-files.js';
+import { workOps } from './parity-b2-work.js';
 
 export * from './types.js';
 export { OP_SENSITIVITY } from './sensitivity.js';
@@ -6393,6 +6396,11 @@ export const OPS: readonly AiActionOp[] = [
   ...businessMemoryOps,
   // ---- 62-29 · the billing assistant's pull preview (read) ----
   ...billingAssistantOps,
+  // ---- parity 2026-11-23 · batch 2: the workspace routes that were NEVER without an accepted
+  // reason (ADR-0015 K1-K5); every change is confirm-class ----
+  ...securityOps,
+  ...filesOps,
+  ...workOps,
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',

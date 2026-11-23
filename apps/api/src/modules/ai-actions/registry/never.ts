@@ -28,6 +28,8 @@ import { routeKey } from './types.js';
  * sync test treats any live route that is neither as an error.
  */
 export const NEVER: readonly NeverEntry[] = [
+  // Parity 2026-11-23 batch 2: 228 routes that were here without a reason the exclusion rule
+  // accepts are ops now (parity-b2-security.ts, parity-b2-files.ts, parity-b2-work.ts).
   { method: 'DELETE', path: '/mcp/', reason: 'mcp_endpoint' },
   { method: 'GET', path: '/mcp/', reason: 'mcp_endpoint' },
   // 53-13. Saving or discarding an AI-drafted meeting note is the human review itself: an AI
@@ -155,89 +157,10 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/organizations/', reason: 'org_creation_or_account' },
   {
     method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/audit-retention/',
-    reason: 'audit_retention',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/admin/audit-retention/',
-    reason: 'audit_retention',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/ip-allowlist/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/admin/ip-allowlist/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/admin/ip-allowlist/:entryId',
-    reason: 'org_security_manage',
-  },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/admin/roles/', reason: 'role_definitions' },
-  { method: 'POST', path: '/v1/organizations/:orgSlug/admin/roles/', reason: 'role_definitions' },
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/admin/roles/:id',
-    reason: 'role_definitions',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/admin/roles/:id/clone',
-    reason: 'role_definitions',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/admin/security-alerts/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/security-alerts/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/admin/security-alerts/',
-    reason: 'org_security_manage',
-  },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/admin/security/', reason: 'admin_security' },
-  { method: 'PUT', path: '/v1/organizations/:orgSlug/admin/security/', reason: 'admin_security' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/automations/apps/',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/automations/apps/:appId/connections',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/automations/connections/:id/health',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/automations/connections/health',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'GET',
     path: '/v1/organizations/:orgSlug/automations/variables/',
     reason: 'automation_secrets',
   },
   {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/automations/variables/:key',
-    reason: 'automation_secrets',
-  },
-  {
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/automations/variables/:key',
     reason: 'automation_secrets',
@@ -250,16 +173,6 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/automations/webhooks/',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/automations/webhooks/:endpointId/deliveries/',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/automations/webhooks/:id',
     reason: 'automation_secrets',
   },
   // ---- R13-s2 · webhooks v2 ---- rotate returns a signing secret; pause/resume/replay/retry
@@ -269,59 +182,7 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/automations/webhooks/:id/rotate-secret',
     reason: 'automation_secrets',
   },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/automations/webhooks/:id/pause',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/automations/webhooks/:id/resume',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/automations/webhooks/:id/replay',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/automations/webhooks/:endpointId/deliveries/:deliveryId/retry',
-    reason: 'automation_secrets',
-  },
   { method: 'GET', path: '/v1/public/webhook-events', reason: 'public_site' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/billing/plan-change-requests/',
-    reason: 'billing_subscription_change',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/billing/plan-change-requests/:id/cancel',
-    reason: 'billing_subscription_change',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/billing/seats/',
-    reason: 'billing_seat_change',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/billing/seats/:seatId',
-    reason: 'billing_seat_change',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/billing/subscription/change',
-    reason: 'billing_subscription_change',
-  },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/policies/', reason: 'policy_definitions' },
-  { method: 'PUT', path: '/v1/organizations/:orgSlug/policies/', reason: 'policy_definitions' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/policies/simulate/',
-    reason: 'policy_definitions',
-  },
   // Personal access tokens (plan §2, "personal access tokens"): slice S4 finalised these into the
   // deny-list. An AI principal must never read, mint or revoke a credential (architecture B3 —
   // "an AI principal cannot create PATs or OAuth clients"). S1 had them as ops; wave C removed them.
@@ -416,13 +277,7 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'DELETE', path: '/v1/sessions/current', reason: 'session' },
   { method: 'GET', path: '/v1/sessions/current', reason: 'session' },
   { method: 'GET', path: '/v1/sessions/current/devices', reason: 'session' },
-  // R12: the caller's own session trail CSV, and an admin's export of a member's.
   { method: 'GET', path: '/v1/me/sessions/:sessionId/trail.csv', reason: 'session' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/sessions/:sessionId/trail.csv',
-    reason: 'org_security_manage',
-  },
   { method: 'POST', path: '/v1/sessions/refresh', reason: 'session' },
   { method: 'PUT', path: '/v1/uploads/:providerUploadId/parts/:n', reason: 'public_upload_part' },
   // 0210. Google Drive storage: the connection and its credentials (see `storage_connection`).
@@ -437,56 +292,11 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'storage_connection',
   },
   {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/integrations/google-drive/settings',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/integrations/google-drive/',
-    reason: 'storage_connection',
-  },
-  {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/integrations/google-drive/picker-session',
     reason: 'storage_connection',
   },
-  // NV10. The server-side list of a project's Drive folders reads through the connection.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/google-drive/projects/:projectId/files',
-    reason: 'storage_connection',
-  },
   { method: 'GET', path: '/v1/integrations/google-drive/callback', reason: 'storage_connection' },
-  // 51-17 (0356). Handing the storage connection to another admin moves who owns the company's
-  // files; the target list names the admins it can go to. A person's own consent, never an AI's.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/storage/handover-targets',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/integrations/storage/handover',
-    reason: 'storage_connection',
-  },
-  // 57-13b (0364). "Move to Drive" copies the company's files into its own storage and deletes
-  // TManage's local copies; starting it, and reading its progress, is a person's decision.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/integrations/storage/migration-jobs/',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/storage/migration-jobs/',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/storage/migration-jobs/:jobId',
-    reason: 'storage_connection',
-  },
   // 0236. OneDrive storage: the same connection and credential routes as Google Drive.
   {
     method: 'POST',
@@ -499,56 +309,14 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'storage_connection',
   },
   {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/integrations/onedrive/settings',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/integrations/onedrive/',
-    reason: 'storage_connection',
-  },
-  {
     method: 'GET',
     path: '/v1/organizations/:orgSlug/integrations/onedrive/picker-session',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/onedrive/folders',
-    reason: 'storage_connection',
-  },
-  // 51-17 slice 2. The company-owned places (Shared Drives, SharePoint libraries) the connected
-  // account can hold the company's root: part of choosing where the files live, a person's act.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/google-drive/root-options',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/onedrive/root-options',
-    reason: 'storage_connection',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/onedrive/projects/:projectId/files',
     reason: 'storage_connection',
   },
   { method: 'GET', path: '/v1/integrations/onedrive/callback', reason: 'storage_connection' },
   // 0237. A person's own Google Calendar connection: connecting, completing and disconnecting
   // mint or hold that person's Google credential, the status names their account, and the OAuth
   // callback is Google's redirect. An AI principal never drives any of it.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/google-calendar/',
-    reason: 'calendar_connection',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/google-calendar/team',
-    reason: 'calendar_connection',
-  },
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/integrations/google-calendar/connect',
@@ -560,11 +328,6 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'calendar_connection',
   },
   {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/integrations/google-calendar/',
-    reason: 'calendar_connection',
-  },
-  {
     method: 'GET',
     path: '/v1/integrations/google-calendar/callback',
     reason: 'calendar_connection',
@@ -573,22 +336,7 @@ export const NEVER: readonly NeverEntry[] = [
   // calendar and the feed routes mint or revoke a secret address of their items. The push
   // webhooks are the providers' and the ICS feed is read by calendar apps, all signed out.
   {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/calendar-sync/:provider/due-date-mirror',
-    reason: 'calendar_connection',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/calendar-sync/feed',
-    reason: 'calendar_connection',
-  },
-  {
     method: 'POST',
-    path: '/v1/organizations/:orgSlug/calendar-sync/feed',
-    reason: 'calendar_connection',
-  },
-  {
-    method: 'DELETE',
     path: '/v1/organizations/:orgSlug/calendar-sync/feed',
     reason: 'calendar_connection',
   },
@@ -601,11 +349,6 @@ export const NEVER: readonly NeverEntry[] = [
   },
   // 0237 slice B. The same for a person's own Outlook calendar connection.
   {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/microsoft-calendar/',
-    reason: 'calendar_connection',
-  },
-  {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/integrations/microsoft-calendar/connect',
     reason: 'calendar_connection',
@@ -613,11 +356,6 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/integrations/microsoft-calendar/complete',
-    reason: 'calendar_connection',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/integrations/microsoft-calendar/',
     reason: 'calendar_connection',
   },
   {
@@ -667,31 +405,6 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/me/privacy/deletion/cancel',
     reason: 'org_creation_or_account',
   },
-  // ---- platform-admin v2 · PA-01 ----
-  // The role matrix, per-member permission overrides and the effective-permissions preview are
-  // role definitions: an assistant never reads or changes who may do what. `me` is the caller's
-  // own account view.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/roles/matrix/',
-    reason: 'role_definitions',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/people/:membershipId/permissions/overrides',
-    reason: 'role_definitions',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/people/:membershipId/permissions/overrides',
-    reason: 'role_definitions',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/people/:membershipId/effective-permissions',
-    reason: 'role_definitions',
-  },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/me', reason: 'org_creation_or_account' },
   // ---- platform-admin v2 · verifier: every Platform admin route (PA-02..PA-10) ----
   // Operator-only surfaces behind the platform guard and step-up: an assistant never drives them.
   // The banner read (`support-session`) and the public announcement read are not AI tools either.
@@ -1227,39 +940,6 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/signature-requests/:signatureRequestId/sign',
     reason: 'esign_signature',
   },
-  // 52-19 / 52-26. The sealed record PDFs: staff and portal approval certificate, signed document.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/approvals/:approvalId/record.pdf',
-    reason: 'record_pdf',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/approvals/projections/:deliverableVersionId/record.pdf',
-    reason: 'record_pdf',
-  },
-  // 52-19. The evidence bundle: record PDF, approved file and chain proof (rate-limited, audited).
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/approvals/:approvalId/evidence.zip',
-    reason: 'record_pdf',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/signature-requests/:signatureRequestId/signed.pdf',
-    reason: 'record_pdf',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/signature-requests/:signatureRequestId/signed.pdf',
-    reason: 'record_pdf',
-  },
-  // 54-29. One project's work items as a CSV or JSON download (work.export, rate-limited, audited).
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/export/',
-    reason: 'project_export',
-  },
   // 57-02. Platform admin → the plan ladder: list the plan versions and publish a new one.
   { method: 'GET', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/plan-versions/', reason: 'platform_admin' },
@@ -1268,24 +948,7 @@ export const NEVER: readonly NeverEntry[] = [
   // 56-31. Platform → E-mail health: lane counts (never addresses) and the lane pause.
   { method: 'GET', path: '/v1/platform/mail/health', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/mail/lanes/:lane/pause', reason: 'platform_admin' },
-  // 52-21. The public form proof (anonymous, nothing an AI acts on) and an organization's block
-  // list for its public doors — `org.security.manage`, withheld like the other security routes.
   { method: 'GET', path: '/v1/public/form-proof/', reason: 'public_site' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/block-rules/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/admin/block-rules/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/admin/block-rules/:ruleId',
-    reason: 'org_security_manage',
-  },
   // 52-20. Public intake forms: the anonymous door. The publish switch and the triage of what
   // visitors sent are ops since 52-22 (`work_forms.*`, `finance-documents.ts`).
   { method: 'GET', path: '/v1/public/forms/:slug', reason: 'public_intake' },
@@ -1304,11 +967,6 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/public/forms/:slug/uploads/:uploadSessionId/cancel',
     reason: 'public_intake',
   },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/work-forms/:formId/attachments',
-    reason: 'public_intake',
-  },
   // 56-07. Public links: the outsider's routes (anonymous, nothing an AI acts on) and the member
   // routes that hand an outsider access to one object — an AI never issues or revokes that.
   { method: 'GET', path: '/v1/public/links/:token/', reason: 'public_site' },
@@ -1320,24 +978,9 @@ export const NEVER: readonly NeverEntry[] = [
   // 57-02 PLANWEB. The published plan ladder for the pricing page: anonymous, read-only, empty in
   // the beta; nothing an AI acts on.
   { method: 'GET', path: '/v1/public/plan-versions', reason: 'public_site' },
-  // 57-17 WTP. The beta pricing question (read, answer, skip): a person's own opinion, asked once,
-  // never answered or skipped by an AI. The platform team's answers list is platform-only.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/pricing-survey/', reason: 'pricing_survey' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/pricing-survey/answer',
-    reason: 'pricing_survey',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/pricing-survey/skip',
-    reason: 'pricing_survey',
-  },
   { method: 'GET', path: '/v1/platform/pricing-survey/', reason: 'platform_admin' },
   // 57-08 REFERRAL. The owner's invite link (view, create the code): owner-only, never an AI's to
   // create or share. The partner codes and totals are platform-only.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/referral/', reason: 'referral' },
-  { method: 'POST', path: '/v1/organizations/:orgSlug/referral/code', reason: 'referral' },
   { method: 'GET', path: '/v1/platform/referrals/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/referrals/partners', reason: 'platform_admin' },
   // 62-A3 (B14). The platform's monthly hosting and mail unit costs (platform.settings.edit).
@@ -1495,64 +1138,11 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/platform/settings/ai-budget/reserve-release',
     reason: 'platform_admin',
   },
-  // 55-14. Client portal magic-link sign-in: anonymous request, code, preview, consume, not-you.
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/code', reason: 'auth' },
   { method: 'GET', path: '/v1/public/portal-sign-in/links/:token', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/links/:token/consume', reason: 'auth' },
   { method: 'POST', path: '/v1/public/portal-sign-in/links/:token/not-you', reason: 'auth' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/public-links/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/public-links/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/public-links/:linkId',
-    reason: 'org_security_manage',
-  },
-  // 56-07p. Settings · Public links: the workspace-wide list names outsiders' addresses; a bulk
-  // revoke or a new end date changes who can still open a link. An owner's or admin's own act.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/public-links/manage/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/public-links/manage/revoke',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/public-links/manage/expiry',
-    reason: 'org_security_manage',
-  },
-  // 52-18. The account-less approver: sending a deliverable version to an outside e-mail hands an
-  // outsider access (risky, human approval in the spec); the list shows outsiders' details.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/versions/:versionId/external-approvals',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/deliverables/:deliverableId/versions/:versionId/external-approvals',
-    reason: 'org_security_manage',
-  },
-  // 52-08. Quotes: list/get/draft/send/convert are ops since 52-22 (`quotes.*`, send and convert
-  // confirm-class). 52-10: the quote PDF, team and the client's own in the portal, stay here.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/quotes/:quoteId/pdf', reason: 'client_quote' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/quotes/:quoteId/pdf',
-    reason: 'client_quote',
-  },
   // 56-17. The anonymous vulnerability report door and the confidential platform triage.
   { method: 'POST', path: '/v1/public/security-reports/', reason: 'public_site' },
   { method: 'GET', path: '/v1/platform/security-reports/', reason: 'platform_admin' },
@@ -1582,61 +1172,6 @@ export const NEVER: readonly NeverEntry[] = [
     method: 'POST',
     path: '/v1/platform/outreach/recipients/:recipientId/bounced',
     reason: 'platform_admin',
-  },
-  // 56-11. Audit chain integrity, catalog and signed export head: security evidence, not for AI.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/audit/integrity',
-    reason: 'audit_retention',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/audit/catalog',
-    reason: 'audit_retention',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/audit/export.sig',
-    reason: 'audit_retention',
-  },
-  // 52-23. Finance settings: profile, tax rates, manual exchange rates and the readiness check.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/finance/profile', reason: 'finance_settings' },
-  { method: 'PUT', path: '/v1/organizations/:orgSlug/finance/profile', reason: 'finance_settings' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/finance/tax-rates',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/finance/tax-rates',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/finance/tax-rates/:taxRateId',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/finance/exchange-rates',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/finance/exchange-rates',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/finance/readiness',
-    reason: 'finance_settings',
-  },
-  // 56-23. Security signals and alert rules: no AI action reads or edits them (security_signals.*).
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/security/events',
-    reason: 'org_security_manage',
   },
   { method: 'GET', path: '/v1/platform/alerts/', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/alerts/:ruleKey', reason: 'platform_admin' },
@@ -1671,23 +1206,6 @@ export const NEVER: readonly NeverEntry[] = [
   },
   { method: 'POST', path: '/v1/platform/security/source-labels/', reason: 'platform_admin' },
   { method: 'DELETE', path: '/v1/platform/security/source-labels/:id', reason: 'platform_admin' },
-  // R44 L2 (0332): an owner marks a signal reviewed; 56-06 the blocked-files queue and its
-  // delete-now. Security triage an AI must not drive.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/admin/security/events/:signalId/reviewed',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/file-safety/blocked/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/admin/file-safety/blocked/:fileId/delete',
-    reason: 'org_security_manage',
-  },
   // 56-21b. The monthly platform access review and its evidence row: super admins only.
   { method: 'GET', path: '/v1/platform/team/access-review/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/team/access-review/record', reason: 'platform_admin' },
@@ -1704,35 +1222,7 @@ export const NEVER: readonly NeverEntry[] = [
   // FIX-2026-11-10. Automatic time tracking: the person's own activity heartbeat, switch, current
   // task, the owner's policy, and the team time view (everyone's state and time). Activity of the
   // person at the keyboard, and monitoring of others: never an AI tool.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/time/auto/', reason: 'time_tracking' },
-  { method: 'PUT', path: '/v1/organizations/:orgSlug/time/auto/settings', reason: 'time_tracking' },
-  // UX test T-P1-1: a person throws away their own running timer; a human decision, never an AI one.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/timer/discard',
-    reason: 'time_tracking',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/time/auto/current-task',
-    reason: 'time_tracking',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/time/auto/heartbeat',
-    reason: 'time_tracking',
-  },
-  { method: 'PATCH', path: '/v1/organizations/:orgSlug/time/auto/policy', reason: 'time_tracking' },
   // TIMER item 17: which kind of device the person's tracking runs on (desktop app or browser).
-  { method: 'PUT', path: '/v1/organizations/:orgSlug/time/auto/device', reason: 'time_tracking' },
-  // 52-01 (live check B9): the owner's rounding step for the manual timer, billed time.
-  { method: 'PATCH', path: '/v1/organizations/:orgSlug/time/rounding', reason: 'finance_settings' },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/time/team/', reason: 'time_tracking' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/time/team/:membershipId/day',
-    reason: 'time_tracking',
-  },
   // R7 slice 6. Chat presence (the tab's own heartbeat, who is online), the "show last seen"
   // privacy toggle and per-message receipts: session-bound live state of the person at the
   // keyboard, not an action an AI performs.
@@ -1748,149 +1238,9 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages/:messageId/receipts',
     reason: 'session',
   },
-  // R4 slices 6–11. The file viewer: preview manifests and content, review threads and comments,
-  // mention search, and the Approve / Request changes decisions on a file version. Withheld until
-  // reviewed `review.*` ops exist (a decision is a client-facing sign-off).
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/files/:fileAssetId/preview/',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/files/:fileAssetId/preview/:previewId/content',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/files/:fileAssetId/preview/retry',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/files/:fileId/review/decisions/',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/files/:fileId/review/decisions/',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/files/:fileId/review/decisions/',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/portal/files/:fileId/review/decisions/',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/files/:fileAssetId/preview/',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/files/:fileAssetId/preview/:previewId/content',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/files/:fileId/review/threads',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/portal/files/:fileId/review/threads',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/portal/review/threads/:threadId/comments',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/portal/review/threads/:threadId/resolve',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/portal/review/threads/:threadId/unresolve',
-    reason: 'file_review',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/portal/review/threads/:threadId',
-    reason: 'file_review',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/portal/review/comments/:commentId',
-    reason: 'file_review',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/portal/review/comments/:commentId',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/projects/:projectId/review/mention-candidates',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/files/:fileId/review/threads',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/files/:fileId/review/threads',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/review/threads/:threadId/comments',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/review/threads/:threadId/resolve',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/review/threads/:threadId/unresolve',
-    reason: 'file_review',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/review/threads/:threadId',
-    reason: 'file_review',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/review/comments/:commentId',
-    reason: 'file_review',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/review/comments/:commentId',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/review/mention-candidates',
-    reason: 'file_review',
-  },
   // R4 slice 13. Figma links: a member's own Figma token (a stored third-party credential), links,
   // frame snapshots and the threads on frames. Withheld until reviewed `figma.*` ops exist.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
   { method: 'POST', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
-  { method: 'DELETE', path: '/v1/organizations/:orgSlug/figma/connection', reason: 'figma_links' },
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/figma/connection/start',
@@ -1902,100 +1252,6 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'figma_links',
   },
   { method: 'GET', path: '/v1/integrations/figma/callback', reason: 'figma_links' },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/figma/links/:linkId', reason: 'figma_links' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/figma/links/:linkId/snapshots',
-    reason: 'figma_links',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/figma/links/:linkId',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/snapshot',
-    reason: 'figma_links',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/figma/inspect',
-    reason: 'figma_links',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/figma/links',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/figma/links',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/figma/links/:linkId',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/snapshot',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/projects/:projectId/figma/links',
-    reason: 'figma_links',
-  },
-  // FIGMA lane (2026-11-14): page choice, the sharp render and the thumb of a frame, and the
-  // portal's list, render and thumb. Tokens, Figma render bytes and portal access: never AI.
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/figma/links/:linkId/pages',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/thumb',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/render',
-    reason: 'figma_links',
-  },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/portal/figma/links', reason: 'figma_links' },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/thumb',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/render',
-    reason: 'figma_links',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/review/threads',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/figma/frames/:frameId/review/threads',
-    reason: 'file_review',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/review/threads',
-    reason: 'file_review',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/portal/figma/frames/:frameId/review/threads',
-    reason: 'file_review',
-  },
   // R7 slice 3: group settings, members, roles, leave, invite links, and the portal chat list.
   {
     method: 'GET',
@@ -2013,31 +1269,6 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'chat_groups',
   },
   {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/',
-    reason: 'chat_groups',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/members',
-    reason: 'chat_groups',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/members/:userId',
-    reason: 'chat_groups',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/members/:userId/role',
-    reason: 'chat_groups',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/leave',
-    reason: 'chat_groups',
-  },
-  {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/invite',
     reason: 'chat_groups',
@@ -2045,11 +1276,6 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/group/invite',
-    reason: 'chat_groups',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/chat/list',
     reason: 'chat_groups',
   },
   // R7 slice 2. The person's own chat list and its arrangement (pin, archive): the view state of
@@ -2075,70 +1301,6 @@ export const NEVER: readonly NeverEntry[] = [
   // platform admin, never an AI tool.
   { method: 'GET', path: '/v1/platform/activity/growth/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/activity/growth/export.csv', reason: 'platform_admin' },
-  // R13-s4 (53-02). The working calendar: company working days, hours, holidays, pack imports and
-  // project overrides. Organization policy that every date calculation reads; withheld (under the
-  // closest existing reason) until reviewed `calendar.working.*` ops exist.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/working-calendar',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/working-calendar',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/working-calendar/holidays',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/working-calendar/holidays/:holidayId',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/working-calendar/import-pack',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/working-calendar',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/working-calendar',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/working-calendar',
-    reason: 'policy_definitions',
-  },
-  // R15-b (52-03). Period locks: closing and reopening finance periods. Finance settings; never an
-  // AI tool. The list and the member's unlock request are ops since 52-22 (`time.locks.*`).
-  { method: 'POST', path: '/v1/organizations/:orgSlug/time/locks/', reason: 'finance_settings' },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/time/locks/:lockId',
-    reason: 'finance_settings',
-  },
-  // R16-a (52-02 / 52-03). Timesheets moved to ops in R18-b (`time.timesheets.*`; approve,
-  // request-changes and the CSV export are confirm-class).
-  // ---- R15-a · 52-04 rates and R16-c · 52-07 expenses ---- moved to ops in R18-b
-  // (`finance.rate_cards.*`, `finance.rates.*`, `finance.cost_rates.*`, `finance.expenses.*`).
-  // ---- R16-f · 54-11 Phase 0 ---- a person's imported address book (third parties' personal
-  // data, per user): importing, searching and clearing it feeds the invite flow, and an AI must not
-  // harvest or bulk-load addresses. The same reason as the invitation routes.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/contacts/import-file',
-    reason: 'invitation',
-  },
-  { method: 'GET', path: '/v1/organizations/:orgSlug/contacts/suggest', reason: 'invitation' },
   // r46 L1 (53-09): the repeat editor's live preview of an UNSAVED rule. It writes nothing, but it
   // is a POST and the read-only catalogue is GET-only; an AI reads a saved rule's dates through
   // `work_items.recurrence.preview.list` instead.
@@ -2175,36 +1337,6 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/documents/:documentId/collab/cursor',
     reason: 'session',
   },
-  // r46 L1 (54-11): the row-by-row preview of the same file, before import.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/contacts/import-preview',
-    reason: 'invitation',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/contacts/suggestions',
-    reason: 'invitation',
-  },
-  // ---- R16-b · 52-05 budget burn and the portal budget ---- moved to ops in R18-b.
-  // R16-d (53-04). Editing a typed dependency in place and the schedule cascade: a cascade
-  // re-dates many items (possibly across projects) in one call, so it is withheld — under the
-  // closest existing reason, as the working calendar is — until reviewed `schedule.*` ops exist.
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/work-items/:workItemId/dependencies/:dependencyId',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/work-items/:workItemId/schedule/cascade-preview',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/work-items/:workItemId/schedule/cascade-apply',
-    reason: 'policy_definitions',
-  },
   // ---- R16-e · 54-10 GitHub Phase 0 ---- a repository webhook holds an HMAC secret (returned on
   // create/rotate): never an AI tool, the same reason as the webhook routes. The inbound route is
   // untrusted outside content. The work-key prefix rewrites every item's key; code links are
@@ -2215,74 +1347,13 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'automation_secrets',
   },
   {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/integrations/github/repo-hooks',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/integrations/github/repo-hooks/:id',
-    reason: 'automation_secrets',
-  },
-  {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/integrations/github/repo-hooks/:id/rotate-secret',
     reason: 'automation_secrets',
   },
   { method: 'POST', path: '/v1/public/integrations/github/:hookId', reason: 'public_intake' },
   { method: 'POST', path: '/v1/public/inbound-email/webhook', reason: 'public_intake' },
-  // 56-26 (0366). The signed bounce intake; and an admin checking or clearing a bounce
-  // suppression decides whether the company mails an address again — a person's decision.
   { method: 'POST', path: '/v1/public/inbound-email/bounces', reason: 'public_intake' },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/mail/bounces/status',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/mail/bounces/clear',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/work-key-prefix',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/work-items/:workItemId/code-links',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/work-items/:workItemId/code-links/:linkId',
-    reason: 'automation_secrets',
-  },
-  // ---- R17-a · 52-14 finance reports ---- moved to ops in R18-b (`insights.finance.*`).
-  // ---- R17-c · 53-05 baselines ---- choosing the current baseline re-points every member's Gantt
-  // overlay and variance at another plan; withheld (as the schedule cascade is) until reviewed
-  // `schedule.*` ops exist.
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/baselines/:baselineId',
-    reason: 'policy_definitions',
-  },
-  // ---- R17-d · 52-06 retainers ---- moved to ops in R18-b (`finance.retainers.*`,
-  // `portal.retainers.*`).
-  // ---- R17-b · 53-06 critical path ---- withheld under the reason the 53-04 cascade routes use
-  // until reviewed `schedule.*` ops exist: the read recomputes a stale project synchronously and
-  // the POST rewrites the project's stats.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/schedule/critical-path',
-    reason: 'policy_definitions',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/schedule/recompute',
-    reason: 'policy_definitions',
-  },
   // ---- R18-f · 56-13 incident register ---- platform-only: legal clocks and breach records.
   { method: 'GET', path: '/v1/platform/incidents/', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/incidents/', reason: 'platform_admin' },
@@ -2290,105 +1361,11 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/platform/incidents/:id/publish', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/incidents/:id/unpublish', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/incidents/:id/resolve', reason: 'platform_admin' },
-  // R31 · A17 — the workspace owner's incidents read: security information, owner-only.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/admin/incidents/',
-    reason: 'admin_security',
-  },
   // ---- R18-e · 56-25 organization sign-in policy ---- security administration, never an AI op.
   {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/security/sign-in-policy',
-    reason: 'org_security_manage',
-  },
-  {
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/security/sign-in-policy',
     reason: 'org_security_manage',
-  },
-  // ---- R18-a · 52-09 client invoices ---- the drafts, reads, send and reminders are ops since
-  // 52-22 (`client_invoices.*`, `finance-documents.ts`). What stays: a payment, a void or a credit
-  // note moves money state, and the print / PDF / e-invoice files are documents to keep.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/payments',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/void',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/credit-notes',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/print',
-    reason: 'finance_settings',
-  },
-  // R21-d · 52-12: the e-invoice XML/QR read — NEVER, as every client-invoices route.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/einvoice',
-    reason: 'finance_settings',
-  },
-  // 52-13: the client's invoice print document ("Download PDF") — NEVER, as every invoice route.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId/print',
-    reason: 'finance_settings',
-  },
-  // 52-10: the invoice PDF, team and the client's own in the portal — NEVER, as every invoice route.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/client-invoices/:invoiceId/pdf',
-    reason: 'finance_settings',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId/pdf',
-    reason: 'finance_settings',
-  },
-  // ---- R19-d · 53-21 iterations: the planning writes are ops now (parity 2026-11-23) ----
-  // 56-06 (R19-e): changing file safety (type presets, scanned-only for clients) is a security
-  // policy change an AI must not drive.
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/security/file-safety/',
-    reason: 'org_security_manage',
-  },
-  // FIX6 item 1: which files clients may receive is the owner's own security choice; an AI
-  // principal neither reads nor changes it.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/client-file-policy/',
-    reason: 'org_security_manage',
-  },
-  {
-    method: 'PATCH',
-    path: '/v1/organizations/:orgSlug/client-file-policy/',
-    reason: 'org_security_manage',
-  },
-  // 53-07 (R19-c): `projects.milestones.publish` / unpublish and a phase's band dates change what
-  // the client timeline shows.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/milestones/:id/publish',
-    reason: 'client_projection',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/milestones/:id/publish',
-    reason: 'client_projection',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/phases/:phaseId/dates',
-    reason: 'client_projection',
   },
   // 52-11 (R19-b): an accounting export is a step-up mass egress of the books (fresh reauth,
   // 5/hour/org); never an AI tool. The history list is the `finance.exports.list` read op.
@@ -2404,13 +1381,6 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/imports/sources/jira',
     reason: 'automation_secrets',
   },
-  // R23-e (54-24): the one-click import undo is a bulk delete of everything one import created;
-  // never an AI tool. Import sits under Admin (41 §ADM-10), hence the admin class.
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/imports/:jobId/undo',
-    reason: 'admin_security',
-  },
   // R22-a (52-12): the ZATCA certificate + private key are pasted behind org.security.manage and a
   // fresh step-up, and revoking it stops signing; key material must never pass through an AI tool.
   {
@@ -2422,33 +1392,9 @@ export const NEVER: readonly NeverEntry[] = [
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/finance/einvoicing/certificate',
     reason: 'finance_settings',
-  }, // R39 55-17: in-app support conversations to the platform team. A person-to-team channel, not
-  // exposed to the AI connector; the platform inbox is platform admin.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/support/threads/',
-    reason: 'support_conversation',
   },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/support/threads/',
-    reason: 'support_conversation',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/support/threads/:threadId',
-    reason: 'support_conversation',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/support/threads/:threadId/messages',
-    reason: 'support_conversation',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/support/threads/:threadId/close',
-    reason: 'support_conversation',
-  },
+  // R39 55-17: the platform team's support inbox is platform admin (the member's own support
+  // threads are ops since parity batch 2).
   { method: 'GET', path: '/v1/platform/support/threads/', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/support/threads/:threadId', reason: 'platform_admin' },
   {
@@ -2460,34 +1406,15 @@ export const NEVER: readonly NeverEntry[] = [
     method: 'POST',
     path: '/v1/platform/support/threads/:threadId/status',
     reason: 'platform_admin',
-  }, // 54-01. The connector framework: registry state, install (a credential into the vault) and
-  // uninstall, owner/admin only.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/connectors/',
-    reason: 'connector_installation',
   },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/connectors/:connectorKey',
-    reason: 'connector_installation',
-  },
+  // 54-01. The connector framework: install stores a third-party credential in the vault (K1);
+  // the list, state and uninstall are ops since parity batch 2.
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/connectors/:connectorKey/install',
     reason: 'connector_installation',
   },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/connectors/:connectorKey',
-    reason: 'connector_installation',
-  },
   // FIX5. One-click Connect for GitHub: OAuth tokens into the vault (Slack, Teams removed 11-10).
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/app-connect/:provider',
-    reason: 'connector_installation',
-  },
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/app-connect/:provider/start',
@@ -2499,37 +1426,17 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'connector_installation',
   },
   {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/app-connect/:provider',
-    reason: 'connector_installation',
-  },
-  {
     method: 'GET',
     path: '/v1/integrations/github/callback',
     reason: 'connector_installation',
   },
   // 54-14. Company sign-in settings: owner-only read, save and remove of the OIDC connection.
   {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/security/sso/',
-    reason: 'org_security_manage',
-  },
-  {
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/security/sso/',
     reason: 'org_security_manage',
   },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/security/sso/',
-    reason: 'org_security_manage',
-  },
   // 54-16. SCIM provisioning keys beside company sign-in: owner-only list, create and revoke.
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/security/scim/',
-    reason: 'org_security_manage',
-  },
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/security/scim/keys',
@@ -2545,31 +1452,6 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/imports/pm/:source/connect',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/imports/pm/:source/discover',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/imports/pm/:source/preview',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/imports/pm/:source/jobs',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/imports/pm/:source/connection',
-    reason: 'automation_secrets',
-  },
-  {
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/imports/pm/:source/jobs/:jobId',
     reason: 'automation_secrets',
   },
 ];

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { OPS, opsById, neverByKey, routeKey } from './index.js';
 import { REDACT_PROFILES } from './detail.js';
 import { waveADetails, waveADetailsById } from './wave-a.js';
+import { PARITY_DETAIL_IDS } from './parity-2026-11-23.js';
 
 /**
  * Slice S2 (registry wave A) — the enrichment layer for work (items/forms), projects, search,
@@ -33,7 +34,10 @@ function isWaveA(id: string): boolean {
   return WAVE_A_PREFIXES.some((p) => id === p || id.startsWith(`${p}.`));
 }
 
-const waveAOpIds = OPS.map((op) => op.id).filter(isWaveA);
+// Ops whose detail a parity batch wrote are checked by the parity tests instead.
+const waveAOpIds = OPS.map((op) => op.id)
+  .filter(isWaveA)
+  .filter((id) => !PARITY_DETAIL_IDS.has(id));
 
 describe('AI action registry — wave A details (S2)', () => {
   it('has a detail for every wave-A op, and no duplicates', () => {

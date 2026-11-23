@@ -34,7 +34,8 @@ class FakeInvitationsController {
   }
 }
 
-@Controller('v1/organizations/:orgSlug/admin/security')
+// A route still NEVER after parity batch 2 (K3: the SSO settings body stores a client secret).
+@Controller('v1/organizations/:orgSlug/security/sso')
 class FakeSecurityController {
   @Put()
   set(): unknown {
@@ -218,8 +219,8 @@ describe('NV01 — confirm-class ops do not run on the personal-access-token cha
     expect(handlerCalls.work).toBe(1);
   });
 
-  it('a NEVER tenant route (admin security) is refused 403 for a PAT', async () => {
-    const res = await inject('PUT', '/v1/organizations/acme/admin/security', {
+  it('a NEVER tenant route (SSO settings) is refused 403 for a PAT', async () => {
+    const res = await inject('PUT', '/v1/organizations/acme/security/sso', {
       'x-test-scheme': 'personal_access_token',
     });
     expect(res.statusCode).toBe(403);

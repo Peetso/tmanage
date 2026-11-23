@@ -4,8 +4,10 @@
  * These ops were classified in `index.ts` but had no detail, so `tool-catalog.ts` skipped them and
  * no MCP client could reach them. This file adds the *safe reads only* (list/get, risk `read`):
  * the writes and confirm-class ops in the same areas stay detail-less, so they remain off MCP and
- * the approval path for writes is untouched. Three reads are deliberately left out — see
- * {@link MCP_READ_GAPS_WITHHELD} — because they reach outside the workspace or expose a secret.
+ * the approval path for writes is untouched. Three reads were left out here at first (the link
+ * preview, the inbound address and the file-safety settings); parity batch 2 (owner 2026-11-23)
+ * gave them details in `parity-b2-files.ts` and `parity-b2-security.ts`, so
+ * {@link MCP_READ_GAPS_WITHHELD} is empty. The link preview only fetches allow-listed hosts.
  */
 import { z } from 'zod';
 import { det, f, noArgs, pathOnly, type AiActionDetail } from './detail.js';
@@ -14,12 +16,15 @@ function strict(shape: z.ZodRawShape): z.ZodTypeAny {
   return z.object(shape).strict();
 }
 
-/** Classified reads kept off MCP on purpose, with the reason. */
-export const MCP_READ_GAPS_WITHHELD: Readonly<Record<string, string>> = {
-  'unfurl.get': 'fetches an arbitrary outside URL on the server',
-  'inbound_email.address.get': 'the receiving address works as a secret (it can be rotated)',
-  'org.settings.file_safety.get': 'security configuration is never shown to an AI principal',
-};
+/** Classified reads kept off MCP on purpose, with the reason (none since parity batch 2). */
+export const MCP_READ_GAPS_WITHHELD: Readonly<Record<string, string>> = {};
+
+/** The three 52-22 gaps whose details live in the parity batch 2 files. */
+export const MCP_READ_GAPS_IN_PARITY: readonly string[] = [
+  'unfurl.get',
+  'inbound_email.address.get',
+  'org.settings.file_safety.get',
+];
 
 export const mcpReadGapDetails: readonly AiActionDetail[] = [
   det({

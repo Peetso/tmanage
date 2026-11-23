@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { AI_SCOPES, RISK_CLASSES, neverByKey, opsById, routeKey } from './index.js';
+import {
+  AI_SCOPES,
+  RISK_CLASSES,
+  findOpByRoute,
+  neverByKey,
+  opsById,
+  routeKey,
+  sensitivityOf,
+} from './index.js';
 import { REDACT_PROFILES } from './detail.js';
 import { waveCDetails, waveCDetailsById } from './wave-c.js';
 import {
@@ -37,14 +45,21 @@ describe('R18-b finance and time ops', () => {
     }
   });
 
-  it('keeps finance settings and period locks in NEVER', () => {
+  // Parity batch 2 (owner 2026-11-23) made the finance settings and period-lock changes
+  // confirm-class ops with the money gate; only the step-up books export stays NEVER.
+  it('keeps the books export in NEVER; finance settings are confirm-class money ops', () => {
+    expect(neverByKey.has(routeKey('POST', '/v1/organizations/:orgSlug/finance/exports/'))).toBe(
+      true,
+    );
     for (const [method, path] of [
-      ['GET', '/v1/organizations/:orgSlug/finance/profile'],
       ['POST', '/v1/organizations/:orgSlug/finance/tax-rates'],
       ['POST', '/v1/organizations/:orgSlug/finance/exchange-rates'],
       ['POST', '/v1/organizations/:orgSlug/time/locks/'],
     ] as const) {
-      expect(neverByKey.has(routeKey(method, path)), `${method} ${path}`).toBe(true);
+      expect(neverByKey.has(routeKey(method, path)), `${method} ${path}`).toBe(false);
+      const op = findOpByRoute(method, path)!;
+      expect(op.risk, path).toBe('confirm');
+      expect(sensitivityOf(op), path).toBe('money');
     }
   });
 

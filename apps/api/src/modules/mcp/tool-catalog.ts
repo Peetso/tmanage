@@ -37,12 +37,25 @@ import { waveBDetails } from '../ai-actions/registry/wave-b.js';
 import { waveCDetails } from '../ai-actions/registry/wave-c.js';
 import { mcpReadGapDetails } from '../ai-actions/registry/mcp-read-gaps.js';
 import { parityDetails } from '../ai-actions/registry/parity-2026-11-23.js';
+import { securityDetails } from '../ai-actions/registry/parity-b2-security.js';
+import { filesDetails } from '../ai-actions/registry/parity-b2-files.js';
+import { workDetails } from '../ai-actions/registry/parity-b2-work.js';
 
-/** Every op detail across the three registry waves plus the 52-22 read gaps, indexed by op id. */
+/** Every op detail across the three registry waves, the 52-22 read gaps and the parity batches. */
+export const allDetailsList: readonly AiActionDetail[] = [
+  ...waveADetails,
+  ...waveBDetails,
+  ...waveCDetails,
+  ...mcpReadGapDetails,
+  ...parityDetails,
+  ...securityDetails,
+  ...filesDetails,
+  ...workDetails,
+];
+
+/** The same details indexed by op id (`tool-catalog.test.ts` proves no id appears twice). */
 export const allDetailsById: ReadonlyMap<string, AiActionDetail> = new Map(
-  [...waveADetails, ...waveBDetails, ...waveCDetails, ...mcpReadGapDetails, ...parityDetails].map(
-    (d) => [d.id, d] as const,
-  ),
+  allDetailsList.map((d) => [d.id, d] as const),
 );
 
 /**

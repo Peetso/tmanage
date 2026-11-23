@@ -18,6 +18,9 @@ import {
   MAX_ITERATION_NAME_LENGTH,
 } from '@tmanage/domain';
 import { bodyArgs, det, f, type AiActionDetail } from './detail.js';
+import { securityDetails } from './parity-b2-security.js';
+import { filesDetails } from './parity-b2-files.js';
+import { workDetails } from './parity-b2-work.js';
 
 const day = () => z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const itemIds = () => z.array(f.id()).max(MAX_ITERATION_ITEMS_PER_CALL).optional();
@@ -97,3 +100,11 @@ export const parityDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Roll over', args: { iterationId: 'it_1', moveUnfinishedTo: 'it_2' } }],
   }),
 ];
+
+/**
+ * Every op id whose detail lives in a parity batch file. The wave A/B/C slice tests key off op-id
+ * prefixes and leave these to `parity-2026-11-23.test.ts` and `parity-b2.test.ts`.
+ */
+export const PARITY_DETAIL_IDS: ReadonlySet<string> = new Set(
+  [...parityDetails, ...securityDetails, ...filesDetails, ...workDetails].map((d) => d.id),
+);

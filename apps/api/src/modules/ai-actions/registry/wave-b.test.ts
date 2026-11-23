@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { OPS, opsById } from './index.js';
 import { REDACT_PROFILES } from './detail.js';
 import { waveBDetails, waveBDetailsById } from './wave-b.js';
+import { PARITY_DETAIL_IDS } from './parity-2026-11-23.js';
 
 /**
  * Wave-B registry detail contract (slice S3; plan §7 S3 "schemas, redaction and examples").
@@ -26,7 +27,12 @@ const WAVE_B = [
 ];
 
 const isWaveB = (id: string): boolean => WAVE_B.some((re) => re.test(id));
-const expectedIds = new Set(OPS.map((op) => op.id).filter(isWaveB));
+// Ops whose detail a parity batch wrote are checked by the parity tests instead.
+const expectedIds = new Set(
+  OPS.map((op) => op.id)
+    .filter(isWaveB)
+    .filter((id) => !PARITY_DETAIL_IDS.has(id)),
+);
 
 describe('AI action registry — wave B detail (S3)', () => {
   it('covers exactly the wave-B op surface, once each', () => {
