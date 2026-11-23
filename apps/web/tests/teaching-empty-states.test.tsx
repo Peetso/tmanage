@@ -69,7 +69,6 @@ import { RequestTagsView } from '../src/components/screens/RequestTagsView';
 import { SearchPinsView } from '../src/components/screens/SearchPinsView';
 import { SearchSavedScopesView } from '../src/components/screens/SearchSavedScopesView';
 import { WebhookDeliveryScreen } from '../src/components/screens/WebhookDeliveryScreen';
-import { WorkBoardColumnsView } from '../src/components/screens/WorkBoardColumnsView';
 import { WorkItemTimeLogScreen } from '../src/components/screens/WorkItemTimeLogScreen';
 import { WorkSavedViewsScreen } from '../src/components/screens/WorkSavedViewsScreen';
 import { BillingContactsScreen } from '../src/components/screens/BillingContactsScreen';
@@ -640,12 +639,6 @@ describe('teaching empty states (55-10p)', () => {
         (client) => <WorkSavedViewsScreen {...props} client={client} />,
         /no saved views yet/i,
         'Save a view',
-      ],
-      [
-        'Board columns',
-        (client) => <WorkBoardColumnsView organizationSlug="acme" api={client} />,
-        /no custom columns yet/i,
-        'Add a column',
       ],
       [
         'Automation conditions',

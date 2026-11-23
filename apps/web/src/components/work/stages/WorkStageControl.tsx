@@ -1,7 +1,6 @@
 'use client';
 
 import { useId, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { WorkItemState } from '@tmanage/domain';
 import { Button, InlineAlert } from '@tmanage/ui';
@@ -23,6 +22,7 @@ import {
 } from './stage-model';
 import { useDismiss } from '../use-dismiss';
 import { moveToStage } from './move-to-stage';
+import { NewStageSetDialog } from './NewStageSetDialog';
 import { stageSetsKey, type WorkStages } from './use-work-stages';
 import './stages.css';
 
@@ -336,7 +336,10 @@ function StageMenu({
   );
 }
 
-/** Figma W2c (`934:96394`): the sets this work may use, with their stage dots. */
+/**
+ * Figma W2c (`934:96394`): the sets this work may use, with their stage dots, then "New stage set",
+ * which makes a set in place (W8) and gives it to this work (W-WEB-5, single-work level).
+ */
 export function StageSetPicker({
   id,
   api,
@@ -357,6 +360,7 @@ export function StageSetPicker({
   const queries = useQueryClient();
   const titleId = useId();
   const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [creating, setCreating] = useState(false);
   const save = useMutation({
     mutationFn: (stageSetId: string | null) =>
       setWorkStageSet(api, organizationSlug, item.id, { stageSetId, version: item.version }),
@@ -422,10 +426,28 @@ export function StageSetPicker({
         </InlineAlert>
       ) : null}
       <hr className="tm-wk-menu__rule" />
-      <Link className="tm-wk-menu__item" href={`/${organizationSlug}/settings/stages?new=1`}>
+      <button
+        type="button"
+        className="tm-wk-menu__item"
+        aria-haspopup="dialog"
+        onClick={() => setCreating(true)}
+      >
         <PlusIcon />
         {t('WorkStages.newSet')}
-      </Link>
+      </button>
+      {creating ? (
+        <NewStageSetDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          sets={stages.choices}
+          onClose={() => setCreating(false)}
+          onCreated={(set) => {
+            setCreating(false);
+            // A set made here is for this work: it uses it at once (W8, single-work level).
+            save.mutate(set.id);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

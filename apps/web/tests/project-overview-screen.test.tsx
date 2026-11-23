@@ -96,7 +96,7 @@ describe('ONEPAGE project overview', () => {
       within(menu)
         .getAllByRole('menuitem')
         .map((item) => item.textContent),
-    ).toEqual(['Milestones', 'Plan', 'Iterations', 'Team', 'Risks', 'Objectives']);
+    ).toEqual(['Milestones', 'Plan', 'Iterations', 'Team', 'Risks', 'Objectives', 'Stages']);
     fireEvent.keyDown(menu, { key: 'ArrowDown' });
     expect(document.activeElement).toHaveTextContent('Plan');
     fireEvent.keyDown(menu, { key: 'Escape' });

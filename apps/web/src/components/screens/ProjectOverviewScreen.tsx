@@ -303,6 +303,8 @@ function projectMoreTabs(
         label: tOr('ProjectTabs.objectives', 'Objectives'),
         href: `${base}/objectives`,
       },
+      // W-WEB-5: the project's stages and board columns (Figma W8).
+      { id: 'stages', label: tOr('ProjectTabs.stages', 'Stages'), href: `${base}/stages` },
     ],
   };
 }

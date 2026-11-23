@@ -1,0 +1,721 @@
+/*
+ * Work area v2 — the stages editor (W-WEB-5): Settings → Stages (Figma W7 `937:99028`, AR
+ * `937:99338`, phone `937:99538`), a project's stages (W8 `937:100226`), New stage set (W8
+ * `937:100415`) and the delete-stage confirm (W9 `939:101154`). Density v2 tokens only
+ * (ADR-0016, UX-25); logical properties only (UX-14); text ≥ 24 from a card or dialog edge,
+ * ≥ 12 from a control's (UX-26).
+ */
+
+/* ── The page: the sets on the start side, the chosen set beside them ── */
+
+.tm-stg-page {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s6);
+}
+
+.tm-stg-page__loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  grid-column: 1 / -1;
+}
+
+.tm-stg-list {
+  padding: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-stg-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-stg-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  inline-size: 100%;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-radius: var(--r-compact);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-stg-list__item:hover,
+.tm-stg-list__item[aria-current='true'] {
+  background: var(--paper-250);
+}
+
+.tm-stg-list__item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-stg-list__name {
+  font-size: var(--t-app-ui-strong);
+  line-height: var(--t-app-ui-strong-line);
+  font-weight: var(--t-app-ui-strong-weight);
+}
+
+.tm-stg-list__note {
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+/* The phone's "‹ Stages" back to the list; the desktop shows both side by side. */
+.tm-stg-back {
+  display: none;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control);
+  margin-block-end: var(--s3);
+  padding-inline: 0 var(--inset-control);
+  border: 0;
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  cursor: pointer;
+}
+
+.tm-stg-back__icon {
+  display: inline-flex;
+  transform: rotate(90deg);
+}
+
+.tm-stg-back__icon:dir(rtl) {
+  transform: rotate(-90deg);
+}
+
+/* ── One set ── */
+
+.tm-stg-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+  padding: var(--inset-card);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-stg-editor__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-stg-editor__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
+  font-weight: var(--t-app-section-weight);
+}
+
+.tm-stg-editor__rename {
+  flex: 1;
+  min-inline-size: 0;
+  max-inline-size: 420px;
+}
+
+.tm-stg-editor__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+.tm-stg-editor__note {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-stg-editor__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  align-items: start;
+  gap: var(--s3);
+}
+
+/* ── A group: header, its stages, Add stage (Figma: rows 12 in, text 24 in) ── */
+
+.tm-stg-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-stg-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s3) var(--s1);
+}
+
+.tm-stg-group__title {
+  margin: 0;
+  color: var(--ink-650);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+  font-weight: var(--t-app-overline-weight);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Arabic and Urdu are joined scripts: spacing letters apart breaks the words. */
+.tm-stg-group__title:dir(rtl),
+.tm-stg-new__overline:dir(rtl) {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.tm-stg-group__count {
+  margin-inline-start: auto;
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-stg-group__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-stg-group__empty,
+.tm-stg-group__lock {
+  margin: 0;
+  padding: var(--s1) var(--s3) var(--s3);
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-stg-group__lock {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-stg-group__add {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-control);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  cursor: pointer;
+}
+
+.tm-stg-group__add:hover {
+  background: var(--tm-hover-surface);
+  color: var(--ink-950);
+}
+
+.tm-stg-group__add:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── A stage row: handle, dot and name, ⋯ (36 high) ── */
+
+.tm-stg-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  min-block-size: var(--app-row);
+  padding-inline: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-250);
+}
+
+.tm-stg-row[draggable='true'] {
+  cursor: grab;
+}
+
+.tm-stg-row[data-dragging] {
+  opacity: 0.5;
+}
+
+.tm-stg-row[data-editing] {
+  padding: var(--s2) var(--inset-control);
+  border-color: var(--ink-950);
+  background: var(--paper-0);
+}
+
+.tm-stg-row__handle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  color: var(--ink-500);
+}
+
+/* Figma W7: the row's ⋯ and the set's ⋯ are 28 circles with a quiet edge, like the handle. */
+.tm-stg-more__button.tm-icon-button {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+}
+
+.tm-stg-row__name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.tm-stg-more {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.tm-stg-more__menu {
+  min-inline-size: 220px;
+}
+
+.tm-stg-more__entry {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-stg-more__entry .tm-wk-menu__item:disabled {
+  color: var(--ink-500);
+  cursor: default;
+}
+
+.tm-stg-more__why {
+  padding: 0 var(--s3) var(--s2);
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+/* ── A name being typed or dictated ── */
+
+.tm-stg-name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-stg-name[data-layout='inline'] {
+  flex-flow: row wrap;
+  align-items: center;
+  padding-inline: var(--inset-control) var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-stg-name[data-layout='inline']:focus-within {
+  border-color: var(--ink-950);
+}
+
+.tm-stg-name__line {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-stg-name__input {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--app-control);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+}
+
+.tm-stg-name__input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* The focus ring sits on the box the name is typed in (UX-6), not on the bare input. */
+.tm-stg-name[data-layout='inline']:focus-within,
+.tm-stg-row[data-editing]:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-stg-name__voice {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tm-stg-name__error {
+  flex-basis: 100%;
+  color: var(--danger-600);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-stg-name[data-layout='inline'] .tm-stg-name__error {
+  padding-block-end: var(--s2);
+}
+
+/* ── Dialogs: New stage set (a whole page on phone) and the confirmations (a sheet) ── */
+
+.tm-stg-dialog {
+  inline-size: min(560px, calc(100% - var(--s8)));
+  max-block-size: calc(100dvh - var(--s8));
+  padding: var(--inset-dialog);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  overflow: auto;
+}
+
+.tm-stg-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-stg-dialog::backdrop {
+  /* The same scrim as New work's (new-work.css): dark in both themes. */
+  background: rgb(0 0 0 / 40%);
+}
+
+.tm-stg-dialog__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-stg-dialog__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--t-app-section);
+  line-height: var(--t-app-section-line);
+  font-weight: var(--t-app-section-weight);
+}
+
+.tm-stg-dialog__lede {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+}
+
+.tm-stg-select {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-inline: var(--inset-control);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-stg-select[data-wide] {
+  max-inline-size: 320px;
+}
+
+.tm-stg-select:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-stg-select__control {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--app-control);
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+}
+
+.tm-stg-select__control:focus-visible {
+  outline: none;
+}
+
+.tm-stg-new {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-stg-new__close {
+  order: 2;
+}
+
+.tm-stg-new__head-create {
+  display: none;
+}
+
+.tm-stg-new__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-stg-new__label {
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-stg-new__starts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-stg-new__overline {
+  margin-block-end: var(--s3);
+  padding: 0;
+  color: var(--ink-650);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tm-stg-start,
+.tm-stg-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s4) var(--inset-card);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  cursor: pointer;
+}
+
+.tm-stg-start[data-checked],
+.tm-stg-choice[data-checked] {
+  border-color: var(--lime-500);
+}
+
+.tm-stg-start input,
+.tm-stg-choice input {
+  flex: none;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  margin: 0;
+  accent-color: var(--lime-500);
+}
+
+/* The radio spans both lines; the start's name and its stages sit beside it. */
+.tm-stg-start {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  row-gap: var(--s1);
+}
+
+.tm-stg-start input {
+  grid-row: span 2;
+}
+
+.tm-stg-start__name {
+  font-size: var(--t-app-ui-strong);
+  line-height: var(--t-app-ui-strong-line);
+  font-weight: var(--t-app-ui-strong-weight);
+}
+
+.tm-stg-start__line {
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* ── A project's stages ── */
+
+.tm-stg-project {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-stg-project__meta {
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+}
+
+.tm-stg-project__choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-stg-choice {
+  padding-block: var(--inset-card);
+  cursor: default;
+}
+
+.tm-stg-choice__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-stg-choice__title {
+  font-size: var(--t-app-ui-strong);
+  line-height: var(--target-min);
+  font-weight: var(--t-app-ui-strong-weight);
+  cursor: pointer;
+}
+
+.tm-stg-choice__caption {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-stg-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-stg-columns__item {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--app-control-sm);
+  padding-inline: var(--inset-capsule);
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+}
+
+.tm-stg-choice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-stg-choice__edit {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-control);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  color: var(--ink-950);
+  font-size: var(--t-app-ui);
+  text-decoration: none;
+}
+
+.tm-stg-choice__edit:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Phone (Figma 390 frames) ── */
+
+@media (max-width: 60rem) {
+  .tm-stg-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-stg-page[data-view='set'] .tm-stg-list,
+  .tm-stg-page[data-view='list'] .tm-stg-editor {
+    display: none;
+  }
+
+  .tm-stg-back {
+    display: inline-flex;
+  }
+
+  .tm-stg-editor {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .tm-stg-editor__groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-stg-dialog[data-kind='page'] {
+    inline-size: 100%;
+    max-inline-size: none;
+    block-size: 100dvh;
+    max-block-size: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tm-stg-dialog[data-kind='page'] .tm-stg-new__close {
+    order: 0;
+  }
+
+  .tm-stg-dialog[data-kind='page'] .tm-stg-new__head-create {
+    display: inline-flex;
+  }
+
+  .tm-stg-dialog[data-kind='page'] .tm-stg-new__foot {
+    display: none;
+  }
+
+  .tm-stg-dialog[data-kind='sheet'] {
+    inline-size: 100%;
+    max-inline-size: none;
+    margin: auto 0 0;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+}

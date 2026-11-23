@@ -38,6 +38,8 @@ describe('controlCenterSectionsFor', () => {
       ],
       [
         ['templates', '/projects/templates'],
+        // W-WEB-5: the workspace's stage sets, for owners and admins (`org.manage`).
+        ['stages', '/settings/stages'],
         ['fields', null],
         ['working-calendar', '/admin/working-calendar'],
         ['automations', '/automations'],

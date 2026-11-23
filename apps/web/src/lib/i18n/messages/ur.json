@@ -758,6 +758,7 @@
   "CommandPaletteV2.kind.expense": "خرچ",
   "CommandPaletteV2.kind.file": "فائل",
   "ProjectTabs.iterations": "دورانیے",
+  "ProjectTabs.stages": "مراحل",
   "WorkListScreen.reorderHandle": "{title} منتقل کریں: اوپر اور نیچے والی ایرو کیز",
   "WorkListScreen.reorderHint": "ترتیب بدلنے کے لیے گھسیٹیں، یا اوپر اور نیچے والی ایرو کیز استعمال کریں",
   "WorkListScreen.loadingMeta": "لوڈ ہو رہا ہے…",

@@ -46,6 +46,8 @@ export type ControlCenterSection =
   | 'alerts'
   | 'offboarding'
   | 'templates'
+  // W-WEB-5: the workspace's stage sets (rename, reorder, add, delete stages; Figma W7).
+  | 'stages'
   | 'fields'
   // 53-02: the company working calendar (working days, hours, holidays).
   | 'working-calendar'
@@ -305,6 +307,12 @@ const GROUPS: readonly SectionGroup[] = [
         capability: 'org.manage',
       },
       {
+        id: 'stages',
+        labelKey: 'WorkStages.editor.navLabel' as MessageKey,
+        href: '/settings/stages',
+        capability: 'org.manage',
+      },
+      {
         id: 'fields',
         labelKey: ccKey('ControlCenter.fieldsAndStatuses'),
         capability: 'org.manage',
@@ -438,6 +446,7 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   'client-organizations': 'handshake',
   invitations: 'userPlus',
   templates: 'layoutTemplate',
+  stages: 'listChecks',
   fields: 'tag',
   automations: 'zap',
   integrations: 'puzzle',

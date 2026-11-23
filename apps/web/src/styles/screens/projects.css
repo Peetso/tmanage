@@ -21,7 +21,8 @@
   align-items: center;
   gap: var(--s3);
   min-block-size: 48px;
-  padding-inline: var(--s1) var(--s5);
+  /* UX-26: the label ends 24 from the capsule's rounded end (half its 48 height). */
+  padding-inline: var(--s1) var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -60,6 +61,8 @@
 
 .tm-prj-tabs__nav > a {
   min-block-size: 38px;
+  /* UX-26: 20 from a 38 tab's rounded ends (≥ 19), so 24 from the 48 switch's ends with its 4. */
+  padding-inline: var(--s5);
   white-space: nowrap;
 }
 

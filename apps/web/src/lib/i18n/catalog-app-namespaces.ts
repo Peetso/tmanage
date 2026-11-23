@@ -490,7 +490,6 @@ export const APP_NAMESPACES: readonly string[] = [
   'WorkA6',
   'WorkActions',
   'WorkBoard',
-  'WorkBoardColumnsView',
   'WorkBulkActionBar',
   'WorkCalendarScreen',
   'WorkCommentsPanel',

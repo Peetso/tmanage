@@ -7,7 +7,16 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/projects.css';
 
 export type ProjectTabId =
-  'overview' | 'plan' | 'milestones' | 'work' | 'iterations' | 'team' | 'risks' | 'objectives';
+  | 'overview'
+  | 'plan'
+  | 'milestones'
+  | 'work'
+  | 'iterations'
+  | 'team'
+  | 'risks'
+  | 'objectives'
+  // W-WEB-5: the project's stages (its own set or the workspace's; Figma W8).
+  | 'stages';
 
 export interface ProjectTabsProps {
   organizationSlug: string;
@@ -51,6 +60,7 @@ export function ProjectTabs({ organizationSlug, projectId, current, end }: Proje
     { id: 'team', label: t('ProjectTabs.team'), href: `${base}/members` },
     { id: 'risks', label: t('ProjectTabs.risks'), href: `${base}/risks` },
     { id: 'objectives', label: t('ProjectTabs.objectives'), href: `${base}/objectives` },
+    { id: 'stages', label: t('ProjectTabs.stages'), href: `${base}/stages` },
   ];
 
   return (
