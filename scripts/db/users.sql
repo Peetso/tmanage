@@ -502,6 +502,13 @@ GRANT INSERT, DELETE         ON `tmanage`.`work_checklist_templates` TO 'tmanage
 -- grouping over existing states. The 0176 trigger pins organization_id immutable, so UPDATE can
 -- move label/state_key/position and nothing that says which tenant the column is.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_board_columns`     TO 'tmanage_app'@'%';
+-- Work area D1 (0413) stage sets. A set is made (INSERT), renamed / made default (UPDATE, version
+-- CAS) and deleted (DELETE); a stage is added, renamed / moved / reordered and deleted the same
+-- way; a project's set link is upserted (INSERT ... ON DUPLICATE KEY UPDATE) and removed (DELETE).
+-- Reading is the database-wide SELECT above.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_stage_sets`         TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_stages`             TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_stage_set_projects` TO 'tmanage_app'@'%';
 -- x332 file folders. INSERT (create a folder; file a file into a folder), UPDATE (re-file a file:
 -- move its membership row's folder_id in place — idempotent) and DELETE (delete an empty folder;
 -- file a file back to root by removing its membership row). The 0198 trigger pins organization_id
@@ -3177,6 +3184,9 @@ GRANT SELECT, DELETE ON `tmanage`.`webhook_deliveries` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`webhook_endpoints` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_blockers` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_board_columns` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_stage_set_projects` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_stage_sets` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`work_stages` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_checklist_templates` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_forms` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`work_item_assignees` TO 'tmanage_erasure'@'%';

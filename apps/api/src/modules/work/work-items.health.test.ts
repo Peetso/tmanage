@@ -1,3 +1,4 @@
+import type { WorkStagesRepository } from './stages/stages.repository.js';
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { WorkItemsService } from './work-items.service.js';
@@ -96,7 +97,28 @@ function serviceWith(predecessors: readonly PredecessorHealthRow[]): WorkItemsSe
     findActiveBlocker: async () => null,
     listPredecessors: async () => predecessors,
   } as unknown as WorkGraphRepository;
-  return new WorkItemsService(database, workItems, undefined, undefined, undefined, graph);
+  // Work area D1: no stage set stored, so every item uses the built-in stages.
+  const stages = {
+    effectiveFor: async () => ({ source: 'builtin', set: null }),
+    effectiveForMany: async () => new Map(),
+  } as unknown as WorkStagesRepository;
+  return new WorkItemsService(
+    database,
+    workItems,
+    undefined,
+    undefined,
+    undefined,
+    graph,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    stages,
+  );
 }
 
 const context = { organizationId: ORG } as unknown as TenantContext;

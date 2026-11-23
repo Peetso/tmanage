@@ -1,3 +1,4 @@
+import type { WorkStagesRepository } from './stages/stages.repository.js';
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { WorkItemsController } from './work-items.controller.js';
@@ -162,6 +163,13 @@ function harness() {
       list: async () => [],
       watcherUserIds: async () => [],
     } as unknown as WorkItemAssigneesRepository,
+    undefined,
+    undefined,
+    // Work area D1: no stage set stored, so every item uses the built-in stages.
+    {
+      effectiveFor: async () => ({ source: 'builtin', set: null }),
+      effectiveForMany: async () => new Map(),
+    } as unknown as WorkStagesRepository,
   );
   return {
     controller: new WorkItemsController(service),

@@ -351,6 +351,11 @@ import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules
 import type { BulkTransitionView as ApiBulkTransitionView } from '../../apps/api/src/modules/work/bulk-transition.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type {
+  EffectiveStageSetView as ApiEffectiveStageSetView,
+  StageSetView as ApiStageSetView,
+  StageView as ApiStageView,
+} from '../../apps/api/src/modules/work/stages/stages.service.js';
+import type {
   WorkSubtaskView as ApiWorkSubtaskView,
   WorkSubtaskListView as ApiWorkSubtaskListView,
 } from '../../apps/api/src/modules/work/subtasks.service.js';
@@ -984,6 +989,11 @@ import type {
   TeamDetailView as WebTeamDetailView,
 } from '../../apps/web/src/lib/api/people-teams';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
+import type {
+  EffectiveStageSetView as WebEffectiveStageSetView,
+  StageSetView as WebStageSetView,
+  StageView as WebStageView,
+} from '../../apps/web/src/lib/api/work-stages';
 import type { BulkTransitionView as WebBulkTransitionView } from '../../apps/web/src/lib/api/work-bulk-transition';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type {
@@ -2044,6 +2054,14 @@ type _bulkTransition = Assert<Exact<ApiBulkTransitionView, WebBulkTransitionView
  * held identical on both sides.
  */
 type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklistItem>>;
+
+/**
+ * Work area D1 (0413). Stage sets: a stage, a set with its stages, and the set a project uses with
+ * where it comes from — `work/stage-sets*`, `projects/:id/stage-set`.
+ */
+type _workStage = Assert<Exact<ApiStageView, WebStageView>>;
+type _workStageSet = Assert<Exact<ApiStageSetView, WebStageSetView>>;
+type _workEffectiveStageSet = Assert<Exact<ApiEffectiveStageSetView, WebEffectiveStageSetView>>;
 
 /**
  * x307. `WorkSubtaskView` ↔ `WorkSubtask` and `WorkSubtaskListView` ↔ `WorkSubtaskList` — one

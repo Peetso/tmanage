@@ -129,6 +129,8 @@ const SINGLE_ROW_OR_SYSTEM: Readonly<Record<string, string>> = {
     'by key — the attach revives a detached pair',
   'work/work-items.repository.ts#findById': 'by id',
   'work/work-items.repository.ts#findManyByIds': 'by ids; the service maps lifecycle',
+  'work/work-items.repository.ts#countOnStages':
+    'integrity count: a deleted work can be restored, so it still holds its stage',
   'work/work-comments.repository.ts#findComment': 'by id',
   'work/item-files.repository.ts#findLink': 'by id',
   'work/item-files.repository.ts#create': 'write path (revives a detached pair)',

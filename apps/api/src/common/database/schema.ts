@@ -3070,6 +3070,10 @@ export const workItems = mysqlTable(
     iterationId: char('iteration_id', { length: 36 }),
     points: smallint('points'),
     iterationAssignedAt: datetime('iteration_assigned_at', { mode: 'date', fsp: 3 }),
+    /** 0413 (work area D1): the work's own stage set; `NULL` = the project's or the workspace's. */
+    stageSetId: char('stage_set_id', { length: 36 }),
+    /** 0413: the stage the work is in; `NULL` = the first stage of its set with the work's state. */
+    stageId: char('stage_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_work_items_org_id').on(table.organizationId, table.id),
@@ -8555,6 +8559,74 @@ export const workBoardColumns = mysqlTable(
   ],
 );
 
+/**
+ * Work area D1 (0413): a named, ordered set of stages — the workspace default, a project's own
+ * set, or a custom one a single work may use. `defaultMarker` is 1 on the workspace default and
+ * `NULL` on every other set, so `uq_work_stage_sets_org_default` allows one default per workspace.
+ */
+export const workStageSets = mysqlTable(
+  'work_stage_sets',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    scope: varchar('scope', { length: 16 }).notNull(),
+    /** The project a `project`-scope set belongs to (its managers edit it); `NULL` otherwise. */
+    projectId: char('project_id', { length: 36 }),
+    defaultMarker: tinyint('default_marker'),
+    version: int('version').notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_stage_sets_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_stage_sets_org_name').on(table.organizationId, table.name),
+    uniqueIndex('uq_work_stage_sets_org_default').on(table.organizationId, table.defaultMarker),
+    index('ix_work_stage_sets_project').on(table.organizationId, table.projectId),
+  ],
+);
+
+/**
+ * Work area D1 (0413): one stage of a set — a name inside one of the work-item states. The state
+ * machine is unchanged: moving a work to a stage runs the transition to `stateKey`.
+ */
+export const workStages = mysqlTable(
+  'work_stages',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    stageSetId: char('stage_set_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    stateKey: varchar('state_key', { length: 32 }).notNull(),
+    colorKey: varchar('color_key', { length: 24 }),
+    position: int('position').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_stages_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_stages_set_name').on(table.organizationId, table.stageSetId, table.name),
+    index('ix_work_stages_set_position').on(table.organizationId, table.stageSetId, table.position),
+  ],
+);
+
+/** Work area D1 (0413): the stage set a project uses (one per project). Owned by the stages part. */
+export const workStageSetProjects = mysqlTable(
+  'work_stage_set_projects',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    stageSetId: char('stage_set_id', { length: 36 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.projectId] }),
+    index('ix_work_stage_set_projects_set').on(table.organizationId, table.stageSetId),
+  ],
+);
+
+export type WorkStageSetRow = typeof workStageSets.$inferSelect;
+export type WorkStageRow = typeof workStages.$inferSelect;
+
 export type WorkBoardColumnRow = typeof workBoardColumns.$inferSelect;
 export type NewWorkBoardColumnRow = typeof workBoardColumns.$inferInsert;
 
@@ -10221,6 +10293,9 @@ export const TABLES = {
   doc_read_state: docReadState,
   insight_metric_favorites: insightMetricFavorites,
   work_board_columns: workBoardColumns,
+  work_stage_sets: workStageSets,
+  work_stages: workStages,
+  work_stage_set_projects: workStageSetProjects,
   work_item_labels: workItemLabels,
   file_tags: fileTags,
   work_item_custom_fields: workItemCustomFields,
@@ -10479,6 +10554,8 @@ export type WorkItemRow = Omit<
   | 'iterationId'
   | 'points'
   | 'iterationAssignedAt'
+  | 'stageSetId'
+  | 'stageId'
 > & {
   description?: string | null;
   /** 0340: optional for the same reason as `description`. */
@@ -10489,6 +10566,9 @@ export type WorkItemRow = Omit<
   iterationId?: string | null;
   points?: number | null;
   iterationAssignedAt?: Date | null;
+  /** 0413: optional for the same reason. */
+  stageSetId?: string | null;
+  stageId?: string | null;
 };
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;

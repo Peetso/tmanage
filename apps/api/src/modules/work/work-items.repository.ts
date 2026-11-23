@@ -578,6 +578,108 @@ export class WorkItemsRepository {
   }
 
   /**
+   * Work area D1 (0413): the stage columns. This repository is their one writer (AR-11); the
+   * stages part decides what to write. A stage move inside the same state, and a change of the
+   * work's own set, are edits of the work: compare-and-set on `version` (DA-1), conflict as 409.
+   */
+  async setStageFields(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    expectedVersion: number,
+    fields: { readonly stageId?: string | null; readonly stageSetId?: string | null },
+  ): Promise<WorkItemRow> {
+    const result = await tenantDrizzle(runner)
+      .update(workItems)
+      .set({
+        ...(fields.stageId === undefined ? {} : { stageId: fields.stageId }),
+        ...(fields.stageSetId === undefined ? {} : { stageSetId: fields.stageSetId }),
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          eq(workItems.id, workItemId),
+          eq(workItems.version, expectedVersion),
+        ),
+      );
+    if (result[0].affectedRows === 0) {
+      const live = await this.findById(runner, context, workItemId);
+      if (!live) throw new WorkItemNotFoundError(workItemId);
+      throw new WorkItemVersionConflictError(workItemId, live.version);
+    }
+    return this.requireById(runner, context, workItemId);
+  }
+
+  /**
+   * Work area D1: the stage a work keeps after a transition, written in the transition's own
+   * transaction (the transition already moved `version`, so this does not move it again).
+   */
+  async writeStageAfterTransition(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    stageId: string | null,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(workItems)
+      .set({ stageId })
+      .where(
+        and(eq(workItems.organizationId, context.organizationId), eq(workItems.id, workItemId)),
+      );
+  }
+
+  /**
+   * Work area D1: works pointing at `fromStageIds` move to `toStageId` (`null` = the derived
+   * stage). Used when a stage is deleted, a set is deleted, or a project changes set. The state
+   * is not touched, so no version moves: what a work *is* stays the same; only the stage name it
+   * shows may change. Returns how many works moved.
+   */
+  async repointStage(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fromStageIds: readonly string[],
+    toStageId: string | null,
+    /** Only the works of this project that inherit its set (no set of their own). */
+    scope?: { readonly projectId: string },
+  ): Promise<number> {
+    if (fromStageIds.length === 0) return 0;
+    const result = await tenantDrizzle(runner)
+      .update(workItems)
+      .set({ stageId: toStageId })
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          inArray(workItems.stageId, [...fromStageIds]),
+          ...(scope
+            ? [eq(workItems.projectId, scope.projectId), isNull(workItems.stageSetId)]
+            : []),
+        ),
+      );
+    return result[0].affectedRows;
+  }
+
+  /** How many works (deleted ones too, for the FK-free integrity) point at one of these stages. */
+  async countOnStages(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    stageIds: readonly string[],
+  ): Promise<number> {
+    if (stageIds.length === 0) return 0;
+    const rows = await tenantDrizzle(runner)
+      .select({ n: sql<number>`count(*)` })
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          inArray(workItems.stageId, [...stageIds]),
+        ),
+      );
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  /**
    * Soft-delete a work item. There is no hard delete.
    *
    * `04-SECURITY-PRIVACY` and the offboarding lifecycle both treat removal as a state, not an

@@ -23,6 +23,7 @@ import {
   WORK_ITEM_RECURRENCE_SERVICE,
   WORK_ACTIVITY_LOG_SERVICE,
   WORK_BOARD_COLUMNS_SERVICE,
+  WORK_STAGES_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -87,6 +88,8 @@ import { WorkCustomFieldsController } from './custom-fields.controller.js';
 import { WorkBoardColumnsRepository } from './board-columns.repository.js';
 import { WorkBoardColumnsService } from './board-columns.service.js';
 import { WorkBoardColumnsController } from './board-columns.controller.js';
+import { WorkStagesController } from './stages/stages.controller.js';
+import { WorkStagesService } from './stages/stages.service.js';
 import { ScheduleCascadeService } from './schedule-cascade.service.js';
 import {
   ScheduleCascadeController,
@@ -422,6 +425,16 @@ export class WorkModule {
               audit,
             ),
         },
+        // Work area D1: stage sets. Moves go through the work-items service (transition, audit).
+        {
+          provide: WORK_STAGES_SERVICE,
+          inject: [TENANT_DATABASE, WORK_ITEMS_SERVICE, AUDIT_SERVICE],
+          useFactory: (
+            database: TenantDatabase,
+            workItemsService: WorkItemsService,
+            audit: AuditService,
+          ) => new WorkStagesService(database, workItemsService, audit),
+        },
       ],
       exports: [service, recurrenceSpawner],
       controllers: [
@@ -453,6 +466,8 @@ export class WorkModule {
         WorkQuickAddController,
         // R33 C26: the people on a task.
         WorkItemPeopleController,
+        // Work area D1 (0413): stage sets, stages, a project's and a work's set, stage moves.
+        WorkStagesController,
       ],
     };
   }

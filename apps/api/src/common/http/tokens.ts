@@ -111,6 +111,8 @@ export const WORK_RELATIONS_GRAPH_SERVICE = Symbol.for('tmanage.WorkRelationsGra
 export const WORK_ACTIVITY_LOG_SERVICE = Symbol.for('tmanage.WorkActivityLogService');
 /** x308. An organization's custom work-board columns, behind `org.manage` (writes) / `work.read` (list). */
 export const WORK_BOARD_COLUMNS_SERVICE = Symbol.for('tmanage.WorkBoardColumnsService');
+/** Work area D1 (0413): stage sets and stages. */
+export const WORK_STAGES_SERVICE = Symbol.for('tmanage.WorkStagesService');
 export const WORKFLOW_TEMPLATES_REPOSITORY = Symbol.for('tmanage.WorkflowTemplatesRepository');
 export const WORKFLOW_RUNS_REPOSITORY = Symbol.for('tmanage.WorkflowRunsRepository');
 export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');

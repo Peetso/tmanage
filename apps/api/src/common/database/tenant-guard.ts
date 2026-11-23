@@ -183,6 +183,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // sibling — an unscoped read would be every studio's templates at once.
   work_checklist_templates: 'organization_id',
   work_board_columns: 'organization_id',
+  // Work area D1 (0413): stage sets, their stages and the project → set links, tenant tables.
+  work_stage_sets: 'organization_id',
+  work_stages: 'organization_id',
+  work_stage_set_projects: 'organization_id',
   file_folders: 'organization_id',
   // x333. File comments: in-app discussion on a file asset, one tenant table (0199).
   file_comments: 'organization_id',

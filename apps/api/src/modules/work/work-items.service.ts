@@ -2,7 +2,11 @@ import { authorize, isWorkItemState, workItemStateMachine } from '@tmanage/domai
 import type { Audience, Principal, WorkItemState } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { logUnrecognisedRowState } from '../../common/observability/logger.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectClientsRepository } from '../clients/project-clients.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
@@ -53,6 +57,13 @@ import {
 import type { PeopleChange, PeopleWritePorts } from './work-item-people.service.js';
 import { WorkWatchersRepository } from './watchers.repository.js';
 import { WorkChecklistRepository } from './work-checklist.repository.js';
+import { WorkStagesRepository, type EffectiveSet } from './stages/stages.repository.js';
+import {
+  BUILT_IN_STAGES,
+  setCoversState,
+  stageForWork,
+  stageIdAfterTransition,
+} from './stages/stage-rules.js';
 import {
   applyWorkItemPlanning,
   type WorkItemPlanningChange,
@@ -144,6 +155,26 @@ export interface WorkItemView {
    * sorts by creation time). Optional in the type for the same reason as `description`.
    */
   readonly rank?: number | null;
+  /**
+   * Work area D1 (0413): the stage the item is in and its name, from the stage set it uses (its
+   * own, its project's or the workspace's). `null` when the workspace uses the built-in stages
+   * (the web then shows the state's own label). Set on the list and single reads; absent elsewhere.
+   */
+  readonly stageId?: string | null;
+  readonly stageName?: string | null;
+}
+
+/**
+ * Work area D1: the stage fields of a view. A stored set names the stage; the built-in stages
+ * answer `null` so the web shows the state's own (translated) label.
+ */
+function stageOf(
+  row: WorkItemRow,
+  effective: EffectiveSet | undefined,
+): { readonly stageId: string | null; readonly stageName: string | null } {
+  if (!effective?.set) return { stageId: null, stageName: null };
+  const stage = stageForWork(effective.set.stages, row.state, row.stageId ?? null);
+  return { stageId: stage?.id ?? null, stageName: stage?.name ?? null };
 }
 
 /**
@@ -402,6 +433,8 @@ export class WorkItemsService {
     private readonly watchers: WorkWatchersRepository = new WorkWatchersRepository(),
     /** Work area: the first steps written with the item. Stateless. */
     private readonly checklist: WorkChecklistRepository = new WorkChecklistRepository(),
+    /** Work area D1: the stage sets — read for the stage names and the transition rule. */
+    private readonly stages: WorkStagesRepository = new WorkStagesRepository(),
   ) {}
 
   /** The people writer's ports: the same repositories and sinks this service writes with. */
@@ -531,11 +564,15 @@ export class WorkItemsService {
               context,
               rows.map((row) => row.id),
             );
-      return { rows, doers };
+      const sets = await this.stages.effectiveForMany(runner, context, rows);
+      return { rows, doers, sets };
     });
 
     return readable.rows.map((row) => {
-      const view = toView(row, context.correlationId);
+      const view = {
+        ...toView(row, context.correlationId),
+        ...stageOf(row, readable.sets.get(row.id)),
+      };
       if (principal.kind === 'client') return view;
       return {
         ...view,
@@ -560,7 +597,10 @@ export class WorkItemsService {
     if (!row || row.deletedAt !== null || !this.mayRead(principal, row)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
-    return toView(row, context.correlationId);
+    const effective = await this.database.read(context, (runner) =>
+      this.stages.effectiveFor(runner, context, row),
+    );
+    return { ...toView(row, context.correlationId), ...stageOf(row, effective) };
   }
 
   /**
@@ -1007,6 +1047,8 @@ export class WorkItemsService {
     expectedVersion: number,
     to: WorkItemState,
     facts: Readonly<Record<string, unknown>> = {},
+    /** Work area D1: the stage of the item's set to land in (its state must be `to`). */
+    options: { readonly stageId?: string } = {},
   ): Promise<WorkItemView> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.transition');
 
@@ -1068,6 +1110,7 @@ export class WorkItemsService {
             facts,
             completion,
           );
+          await this.keepStageAfterTransition(tx, context, before, moved, to, options.stageId);
 
           await this.audit?.record(tx, context, {
             action: 'work_item.transitioned',
@@ -1662,6 +1705,180 @@ export class WorkItemsService {
    * be indistinguishable from a server fault — so a client would retry it, which is exactly
    * the lost update the token exists to prevent.
    */
+  /**
+   * Work area D1, inside the transition's transaction: "transitions respect the set". A set
+   * without an "In review" stage refuses a move into `internal_review` (422, rolled back with the
+   * move); a requested stage must be one of the set's stages with the new state; and the item
+   * keeps its stage only while that stage still has its state, else it shows the derived one.
+   */
+  private async keepStageAfterTransition(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    before: WorkItemRow,
+    moved: WorkItemRow,
+    to: WorkItemState,
+    requestedStageId: string | undefined,
+  ): Promise<void> {
+    const effective = await this.stages.effectiveFor(tx, context, moved);
+    const stages = effective.set?.stages ?? BUILT_IN_STAGES;
+    if (effective.set !== null && !setCoversState(stages, to)) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        `The stages this work uses have no place for ${stateLabel(to)}`,
+        [{ field: 'to', message: 'is not a stage of this work’s stage set' }],
+        'state_not_in_stage_set',
+      );
+    }
+    if (requestedStageId !== undefined) {
+      const stage = stages.find((candidate) => candidate.id === requestedStageId);
+      if (!stage || stage.stateKey !== to) {
+        throw new ApiError(
+          422,
+          'validation_failed',
+          'That stage is not one of the stages this work uses',
+          [{ field: 'stageId', message: 'must be a stage of this work’s stage set' }],
+          'stage_not_in_stage_set',
+        );
+      }
+    }
+    // The built-in stages are never stored: an item on them keeps `stage_id` NULL.
+    const stored = effective.set === null ? undefined : requestedStageId;
+    const next =
+      effective.set === null
+        ? null
+        : stageIdAfterTransition(stages, to, before.stageId ?? null, stored);
+    if (next !== (moved.stageId ?? null)) {
+      await this.workItems.writeStageAfterTransition(tx, context, moved.id, next);
+    }
+  }
+
+  /**
+   * Work area D1: move an item to another stage of its set **inside the same state** (a move to
+   * another state goes through {@link transition} with `options.stageId`). `work.update`, version
+   * compare-and-set, audited as `work_item.stage_changed`.
+   */
+  async changeStage(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    expectedVersion: number,
+    stageId: string,
+  ): Promise<WorkItemView> {
+    const before = await this.readForWrite(context, principal, workItemId, 'work.update');
+    const row = await this.writing(() =>
+      this.database.transaction(context, async (tx) => {
+        const effective = await this.stages.effectiveFor(tx, context, before);
+        const stages = effective.set?.stages ?? BUILT_IN_STAGES;
+        const stage = stages.find((candidate) => candidate.id === stageId);
+        if (!stage || stage.stateKey !== before.state) {
+          throw new ApiError(
+            422,
+            'validation_failed',
+            'That stage is not one of the stages this work uses',
+            [{ field: 'stageId', message: 'must be a stage of this work’s stage set' }],
+            'stage_not_in_stage_set',
+          );
+        }
+        const stored = effective.set === null ? null : stage.id;
+        const moved = await this.workItems.setStageFields(
+          tx,
+          context,
+          workItemId,
+          expectedVersion,
+          {
+            stageId: stored,
+          },
+        );
+        await this.audit?.record(tx, context, {
+          action: 'work_item.stage_changed',
+          objectId: moved.id,
+          result: 'allowed',
+          metadata: {
+            project_id: moved.projectId,
+            stage_before: before.stageId ?? 'derived',
+            stage_after: stored ?? 'derived',
+            state: moved.state,
+          },
+        });
+        return { moved, effective };
+      }),
+    );
+    return { ...toView(row.moved, context.correlationId), ...stageOf(row.moved, row.effective) };
+  }
+
+  /**
+   * Work area D1: give an item its own stage set (`null` = back to its project's). The new set
+   * must have a place for the item's state (422 otherwise); the item's stage starts over at the
+   * derived one. `work.update`, compare-and-set, audited as `work_item.stage_set_changed`.
+   */
+  async changeStageSet(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    expectedVersion: number,
+    stageSetId: string | null,
+  ): Promise<WorkItemView> {
+    const before = await this.readForWrite(context, principal, workItemId, 'work.update');
+    const row = await this.writing(() =>
+      this.database.transaction(context, async (tx) => {
+        if (stageSetId !== null) {
+          const set = await this.stages.findSet(tx, context, stageSetId);
+          if (!set) {
+            throw new ApiError(
+              404,
+              'not_found',
+              MESSAGES.notFound,
+              undefined,
+              'stage_set_not_found',
+            );
+          }
+          if (set.set.projectId !== null && set.set.projectId !== before.projectId) {
+            throw new ApiError(
+              422,
+              'validation_failed',
+              'That stage set belongs to another project',
+              [{ field: 'stageSetId', message: 'must be a workspace set or this project’s own' }],
+              'stage_set_other_project',
+            );
+          }
+          if (!setCoversState(set.stages, before.state)) {
+            throw new ApiError(
+              422,
+              'validation_failed',
+              `That stage set has no place for ${stateLabel(before.state as WorkItemState)}`,
+              [{ field: 'stageSetId', message: 'must have a stage for the work’s current state' }],
+              'stage_set_missing_state',
+            );
+          }
+        }
+        const moved = await this.workItems.setStageFields(
+          tx,
+          context,
+          workItemId,
+          expectedVersion,
+          {
+            stageSetId,
+            stageId: null,
+          },
+        );
+        await this.audit?.record(tx, context, {
+          action: 'work_item.stage_set_changed',
+          objectId: moved.id,
+          result: 'allowed',
+          metadata: {
+            project_id: moved.projectId,
+            stage_set_before: before.stageSetId ?? 'inherited',
+            stage_set_after: stageSetId ?? 'inherited',
+          },
+        });
+        const effective = await this.stages.effectiveFor(tx, context, moved);
+        return { moved, effective };
+      }),
+    );
+    return { ...toView(row.moved, context.correlationId), ...stageOf(row.moved, row.effective) };
+  }
+
   private async writing<T>(work: () => Promise<T>): Promise<T> {
     try {
       return await work();

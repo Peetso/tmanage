@@ -2036,6 +2036,11 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'work_item',
     clause: '§12 organization settings — the stages a work item uses changed',
   },
+  /** Work area: a work item was moved to another stage of its set (same or another state). */
+  'work_item.stage_changed': {
+    objectType: 'work_item',
+    clause: '§12 work record — the stage a work item is in changed',
+  },
   /** Work area: a step (checklist line) was deleted from a work item. */
   'work_item.step_deleted': {
     objectType: 'work_item',
@@ -2151,6 +2156,7 @@ const AUDIT_ACTION_LABELS = {
   'work_stage_set.deleted': 'Deleted a set of stages',
   'project.stage_set_changed': 'Changed the stages a project uses',
   'work_item.stage_set_changed': 'Changed the stages a work item uses',
+  'work_item.stage_changed': 'Moved a work item to another stage',
   'work_item.step_deleted': 'Deleted a step of a work item',
   'work_item.step_converted': 'Turned a step into a work item',
   'work_item.steps_reordered': 'Reordered the steps of a work item',

@@ -41,6 +41,12 @@ export interface WorkItemSummary {
   readonly doerUserIds?: readonly string[];
   /** 0340 (FIX3 item C): the hand-made Board/List order; `null` sorts by creation time. */
   readonly rank?: number | null;
+  /**
+   * Work area D1: the stage the item is in and its name, from the stage set it uses; `null` on
+   * the built-in stages (show the state's label then). Sent on the list and single reads.
+   */
+  readonly stageId?: string | null;
+  readonly stageName?: string | null;
 }
 
 /**
