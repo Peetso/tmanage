@@ -5126,6 +5126,23 @@ type _outreachPreview = Assert<Exact<ApiOutreachPreviewView, WebOutreachPreviewV
 type _outreachTestSend = Assert<Exact<ApiOutreachTestSendView, WebOutreachTestSendView>>;
 type _outreachExport = Assert<Exact<ApiOutreachExportView, WebOutreachExportView>>;
 type _outreachVersionText = Assert<Exact<ApiOutreachVersionTextView, WebOutreachVersionTextView>>;
+// The campaign page's parts (senders, one language's e-mail, the version list, a saved text).
+import type {
+  OutreachEmailTextView as ApiOutreachEmailTextView,
+  OutreachSenderView as ApiOutreachSenderView,
+  OutreachVersionView as ApiOutreachVersionView,
+} from '../../apps/api/src/modules/outreach/outreach-manager.service.js';
+import type { CampaignEmailText as ApiCampaignEmailText } from '../../packages/mail/src/campaign-template.js';
+import type {
+  OutreachEmailText as WebOutreachEmailText,
+  OutreachEmailTextView as WebOutreachEmailTextView,
+  OutreachSenderView as WebOutreachSenderView,
+  OutreachVersionView as WebOutreachVersionView,
+} from '../../apps/web/src/lib/api/platform-outreach.js';
+type _outreachSender = Assert<Exact<ApiOutreachSenderView, WebOutreachSenderView>>;
+type _outreachEmailTextView = Assert<Exact<ApiOutreachEmailTextView, WebOutreachEmailTextView>>;
+type _outreachVersion = Assert<Exact<ApiOutreachVersionView, WebOutreachVersionView>>;
+type _outreachEmailText = Assert<Exact<ApiCampaignEmailText, WebOutreachEmailText>>;
 
 // Lane O (approval reviewer e-mail state) and lane M (role mailbox login state).
 import type { ApprovalReviewerView as ApiApprovalReviewerView } from '../../apps/api/src/modules/approvals/deliverables.service.js';

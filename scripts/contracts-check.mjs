@@ -363,6 +363,12 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
+  // OUTREACH MANAGER: one saved e-mail text. The API side is @tmanage/mail's CampaignEmailText
+  // (a package type, not an apps/api view); api-web-shapes.ts asserts the two Exact.
+  [
+    'OutreachEmailText',
+    'produced by @tmanage/mail CampaignEmailText (not an apps/api view); asserted Exact against it in api-web-shapes.ts.',
+  ],
   // Wave 8 H6: the per-screen error wording in describe-error.ts. It is web-only display config
   // (catalog keys + English fallbacks), never a response body, so it has no API pair.
   [
