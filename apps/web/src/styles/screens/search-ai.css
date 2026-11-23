@@ -76,7 +76,8 @@
 }
 
 .tm-sa-capsule--lime {
-  padding: var(--s3) var(--s5);
+  /* 44px and more when the label wraps: the label keeps half the height from the ends (rule 1). */
+  padding: var(--s3) var(--inset-card);
   border-color: var(--tm-ink-absolute);
   background: var(--lime-500);
   color: var(--tm-on-lime);
@@ -909,7 +910,8 @@ a.tm-sa-hit__title:hover {
   align-items: center;
   min-block-size: 38px;
   margin: 0;
-  padding: 0 var(--s5);
+  /* Density v2 rule 1: the panel's text keeps 24px from its edges (`--inset-card`). */
+  padding: 0 var(--inset-card);
   border-block-end: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
   font-family: var(--font-mono);
@@ -930,11 +932,13 @@ a.tm-sa-hit__title:hover {
 .tm-sa-panel__item {
   display: flex;
   gap: var(--s3);
-  padding: var(--s4) var(--s5);
+  padding: var(--s4) var(--inset-card);
   border-block-end: var(--b-quiet) solid var(--paper-150);
 }
 
 .tm-sa-panel__item:last-child {
+  /* The last source sits 24px above the panel's bottom edge (rule 1). */
+  padding-block-end: var(--inset-card);
   border-block-end: 0;
 }
 
@@ -985,7 +989,7 @@ a.tm-sa-hit__title:hover {
   flex-direction: column;
   gap: var(--s2);
   margin-block-start: auto;
-  padding: var(--s4) var(--s5);
+  padding: var(--inset-card);
   border-block-start: var(--b-quiet) solid var(--line-300);
   background: var(--paper-50);
 }

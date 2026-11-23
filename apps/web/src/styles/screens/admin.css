@@ -853,6 +853,8 @@
 
   .tm-cc-sections__item {
     white-space: nowrap;
+    /* As a capsule, the label keeps half the row height from each rounded end (rule 1). */
+    padding-inline: calc(var(--app-row) / 2);
     border-color: var(--line-300);
     border-radius: var(--r-capsule);
     background: var(--paper-0);

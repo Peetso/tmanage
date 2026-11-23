@@ -163,7 +163,6 @@ button.tm-ov-tabs__item {
   justify-content: space-between;
   gap: var(--s3);
   min-block-size: 44px;
-  margin-block-start: calc(-1 * (var(--s10) - var(--t-heading-card-line)) / 2);
   padding-block-end: calc(var(--s4) - (var(--s10) - var(--t-heading-card-line)) / 2);
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
@@ -177,6 +176,10 @@ button.tm-ov-tabs__item {
 }
 
 .tm-ov-card__link {
+  /* UX-28: the named link is itself a 24px target, besides the header row it stretches over. */
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
   color: var(--ink-950);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);

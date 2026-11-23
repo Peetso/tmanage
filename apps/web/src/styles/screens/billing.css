@@ -61,7 +61,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  padding: var(--s5);
+  /* Density v2 rule 1: text 24px from a card edge (it sat 21px). */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -87,7 +88,7 @@
 /* BIL-01's "Before renewal" and BIL-03's consequence card: the inverted card. */
 .tm-bil-card.tm-card--ink {
   gap: var(--s3);
-  padding: var(--s5);
+  padding: var(--inset-card);
   border-color: var(--tm-ink-absolute);
   background: var(--tm-ink-absolute);
   color: var(--tm-paper-absolute);
@@ -356,18 +357,18 @@
   overflow-x: auto;
 }
 
-/* Inside a panel, the table bleeds to the card edge the way BIL-02's does. */
+/* Inside a panel, the table bleeds to the card edge the way BIL-02's does (by the card inset). */
 .tm-bil .tm-panel > .tm-table,
 .tm-bil .tm-panel > .tm-table-scroll {
-  inline-size: calc(100% + 44px);
-  margin-inline: calc(var(--s5) * -1);
+  inline-size: calc(100% + var(--inset-card) * 2);
+  margin-inline: calc(var(--inset-card) * -1);
   border-width: 0;
   border-radius: 0;
 }
 
 .tm-bil .tm-panel > .tm-table:last-child,
 .tm-bil .tm-panel > .tm-table-scroll:last-child {
-  margin-block-end: calc(var(--s5) * -1);
+  margin-block-end: calc(var(--inset-card) * -1);
 }
 
 .tm-bil .tm-table thead th,
@@ -902,18 +903,7 @@
 
   .tm-bil .tm-panel,
   .tm-bil-card {
-    padding: var(--s4);
-  }
-
-  .tm-bil .tm-panel > .tm-table,
-  .tm-bil .tm-panel > .tm-table-scroll {
-    inline-size: calc(100% + 36px);
-    margin-inline: calc(var(--s4) * -1);
-  }
-
-  .tm-bil .tm-panel > .tm-table:last-child,
-  .tm-bil .tm-panel > .tm-table-scroll:last-child {
-    margin-block-end: calc(var(--s4) * -1);
+    padding: var(--inset-card);
   }
 
   /* Tables become card rows on a phone (responsive-and-desktop.md), keeping the column order. */

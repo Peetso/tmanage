@@ -19,13 +19,14 @@
   display: flex;
   align-items: flex-end;
   gap: var(--s2);
-  padding: var(--s3) var(--s5) 0;
+  padding: var(--s5) var(--inset-card) 0;
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-aip-header--title {
   align-items: center;
-  padding-block: var(--s4);
+  /* The title sits 24px below the panel's top edge (rule 1; it sat 18px). */
+  padding-block: var(--s6) var(--s4);
 }
 
 .tm-aip-header__end,
@@ -94,12 +95,12 @@
   flex-direction: column;
   gap: var(--s6);
   min-block-size: 0;
-  padding: var(--s5);
+  padding: var(--inset-card);
   overflow-y: auto;
 }
 
 .tm-aip-footer {
-  padding: var(--s3) var(--s5) var(--s4);
+  padding: var(--s3) var(--inset-card) var(--inset-card);
   border-block-start: var(--b-quiet) solid var(--line-300);
   color: var(--ink-650);
   font-size: var(--t-caption);
@@ -148,6 +149,10 @@
 
 .tm-aip-link {
   align-self: flex-start;
+  /* UX-28: a standalone link is a 24px target (WCAG 2.2 SC 2.5.8). */
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
   padding: 0;
   border: 0;
   background: none;
@@ -175,7 +180,8 @@
 .tm-aip-count {
   min-inline-size: 28px;
   justify-content: center;
-  padding-inline: var(--s2);
+  /* A capsule like every other: the count 16px from the rounded ends (rule 1; it sat 10px). */
+  padding-inline: var(--inset-capsule);
   color: var(--ink-950);
 }
 
@@ -185,7 +191,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s2);
-  padding: var(--s4);
+  /* Density v2 rule 1: text 24px from a card edge (`--inset-card`; it sat 17px). */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-0);
@@ -287,7 +294,7 @@
 .tm-aip-dialog {
   box-sizing: border-box;
   inline-size: min(360px, calc(100vw - var(--s8)));
-  padding: var(--s5);
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -483,6 +490,8 @@
   place-items: center;
   min-inline-size: 34px;
   block-size: 24px;
+  /* A capsule keeps its number 16px from the rounded ends (rule 1). */
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-700);
   border-radius: var(--r-capsule);
   font-size: var(--t-caption);
@@ -531,7 +540,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--s4);
-  padding: var(--s10) var(--s5);
+  padding: var(--s10) var(--inset-card);
   text-align: center;
 }
 
@@ -547,7 +556,7 @@
 
 @media (max-width: 767px) {
   .tm-aip-header {
-    padding-inline: var(--s3) var(--s5);
+    padding-inline: var(--s3) var(--inset-card);
   }
 
   .tm-aip-header__back {
@@ -562,9 +571,13 @@
     min-block-size: 44px;
   }
 
-  .tm-aip-touch.tm-button,
+  /* Through the button's height variable, so its capsule padding follows (rule 1). */
+  .tm-aip-touch.tm-button {
+    --tm-control-h: var(--orb-comfortable);
+  }
+
   .tm-aip-chip {
-    min-block-size: 44px;
+    min-block-size: var(--orb-comfortable);
   }
 
   .tm-aip .tm-info-button {

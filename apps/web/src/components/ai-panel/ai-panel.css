@@ -155,7 +155,7 @@
 .tm-ai-card {
   inline-size: 380px;
   gap: var(--s3);
-  padding: var(--s5);
+  padding: var(--inset-card);
 }
 
 .tm-ai-card--window {

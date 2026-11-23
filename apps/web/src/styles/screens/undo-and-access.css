@@ -29,6 +29,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
+  /* UX-28: a 24px target (WCAG 2.2 SC 2.5.8). */
+  min-block-size: var(--target-min);
   padding: 0;
   border: 0;
   background: none;

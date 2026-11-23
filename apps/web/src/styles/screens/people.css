@@ -1379,7 +1379,8 @@ button.ppl-member {
 
 .ppl-members-header__cta {
   min-block-size: 48px;
-  padding-inline: var(--s5);
+  /* 48px high: the label keeps half the height from the rounded ends (rule 1; it sat 21). */
+  padding-inline: var(--s6);
   border-radius: var(--r-capsule);
 }
 

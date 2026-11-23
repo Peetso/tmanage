@@ -14,7 +14,8 @@
 }
 
 .tm-view-switcher__option {
-  padding: 6px var(--s3);
+  /* Rule 1: the rounded option keeps its label 16px from its ends (it sat 13px). */
+  padding: 6px var(--inset-capsule);
   border: var(--b-quiet) solid transparent;
   border-radius: var(--r-compact);
   background: transparent;

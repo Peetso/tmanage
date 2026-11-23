@@ -124,7 +124,8 @@
   gap: var(--s2);
   min-inline-size: var(--control);
   min-block-size: var(--control);
-  padding-inline: var(--inset-capsule);
+  /* Rule 1: at least 16px and half the height from the rounded ends. */
+  padding-inline: max(var(--inset-capsule), calc(var(--control) / 2));
   border: 0;
   border-radius: var(--r-capsule);
   background: transparent;
@@ -135,7 +136,6 @@
 }
 
 .tm-viewer-tools__tool[aria-pressed='true'] {
-  padding-inline: var(--s4);
   background: var(--ink-950);
   color: var(--paper-0);
 }
@@ -590,6 +590,8 @@
 .tm-viewer-tabs {
   display: flex;
   gap: var(--s5);
+  /* The tab labels sit 24px below the rail's top edge (rule 1; they sat 18px). */
+  padding-block-start: var(--s2);
   padding-inline: var(--s6);
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
@@ -715,7 +717,8 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--s3);
-  padding: var(--s4);
+  /* Density v2 rule 1: text 24px from a card edge (it sat 17px). */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-0);

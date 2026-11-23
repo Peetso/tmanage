@@ -102,7 +102,8 @@
   display: grid;
   gap: var(--s3);
   margin-block-start: var(--s4);
-  padding: var(--s4);
+  /* Density v2 rule 1: text 24px from a card edge (it sat 17px). */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-50);

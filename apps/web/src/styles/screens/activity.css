@@ -219,10 +219,6 @@
   gap: var(--s2);
 }
 
-.tm-act-filters .tm-chip {
-  min-block-size: 44px;
-}
-
 /* A chosen filter is tinted lime with a lime edge, as drawn; the check icon says it too. */
 .tm-act-filters .tm-chip:is([aria-checked='true'], .tm-chip--active),
 .tm-act-filters :is(button, a).tm-chip:is([aria-checked='true'], .tm-chip--active):hover {
@@ -288,7 +284,7 @@
 /* Phone (review fix 8): kinds in one sideways row; person and date behind one "Filter" button. */
 @media (max-width: 719px) {
   .tm-act {
-    padding: var(--s4);
+    padding: var(--inset-card);
   }
 
   .tm-act-filters__kinds {

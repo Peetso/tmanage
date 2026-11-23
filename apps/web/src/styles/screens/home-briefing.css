@@ -212,7 +212,7 @@
 /* Phone: one column, each group a header row that opens (fix 12); groups divided by a line. */
 @media (max-width: 47.99rem) {
   .tm-brief {
-    padding: var(--s4);
+    padding: var(--inset-card);
   }
 
   .tm-brief__lead {

@@ -310,14 +310,16 @@ const S = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 'var(--s2)',
-    padding: '4px var(--s3)',
+    // Density v2 rule 1: a capsule keeps its text 16px from the rounded ends (it sat 13px).
+    padding: '4px var(--inset-capsule)',
     border: 'var(--b-quiet) solid var(--ink-500)',
     borderRadius: 'var(--r-capsule)',
     fontSize: 'var(--t-caption)',
     color: 'var(--ink-800)',
   },
   pillMark: { inlineSize: '8px', blockSize: '8px', background: 'var(--ink-950)' },
-  capsule: { minBlockSize: '48px', paddingInline: 'var(--s5)', fontSize: 'var(--t-body-md)' },
+  // 48px high, so the label keeps half the height (24) from the rounded ends (rule 1).
+  capsule: { minBlockSize: '48px', paddingInline: 'var(--s6)', fontSize: 'var(--t-body-md)' },
   footer: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' },
   passwordForm: { display: 'flex', flexDirection: 'column', gap: 'var(--s3)' },
 } satisfies Record<string, CSSProperties>;

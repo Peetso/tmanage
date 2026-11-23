@@ -1,4 +1,7 @@
 /*
+ * Density v2 (ADR-0016, UX-26): the panel's header, body, composer and states keep text 24px
+ * from the panel edge (`--inset-card`); it sat 20px.
+ *
  * TManage AI panel (plan 62, slice 62-15) — Figma section 764:43270 (G2, G4, G5, G6 v2, G7 v2).
  * Tokens only (UX-11), logical properties only (UX-14), so Arabic mirrors; motion stops under
  * prefers-reduced-motion (UX-16); every touch target is 44 px on a phone (UX-5, Fable fix 5).
@@ -54,7 +57,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  padding: var(--s4) var(--s5);
+  padding: var(--s4) var(--inset-card);
   border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
@@ -162,7 +165,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s5);
-  padding: var(--s5);
+  padding: var(--inset-card);
   /* Nothing sits under the composer (Fable fix 7): the body scrolls above it. */
   scroll-padding-block-end: var(--s5);
 }
@@ -578,7 +581,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s2);
-  padding: var(--s3) var(--s5) var(--s5);
+  padding: var(--s3) var(--inset-card) var(--inset-card);
   border-block-start: var(--b-quiet) solid var(--line-300);
 }
 
@@ -635,8 +638,9 @@
     block-size: var(--orb-comfortable);
   }
 
+  /* Through the button's height variable, so its capsule padding follows (rule 1). */
   .tm-aic-touch.tm-button {
-    min-block-size: 44px;
+    --tm-control-h: var(--orb-comfortable);
   }
 }
 
@@ -647,7 +651,7 @@
   gap: var(--s3);
   max-inline-size: var(--reading);
   margin-inline: auto;
-  padding: var(--s5);
+  padding: var(--inset-card);
 }
 
 /* ── Voice mode (62-16, Figma G3 766:43968, 789:50684) ─────────────── */
@@ -774,7 +778,8 @@
   gap: var(--s3);
   inline-size: 300px;
   max-inline-size: calc(100vw - var(--s8));
-  padding: var(--s4) var(--s3) var(--s2);
+  /* A popover is held to the dialog inset: with the rows' own 8px, text sits 24px in (rule 1). */
+  padding: var(--s5) var(--s4) var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-compact);
   background: var(--paper-0);
@@ -903,6 +908,8 @@
 @media (max-width: 767px) {
   .tm-aic-dict__chip {
     block-size: var(--orb-comfortable);
+    /* The taller capsule keeps its label half its height from the rounded ends (rule 1). */
+    padding-inline: calc(var(--orb-comfortable) / 2);
   }
 
   .tm-aic__mic-off {

@@ -132,7 +132,9 @@
     gap: var(--s1);
     min-block-size: 60px;
     padding: var(--s2) var(--inset-capsule);
-    border-radius: var(--r-capsule);
+    /* A rounded tile, not a capsule: the label under the icon sat in the capsule's curve, 16px
+       from a 60px-high rounded end (rule 1 asks 24). The 18px corner clears it. */
+    border-radius: var(--r-compact);
     color: var(--tm-paper-absolute);
   }
 

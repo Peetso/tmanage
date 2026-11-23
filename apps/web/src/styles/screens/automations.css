@@ -323,7 +323,10 @@
 }
 
 .tm-aut-rowtitle {
-  display: block;
+  /* UX-28: the row's title link is a 24px target (WCAG 2.2 SC 2.5.8). */
+  display: flex;
+  align-items: center;
+  min-block-size: var(--target-min);
   margin: 0;
   color: var(--ink-950);
   font-size: var(--t-ui-md);
@@ -458,7 +461,8 @@ a.tm-aut-rowtitle:hover {
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  padding: var(--s5) var(--s6);
+  /* Density v2 rule 1: text 24px from a card edge (it sat 21px at the top). */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);

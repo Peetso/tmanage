@@ -231,7 +231,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  padding: var(--s4);
+  /* Density v2 rule 1: text 24px from a card edge (`--inset-card`; it sat 17px). */
+  padding: var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -421,6 +422,10 @@
 }
 
 .tm-at-address {
+  /* UX-28: a pointer target is at least 24 high (WCAG 2.2 SC 2.5.8); the text stays as it was. */
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
   padding: 0;
   border: 0;
   background: none;
@@ -582,6 +587,9 @@
 }
 
 .tm-at-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
   padding: 0;
   border: 0;
   background: none;
@@ -761,7 +769,7 @@
   inline-size: min(334px, 100%);
   max-block-size: 92vh;
   overflow-y: auto;
-  padding: var(--s4);
+  padding: var(--inset-dialog);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);

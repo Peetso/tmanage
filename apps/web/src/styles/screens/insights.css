@@ -869,6 +869,13 @@
   font-weight: 500;
 }
 
+.tm-ins-mlist li > a {
+  /* UX-28: the project link is a 24px target (WCAG 2.2 SC 2.5.8). */
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+}
+
 .tm-ins-mlist .tm-ins-badge {
   margin: 0;
 }

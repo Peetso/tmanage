@@ -113,8 +113,9 @@
 }
 
 .tm-sa-panel .tm-mic-switch {
+  /* The panel's last row keeps its text 24px from the panel's edges (rule 1). */
   margin: 0;
-  padding: var(--s4) var(--s5);
+  padding: var(--s4) var(--inset-card) var(--inset-card);
   border-block-start: var(--b-quiet) solid var(--line-300);
 }
 

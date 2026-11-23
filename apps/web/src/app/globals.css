@@ -1293,7 +1293,8 @@ html[lang^='zh'] body {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--app-row);
-  padding-inline: var(--s4);
+  /* A capsule keeps its label half its height from the rounded ends (rule 1; it sat 16). */
+  padding-inline: calc(var(--app-row) / 2);
   border-radius: var(--r-capsule);
   color: var(--ink-650);
   font-size: var(--t-ui-md);
@@ -1889,8 +1890,9 @@ html[lang^='zh'] body {
 }
 
 .tm-maintenance-banner__dismiss {
-  min-block-size: 36px;
-  padding-inline: var(--s4);
+  /* Density v2: one control height (32) and the capsule inset (16) as every button. */
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid currentColor;
   border-radius: var(--r-capsule);
   background: transparent;

@@ -11,7 +11,8 @@
 
 /* The rules card: surface, 1 px line, card radius. */
 .tm-alerts__card {
-  padding: var(--s2) var(--s6);
+  /* With the rows' own 8px, the first and last line sit 24px from the card edge (rule 1). */
+  padding: var(--s4) var(--inset-card);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
@@ -145,7 +146,7 @@
 /* Phone (fix 32): each rule a stacked block; the column names show; Save sticks to the bottom. */
 @media (max-width: 47.99rem) {
   .tm-alerts__card {
-    padding-inline: var(--s4);
+    padding-inline: var(--inset-card);
   }
 
   .tm-alerts__head {
