@@ -6,7 +6,7 @@ import { SettingsShell } from '../admin/SettingsShell';
 import type { ApiClient } from '../../lib/api/client';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import { localizedOpTitle, subjectLine } from '../../lib/ai-approval-presentation';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { useCatalogLookup } from '../../lib/i18n/use-catalog-lookup';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { usePendingAiApprovals } from '../ai-actions/pending-ai-actions';
@@ -113,7 +113,7 @@ function formatWhen(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleString(appLocale(), {
+    : date.toLocaleString(appIntlLocale(), {
         day: 'numeric',
         month: 'short',
         hour: '2-digit',

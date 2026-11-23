@@ -168,7 +168,7 @@ describe('the six overview blocks', () => {
     await expectNoAxeViolations(empty.container);
   });
 
-  it('mounts right to left in Arabic with the locale’s digits and names kept in their direction', () => {
+  it('mounts right to left in Arabic with Latin digits (AR-DIGITS) and names kept in their direction', () => {
     activeLocale.set('ar-EG');
     const { container } = render(
       <main dir="rtl">
@@ -178,7 +178,7 @@ describe('the six overview blocks', () => {
     const figures = [...container.querySelectorAll('.tm-ov-figures__value')].map(
       (node) => node.textContent,
     );
-    expect(figures[0]).toBe(new Intl.NumberFormat('ar-EG').format(18));
+    expect(figures[0]).toBe('18');
     for (const title of container.querySelectorAll('.tm-ov-row__title')) {
       expect(title.getAttribute('dir')).toBe('auto');
     }

@@ -39,6 +39,7 @@ import './meetings.css';
 import { BrandLogo } from '../brand/BrandLogo';
 import { isServicePaused } from '../../lib/api/service-paused';
 import { ServicePausedNotice, pausedButtonProps } from '../screens/ServicePausedNotice';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 /**
  * After a connect or disconnect: the person's own connections and the owners' team card both
@@ -330,9 +331,10 @@ function errorKey(code: string) {
 }
 
 function when(locale: string, iso: string): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(iso),
-  );
+  return new Intl.DateTimeFormat(withNumerals(locale), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(iso));
 }
 
 /** 53-14: how this calendar stays in step (instant updates or each minute) and its last problem. */

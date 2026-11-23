@@ -5,6 +5,7 @@ import { Button, InlineAlert } from '@tmanage/ui';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import './update-card.css';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 /**
  * A10's message lookup with `{name}` placeholders. Typed-cast until the wave's i18n fragment
@@ -35,7 +36,7 @@ export function formatUpdateDay(value: string, locale: string, utc = false): str
     : new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   const arabic = locale.toLowerCase().startsWith('ar');
-  const parts = new Intl.DateTimeFormat(arabic ? 'ar-u-nu-latn' : 'en-GB', {
+  const parts = new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
     weekday: arabic ? 'long' : 'short',
     day: 'numeric',
     month: arabic ? 'long' : 'short',

@@ -1,4 +1,5 @@
 import type { MessageKey } from './i18n/t';
+import { appDateLocale } from './i18n/app-locale';
 
 /**
  * Pure presentation for the Connected apps page (S0-2, MCP connector S11): the app monograms,
@@ -40,15 +41,10 @@ export function scopeLabelKey(scope: string): MessageKey | undefined {
   return SCOPE_LABELS[scope];
 }
 
-/** Intl wants Latin digits on every TManage screen, Arabic included (the design's numerals). */
-function latnLocale(locale: string): string {
-  return `${locale}-u-nu-latn`;
-}
-
 /** "12 Jul 2026" (English), "12 يوليو 2026" (Arabic). */
 export function formatConnectedDate(iso: string, locale: string): string {
   const arabic = locale.toLowerCase().startsWith('ar');
-  return new Intl.DateTimeFormat(arabic ? latnLocale(locale) : 'en-GB', {
+  return new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
     day: 'numeric',
     month: arabic ? 'long' : 'short',
     year: 'numeric',
@@ -68,7 +64,7 @@ const UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
 /** "2 minutes ago", "yesterday", "4 days ago" — and the Arabic equivalents — or "now" wording. */
 export function formatLastUsed(iso: string, now: Date, locale: string): string {
   const seconds = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000));
-  const format = new Intl.RelativeTimeFormat(latnLocale(locale), { numeric: 'auto' });
+  const format = new Intl.RelativeTimeFormat(appDateLocale(locale, locale), { numeric: 'auto' });
   for (const [unit, size] of UNITS) {
     if (seconds >= size) return format.format(-Math.floor(seconds / size), unit);
   }

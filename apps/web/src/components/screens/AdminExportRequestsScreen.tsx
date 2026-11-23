@@ -15,7 +15,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminExportRequestsScreenProps {
   organizationSlug: string;
@@ -132,7 +132,7 @@ export function AdminExportRequestsScreen({
               <li key={request.id} className="tm-row">
                 <strong>{scopeLabels[request.scope] ?? request.scope}</strong>
                 <span>{statusLabels[request.status] ?? request.status}</span>
-                <span>{new Date(request.requestedAt).toLocaleString(appLocale())}</span>
+                <span>{new Date(request.requestedAt).toLocaleString(appIntlLocale())}</span>
               </li>
             ))}
           </ul>

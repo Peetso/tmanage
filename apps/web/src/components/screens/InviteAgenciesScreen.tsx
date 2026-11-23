@@ -15,6 +15,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import { INVITE_AGENCIES_COPY } from './invite-agencies-copy';
 import type { InviteAgenciesCopyKey } from './invite-agencies-copy';
 import '../../styles/screens/invite-agencies.css';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 export interface InviteAgenciesScreenProps {
   organizationSlug: string;
@@ -35,7 +36,7 @@ function signedUpDay(iso: string, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '';
   const arabic = locale.toLowerCase().startsWith('ar');
-  return new Intl.DateTimeFormat(arabic ? 'ar-u-nu-latn' : 'en-GB', {
+  return new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
     day: 'numeric',
     month: arabic ? 'long' : 'short',
   }).format(at);

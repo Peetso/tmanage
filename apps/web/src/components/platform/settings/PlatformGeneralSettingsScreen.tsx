@@ -57,6 +57,7 @@ import { FeatureNewsCard } from './FeatureNewsCard';
 import { MailPeopleCard } from './MailPeopleCard';
 import { SettingsSubNav, changedLine, fill } from './settings-kit';
 import { UnitCostsCard } from './UnitCostsCard';
+import { withNumerals } from '../../../lib/i18n/display-format';
 
 /**
  * D1 · Platform settings — General (`/platform/settings`, frames 434:15722, 435:14933 billing
@@ -998,7 +999,10 @@ function formatShort(iso: string | null, locale: string): string {
   const at = new Date(iso).getTime();
   if (Number.isNaN(at)) return '—';
   const minutes = Math.round((Date.now() - at) / 60_000);
-  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' });
+  const format = new Intl.RelativeTimeFormat(withNumerals(locale), {
+    numeric: 'auto',
+    style: 'short',
+  });
   if (minutes < 60) return format.format(-minutes, 'minute');
   if (minutes < 60 * 48) return format.format(-Math.round(minutes / 60), 'hour');
   return format.format(-Math.round(minutes / 1440), 'day');

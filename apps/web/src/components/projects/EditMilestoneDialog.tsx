@@ -15,6 +15,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import './templates-milestones.css';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 /* ── Shared by the A9 dialogs ───────────────────────────────────────────────────────── */
 
@@ -26,7 +27,7 @@ export function shortDay(day: string, locale: string): string {
   const parsed = new Date(Date.UTC(year, month - 1, date));
   if (Number.isNaN(parsed.getTime())) return day;
   const arabic = locale.toLowerCase().startsWith('ar');
-  const parts = new Intl.DateTimeFormat(arabic ? 'ar-u-nu-latn' : 'en-GB', {
+  const parts = new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
     weekday: arabic ? 'long' : 'short',
     day: 'numeric',
     month: arabic ? 'long' : 'short',

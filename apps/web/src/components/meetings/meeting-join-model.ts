@@ -3,6 +3,7 @@ import type {
   MeetingCallProvider,
   MeetingCallView,
 } from '../../lib/api/meeting-join';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 /**
  * 53-12 — what the meeting page says about the call, as plain data (no React): the state capsule,
@@ -63,7 +64,8 @@ export function attendanceTone(status: MeetingAttendanceStatus): string {
 /** `HH:MM` in the viewer's locale, or an em dash. */
 export function clock(iso: string | null, locale: string): string {
   if (!iso) return '—';
-  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(
-    new Date(iso),
-  );
+  return new Intl.DateTimeFormat(withNumerals(locale), {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso));
 }

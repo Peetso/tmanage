@@ -13,7 +13,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
 import '../../styles/screens/billing.css';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface BillingCreditsScreenProps {
   organizationSlug: string;
@@ -196,7 +196,7 @@ export function BillingCreditsScreen({
               <tbody>
                 {rows.map((credit) => (
                   <tr key={credit.id}>
-                    <td>{new Date(credit.createdAt).toLocaleString(appLocale())}</td>
+                    <td>{new Date(credit.createdAt).toLocaleString(appIntlLocale())}</td>
                     <td>{credit.reason}</td>
                     <td>{formatCurrency(credit.amount)}</td>
                   </tr>

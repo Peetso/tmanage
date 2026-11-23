@@ -9,7 +9,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface MyBookmarksScreenProps {
   organizationSlug: string;
@@ -107,7 +107,7 @@ export function MyBookmarksScreen({
                     <th scope="row" className="tm-table__title">
                       {bookmark.title}
                     </th>
-                    <td>{new Date(bookmark.createdAt).toLocaleString(appLocale())}</td>
+                    <td>{new Date(bookmark.createdAt).toLocaleString(appIntlLocale())}</td>
                   </tr>
                 ))}
               </tbody>

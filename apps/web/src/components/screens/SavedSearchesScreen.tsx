@@ -9,7 +9,7 @@ import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appDateLocale, appLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createSavedSearch,
@@ -50,7 +50,7 @@ const KIND_LABEL: Readonly<Record<SearchResultKind, string>> = {
 const DATE = {
   format(at: Date): string {
     const locale = appLocale();
-    const tag = locale.toLowerCase().startsWith('en') ? 'en-GB' : locale;
+    const tag = appDateLocale(locale);
     return new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short' }).format(at);
   },
 };

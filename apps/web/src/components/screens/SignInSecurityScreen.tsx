@@ -7,7 +7,7 @@ import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { SettingsShell } from '../admin/SettingsShell';
 import { Dialog, errorMessage } from './SecurityScreen';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -477,13 +477,14 @@ function defaultPasskeyName(): string {
 function formatDay(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium' }).format(at);
+  return new Intl.DateTimeFormat(appIntlLocale(), { dateStyle: 'medium' }).format(at);
 }
 
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-    at,
-  );
+  return new Intl.DateTimeFormat(appIntlLocale(), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(at);
 }

@@ -23,7 +23,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface DecisionRegisterScreenProps {
   organizationSlug: string;
@@ -625,5 +625,5 @@ function statusTone(status: DecisionStatus): string {
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { day: 'numeric', month: 'short' }).format(at);
+  return new Intl.DateTimeFormat(appIntlLocale(), { day: 'numeric', month: 'short' }).format(at);
 }

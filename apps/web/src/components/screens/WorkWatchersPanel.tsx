@@ -12,7 +12,7 @@ import {
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface WorkWatchersPanelProps {
   organizationSlug: string;
@@ -23,7 +23,7 @@ export interface WorkWatchersPanelProps {
 function formatWhen(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleString(appLocale());
+  return at.toLocaleString(appIntlLocale());
 }
 
 /**

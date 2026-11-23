@@ -21,7 +21,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminFeatureFlagsScreenProps {
   organizationSlug: string;
@@ -83,7 +83,7 @@ export function AdminFeatureFlagsScreen({
         ? t('AdminFeatureFlagsScreen.onByDefault')
         : t('AdminFeatureFlagsScreen.offByDefault');
     }
-    return `${t('AdminFeatureFlagsScreen.changedPrefix')} ${new Date(flag.updatedAt).toLocaleDateString(appLocale())}`;
+    return `${t('AdminFeatureFlagsScreen.changedPrefix')} ${new Date(flag.updatedAt).toLocaleDateString(appIntlLocale())}`;
   };
 
   const flags = useQuery({

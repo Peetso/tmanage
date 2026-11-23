@@ -9,7 +9,7 @@ import { AppShell } from '../shell/AppShell';
 import { matchDestinations } from '../shell/command-palette-model';
 import { destinationHelp } from '../shell/navigation';
 import { useT } from '../../lib/i18n/use-t';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appDateLocale, appIntlLocale, appLocale } from '../../lib/i18n/app-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { search } from '../../lib/api/search';
 import { listProjects } from '../../lib/api/projects';
@@ -513,11 +513,11 @@ export function shortRef(id: string): string {
 export function shortDate(iso: string, locale: string = appLocale()): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  const tag = locale.toLowerCase().startsWith('en') ? 'en-GB' : locale;
+  const tag = appDateLocale(locale);
   return date.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
 }
 
 /** A result count in the active locale's digits, matching the dates beside it (C1). */
 function localCount(value: number): string {
-  return new Intl.NumberFormat(appLocale()).format(value);
+  return new Intl.NumberFormat(appIntlLocale()).format(value);
 }

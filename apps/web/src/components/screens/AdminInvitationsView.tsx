@@ -18,7 +18,7 @@ import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { invitationProjectNames } from '../people/PendingInvitations';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface AdminInvitationsViewProps {
   organizationSlug: string;
@@ -194,7 +194,8 @@ export function invitationRoleName(
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-    at,
-  );
+  return new Intl.DateTimeFormat(appIntlLocale(), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(at);
 }

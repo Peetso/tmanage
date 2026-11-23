@@ -17,6 +17,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { formatUsd, planPrice } from '../website/pages/pricing/pricing-data';
 import type { BillingPeriod } from '../website/pages/pricing/pricing-data';
 import './subscription-plans.css';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 export interface SubscriptionScreenProps {
   organizationSlug: string;
@@ -427,7 +428,7 @@ function infoLine(
 function formatBillDate(iso: string, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  const tag = locale.startsWith('ar') ? 'ar-EG-u-nu-latn' : 'en-GB';
+  const tag = appDateLocale(locale.startsWith('ar') ? locale : 'en-GB');
   return new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
     at,
   );

@@ -1,4 +1,5 @@
 import type { BrandId } from '../brand/BrandLogo';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 /**
  * The Integrations page's cards (feedback 2026-11-09 item 6), in the order an owner meets them.
@@ -147,6 +148,6 @@ export function connectedTitle(
   }
   return tr('IntegrationDirectoryScreen.titleConnected', '{count} connected').replace(
     '{count}',
-    new Intl.NumberFormat(locale).format(count),
+    new Intl.NumberFormat(withNumerals(locale)).format(count),
   );
 }

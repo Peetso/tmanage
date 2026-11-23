@@ -1,6 +1,7 @@
 import { withNumerals } from '../../lib/i18n/display-format';
 import { pluralPhrase } from '../../lib/i18n/plural';
 import { dayOffset } from './my-day-model';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 /**
  * **My Day v3.1 words for times and dates.** Pure helpers that turn the API's ISO strings into the
@@ -14,9 +15,9 @@ function isArabic(locale: string): boolean {
   return locale.toLowerCase().startsWith('ar');
 }
 
-/** The tag date and time formatting use: Latin digits in Arabic. */
+/** The tag dates use: Arabic, else en-GB; digits by the app rule (Latin unless chosen). */
 export function dateTag(locale: string): string {
-  return withNumerals(isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB');
+  return appDateLocale(isArabic(locale) ? locale : 'en-GB');
 }
 
 /** "3 days late" (Figma late chip), from the whole days an item is overdue. */

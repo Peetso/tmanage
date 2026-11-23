@@ -1,3 +1,4 @@
+import { withNumerals } from './display-format';
 import { activeLocale } from './locale-store';
 
 /**
@@ -12,18 +13,27 @@ export function appLocale(): string {
 }
 
 /**
- * The locale a calendar or chat date is drawn in (FIX4 item 8): the member's locale, with Arabic
- * kept on Latin digits as the rest of the product writes them ("31 أكتوبر، 23:30"), and English in
- * the approved en-GB shape ("Tue 20 Oct") unless `english` names another. An Arabic member read
- * "Oct 31, 23:30" in chat and "MON 2" in the calendar because those calls passed `undefined` or a
- * fixed 'en-GB'.
+ * {@link appLocale} as the tag to hand to `Intl`/`toLocale*`: the member's locale, unchanged in
+ * every other way, with the app's digit rule applied ({@link withNumerals}: Latin digits unless
+ * the member chose others). `appLocale()` itself stays the bare locale for comparisons and routes.
+ */
+export function appIntlLocale(): string {
+  return withNumerals(appLocale());
+}
+
+/**
+ * The locale a date or number is drawn in (FIX4 item 8, AR-DIGITS): the member's locale with the
+ * app's digit rule applied ({@link withNumerals}: Latin digits by default in every locale, Arabic
+ * included, as every Figma frame writes them; the member's saved numerals when they chose them),
+ * and English in the approved en-GB shape ("Tue 20 Oct") unless `english` names another. An
+ * Arabic member read "Oct 31, 23:30" in chat and "MON 2" in the calendar because those calls
+ * passed `undefined` or a fixed 'en-GB'.
+ *
+ * Screens never write `-u-nu-latn` or `numberingSystem` by hand; they pass their locale here.
  */
 export function appDateLocale(
   locale: string = activeLocale.get(),
   english: string = 'en-GB',
 ): string {
-  const lower = locale.toLowerCase();
-  if (lower.startsWith('ar')) return lower.includes('-u-') ? locale : `${locale}-u-nu-latn`;
-  if (lower.startsWith('en')) return english;
-  return locale;
+  return withNumerals(locale.toLowerCase().startsWith('en') ? english : locale);
 }

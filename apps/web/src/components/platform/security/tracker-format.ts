@@ -30,9 +30,8 @@ export interface TrackerFormat {
  *
  * Arabic keeps Latin digits ("11:42", "333", "22 نوفمبر") as Figma 840:906 and the rest of the
  * product write them, and English days read "22 Nov" (en-GB) as Figma 840:1578: {@link
- * appDateLocale} gives both (Arabic gets `-u-nu-latn`), and the shared formatters still put
- * a member's saved digits (Settings, Display) over it. The bare `useDisplayFormatters` would fall
- * back to the locale's own Arabic-Indic digits when nothing is saved.
+ * appDateLocale} gives the en-GB shape; the digits follow the app rule in `withNumerals`
+ * (Latin by default, a member's saved digits in Settings › Display over it).
  */
 export function useTrackerFormat(): TrackerFormat {
   const locale = useActiveLocale();

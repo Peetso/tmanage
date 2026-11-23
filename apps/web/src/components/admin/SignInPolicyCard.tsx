@@ -26,7 +26,7 @@ import {
   type TwoStepRoleScopeKey,
 } from '../../lib/api/sign-in-policy';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { PrivacyStepUpDialog, usePrivacyStepUp } from '../privacy/PrivacyStepUp';
 import '../privacy/privacy.css';
 
@@ -83,7 +83,7 @@ function scopeLabel(tr: Tr, scope: TwoStepRoleScopeKey): [string, string] {
 function formatDay(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium' }).format(at);
+  return new Intl.DateTimeFormat(appIntlLocale(), { dateStyle: 'medium' }).format(at);
 }
 
 function isHidden(error: unknown): boolean {

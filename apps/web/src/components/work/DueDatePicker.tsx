@@ -14,6 +14,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../screens/work-core.css';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 /**
  * A6's catalog lookup. The wave's keys arrive through `i18n-A6.*.json` and are merged into the
@@ -39,9 +40,9 @@ export function useA6T(): (
   );
 }
 
-/** Arabic screens keep Latin digits, the way the Figma catalog writes them. */
+/** Arabic, else en-GB; digits by the app rule (Latin, as the Figma catalog writes them, unless chosen). */
 function intlLocale(locale: string): string {
-  return locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
+  return appDateLocale(locale.toLowerCase().startsWith('ar') ? locale : 'en-GB');
 }
 
 export function isArabic(locale: string): boolean {

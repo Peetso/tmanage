@@ -37,11 +37,11 @@ function useSceneText(): SceneText {
 }
 
 interface SceneFormat {
-  /** A count in the active locale's digits. */
+  /** A count, digits by the app rule (Latin unless the member chose others). */
   num(value: number): string;
   /**
-   * A calendar day. Arabic formats `iso` with the active locale (Arabic month, Arabic-Indic
-   * digits); English keeps the design's own short form, `en`, so the English page is unchanged.
+   * A calendar day. Arabic formats `iso` with the active locale (Arabic month, Latin digits by
+   * the app rule); English keeps the design's own short form, `en`, so the English page is unchanged.
    */
   day(iso: string, en: string, options?: Intl.DateTimeFormatOptions): string;
 }

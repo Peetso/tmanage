@@ -16,7 +16,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import {
   pendingTitle,
@@ -364,7 +364,7 @@ function formatWhen(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : date.toLocaleString(appLocale(), {
+    : date.toLocaleString(appIntlLocale(), {
         day: 'numeric',
         month: 'short',
         hour: '2-digit',

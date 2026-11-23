@@ -19,7 +19,10 @@ describe('withNumerals', () => {
     expect(withNumerals('ar-EG', 'latin')).toBe('ar-EG-u-nu-latn');
     expect(withNumerals('ar-u-nu-latn', 'arabic_indic')).toBe('ar-u-nu-arab');
     expect(withNumerals('ar-EG-u-ca-islamic', 'latin')).toBe('ar-EG-u-nu-latn-ca-islamic');
-    expect(withNumerals('ar-EG', undefined)).toBe('ar-EG');
+    // AR-DIGITS: nothing saved → Latin digits for a locale whose own default is another system.
+    expect(withNumerals('ar-EG', undefined)).toBe('ar-EG-u-nu-latn');
+    expect(withNumerals('ar-EG-u-nu-arab', undefined)).toBe('ar-EG-u-nu-arab');
+    expect(withNumerals('en-GB', undefined)).toBe('en-GB');
   });
 });
 
@@ -57,8 +60,8 @@ describe('the shared formatter honours the profile in Arabic', () => {
     expect(text).toMatch(/^9 /u);
   });
 
-  it('leaves the locale alone until a profile is published', () => {
-    expect(formatNumber(8, ctx)).toBe('٨');
-    expect(withNumerals('ar-EG')).toBe('ar-EG');
+  it('writes Latin digits until a profile is published (AR-DIGITS default)', () => {
+    expect(formatNumber(8, ctx)).toBe('8');
+    expect(withNumerals('ar-EG')).toBe('ar-EG-u-nu-latn');
   });
 });

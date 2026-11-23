@@ -44,6 +44,7 @@ import { ViewSwitcher } from '../views/ViewSwitcher';
 import { useViewPreference } from '../views/use-view-preference';
 import { invitationRoleName } from './AdminInvitationsView';
 import '../../styles/screens/people.css';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 export interface PeopleDirectoryScreenProps {
   organizationSlug: string;
@@ -81,7 +82,7 @@ function usePlural(): (kind: 'members' | 'invitations' | 'projects', count: numb
     const english = PLURAL_EN[kind] ?? { one: '{count}', other: '{count}' };
     const fallback = category === 'one' ? english.one : english.other;
     return fill(tr(`PeopleDirectoryScreen.${kind}.${category}`, fallback), {
-      count: count.toLocaleString(locale),
+      count: count.toLocaleString(withNumerals(locale)),
     });
   };
 }
@@ -94,7 +95,7 @@ function useLastActive(): (iso: string | null | undefined) => string {
     const at = iso ? Date.parse(iso) : Number.NaN;
     if (Number.isNaN(at)) return tr('PeopleDirectoryScreen.lastActiveUnknown', '—');
     const minutes = Math.round((at - Date.now()) / 60_000);
-    const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    const format = new Intl.RelativeTimeFormat(withNumerals(locale), { numeric: 'auto' });
     if (Math.abs(minutes) < 60) return format.format(minutes, 'minute');
     const hours = Math.round(minutes / 60);
     if (Math.abs(hours) < 24) return format.format(hours, 'hour');

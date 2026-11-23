@@ -19,7 +19,7 @@ import type {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -371,7 +371,7 @@ function formatDelta(deltaDays: number | null, t: Translate): string {
 
 function formatDate(iso: string): string {
   const parsed = new Date(iso);
-  return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString(appLocale());
+  return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString(appIntlLocale());
 }
 
 function describeError(error: unknown, t: Translate): string {

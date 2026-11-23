@@ -26,7 +26,7 @@ import type { PlatformColumn } from '../shared/PlatformTable';
 import { ReasonDialog, platformErrorText } from '../shared/ReasonDialog';
 import { usePlatformPermissions } from '../shared/usePlatformPermissions';
 import { ACTIVITY_KEY, ActivityFrame, moment } from './ActivityFrame';
-import { appLocale } from '../../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../../lib/i18n/app-locale';
 
 /**
  * C6 · Exports (platform-admin v2 · PA-09) — CSV exports of the action log, sign-ins, sessions,
@@ -109,7 +109,7 @@ function ExportsBody({ api }: { api: ApiClient }) {
             className={`tm-cc-pill${row.status === 'ready' ? ' tm-cc-pill--on' : row.status === 'failed' || row.status === 'expired' ? ' tm-cc-pill--muted' : ''}`}
           >
             {t(STATUS_KEYS[row.status])}
-            {row.rowCount !== null ? ` · ${row.rowCount.toLocaleString(appLocale())}` : ''}
+            {row.rowCount !== null ? ` · ${row.rowCount.toLocaleString(appIntlLocale())}` : ''}
           </span>
           {row.error ? <span className="tm-cc-cell-sub">{row.error}</span> : null}
           {row.status === 'ready' && row.expiresAt ? (

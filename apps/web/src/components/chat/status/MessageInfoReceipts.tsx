@@ -9,6 +9,7 @@ import type { ReceiptEntry } from '../../../lib/api/receipts';
 import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { useT } from '../../../lib/i18n/use-t';
 import './status.css';
+import { withNumerals } from '../../../lib/i18n/display-format';
 
 /**
  * "Read by" and "Delivered to" lists for slice 4's message info sheet. Delivered lists only the
@@ -49,7 +50,7 @@ export function MessageInfoReceipts({
             <li key={entry.userId} className="tm-receipts__row">
               <span className="tm-receipts__name">{entry.displayName}</span>
               <time className="tm-receipts__at" dateTime={entry.at}>
-                {new Date(entry.at).toLocaleString(locale, {
+                {new Date(entry.at).toLocaleString(withNumerals(locale), {
                   day: 'numeric',
                   month: 'short',
                   hour: '2-digit',

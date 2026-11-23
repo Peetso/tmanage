@@ -5,7 +5,7 @@ import { countNoun } from '../src/lib/i18n/plural';
 /** FIX4 item 8 — Arabic dates and counts. */
 describe('FIX4 Arabic dates and counts', () => {
   it('draws calendar and chat dates in Arabic, with Latin digits', () => {
-    expect(appDateLocale('ar')).toBe('ar-u-nu-latn');
+    expect(appDateLocale('ar-EG')).toBe('ar-EG-u-nu-latn');
     const day = new Intl.DateTimeFormat(appDateLocale('ar'), { weekday: 'short' }).format(
       new Date(Date.UTC(2026, 10, 2, 12)),
     );

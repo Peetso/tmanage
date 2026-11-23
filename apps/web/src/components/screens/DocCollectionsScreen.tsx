@@ -18,7 +18,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface DocCollectionsScreenProps {
   organizationSlug: string;
@@ -227,7 +227,7 @@ export function DocCollectionsScreen({
                             </Link>
                           </th>
                           <td className="tm-dx-table__end tm-dx-table__mono">
-                            {new Date(document.createdAt).toLocaleString(appLocale())}
+                            {new Date(document.createdAt).toLocaleString(appIntlLocale())}
                           </td>
                         </tr>
                       ))}

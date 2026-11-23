@@ -27,7 +27,7 @@ import {
 } from '../../lib/api/project-client';
 import { listOrganizations } from '../../lib/api/organizations';
 import { useProjectClientT } from '../projects/ShareWithClientDialog';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { MoreOptions, useMyUserId } from '../forms/MoreOptions';
 import { useTOr } from '../../lib/i18n/use-t-or';
 
@@ -593,5 +593,5 @@ function describeDateProblem(value: string): string | undefined {
 function formatDate(value: string): string {
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'long' }).format(parsed);
+  return new Intl.DateTimeFormat(appIntlLocale(), { dateStyle: 'long' }).format(parsed);
 }

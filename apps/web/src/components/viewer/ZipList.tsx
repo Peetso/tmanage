@@ -10,6 +10,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import { FormatIcon } from './format-icons';
 import { formatSize } from './format-stage-helpers';
 import './format-stages.css';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 /**
  * V-24 (`467:27472` EN, `467:27847` AR; phone `467:27736` / `467:28107`): what is inside a ZIP.
@@ -111,7 +112,7 @@ function useDateLabel(): (value: string | null) => string {
     if (!value) return '';
     const date = new Date(`${value}Z`);
     if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat(locale, {
+    return new Intl.DateTimeFormat(withNumerals(locale), {
       day: 'numeric',
       month: 'short',
       timeZone: 'UTC',

@@ -11,7 +11,7 @@ import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error'
 import type { ApiClient } from '../../lib/api/client';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface PortalClientMessagesScreenProps {
   organizationSlug: string;
@@ -188,5 +188,5 @@ function ThreadSection({ providerName, messages, isPending, isError, error }: Th
 
 function formatSent(iso: string): string {
   const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? iso : at.toLocaleString(appLocale());
+  return Number.isNaN(at.getTime()) ? iso : at.toLocaleString(appIntlLocale());
 }

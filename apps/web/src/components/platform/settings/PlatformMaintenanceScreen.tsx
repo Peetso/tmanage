@@ -32,6 +32,7 @@ import { PlatformTable } from '../shared/PlatformTable';
 import { REASON_MAX, REASON_MIN, ReasonDialog, platformErrorText } from '../shared/ReasonDialog';
 import { PLATFORM_ME_QUERY_KEY, missingPlatformPermission } from '../shared/usePlatformPermissions';
 import { ChipGroup, SettingsSubNav, fill, fromLocalInput, toLocalInput } from './settings-kit';
+import { withNumerals } from '../../../lib/i18n/display-format';
 
 /**
  * D4 · Maintenance mode (`/platform/settings/maintenance`, frames 436:18351 and 440:20171 End
@@ -57,7 +58,7 @@ const STATE_LABELS: Record<PlatformMaintenanceWindowView['state'], MessageKey> =
 export function cairoTime(iso: string, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(withNumerals(locale), {
     timeZone: CAIRO,
     hour: '2-digit',
     minute: '2-digit',
@@ -68,7 +69,7 @@ export function cairoTime(iso: string, locale: string): string {
 export function cairoDay(iso: string, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(withNumerals(locale), {
     timeZone: CAIRO,
     day: 'numeric',
     month: 'short',

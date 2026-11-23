@@ -99,7 +99,7 @@ describe('work list in Arabic (ACT-11)', () => {
     // C1: the type cell reads the Arabic type word, the caption uses the Arabic comma.
     expect(within(row).getByText(ar['WorkItemType.task'])).toBeInTheDocument();
     expect(within(row).queryByText('TSK')).not.toBeInTheDocument();
-    expect(container.querySelector('caption')?.textContent).toMatch(/، ١ /);
+    expect(container.querySelector('caption')?.textContent).toMatch(/، 1 /);
 
     await expectNoAxeViolations(container);
   });

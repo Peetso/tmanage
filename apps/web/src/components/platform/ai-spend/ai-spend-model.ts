@@ -6,6 +6,7 @@ import type {
   AiPoolClass,
 } from '../../../lib/api/ai-spend';
 import { parseTypedAmount } from '../../ai-chat/ai-chat-model';
+import { appDateLocale } from '../../../lib/i18n/app-locale';
 
 /**
  * AI spend's functional core (IP-3): pool rows, totals, the ceiling check and dollar input. Pure;
@@ -63,11 +64,11 @@ export function dollarsToCents(raw: string): number | null {
   return Math.abs(cents - amount * 100) < 1e-6 ? cents : null;
 }
 
-/** "$412" for whole dollars, "$412.50" otherwise; Latin digits in every locale (LTR money). */
+/** "$412" for whole dollars, "$412.50" otherwise; digits by the app rule (Latin unless chosen). */
 export function usd(microUsd: number, locale: string): string {
   const dollars = microUsd / (MICRO_USD_PER_CENT * 100);
   const whole = Number.isInteger(dollars);
-  return new Intl.NumberFormat(locale.startsWith('ar') ? 'ar-u-nu-latn' : locale, {
+  return new Intl.NumberFormat(appDateLocale(locale, locale), {
     style: 'currency',
     currency: 'USD',
     currencyDisplay: 'narrowSymbol',

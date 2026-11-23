@@ -15,6 +15,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import { fill, RoleChoiceCards, useCustomRoles } from './ChangeRoleDialog';
 import { NotDeliveredChip, StoppedInvitationNotice } from './StoppedInvitationNotice';
 import type { CustomRoleOption } from './ChangeRoleDialog';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 /**
  * Pending invitations on Members and roles — Figma "People · Members with pending invitations
@@ -52,7 +53,9 @@ function useShortDate(): (iso: string | undefined) => string {
   return (iso) => {
     const at = iso ? new Date(iso) : null;
     if (!at || Number.isNaN(at.getTime())) return '—';
-    return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(at);
+    return new Intl.DateTimeFormat(withNumerals(locale), { day: 'numeric', month: 'short' }).format(
+      at,
+    );
   };
 }
 

@@ -13,7 +13,7 @@ import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import '../../styles/screens/identity.css';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface SessionsScreenProps {
   /** Injected in tests. Defaults to the browser client. */
@@ -213,7 +213,8 @@ function deviceGlyph(userAgent: string | null): string {
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-    at,
-  );
+  return new Intl.DateTimeFormat(appIntlLocale(), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(at);
 }

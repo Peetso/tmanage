@@ -14,7 +14,7 @@ import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error
 import type { ApiClient } from '../../lib/api/client';
 import { CalendarHeaderActions, CalendarSubnav, whenLabel } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface FocusBlocksScreenProps {
   organizationSlug: string;
@@ -34,7 +34,7 @@ function listWindow(): { from: string; to: string } {
 function formatInstant(iso: string): string {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return iso;
-  return new Date(ms).toLocaleString(appLocale());
+  return new Date(ms).toLocaleString(appIntlLocale());
 }
 
 /**

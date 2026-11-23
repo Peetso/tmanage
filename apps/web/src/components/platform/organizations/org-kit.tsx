@@ -23,7 +23,7 @@ import {
 } from '../shared/ReasonDialog';
 import { PLATFORM_ME_QUERY_KEY } from '../shared/usePlatformPermissions';
 import { SupportModeEntry } from '../support/SupportModeEntry';
-import { appLocale } from '../../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../../lib/i18n/app-locale';
 
 /**
  * Pieces every Platform admin · Organizations screen (A1–A7, A9) shares: the status dot, the
@@ -129,7 +129,7 @@ export function formatDay(iso: string | null): string {
   if (iso === null) return '—';
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '—';
-  return new Intl.DateTimeFormat(appLocale(), {
+  return new Intl.DateTimeFormat(appIntlLocale(), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

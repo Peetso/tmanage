@@ -27,6 +27,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { AiCreditsBlock } from '../ai-admin/AiCreditsBlock';
 import '../../styles/screens/plan-usage.css';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 export interface PlanUsageScreenProps {
   organizationSlug: string;
@@ -427,6 +428,6 @@ function updatedText(measuredAt: string, locale: string, tr: PlanUsageText): str
   const minutes = (Date.now() - at.getTime()) / 60_000;
   if (Number.isNaN(minutes) || minutes < 1) return tr('PlanUsage.updatedJustNow');
   if (minutes < 60) return tr('PlanUsage.updatedFewMinutes');
-  const time = new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(at);
+  const time = new Intl.DateTimeFormat(withNumerals(locale), { timeStyle: 'short' }).format(at);
   return fill(tr('PlanUsage.updatedAt'), { time });
 }

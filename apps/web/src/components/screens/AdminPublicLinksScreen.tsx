@@ -44,6 +44,7 @@ import { fill } from '../people/ChangeRoleDialog';
 import { PhoneIcon } from '../icons/phone/PhoneIcon';
 import '../../styles/screens/people.css';
 import '../../styles/screens/public-links.css';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 /**
  * 56-07p · **Settings · Public links** — Figma section 619:35203: list 619:35204, empty 620:35336,
@@ -413,9 +414,11 @@ function EmptyState({
 function useDates() {
   const locale = useActiveLocale();
   const short = (iso: string) =>
-    new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(new Date(iso));
+    new Intl.DateTimeFormat(withNumerals(locale), { day: 'numeric', month: 'short' }).format(
+      new Date(iso),
+    );
   const time = (iso: string) =>
-    new Intl.DateTimeFormat(locale, {
+    new Intl.DateTimeFormat(withNumerals(locale), {
       hour: '2-digit',
       minute: '2-digit',
       hourCycle: 'h23',

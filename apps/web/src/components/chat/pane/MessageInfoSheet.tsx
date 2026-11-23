@@ -3,16 +3,17 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@tmanage/ui';
 import type { MessageSummary } from '../../../lib/api/conversations';
-import { appLocale } from '../../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../../lib/i18n/app-locale';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 import './pane.css';
 
 function when(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-    parsed,
-  );
+  return new Intl.DateTimeFormat(appIntlLocale(), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed);
 }
 
 /**

@@ -37,6 +37,7 @@ import { EffectivePermissionsPanel } from './EffectivePermissionsPanel';
 import { capabilitySentence } from './PermissionMatrix';
 import { capabilityCellLabel, fill, roleLabel } from './RoleMatrixEditor';
 import '../../styles/screens/permission-editor.css';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 /**
  * platform-admin v2 · PA-04 — D8 member permission overrides + "what can this person do"
@@ -112,7 +113,9 @@ function dateLabel(iso: string | null, locale: string): string | null {
   if (iso === null) return null;
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return null;
-  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(at);
+  return new Intl.DateTimeFormat(withNumerals(locale), { day: 'numeric', month: 'short' }).format(
+    at,
+  );
 }
 
 /** The end of the chosen day, in the viewer's zone, as an ISO instant. */

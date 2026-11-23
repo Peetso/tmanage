@@ -19,7 +19,7 @@ import type { WorkloadHoursPerson, WorkloadHoursView } from '../../lib/api/insig
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import '../../styles/screens/insights.css';
 import '../../styles/screens/insights-workload-hours.css';
 
@@ -377,5 +377,5 @@ function isValidHours(raw: string): boolean {
 }
 
 function formatNumber(n: number): string {
-  return new Intl.NumberFormat(appLocale(), { maximumFractionDigits: 1 }).format(n);
+  return new Intl.NumberFormat(appIntlLocale(), { maximumFractionDigits: 1 }).format(n);
 }

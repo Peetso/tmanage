@@ -1,3 +1,5 @@
+import { withNumerals } from '../../../lib/i18n/display-format';
+
 /**
  * platform-admin v2 · PA-06 — small, pure helpers the People screens share (B1–B4).
  */
@@ -23,7 +25,7 @@ export function shortDay(iso: string | null, locale: string, now = new Date()): 
   if (iso === null) return '—';
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(withNumerals(locale), {
     day: 'numeric',
     month: 'short',
     ...(at.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
@@ -35,7 +37,7 @@ export function dayAndTime(iso: string | null, locale: string): string {
   if (iso === null) return '—';
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(withNumerals(locale), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -48,7 +50,7 @@ export function fullDay(iso: string | null, locale: string): string {
   if (iso === null) return '—';
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(withNumerals(locale), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

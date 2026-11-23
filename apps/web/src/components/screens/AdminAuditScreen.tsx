@@ -24,10 +24,11 @@ import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { activeIsEnglish } from '../../lib/i18n/compact-time';
 import { pluralPhrase } from '../../lib/i18n/plural';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 export interface AdminAuditScreenProps {
   organizationSlug: string;
@@ -165,7 +166,7 @@ export function AdminAuditScreen({
     return t('AdminAuditScreen.outcomeChange');
   };
 
-  // R34 D1: the header count in the locale's plural form and digits ("٥٠+ حدثًا", not "50+ events").
+  // R34 D1: the header count in the locale's plural form, digits by the app rule ("50+ حدثًا", not "50+ events").
   const title = events.isSuccess
     ? pluralPhrase(
         tr,
@@ -173,7 +174,7 @@ export function AdminAuditScreen({
         'AdminAuditScreen.eventCount',
         rows.length,
         { one: '{count} event', other: '{count} events' },
-        `${rows.length.toLocaleString(locale)}${events.hasNextPage ? '+' : ''}`,
+        `${rows.length.toLocaleString(withNumerals(locale))}${events.hasNextPage ? '+' : ''}`,
       )
     : t('AdminAuditScreen.title');
 
@@ -579,7 +580,7 @@ function classBreakdown(
     .slice(0, 3)
     .map(([type, count]) =>
       tr('AdminAuditScreen.classCount', '{count} {type}')
-        .replace('{count}', count.toLocaleString(locale))
+        .replace('{count}', count.toLocaleString(withNumerals(locale)))
         .replace('{type}', entityLabel(type)),
     )
     .join(' · ');
@@ -652,7 +653,7 @@ function formatWhen(
 ): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  const format = activeIsEnglish(locale) ? 'en-GB' : locale;
+  const format = withNumerals(activeIsEnglish(locale) ? 'en-GB' : locale);
   const time = at.toLocaleTimeString(format, { hour: '2-digit', minute: '2-digit' });
   const today = new Date();
   const yesterday = new Date(today);
@@ -673,7 +674,8 @@ function formatWhen(
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-    at,
-  );
+  return new Intl.DateTimeFormat(appIntlLocale(), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(at);
 }

@@ -43,9 +43,13 @@ function oneLine(value: string): string {
   return value.replaceAll(/\s+/gu, ' ').trim();
 }
 
-/** A calendar date in the reader's language, UTC (the grace period ends at that instant). */
+/**
+ * A calendar date in the reader's language, UTC (the grace period ends at that instant). Arabic is
+ * written with Latin digits, the app's default (AR-DIGITS) and the e-mail catalog's
+ * `meta.dateLocale`; named on the tag so it does not depend on the runtime's CLDR default for `ar`.
+ */
 export function formatMailDate(date: Date, arabic: boolean): string {
-  return new Intl.DateTimeFormat(arabic ? 'ar' : 'en-GB', {
+  return new Intl.DateTimeFormat(arabic ? 'ar-u-nu-latn' : 'en-GB', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',

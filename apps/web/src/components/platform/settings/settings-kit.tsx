@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { MessageKey } from '../../../lib/i18n/t';
 import { useT } from '../../../lib/i18n/use-t';
 import { useTOr } from '../../../lib/i18n/use-t-or';
+import { withNumerals } from '../../../lib/i18n/display-format';
 
 /**
  * Pieces the four Platform settings pages share (PA-10, SPEC §4 D1–D4): the Settings sub-nav,
@@ -89,7 +90,10 @@ export function formatWhen(iso: string | null, locale: string): string {
   if (iso === null) return '—';
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return new Intl.DateTimeFormat(withNumerals(locale), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(at);
 }
 
 /** One choice in a chip group. */

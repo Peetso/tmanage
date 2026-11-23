@@ -17,6 +17,7 @@ import { ReasonDialog } from '../shared/ReasonDialog';
 import { missingPlatformPermission } from '../shared/usePlatformPermissions';
 import type { PlatformMeView } from '../../../lib/api/platform-admin';
 import { PLATFORM_TEAM_KEY, PRESET_LABELS, PlatformAdminDialog } from './PlatformAdminDialog';
+import { withNumerals } from '../../../lib/i18n/display-format';
 
 /** "4 min ago", "Yesterday", "12 Oct" — the drawn last step-up column. */
 export function relativeMoment(iso: string | null, locale: string, now = Date.now()): string {
@@ -24,13 +25,15 @@ export function relativeMoment(iso: string | null, locale: string, now = Date.no
   const at = new Date(iso).getTime();
   if (Number.isNaN(at)) return '—';
   const seconds = Math.round((at - now) / 1000);
-  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  const format = new Intl.RelativeTimeFormat(withNumerals(locale), { numeric: 'auto' });
   const abs = Math.abs(seconds);
   if (abs < 60) return format.format(Math.round(seconds), 'second');
   if (abs < 3600) return format.format(Math.round(seconds / 60), 'minute');
   if (abs < 86_400) return format.format(Math.round(seconds / 3600), 'hour');
   if (abs < 7 * 86_400) return format.format(Math.round(seconds / 86_400), 'day');
-  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(at);
+  return new Intl.DateTimeFormat(withNumerals(locale), { day: 'numeric', month: 'short' }).format(
+    at,
+  );
 }
 
 /** D5 · Platform admin team — `/platform/team` (frames 436:18889, 436:19172, 436:19614). */

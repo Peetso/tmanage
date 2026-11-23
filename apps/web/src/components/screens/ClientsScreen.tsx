@@ -30,6 +30,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import { describePeopleError, initialsOf } from './peopleShared';
 import { NotDeliveredChip, StoppedInvitationNotice } from '../people/StoppedInvitationNotice';
 import '../../styles/screens/clients.css';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 export type ClientStatus = 'archived' | 'invite_pending' | 'portal_live' | 'not_shared';
 
@@ -238,9 +239,10 @@ export function ClientsScreen({
 
   const archivedLabel = (iso: string) =>
     t('Clients.archivedOn', {
-      date: new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
-        new Date(iso),
-      ),
+      date: new Intl.DateTimeFormat(withNumerals(locale), {
+        month: 'long',
+        year: 'numeric',
+      }).format(new Date(iso)),
     });
 
   return (

@@ -16,7 +16,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { TeachingEmptyState, focusFirstField } from '../help/TeachingEmptyState';
 import { useShellCapability } from '../shell/use-shell-capability';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface DocRevisionsScreenProps {
   organizationSlug: string;
@@ -226,7 +226,7 @@ export function DocRevisionsScreen({
                       #{revision.revNo}
                     </th>
                     <td>{revision.savedBy}</td>
-                    <td>{new Date(revision.savedAt).toLocaleString(appLocale())}</td>
+                    <td>{new Date(revision.savedAt).toLocaleString(appIntlLocale())}</td>
                     <td>
                       <Button
                         type="button"

@@ -14,6 +14,7 @@ import {
 import type { IncidentStatus, WorkspaceIncidentView } from '../../lib/api/incidents';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 export interface AdminIncidentsScreenProps {
   organizationSlug: string;
@@ -33,7 +34,7 @@ export const INCIDENT_STATUS_TEXT: Record<IncidentStatus, readonly [string, stri
 export function incidentMoment(iso: string, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(withNumerals(locale), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

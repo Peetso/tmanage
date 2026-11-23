@@ -24,7 +24,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import {
   WEEKDAY_TOKENS,
   draftErrors,
@@ -47,7 +47,7 @@ export interface WorkItemRecurrencePanelProps {
 /** Sunday 2026-11-01 + n days: a fixed week to name weekdays in the active locale. */
 function weekdayName(token: WeekdayToken, style: 'narrow' | 'long'): string {
   const day = WEEKDAY_TOKENS.indexOf(token);
-  return new Date(Date.UTC(2026, 10, 1 + day)).toLocaleDateString(appLocale(), {
+  return new Date(Date.UTC(2026, 10, 1 + day)).toLocaleDateString(appIntlLocale(), {
     weekday: style,
     timeZone: 'UTC',
   });
@@ -56,7 +56,7 @@ function weekdayName(token: WeekdayToken, style: 'narrow' | 'long'): string {
 function formatDay(iso: string): string {
   const at = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleDateString(appLocale(), {
+  return at.toLocaleDateString(appIntlLocale(), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',

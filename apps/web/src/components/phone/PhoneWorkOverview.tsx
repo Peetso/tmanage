@@ -17,6 +17,7 @@ import { fill } from '../../lib/privacy-presentation';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import '../../styles/phone/work.css';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 export type PhoneWorkFilter = 'mine' | 'week' | 'client';
 
@@ -297,7 +298,7 @@ function phoneDay(value: string, locale: string): string {
   const parsed = new Date(value.length === 10 ? `${value}T00:00:00` : value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString(
-    locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB',
+    appDateLocale(locale.toLowerCase().startsWith('ar') ? locale : 'en-GB'),
     {
       weekday: 'short',
       day: 'numeric',

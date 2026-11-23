@@ -22,7 +22,7 @@ import {
   readSavedFilters,
   writeSavedFilters,
 } from './ActivityFrame';
-import { appLocale } from '../../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../../lib/i18n/app-locale';
 
 /** The filter keys C1 understands; the page passes any of them from the URL. */
 export const ACTION_FILTER_KEYS = [
@@ -234,11 +234,12 @@ function ActionLogBody({ api, initialFilter }: { api: ApiClient; initialFilter: 
     <div className="tm-stack">
       {first ? (
         <p className="tm-cc-eyebrow">
-          {first.totals.total.toLocaleString(appLocale())} {t('PlatformActivity.totalActions')} ·{' '}
-          {first.totals.viaSupport.toLocaleString(appLocale())}{' '}
+          {first.totals.total.toLocaleString(appIntlLocale())} {t('PlatformActivity.totalActions')}{' '}
+          · {first.totals.viaSupport.toLocaleString(appIntlLocale())}{' '}
           {t('PlatformActivity.totalViaSupport')} ·{' '}
-          {first.totals.denied.toLocaleString(appLocale())} {t('PlatformActivity.totalDenied')} ·{' '}
-          {first.totals.errors.toLocaleString(appLocale())} {t('PlatformActivity.totalErrors')}
+          {first.totals.denied.toLocaleString(appIntlLocale())} {t('PlatformActivity.totalDenied')}{' '}
+          · {first.totals.errors.toLocaleString(appIntlLocale())}{' '}
+          {t('PlatformActivity.totalErrors')}
         </p>
       ) : null}
       <SearchField

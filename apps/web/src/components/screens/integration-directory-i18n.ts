@@ -7,6 +7,7 @@ import {
   directoryTitle,
   relativeAgo,
 } from './integration-directory-view';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 /**
  * The INT-01 directory's generated copy in the active locale (C6, 2026-11-02 Arabic live test).
@@ -30,7 +31,7 @@ export function localizedDirectoryTitle(
   const live = apps.filter((app) => appState(app) === 'live').length;
   const pending = apps.filter((app) => appState(app) === 'pending').length;
   if (live === 0 && pending === 0) return tr(`${KEY}.titleNothing`, 'Nothing connected yet');
-  const count = (value: number) => new Intl.NumberFormat(locale).format(value);
+  const count = (value: number) => new Intl.NumberFormat(withNumerals(locale)).format(value);
   const parts: string[] = [];
   if (live > 0)
     parts.push(tr(`${KEY}.titleConnected`, '{count} connected').replace('{count}', count(live)));

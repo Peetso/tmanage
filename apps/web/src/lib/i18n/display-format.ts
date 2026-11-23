@@ -12,8 +12,11 @@ import { requestDisplay } from './request-display';
  * the shared formatters (`format.ts`, `compact-time.ts`, `use-formatters.ts`) read them on every
  * call.
  *
- * Until the preference is published (signed-out pages, unit tests) both values are unset and the
- * formatters keep the locale's own digits and layout, which is what those pages always showed.
+ * Until the preference is published (signed-out pages, first paint, unit tests, Storybook) both
+ * values are unset. The layout then stays the locale's own, but the digits are Latin (0-9) in every
+ * locale (AR-DIGITS, manager decision 2026-11-23): every Figma frame, Arabic included, writes
+ * Latin digits, so a locale whose own default is another system (`ar-EG` → Arabic-Indic, `fa` →
+ * Persian) is drawn in Latin unless the member chose otherwise in Settings › Display.
  */
 
 export interface DisplayFormat {
@@ -60,16 +63,51 @@ export const displayFormat = new DisplayFormatStore(true);
 
 const NUMBERING: Record<DisplayNumerals, string> = { latin: 'latn', arabic_indic: 'arab' };
 
+/** Whether `locale` already names its digit system (`-u-nu-…`), as a caller's explicit choice. */
+function namesNumbering(locale: string): boolean {
+  return /-u(?:-[a-z0-9]{2,8})*-nu-[a-z0-9]{3,8}/iu.test(locale);
+}
+
+const NATIVE_DEFAULT = new Map<string, boolean>();
+
 /**
- * The BCP-47 tag to hand to `Intl` for `locale` with the saved digit shapes forced through the
- * Unicode `-u-nu-` extension (`ar-EG` + latin → `ar-EG-u-nu-latn`). Any `nu` the caller already
- * put on the tag is replaced; other `-u-` keywords are kept. Unset numerals leave the tag alone.
+ * Whether `Intl` would draw `locale` in a digit system other than Latin when no `nu` is given
+ * (CLDR's default numbering: `ar-EG` → `arab`, `fa` → `arabext`, `bn` → `beng`; `en`, `ur-PK`,
+ * `ar-MA` → `latn`). Asked of the engine itself, so the answer follows its CLDR data and the
+ * result digits are Latin on every engine; a tag `Intl` rejects is left for the caller to report.
+ */
+function defaultsToNativeDigits(locale: string): boolean {
+  const known = NATIVE_DEFAULT.get(locale);
+  if (known !== undefined) return known;
+  let native = false;
+  try {
+    native = new Intl.NumberFormat(locale).resolvedOptions().numberingSystem !== 'latn';
+  } catch {
+    native = false;
+  }
+  NATIVE_DEFAULT.set(locale, native);
+  return native;
+}
+
+/**
+ * The BCP-47 tag to hand to `Intl` for `locale`: the one place the app decides which digits a
+ * date, time or number is written in.
+ *
+ * - Saved numerals (Settings › Display) are forced through the Unicode `-u-nu-` extension
+ *   (`ar-EG` + latin → `ar-EG-u-nu-latn`, + arabic_indic → `ar-EG-u-nu-arab`), replacing any `nu`
+ *   the caller put on the tag and keeping other `-u-` keywords.
+ * - Nothing saved: Latin digits by default (AR-DIGITS). A tag whose locale defaults to another
+ *   system gets `-u-nu-latn`; a tag that already names its `nu`, or whose default is already
+ *   Latin, is returned unchanged.
  */
 export function withNumerals(
   locale: string,
   numerals: DisplayNumerals | undefined = displayFormat.get().numerals,
 ): string {
-  if (numerals === undefined) return locale;
+  if (numerals === undefined) {
+    if (namesNumbering(locale) || !defaultsToNativeDigits(locale)) return locale;
+    return withNumerals(locale, 'latin');
+  }
   const system = NUMBERING[numerals];
   const stripped = locale.replace(/-nu-[a-z0-9]{3,8}/giu, '').replace(/-u$/iu, '');
   const at = stripped.toLowerCase().indexOf('-u-');

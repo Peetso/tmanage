@@ -8,6 +8,7 @@ import { useT } from '../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../lib/i18n/t';
 import { usePresence } from '../../../lib/use-presence';
 import './status.css';
+import { withNumerals } from '../../../lib/i18n/display-format';
 
 /**
  * Pure: the header line — "Online", "Last seen today 14:02", "… yesterday …", "… 3 Oct", or
@@ -24,12 +25,15 @@ export function presenceText(
   if (view.online) return t('ChatStatus.online');
   if (view.lastSeenAt === null) return null;
   const seen = new Date(view.lastSeenAt);
-  const time = seen.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  const time = seen.toLocaleTimeString(withNumerals(locale), {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
   const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((day(now) - day(seen)) / 86_400_000);
   if (days === 0) return t('ChatStatus.lastSeenToday').replace('{time}', time);
   if (days === 1) return t('ChatStatus.lastSeenYesterday').replace('{time}', time);
-  const date = seen.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  const date = seen.toLocaleDateString(withNumerals(locale), { day: 'numeric', month: 'short' });
   return t('ChatStatus.lastSeenOn').replace('{date}', date);
 }
 

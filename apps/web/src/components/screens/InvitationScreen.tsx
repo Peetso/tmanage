@@ -29,6 +29,7 @@ import {
 } from './GoogleSignInButton';
 import { providerOffered } from '../../lib/api/provider-availability';
 import '../../styles/screens/identity.css';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 export interface InvitationScreenProps {
   /** From the route. Sent in a body, never rendered into the document. */
@@ -407,6 +408,6 @@ function errorProp(message: string | undefined): { error?: string } {
 function formatDay(value: string, locale: string, month: 'short' | 'long'): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  const tag = locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
+  const tag = appDateLocale(locale.toLowerCase().startsWith('ar') ? locale : 'en-GB');
   return new Intl.DateTimeFormat(tag, { day: 'numeric', month }).format(parsed);
 }

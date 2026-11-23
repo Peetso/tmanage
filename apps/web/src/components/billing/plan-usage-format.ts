@@ -1,4 +1,5 @@
 import { PLAN_USAGE_COPY, type PlanUsageCopyKey } from './plan-usage-copy';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 /** The copy lookup a Plan and usage component uses: `tOr` bound to the F4 English defaults. */
 export type PlanUsageText = (key: PlanUsageCopyKey) => string;
@@ -41,9 +42,9 @@ export function providerCompany(provider: keyof typeof PROVIDER_COMPANIES): stri
   return PROVIDER_COMPANIES[provider];
 }
 
-/** A count with grouping in Latin digits, as the page writes numbers ("1,240"). */
+/** A count with grouping ("1,240"); digits by the app rule (Latin unless chosen). */
 export function count(value: number, locale: string): string {
-  return new Intl.NumberFormat(locale, { numberingSystem: 'latn' }).format(value);
+  return new Intl.NumberFormat(appDateLocale(locale, locale)).format(value);
 }
 
 const GB = 1024 ** 3;

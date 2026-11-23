@@ -5,7 +5,8 @@ import { formatDateTime, formatDay, formatMoneyMinor, formatNumber } from '../sr
  * i18n Slice 2 — the same value, formatted for the member's locale rather than the browser's.
  *
  * A fixed UTC instant and fixed numbers, formatted for `en-US`, `de-DE` and `ar-EG`, must all
- * three diverge: grouping and decimal marks (en vs de), and Arabic-Indic digits (ar). That is
+ * three diverge: grouping and decimal marks (en vs de), and the Arabic marks (ar; Latin digits by
+ * default since AR-DIGITS, Arabic-Indic once the member saves them). That is
  * exactly what `Intl.…Format(undefined, …)` could not guarantee, because `undefined` followed
  * the browser. The timezone half is proved separately: one instant, two zones, two wall clocks.
  */
@@ -16,17 +17,17 @@ function allDistinct(values: readonly string[]): boolean {
 }
 
 describe('numbers follow the active locale', () => {
-  it('groups and marks decimals per locale, with Arabic-Indic digits for ar-EG', () => {
+  it('groups and marks decimals per locale; ar-EG keeps Latin digits by default (AR-DIGITS)', () => {
     const en = formatNumber(1234567.89, { locale: 'en-US' });
     const de = formatNumber(1234567.89, { locale: 'de-DE' });
     const ar = formatNumber(1234567.89, { locale: 'ar-EG' });
 
     expect(en).toBe('1,234,567.89');
     expect(de).toBe('1.234.567,89');
-    // Arabic-Indic digits (U+0660–U+0669), never ASCII digits.
-    expect(ar).toMatch(/[٠-٩]/u);
-    expect(ar).not.toMatch(/[0-9]/u);
-    expect(allDistinct([en, de, ar])).toBe(true);
+    // Latin digits, as the Figma frames write them.
+    expect(ar).toMatch(/[0-9]/u);
+    expect(ar).not.toMatch(/[٠-٩]/u);
+    expect(allDistinct([en, de])).toBe(true);
   });
 });
 
@@ -38,7 +39,7 @@ describe('currency follows the active locale', () => {
 
     expect(en).toContain('1,234.56');
     expect(de).toContain('1.234,56');
-    expect(ar).toMatch(/[٠-٩]/u);
+    expect(ar).not.toMatch(/[٠-٩]/u);
     expect(allDistinct([en, de, ar])).toBe(true);
   });
 
@@ -56,7 +57,7 @@ describe('dates follow the active locale and timezone', () => {
     const de = formatDay(INSTANT, { locale: 'de-DE' }, { dateStyle: 'medium', timeZone: 'UTC' });
     const ar = formatDay(INSTANT, { locale: 'ar-EG' }, { dateStyle: 'medium', timeZone: 'UTC' });
     expect(allDistinct([en, de, ar])).toBe(true);
-    expect(ar).toMatch(/[٠-٩]/u);
+    expect(ar).not.toMatch(/[٠-٩]/u);
   });
 
   it('reads one instant as two wall clocks in two timezones', () => {

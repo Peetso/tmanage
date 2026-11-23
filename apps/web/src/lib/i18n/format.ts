@@ -12,7 +12,7 @@ import { numericDay, withNumerals } from './display-format';
  * the timezone) explicitly, so a value is formatted the way the member chose, deterministically.
  *
  * They are pure and take the locale as an argument so a unit can prove `en-US`, `de-DE` and
- * `ar-EG` really diverge (grouping, decimal mark, currency placement, Arabic-Indic digits) for a
+ * `ar-EG` really diverge (grouping, decimal mark, currency placement; digits per `withNumerals`) for a
  * fixed input. `useDisplayFormatters()` binds them to the active locale for components.
  *
  * Every wrapper keeps the defensive fallback the hand-written call sites had: an unknown currency

@@ -17,7 +17,7 @@ import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface InsightsForecastScreenProps {
   organizationSlug: string;
@@ -366,14 +366,15 @@ function perMemberCapacity(totals: WorkloadForecastView['totals']): number {
 function formatDay(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium' }).format(at);
+  return new Intl.DateTimeFormat(appIntlLocale(), { dateStyle: 'medium' }).format(at);
 }
 
 /** Format an ISO timestamp for display, following the browser's locale. Unparseable is verbatim. */
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-    at,
-  );
+  return new Intl.DateTimeFormat(appIntlLocale(), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(at);
 }

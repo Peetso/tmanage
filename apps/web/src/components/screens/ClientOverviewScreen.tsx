@@ -43,7 +43,7 @@ import { usePortalActions } from '../../lib/portal-actions';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface ClientOverviewScreenProps {
   organizationSlug: string;
@@ -747,9 +747,10 @@ function TeamCard({
 }
 
 function formatMoment(value: Date): string {
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-    value,
-  );
+  return new Intl.DateTimeFormat(appIntlLocale(), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(value);
 }
 
 export type { PortalProject };

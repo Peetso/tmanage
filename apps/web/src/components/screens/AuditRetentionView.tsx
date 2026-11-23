@@ -9,7 +9,7 @@ import { readAuditRetention, setAuditRetention } from '../../lib/api/admin-audit
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface AuditRetentionViewProps {
   organizationSlug: string;
@@ -132,7 +132,7 @@ export function AuditRetentionView({
             <p className="tm-muted" aria-live="polite">
               {policy.data.retentionDays === null
                 ? t('AuditRetentionView.noWindow')
-                : `${policy.data.eventsOlderThanWindow.toLocaleString(appLocale())} ${
+                : `${policy.data.eventsOlderThanWindow.toLocaleString(appIntlLocale())} ${
                     policy.data.eventsOlderThanWindow === 1
                       ? t('AuditRetentionView.eventOne')
                       : t('AuditRetentionView.eventMany')

@@ -12,7 +12,7 @@ import {
 } from '../../lib/api/doc-subscriptions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface DocSubscriptionToggleProps {
   organizationSlug: string;
@@ -192,7 +192,7 @@ export function DocSubscriptionsView({
                     <th scope="row" className="tm-table__title">
                       {subscription.title}
                     </th>
-                    <td>{new Date(subscription.createdAt).toLocaleString(appLocale())}</td>
+                    <td>{new Date(subscription.createdAt).toLocaleString(appIntlLocale())}</td>
                   </tr>
                 ))}
               </tbody>

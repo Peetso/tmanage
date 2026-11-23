@@ -9,7 +9,7 @@ import { addDocLink, listDocBacklinks, listDocLinks, removeDocLink } from '../..
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import type { DocLinkSummary } from '../../lib/api/doc-links';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface DocBacklinksPanelProps {
   organizationSlug: string;
@@ -222,7 +222,7 @@ function LinkList({
                   <th scope="row" className="tm-table__title">
                     {link.title}
                   </th>
-                  <td>{new Date(link.createdAt).toLocaleString(appLocale())}</td>
+                  <td>{new Date(link.createdAt).toLocaleString(appIntlLocale())}</td>
                   {removable ? (
                     <td>
                       <Button

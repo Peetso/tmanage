@@ -34,6 +34,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { workItemKeys } from '../../lib/query-keys';
 import './request-triage.css';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 const RLM = '‏';
 
@@ -87,7 +88,7 @@ function orbOf(name: string): string {
 }
 
 function intlLocale(locale: string): string {
-  return isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB';
+  return appDateLocale(isArabic(locale) ? locale : 'en-GB');
 }
 
 /** "2h" · "1d" in English; "ساعتان" · "3 أيام" in Arabic — the list's age column. */

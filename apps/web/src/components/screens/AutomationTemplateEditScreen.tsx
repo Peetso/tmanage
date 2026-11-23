@@ -30,6 +30,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { ACTIONS, TRIGGERS, actionLabel, triggerLabel } from './automation-labels';
+import { withNumerals } from '../../lib/i18n/display-format';
 
 export interface AutomationTemplateEditScreenProps {
   organizationSlug: string;
@@ -680,7 +681,10 @@ function LastRunLine({
   const when = sameDay(at, new Date())
     ? tOr('AutomationRule.lastRanToday', 'Last ran today at {time}').replace('{time}', clock(at))
     : tOr('AutomationRule.lastRanOn', 'Last ran on {date} at {time}')
-        .replace('{date}', at.toLocaleDateString(locale, { day: 'numeric', month: 'short' }))
+        .replace(
+          '{date}',
+          at.toLocaleDateString(withNumerals(locale), { day: 'numeric', month: 'short' }),
+        )
         .replace('{time}', clock(at));
   const count =
     sent === 1

@@ -41,6 +41,7 @@ import {
 import { centsOf, monthTotals, overCap, percent, poolRow, usd } from './ai-spend-model';
 import '../../ai-chat/ai-chat.css';
 import './ai-spend.css';
+import { withNumerals } from '../../../lib/i18n/display-format';
 
 /**
  * Platform admin › AI spend (plan 62-19; Figma G13 v2 784:48078, resumed state 784:49225, dialogs
@@ -369,9 +370,10 @@ function CapsCard({
   readonly onChange: (pool: AiAdminPool) => void;
 }) {
   const { t, locale } = useAiText();
-  const month = new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(
-    new Date(view.periodStart),
-  );
+  const month = new Intl.DateTimeFormat(withNumerals(locale), {
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(view.periodStart));
   return (
     <section className="tm-ais-card" aria-labelledby="ais-caps">
       <header className="tm-ais-card__head">

@@ -18,7 +18,7 @@ import { PlatformTable } from '../shared/PlatformTable';
 import type { PlatformColumn } from '../shared/PlatformTable';
 import { usePlatformPermissions } from '../shared/usePlatformPermissions';
 import { ACTIVITY_KEY, ActivityFrame, moment } from './ActivityFrame';
-import { appLocale } from '../../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../../lib/i18n/app-locale';
 
 /**
  * C4 · Platform admins (platform-admin v2 · PA-09) — what the operators did, with their reasons
@@ -120,7 +120,7 @@ function PlatformActionsBody({
     <div className="tm-stack">
       {first ? (
         <p className="tm-cc-eyebrow">
-          {first.total.toLocaleString(appLocale())} {t('PlatformActivity.totalPlatformActions')}
+          {first.total.toLocaleString(appIntlLocale())} {t('PlatformActivity.totalPlatformActions')}
         </p>
       ) : null}
       <div className="tm-cc-card__actions">

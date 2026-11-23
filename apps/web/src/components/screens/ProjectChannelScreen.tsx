@@ -101,7 +101,7 @@ import {
 import '../../styles/screens/chat.css';
 import '../chat/chat-shell.css';
 import { chatHref } from '../chat/chat-workspaces';
-import { appDateLocale, appLocale } from '../../lib/i18n/app-locale';
+import { appDateLocale, appIntlLocale, appLocale } from '../../lib/i18n/app-locale';
 import { channelLabel } from '../../lib/text/channel-label';
 
 type Translate = ReturnType<typeof useT>;
@@ -906,7 +906,7 @@ function phoneDayLabel(
 ): string {
   const parsed = new Date(value);
   const arabic = locale.toLowerCase().startsWith('ar');
-  const day = parsed.toLocaleDateString(arabic ? 'ar-u-nu-latn' : 'en-GB', {
+  const day = parsed.toLocaleDateString(appDateLocale(arabic ? locale : 'en-GB'), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -1822,9 +1822,10 @@ function formatStamp(value: string): string {
 function formatWhen(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(
-    parsed,
-  );
+  return new Intl.DateTimeFormat(appIntlLocale(), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed);
 }
 
 function MessageBody({

@@ -1,7 +1,7 @@
 import { compactUnit } from './i18n/compact-time';
 import type { CapsuleState } from '@tmanage/ui';
 import type { ClientRequestState } from './api/client-requests';
-import { appLocale } from './i18n/app-locale';
+import { appIntlLocale } from './i18n/app-locale';
 
 /**
  * How the **internal** lifecycle of a client request is said, in one place.
@@ -155,7 +155,7 @@ export function formatDay(value: string): string {
   if (Number.isNaN(parsed.getTime())) return value;
   // UTC, because these are calendar dates pinned to midnight UTC (0012): formatting them in
   // the reader's own zone is what showed every date a day early west of Greenwich.
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'long', timeZone: 'UTC' }).format(
+  return new Intl.DateTimeFormat(appIntlLocale(), { dateStyle: 'long', timeZone: 'UTC' }).format(
     parsed,
   );
 }

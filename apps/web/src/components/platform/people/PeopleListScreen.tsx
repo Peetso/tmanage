@@ -28,6 +28,7 @@ import { relativeMoment } from '../team/PlatformTeamScreen';
 import { isOnlineNow } from './presence';
 import { BUILT_IN_ROLES, CLIENT_ROLES, daysAgoIso, shortDay } from './people-format';
 import { roleName } from './PersonFrame';
+import { withNumerals } from '../../../lib/i18n/display-format';
 
 export const PLATFORM_PEOPLE_KEY = ['platform', 'people'] as const;
 
@@ -319,7 +320,7 @@ function PeopleBody({
         hasMore={people.hasNextPage}
         loadingMore={people.isFetchingNextPage}
         onLoadMore={() => void people.fetchNextPage()}
-        footer={`${t('PlatformPeople.showing')} 1–${rows.length} ${t('PlatformPeople.of')} ${total.toLocaleString(locale)} ${t('PlatformPeople.peopleWord')}`}
+        footer={`${t('PlatformPeople.showing')} 1–${rows.length} ${t('PlatformPeople.of')} ${total.toLocaleString(withNumerals(locale))} ${t('PlatformPeople.peopleWord')}`}
         columns={[
           {
             id: 'person',

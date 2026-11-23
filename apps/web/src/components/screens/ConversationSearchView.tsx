@@ -14,7 +14,7 @@ import { useMembers } from '../../lib/use-members';
 import { useT } from '../../lib/i18n/use-t';
 import { TeachingEmptyState } from '../help/TeachingEmptyState';
 import '../../styles/screens/chat.css';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { channelLabel } from '../../lib/text/channel-label';
 
 /**
@@ -70,7 +70,7 @@ function initialsOf(name: string): string {
 function formatStamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(appLocale(), {
+  return new Intl.DateTimeFormat(appIntlLocale(), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

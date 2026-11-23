@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import { withNumerals } from '../i18n/display-format';
 
 /**
  * The Administration overview endpoint — module 18 (x175). `GET .../admin/overview`, behind
@@ -66,7 +67,7 @@ export function relativeWhen(iso: string, now: Date, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   let value = (at.getTime() - now.getTime()) / 1000;
-  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  const format = new Intl.RelativeTimeFormat(withNumerals(locale), { numeric: 'auto' });
   for (const [unit, size] of RELATIVE_STEPS) {
     if (Math.abs(value) < size) return format.format(Math.round(value), unit);
     value /= size;

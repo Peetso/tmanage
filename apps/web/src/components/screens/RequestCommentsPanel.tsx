@@ -12,7 +12,7 @@ import {
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 
 export interface RequestCommentsPanelProps {
   organizationSlug: string;
@@ -25,7 +25,7 @@ const MAX_BODY_LENGTH = 5000;
 function formatWhen(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleString(appLocale());
+  return at.toLocaleString(appIntlLocale());
 }
 
 /** Group the flat list into top-level comments each with their (one level of) replies, in order. */

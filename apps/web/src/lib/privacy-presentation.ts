@@ -1,3 +1,5 @@
+import { appDateLocale } from './i18n/app-locale';
+
 /**
  * D5 (Figma F5) — how the Privacy pages word dates, sizes and states. Pure, so a unit proves the
  * frame's readings ("1 Nov 2026", "today at 13:05", "2.4 GB", "About 40% done") without a render.
@@ -22,7 +24,7 @@ export function privacyDay(iso: string, locale: string, timeZone?: string): stri
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   const arabic = isArabic(locale);
-  return new Intl.DateTimeFormat(arabic ? 'ar-u-nu-latn' : 'en-GB', {
+  return new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
     day: 'numeric',
     month: arabic ? 'long' : 'short',
     year: 'numeric',

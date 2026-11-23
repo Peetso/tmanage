@@ -1,3 +1,5 @@
+import { appDateLocale } from '../../lib/i18n/app-locale';
+
 /**
  * Shared helpers of the docs screens: locale tags and day formats, initials, the line diff of
  * Compare, and the U+200F mark for mixed Arabic lines. (The textarea toolbar and "/" menu that
@@ -11,11 +13,11 @@ export function isArabic(locale: string): boolean {
 
 /**
  * The formatting tag. The catalog draws "16 Oct 2026" / "16 أكتوبر 2026": day-first English and
- * Arabic with Latin digits; any other language formats as chosen.
+ * Arabic with Latin digits (the app's digit rule, {@link appDateLocale}); any other language
+ * formats as chosen.
  */
 export function tagFor(locale: string): string {
-  if (isArabic(locale)) return 'ar-u-nu-latn';
-  return locale === 'en' || locale.startsWith('en-') ? 'en-GB' : locale;
+  return appDateLocale(locale);
 }
 
 /** One block of a line diff: lines only in the old text, or only in the new one. */

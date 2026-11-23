@@ -9,9 +9,9 @@ describe('pluralPhrase (R34 D1/D2)', () => {
   };
   const tr = (key: string, fallback: string) => catalog[key] ?? fallback;
 
-  it('picks the locale plural form, its digits, and the English pair until a key exists', () => {
+  it('picks the locale plural form, Latin digits by default (AR-DIGITS), and the English pair until a key exists', () => {
     expect(pluralPhrase(tr, 'ar-EG', 'x', 2, english)).toBe('مؤسستان');
-    expect(pluralPhrase(tr, 'ar-EG', 'x', 3, english)).toBe('٣ مؤسسات');
+    expect(pluralPhrase(tr, 'ar-EG', 'x', 3, english)).toBe('3 مؤسسات');
     expect(pluralPhrase(tr, 'en-US', 'x', 1, english)).toBe('One organization');
     expect(pluralPhrase(tr, 'en-US', 'x', 50, english, '50+')).toBe('50+ organizations');
   });

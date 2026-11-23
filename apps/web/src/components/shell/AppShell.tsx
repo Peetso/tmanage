@@ -41,6 +41,7 @@ import { ThemeSync } from './ThemeSync';
 import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
 import { NewMenu } from './NewMenu';
 import { TitleRowControls } from './TitleRowControls';
+import { appDateLocale } from '../../lib/i18n/app-locale';
 
 export interface AppShellProps {
   /**
@@ -472,7 +473,7 @@ export function DayPulseBar({
   const now = useClock(fixed);
   const day = now ? String(now.getDate()).padStart(2, '0') : '··';
   // The day in the reader's language, Latin digits in Arabic as the Arabic frames write them.
-  const dateTag = locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
+  const dateTag = appDateLocale(locale.toLowerCase().startsWith('ar') ? locale : 'en-GB');
   const date = now
     ? now.toLocaleDateString(dateTag, { weekday: 'short', day: 'numeric', month: 'short' })
     : '';

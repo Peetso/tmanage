@@ -12,7 +12,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { useDictation } from '../voice/useDictation';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
 import { useDescribeApiError } from '../../lib/api/describe-error';
-import { appLocale } from '../../lib/i18n/app-locale';
+import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useMembers } from '../../lib/use-members';
 import {
@@ -38,7 +38,7 @@ const MAX_MENTION_OPTIONS = 8;
 function formatWhen(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return at.toLocaleString(appLocale());
+  return at.toLocaleString(appIntlLocale());
 }
 
 /**

@@ -1,4 +1,5 @@
 import { all, attr, child, openPackage, readXml, relationshipId, relationships } from './ooxml';
+import { withNumerals } from '../i18n/display-format';
 
 /**
  * R4 slice 10 — an Excel workbook as a plain grid of display text, read in the browser.
@@ -125,7 +126,7 @@ export function formatNumber(value: number, format: string | undefined, locale: 
   if (/[ymdh]/i.test(pattern) && !/[#0]/.test(pattern)) {
     const date = serialToDate(value);
     const withTime = /h/i.test(pattern);
-    return new Intl.DateTimeFormat(locale, {
+    return new Intl.DateTimeFormat(withNumerals(locale), {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

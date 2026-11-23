@@ -1,6 +1,6 @@
 import type { CapsuleState } from '@tmanage/ui';
 import type { ClientRequest, ClientRequestStatus } from './api/portal';
-import { appLocale } from './i18n/app-locale';
+import { appIntlLocale } from './i18n/app-locale';
 
 /**
  * How a client request's status is *said*, in one place.
@@ -130,13 +130,13 @@ export function describeDesiredDate(value: string | null): string {
  *
  * The values this formats are `'YYYY-MM-DD'` strings from `DATE` columns (0012). They are
  * pinned to midnight UTC and formatted **in UTC**, so 3 September is 3 September in every
- * zone — `new Date(value).toLocaleDateString(appLocale())` on an instant was how the portal showed a
+ * zone — `new Date(value).toLocaleDateString(appIntlLocale())` on an instant was how the portal showed a
  * client west of UTC the day before the one they picked.
  */
 export function formatDay(value: string): string {
   const parsed = new Date(value.length === 10 ? `${value}T00:00:00.000Z` : value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(appLocale(), { dateStyle: 'long', timeZone: 'UTC' }).format(
+  return new Intl.DateTimeFormat(appIntlLocale(), { dateStyle: 'long', timeZone: 'UTC' }).format(
     parsed,
   );
 }

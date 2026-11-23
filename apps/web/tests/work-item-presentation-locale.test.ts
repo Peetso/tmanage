@@ -23,7 +23,7 @@ describe('work item dates follow the active locale (WRK-13)', () => {
     expect(formatInstant(null)).toBe('No date');
   });
 
-  it('formats a bare calendar day in the member locale — Arabic-Indic digits for ar-EG', () => {
+  it('formats a bare calendar day in the member locale — Arabic layout, Latin digits (AR-DIGITS)', () => {
     activeLocale.set('en-US');
     const en = formatDay('2026-01-15');
     expect(en).toMatch(/15/);
@@ -31,15 +31,19 @@ describe('work item dates follow the active locale (WRK-13)', () => {
 
     activeLocale.set('ar-EG');
     const ar = formatDay('2026-01-15');
-    // Arabic-Indic digits (U+0660–U+0669), never ASCII — the RTL scramble is gone.
-    expect(ar).toMatch(/[٠-٩]/u);
-    expect(ar).not.toMatch(/[0-9]/u);
+    // The Arabic layout with Latin digits, as every Arabic Figma frame writes them.
+    expect(ar).toMatch(/15/u);
+    expect(ar).toMatch(/‏/u);
+    expect(ar).not.toMatch(/[٠-٩]/u);
     expect(ar).not.toBe(en);
   });
 
   it('formats a full instant in the member locale rather than the browser default', () => {
     activeLocale.set('ar-EG');
-    expect(formatInstant('2026-01-15T13:45:00.000Z')).toMatch(/[٠-٩]/u);
+    const ar = formatInstant('2026-01-15T13:45:00.000Z');
+    // The Arabic pattern (right-to-left marks between the parts), Latin digits (AR-DIGITS).
+    expect(ar).toMatch(/‏/u);
+    expect(ar).not.toMatch(/[٠-٩]/u);
   });
 
   it('round-trips a picked day through the stored instant (P9 date picker)', () => {
