@@ -90,6 +90,9 @@ const LIST_READS: Readonly<Record<string, readonly string[]>> = {
     'listRequestAttachmentsForProject',
     // FIX3 item 11: the Files hub's per-project list.
     'listReadyForProject',
+    // Lane C: the workspace-wide Files list (GET /files), which the AI reads too. A deleted
+    // file must not be listed.
+    'listReadyForProjects',
     // 55-14a: a client's own portal uploads in one project.
     'listClientUploadsForProject',
     // QA-FIX S1: the signature re-check. A deleted file serves nothing (file-download.service.ts
