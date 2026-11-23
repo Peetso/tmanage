@@ -122,7 +122,10 @@
   justify-content: center;
   gap: var(--s2);
   min-block-size: var(--tm-control-h, var(--control));
-  padding-inline: var(--s5);
+  /* Density v2 rule 1 (ADR-0016, UX-26): a capsule keeps its label at least 16px and half its
+     height from each rounded end, so the padding follows the height (40 → 20, 36 → 18, 44 → 22). */
+  --tm-button-pad: max(var(--inset-capsule), calc(var(--tm-control-h, var(--control)) / 2));
+  padding-inline: var(--tm-button-pad);
   border: var(--b-quiet) solid transparent;
   border-radius: var(--r-capsule);
   font-family: inherit;
@@ -148,7 +151,7 @@
   place-items: center;
   inline-size: var(--orb-compact);
   block-size: var(--orb-compact);
-  margin-inline-start: calc(var(--s5) * -1 + 6px);
+  margin-inline-start: calc(var(--tm-button-pad, var(--s5)) * -1 + 6px);
   border-radius: var(--r-capsule);
   background: var(--ink-800);
   color: var(--tm-accent-on-ink, var(--lime-500));
@@ -162,7 +165,6 @@
 
 .tm-button--compact {
   --tm-control-h: 36px;
-  padding-inline: var(--s4);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
 }
@@ -1297,7 +1299,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s1);
-  padding: var(--s1) var(--s3);
+  /* Density v2 rule 1: text 16px from the rounded end (it sat 13px). */
+  padding: var(--s1) var(--inset-capsule);
   border-radius: var(--r-capsule);
   border: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
@@ -1331,7 +1334,8 @@
   /* 52-13 fix 7: logical sides only, so the shape sits at the start of the word in both
      directions — left of "Paid", right of "مدفوعة". */
   padding-block: 6px;
-  padding-inline: var(--s3);
+  /* Density v2 rule 1: text 16px from the rounded end (it sat 13px). */
+  padding-inline: var(--inset-capsule);
   border-radius: var(--r-capsule);
   border: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
@@ -1637,8 +1641,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-block-size: var(--control);
-  padding-inline: var(--s4);
+  /* Density v2: a filter chip is one control high (32, `--app-control`) with its text 16px from
+     the rounded ends, which is also half its height (doc-frame rules 1 and 2). */
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
@@ -1703,8 +1709,9 @@ a.tm-chip {
 }
 
 .tm-chip--compact {
-  min-block-size: 32px;
-  padding-inline: var(--s3);
+  /* A chip inside a row (`--app-control-sm`, 28); text 16px from the ends as on every capsule. */
+  min-block-size: var(--app-control-sm);
+  padding-inline: var(--inset-capsule);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
 }
