@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workItemStateMachine } from '@tmanage/domain';
@@ -15,8 +15,6 @@ import { WorkCommentsPanel } from './WorkCommentsPanel';
 import { WorkItemCodeLinks } from './WorkItemCodeLinks';
 import { FigmaLinksPanel } from '../viewer/FigmaLinks';
 import { NotScannedDownload } from './NotScannedDownload';
-import { WorkChecklistPanel } from './WorkChecklistPanel';
-import { WorkItemRecurrencePanel } from './WorkItemRecurrencePanel';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -26,6 +24,7 @@ import {
   getWorkItem,
   getWorkItemClientAudience,
   getWorkItemPeople,
+  listWorkComments,
   listWorkItemFiles,
   transitionWorkItem,
   updateWorkItem,
@@ -81,12 +80,7 @@ import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
-import {
-  audienceLabel,
-  dayToInstant,
-  formatDay,
-  stateCapsule,
-} from '../../lib/work-item-presentation';
+import { audienceLabel, formatDay } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import {
   audienceFailureMessage,
@@ -102,14 +96,16 @@ import { useUndo } from '../../lib/undo/use-undo';
 import { undoKey } from '../../lib/undo/undo-queue';
 import { AccessExplainer } from '../access/AccessExplainer';
 import type { MessageKey } from '../../lib/i18n/t';
-import { dayOf, DueDatePicker, formatChipDay, formatShortDay, useA6T } from '../work/DueDatePicker';
-import { initialsOf, OwnerPickerDialog, useOwnerCandidates } from '../work/OwnerPickerDialog';
-import {
-  needsSupervisorApproval,
-  workItemPeopleKey,
-  WorkPeopleBlock,
-} from '../work/WorkPeopleBlock';
-import { EditWorkItemDialog, type WorkItemChanges } from '../work/EditWorkItemDialog';
+import { dayOf, formatShortDay, useA6T, WorkDialogFrame } from '../work/DueDatePicker';
+import { useOwnerCandidates } from '../work/OwnerPickerDialog';
+import { needsSupervisorApproval, workItemPeopleKey } from '../work/WorkPeopleBlock';
+import { WorkDecision } from '../work/detail/WorkDecision';
+import { WorkPropertiesPanel } from '../work/detail/WorkPropertiesPanel';
+import { WorkSteps } from '../work/detail/WorkSteps';
+import { WorkTitle } from '../work/detail/WorkTitle';
+import { StageTrail, WorkStageControl } from '../work/stages/WorkStageControl';
+import { useWorkStages, type WorkStages } from '../work/stages/use-work-stages';
+import '../work/detail/work-detail.css';
 import { DeleteWorkItemDialog } from '../work/DeleteWorkItemDialog';
 import { WorkItemActionsMenu, type WorkItemAction } from '../work/WorkItemActionsMenu';
 
@@ -196,6 +192,42 @@ function describe(error: unknown, t: (key: string) => string): string {
   return t('WorkDetail.genericError');
 }
 
+/**
+ * How a refused write reads on this page, the same in the body and in the properties panel: a
+ * stale version (409 on `version`) is "somebody else changed this first" and reloads the item;
+ * any other 409 (an active blocker already exists) is the API's own words; anything else is
+ * described. Nothing is retried.
+ */
+type WriteFailure =
+  { readonly conflict: true } | { readonly conflict: false; readonly message: string };
+
+function writeFailure(error: unknown, t: (key: string) => string): WriteFailure {
+  if (error instanceof ApiRequestError && error.status === 409) {
+    return error.fieldErrors().has('version')
+      ? { conflict: true }
+      : { conflict: false, message: error.message };
+  }
+  return { conflict: false, message: describe(error, t) };
+}
+
+function WriteAlerts({ conflict, failure }: { conflict: boolean; failure: string | undefined }) {
+  const t = useT();
+  return (
+    <>
+      {conflict ? (
+        <InlineAlert tone="warning" title={t('WorkItemDetailScreen.conflictTitle')} live>
+          {t('WorkItemDetailScreen.conflictBody')}
+        </InlineAlert>
+      ) : null}
+      {failure ? (
+        <InlineAlert tone="danger" title={t('WorkItemDetailScreen.failureTitle')} live>
+          {failure}
+        </InlineAlert>
+      ) : null}
+    </>
+  );
+}
+
 function fileKind(name: string): string {
   const dot = name.lastIndexOf('.');
   return dot < 0
@@ -238,9 +270,10 @@ export function WorkItemDetailScreen({
   const queries = useQueryClient();
   const t = useT();
   const ta = useA6T();
+  const itemKey = ['work-item', organizationSlug, workItemId] as const;
 
   const item = useQuery({
-    queryKey: ['work-item', organizationSlug, workItemId],
+    queryKey: itemKey,
     queryFn: () => getWorkItem(api, organizationSlug, workItemId),
   });
 
@@ -258,6 +291,33 @@ export function WorkItemDetailScreen({
   });
   const projectName =
     projects.data?.find((project) => project.id === item.data?.projectId)?.name ?? '';
+  const stages = useWorkStages(
+    api,
+    organizationSlug,
+    item.data ?? { projectId: '', stageId: null, state: 'backlog' },
+  );
+  const [headerFailure, setHeaderFailure] = useState<string | undefined>(undefined);
+
+  function changed(next: WorkItemSummary) {
+    queries.setQueryData(itemKey, next);
+    void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+  }
+
+  const rename = useMutation({
+    mutationFn: (title: string) =>
+      updateWorkItem(api, organizationSlug, workItemId, {
+        title,
+        version: item.data?.version ?? 0,
+      }),
+    onSuccess: changed,
+    onError: (error) => {
+      setHeaderFailure(describe(error, ta));
+      void item.refetch();
+    },
+  });
+
+  const dispatch = (action: HeaderAction) =>
+    window.dispatchEvent(new CustomEvent(ACTION_EVENT, { detail: action }));
 
   return (
     <AppShell
@@ -271,16 +331,45 @@ export function WorkItemDetailScreen({
               <Link href={`/${organizationSlug}/projects/${item.data.projectId}`}>
                 {projectName}
               </Link>
-              <span aria-hidden="true"> / </span>
+              <span aria-hidden="true"> › </span>
             </>
           ) : null}
           <Link href={`/${organizationSlug}/work`}>{ta('WorkDetail.work')}</Link>
         </span>
       }
       title={item.data?.title ?? t('WorkItemDetailScreen.fallbackTitle')}
+      {...(item.data
+        ? {
+            titleContent: (
+              <WorkTitle
+                api={api}
+                organizationSlug={organizationSlug}
+                title={item.data.title}
+                saving={rename.isPending}
+                onRename={(title) => rename.mutate(title)}
+              />
+            ),
+          }
+        : {})}
       actions={
         item.data ? (
-          <>
+          <div className="tm-wk-head-actions">
+            <WorkStageControl
+              api={api}
+              organizationSlug={organizationSlug}
+              item={item.data}
+              stages={stages}
+              onChanged={changed}
+            />
+            <WorkDecision
+              api={api}
+              organizationSlug={organizationSlug}
+              item={item.data}
+              canFinish={pathToDone(item.data.state) !== null}
+              onDone={() => dispatch('done')}
+              onChanged={changed}
+              onError={setHeaderFailure}
+            />
             {/* 52-01: the start/stop timer (Figma 574:32611). */}
             <WorkItemTimerButton
               organizationSlug={organizationSlug}
@@ -294,59 +383,73 @@ export function WorkItemDetailScreen({
               workItemId={workItemId}
               client={api}
             />
-            <HeaderActions
-              item={item.data}
-              onAction={(action) =>
-                window.dispatchEvent(new CustomEvent(ACTION_EVENT, { detail: action }))
-              }
-            />
-          </>
+            <WorkItemActionsMenu itemTitle={item.data.title} onAction={dispatch} />
+          </div>
         ) : undefined
       }
+      {...(item.data
+        ? {
+            lens: (
+              <WorkLens
+                api={api}
+                organizationSlug={organizationSlug}
+                item={item.data}
+                projects={projects.data ?? []}
+                projectName={projectName}
+                stages={stages}
+                {...(now === undefined ? {} : { now })}
+                onChanged={changed}
+                onConflict={() => void item.refetch()}
+              />
+            ),
+          }
+        : {})}
     >
       {item.isPending ? (
         <LoadingRegion label={t('WorkItemDetailScreen.loading')}>
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
+          <Skeleton height="var(--app-row)" />
+          <Skeleton height="var(--app-row)" />
         </LoadingRegion>
       ) : null}
 
       {item.isError ? (
         <InlineAlert tone="danger" title={t('WorkItemDetailScreen.loadError')} live>
-          {item.error instanceof ApiRequestError
-            ? item.error.message
-            : item.error instanceof NetworkError
-              ? t('WorkItemDetailScreen.networkError')
-              : t('WorkItemDetailScreen.genericError')}
+          {item.error instanceof NetworkError
+            ? t('WorkItemDetailScreen.networkError')
+            : t('WorkItemDetailScreen.genericError')}
+        </InlineAlert>
+      ) : null}
+
+      {headerFailure ? (
+        <InlineAlert tone="danger" title={t('WorkItemDetailScreen.failureTitle')} live>
+          {headerFailure}
         </InlineAlert>
       ) : null}
 
       {item.data ? (
-        <WorkItemBody
-          item={item.data}
-          api={api}
-          organizationSlug={organizationSlug}
-          projects={projects.data ?? []}
-          projectName={projectName}
-          {...(now === undefined ? {} : { now })}
-          onChanged={(next) => {
-            queries.setQueryData(['work-item', organizationSlug, workItemId], next);
-            void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
-          }}
-          onConflict={() => {
-            void item.refetch();
-          }}
-          onDeleted={() => {
-            void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
-            if (onDeleted) onDeleted();
-            else window.location.assign(`/${organizationSlug}/work`);
-          }}
-          onOpenItem={(id) => {
-            void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
-            if (onOpenItem) onOpenItem(id);
-            else window.location.assign(`/${organizationSlug}/work/${id}`);
-          }}
-        />
+        <>
+          <StageTrail stages={stages} />
+          <WorkItemBody
+            item={item.data}
+            api={api}
+            organizationSlug={organizationSlug}
+            projectName={projectName}
+            onChanged={changed}
+            onConflict={() => {
+              void item.refetch();
+            }}
+            onDeleted={() => {
+              void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+              if (onDeleted) onDeleted();
+              else window.location.assign(`/${organizationSlug}/work`);
+            }}
+            onOpenItem={(id) => {
+              void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+              if (onOpenItem) onOpenItem(id);
+              else window.location.assign(`/${organizationSlug}/work/${id}`);
+            }}
+          />
+        </>
       ) : null}
     </AppShell>
   );
@@ -359,40 +462,118 @@ export function WorkItemDetailScreen({
 const ACTION_EVENT = 'tm:work-item-action';
 type HeaderAction = WorkItemAction | 'done';
 
-function HeaderActions({
+/**
+ * The properties panel in the shell's lens (Work area v2, Figma `933:95423`): the client and
+ * audience reads, the in-place edits of project and dates, and the two editors the page owns —
+ * who sees it (widening is confirmed) and the status move (a blocker needs a reason and an ask).
+ */
+function WorkLens({
+  api,
+  organizationSlug,
   item,
-  onAction,
+  projects,
+  projectName,
+  stages,
+  now,
+  onChanged,
+  onConflict,
 }: {
+  api: ApiClient;
+  organizationSlug: string;
   item: WorkItemSummary;
-  onAction: (action: HeaderAction) => void;
+  projects: readonly { readonly id: string; readonly name: string }[];
+  projectName: string;
+  stages: WorkStages;
+  now?: Date;
+  onChanged: (next: WorkItemSummary) => void;
+  onConflict: () => void;
 }) {
   const ta = useA6T();
-  const canFinish = pathToDone(item.state) !== null;
+  const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [conflict, setConflict] = useState(false);
+  const shares = useQuery({
+    queryKey: ['project-shares', organizationSlug, item.projectId],
+    queryFn: () => listProjectShares(api, organizationSlug, item.projectId),
+  });
+  const clientOptions = useQuery({
+    queryKey: ['client-organization-options', organizationSlug],
+    queryFn: () => listClientOrganizationOptions(api, organizationSlug),
+    enabled: (shares.data?.length ?? 0) > 0,
+  });
+  const projectClients: readonly ProjectClientChoice[] = (shares.data ?? []).map((share) => ({
+    id: share.clientOrganizationId,
+    name:
+      clientOptions.data?.find((option) => option.id === share.clientOrganizationId)?.name ?? '',
+  }));
+  const clientAudience = useQuery({
+    queryKey: ['work-item-client-audience', organizationSlug, item.id],
+    queryFn: () => getWorkItemClientAudience(api, organizationSlug, item.id),
+    enabled: item.audience !== 'internal' && projectClients.length > 0,
+  });
+  const tickedClients = tickedClientIds(projectClients, clientAudience.data ?? []);
+  const clientNames = projectClients
+    .filter((choice) => tickedClients.includes(choice.id) && choice.name !== '')
+    .map((choice) => choice.name);
+
+  function handleError(error: unknown) {
+    const outcome = writeFailure(error, ta);
+    setConflict(outcome.conflict);
+    setFailure(outcome.conflict ? undefined : outcome.message);
+    if (outcome.conflict) onConflict();
+  }
+
+  const edit = useMutation({
+    mutationFn: (input: Omit<UpdateWorkItemInput, 'version'>) =>
+      updateWorkItem(api, organizationSlug, item.id, { ...input, version: item.version }),
+    onSuccess: (next) => {
+      setFailure(undefined);
+      setConflict(false);
+      onChanged(next);
+    },
+    onError: handleError,
+  });
+
   return (
-    <div className="tm-wk-head-actions">
-      <WorkItemActionsMenu itemTitle={item.title} onAction={onAction} />
-      <button type="button" className="tm-wk-text-button" onClick={() => onAction('delete')}>
-        {ta('WorkDetail.delete')}
-      </button>
-      <button
-        type="button"
-        className="tm-wk-pill-button"
-        data-tone="outline"
-        onClick={() => onAction('edit')}
-      >
-        {ta('WorkDetail.edit')}
-      </button>
-      {canFinish ? (
-        <button
-          type="button"
-          className="tm-wk-pill-button"
-          data-tone="ink"
-          onClick={() => onAction('done')}
-        >
-          {ta('WorkDetail.markDone')}
-        </button>
-      ) : null}
-    </div>
+    <>
+      <WorkPropertiesPanel
+        api={api}
+        organizationSlug={organizationSlug}
+        item={item}
+        projects={projects}
+        projectName={projectName}
+        stages={stages}
+        clientNames={clientNames}
+        {...(now === undefined ? {} : { now })}
+        saving={edit.isPending}
+        onEdit={(changes) => edit.mutate(changes)}
+        onChanged={onChanged}
+        audienceEditor={() => (
+          <AudiencePanel
+            item={item}
+            api={api}
+            organizationSlug={organizationSlug}
+            projectClients={projectClients}
+            clientsLoaded={shares.isSuccess}
+            tickedClients={tickedClients}
+            onChanged={onChanged}
+            onError={handleError}
+          />
+        )}
+        statusEditor={(close) => (
+          <MovePanel
+            item={item}
+            api={api}
+            organizationSlug={organizationSlug}
+            onMoved={(next) => {
+              onChanged(next);
+              close();
+            }}
+            onError={handleError}
+          />
+        )}
+      />
+      <WriteAlerts conflict={conflict} failure={failure} />
+    </>
   );
 }
 
@@ -400,48 +581,41 @@ interface WorkItemBodyProps {
   item: WorkItemSummary;
   api: ApiClient;
   organizationSlug: string;
-  projects: readonly { readonly id: string; readonly name: string }[];
   projectName: string;
-  now?: Date;
   onChanged: (next: WorkItemSummary) => void;
   onConflict: () => void;
   onDeleted: () => void;
   onOpenItem: (workItemId: string) => void;
 }
 
-type Overlay =
-  | { kind: 'edit'; focusProject: boolean }
-  | { kind: 'owner' }
-  | { kind: 'due' }
-  | { kind: 'start' }
-  | { kind: 'delete' }
-  | { kind: 'approval' }
-  | null;
+type Overlay = { kind: 'delete' } | { kind: 'approval' } | { kind: 'why' } | null;
 
-type Tab = 'details' | 'files' | 'activity';
+type Tab = 'comments' | 'activity';
 
+/**
+ * The work page's one scroll (Work area v2, Figma `933:95423`; plan §4.3): description, steps,
+ * files, then comments and activity under two tabs that are the heading. Every property lives in
+ * the panel beside it and is edited in place; there is no "Edit details" form any more.
+ */
 function WorkItemBody({
   item,
   api,
   organizationSlug,
-  projects,
   projectName,
-  now,
   onChanged,
   onConflict,
   onDeleted,
   onOpenItem,
 }: WorkItemBodyProps) {
-  const t = useT();
   const ta = useA6T();
   const tOr = useTOr();
   const locale = useActiveLocale();
   const queries = useQueryClient();
   const [overlay, setOverlay] = useState<Overlay>(null);
-  const [tab, setTab] = useState<Tab>('details');
-  const [fieldErrors, setFieldErrors] = useState<ReadonlyMap<string, string>>(new Map());
+  const [tab, setTab] = useState<Tab>('comments');
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [conflict, setConflict] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const directory = useMembers(api, organizationSlug);
   const owners = useOwnerCandidates(api, organizationSlug, item.projectId);
@@ -454,9 +628,12 @@ function WorkItemBody({
     queryKey: ['work-activity', organizationSlug, item.id],
     queryFn: () => listWorkActivity(api, organizationSlug, item.id),
   });
+  const comments = useQuery({
+    queryKey: ['work-item-comments', organizationSlug, item.id],
+    queryFn: () => listWorkComments(api, organizationSlug, item.id),
+  });
 
-  // The client of this project, for "<Client> can see this item" and the delete note. R36 F1: read
-  // for internal items too, so the confirm that widens one can already list the clients to tag.
+  // The client of this project, named in the delete note.
   const shares = useQuery({
     queryKey: ['project-shares', organizationSlug, item.projectId],
     queryFn: () => listProjectShares(api, organizationSlug, item.projectId),
@@ -468,21 +645,6 @@ function WorkItemBody({
   });
   const clientId = shares.data?.[0]?.clientOrganizationId;
   const clientName = clientOptions.data?.find((option) => option.id === clientId)?.name;
-
-  // C25: a client-facing item can be limited to some of the project's client companies ("Which
-  // clients can see this?", Figma 529:30880). R36 F1: listed for every client-facing audience and
-  // for the confirm that widens an internal item, however many companies the project has.
-  const projectClients: readonly ProjectClientChoice[] = (shares.data ?? []).map((share) => ({
-    id: share.clientOrganizationId,
-    name:
-      clientOptions.data?.find((option) => option.id === share.clientOrganizationId)?.name ?? '',
-  }));
-  const clientAudience = useQuery({
-    queryKey: ['work-item-client-audience', organizationSlug, item.id],
-    queryFn: () => getWorkItemClientAudience(api, organizationSlug, item.id),
-    enabled: item.audience !== 'internal' && projectClients.length > 0,
-  });
-  const tickedClients = tickedClientIds(projectClients, clientAudience.data ?? []);
 
   // Deliverable-backed files: a file of this item that is a version of one of the project's
   // deliverables. Only those carry a version history, a reviewer and "Upload new version".
@@ -524,52 +686,32 @@ function WorkItemBody({
     (reviewerId === undefined ? undefined : ta('WorkDetail.clientReviewer'));
 
   function handleWriteError(error: unknown) {
-    if (error instanceof ApiRequestError && error.status === 409) {
-      if (error.fieldErrors().has('version')) {
-        setConflict(true);
-        setFailure(undefined);
-        setOverlay(null);
-        onConflict();
-        return;
-      }
-      setConflict(false);
-      setFailure(error.message);
-      return;
+    const outcome = writeFailure(error, ta);
+    setConflict(outcome.conflict);
+    setFailure(outcome.conflict ? undefined : outcome.message);
+    if (outcome.conflict) {
+      setOverlay(null);
+      onConflict();
     }
-    setFailure(describe(error, ta));
   }
 
-  /** Every edit is one PATCH with the version this screen read. */
+  /** The description is edited in place; one PATCH with the version this screen read. */
   const edit = useMutation({
-    mutationFn: (input: WorkItemChanges) =>
+    mutationFn: (input: Omit<UpdateWorkItemInput, 'version'>) =>
       updateWorkItem(api, organizationSlug, item.id, {
         ...input,
         version: item.version,
       } satisfies UpdateWorkItemInput),
     onSuccess: (next) => {
       onChanged(next);
-      setOverlay(null);
-      setFieldErrors(new Map());
       setFailure(undefined);
       setConflict(false);
     },
-    onError: (error) => {
-      if (
-        error instanceof ApiRequestError &&
-        (error.status === 400 || error.status === 422) &&
-        error.fieldErrors().size > 0
-      ) {
-        setFieldErrors(error.fieldErrors());
-        setFailure(overlay?.kind === 'edit' ? undefined : error.message);
-        return;
-      }
-      setOverlay(null);
-      handleWriteError(error);
-    },
+    onError: handleWriteError,
   });
 
-  // C27: the same read the people block makes (shared cache). A task with supervisors is done
-  // by one of them: anyone else's "Mark done" stops in internal review and waits for approval.
+  // C27: the same read the panel makes (shared cache). A task with supervisors is done by one of
+  // them: anyone else's "Mark done" stops in internal review and waits for approval.
   const people = useQuery({
     queryKey: workItemPeopleKey(organizationSlug, item.id),
     queryFn: () => getWorkItemPeople(api, organizationSlug, item.id),
@@ -633,17 +775,14 @@ function WorkItemBody({
   }
 
   function act(action: HeaderAction) {
-    setFieldErrors(new Map());
-    if (action === 'edit') setOverlay({ kind: 'edit', focusProject: false });
-    else if (action === 'move') setOverlay({ kind: 'edit', focusProject: true });
-    else if (action === 'owner') setOverlay({ kind: 'owner' });
-    else if (action === 'dates') setOverlay({ kind: 'due' });
-    else if (action === 'duplicate') duplicate.mutate();
+    if (action === 'duplicate') duplicate.mutate();
     else if (action === 'delete') setOverlay({ kind: 'delete' });
-    else if (action === 'done') {
+    else if (action === 'why') setOverlay({ kind: 'why' });
+    else if (action === 'copyLink') {
+      void navigator.clipboard?.writeText(window.location.href).then(() => setCopied(true));
+    } else if (action === 'done') {
       if (item.ownerUserId === null) {
-        setFailure(ta('WorkDetail.ownerFirst'));
-        setOverlay({ kind: 'owner' });
+        setFailure(ta('WorkPage.doerFirst'));
       } else {
         // 55-23: "Mark done" is held behind an Undo toast like a delete.
         undo.schedule({
@@ -658,255 +797,112 @@ function WorkItemBody({
   // The header's buttons are rendered by the shell; their presses arrive as a window event.
   useWindowEvent(ACTION_EVENT, (event) => act((event as CustomEvent<HeaderAction>).detail));
 
-  // "Unassigned" when nobody owns it — the directory's own word (D16).
-  const ownerName = memberDisplayName(item.ownerUserId, directory.members, directory.isPending);
   const fileCount = attached.length;
-  const activityCount = activity.data?.length ?? 0;
+  const commentCount = comments.data?.length ?? 0;
 
   return (
-    <div className="tm-wk-detail">
-      <div className="tm-wk-detail__pills" data-testid="work-item-status">
-        <span className="tm-wk-pill" data-state={stateCapsule(item.state)}>
-          <span className="tm-wk-pill__dot" aria-hidden="true" />
-          {t(STATE_KEY[item.state])}
-        </span>
-        {item.audience !== 'internal' ? (
-          <span className="tm-wk-pill" data-tone="client">
-            {item.audience === 'client_action_required'
-              ? ta('WorkDetail.clientAction')
-              : ta('WorkDetail.clientCanSee')}
-          </span>
-        ) : null}
-        {projectClients.length > 1 && tickedClients.length < projectClients.length ? (
-          <span className="tm-wk-pill" data-tone="client" data-testid="work-item-client-count">
-            {t('WorkItemDetailScreen.clientCount')
-              .replace('{count}', String(tickedClients.length))
-              .replace('{total}', String(projectClients.length))}
-          </span>
-        ) : null}
-      </div>
-      {/* 55-23: "Why can I see this?" — role, project and audience in plain words. */}
-      <div className="tm-wk-detail__access">
-        <AccessExplainer
-          api={api}
-          organizationSlug={organizationSlug}
-          audience={item.audience}
-          projectName={projectName}
-          ownerUserId={item.ownerUserId}
-          editCapability="work.update"
-        />
-      </div>
-
-      <div className="tm-wk-fact-chips" role="group" aria-label={ta('WorkDetail.factsLabel')}>
-        <button
-          type="button"
-          className="tm-wk-fact"
-          aria-haspopup="dialog"
-          onClick={() => act('owner')}
-        >
-          {item.ownerUserId !== null ? (
-            <span className="tm-wk-orb" aria-hidden="true">
-              {initialsOf(ownerName)}
-            </span>
-          ) : null}
-          <span className="tm-wk-fact__text">
-            <span className="tm-wk-fact__label">{ta('WorkDetail.owner')}</span>
-            <span className="tm-wk-fact__value">{ownerName}</span>
-          </span>
-          <span className="tm-wk-fact__caret" aria-hidden="true">
-            ▾
-          </span>
-        </button>
-
-        <DateChip
-          label={ta('WorkDetail.start')}
-          heading={ta('DueDatePicker.startHeading')}
-          value={dayOf(item.startAt)}
-          open={overlay?.kind === 'start'}
-          {...(now === undefined ? {} : { now })}
-          onOpen={() => setOverlay(overlay?.kind === 'start' ? null : { kind: 'start' })}
-          onClose={() => setOverlay(null)}
-          onSet={(day) => edit.mutate({ startAt: day === null ? null : dayToInstant(day) })}
-        />
-        <DateChip
-          label={ta('WorkDetail.due')}
-          heading={ta('DueDatePicker.dueHeading')}
-          value={dayOf(item.dueAt)}
-          min={dayOf(item.startAt)}
-          open={overlay?.kind === 'due'}
-          {...(now === undefined ? {} : { now })}
-          onOpen={() => setOverlay(overlay?.kind === 'due' ? null : { kind: 'due' })}
-          onClose={() => setOverlay(null)}
-          onSet={(day) => edit.mutate({ dueAt: day === null ? null : dayToInstant(day) })}
-        />
-
-        {firstBacking && reviewVersion ? (
-          <button
-            type="button"
-            className="tm-wk-fact"
-            aria-haspopup="dialog"
-            onClick={() => setOverlay({ kind: 'approval' })}
-          >
-            {reviewerName ? (
-              <span className="tm-wk-orb" aria-hidden="true">
-                {initialsOf(reviewerName)}
-              </span>
-            ) : null}
-            <span className="tm-wk-fact__text">
-              <span className="tm-wk-fact__label">{ta('WorkDetail.reviewer')}</span>
-              <span className="tm-wk-fact__value">
-                {reviewerName ?? ta('WorkDetail.sendForApproval')}
-              </span>
-            </span>
-            <span className="tm-wk-fact__caret" aria-hidden="true">
-              ▾
-            </span>
-          </button>
-        ) : null}
-      </div>
-      {/* C26: doers (lead first), supervisors and watchers — Figma R33 C26 531:30917. */}
-      <WorkPeopleBlock
-        api={api}
-        organizationSlug={organizationSlug}
-        workItemId={item.id}
-        projectId={item.projectId}
-        projectName={projectName}
-        item={item}
-        onChanged={onChanged}
-      />
-      {fieldErrors.size > 0 && overlay?.kind !== 'edit' ? (
-        <p className="tm-field__error" role="alert">
-          {[...fieldErrors.values()].join(' ')}
+    <div className="tm-wk-page" data-testid="work-item-page">
+      <WriteAlerts conflict={conflict} failure={failure} />
+      {copied ? (
+        <p className="tm-wk-section__meta" role="status">
+          {ta('WorkPage.linkCopied')}
         </p>
       ) : null}
 
-      {conflict ? (
-        <InlineAlert tone="warning" title={t('WorkItemDetailScreen.conflictTitle')} live>
-          {t('WorkItemDetailScreen.conflictBody')}
-        </InlineAlert>
-      ) : null}
-      {failure ? (
-        <InlineAlert tone="danger" title={t('WorkItemDetailScreen.failureTitle')} live>
-          {failure}
-        </InlineAlert>
-      ) : null}
+      <DescriptionSection
+        item={item}
+        saving={edit.isPending}
+        onSave={(description) => edit.mutate({ description })}
+      />
 
-      <div className="tm-wk-tabs" role="tablist" aria-label={ta('WorkDetail.tabsLabel')}>
-        {(
-          [
-            ['details', ta('WorkDetail.tabDetails'), undefined],
-            ['files', ta('WorkDetail.tabFiles'), fileCount],
-            ['activity', ta('WorkDetail.tabActivity'), activityCount],
-          ] as const
-        ).map(([id, label, count]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            aria-controls={`tm-wk-panel-${id}`}
-            id={`tm-wk-tab-${id}`}
-            onClick={() => setTab(id)}
-          >
-            {label}
-            {count === undefined ? null : <span className="tm-wk-count">{count}</span>}
-          </button>
-        ))}
-      </div>
+      <WorkSteps
+        api={api}
+        organizationSlug={organizationSlug}
+        workItemId={item.id}
+        people={owners.candidates}
+        onOpenItem={onOpenItem}
+      />
 
-      {tab === 'details' ? (
-        <div
-          className="tm-wk-detail__grid"
-          role="tabpanel"
-          id="tm-wk-panel-details"
-          aria-labelledby="tm-wk-tab-details"
-        >
-          <div className="tm-wk-detail__stack">
-            <DescriptionCard item={item} api={api} organizationSlug={organizationSlug} />
-            <MovePanel
-              item={item}
-              api={api}
-              organizationSlug={organizationSlug}
-              onMoved={onChanged}
-              onError={handleWriteError}
-            />
-            <AudiencePanel
-              item={item}
-              api={api}
-              organizationSlug={organizationSlug}
-              projectClients={projectClients}
-              clientsLoaded={shares.isSuccess}
-              tickedClients={tickedClients}
-              onChanged={onChanged}
-              onError={handleWriteError}
-            />
+      <section className="tm-wk-section tm-wk-files" aria-labelledby="tm-wk-files-title">
+        <div className="tm-wk-section__head">
+          <h2 id="tm-wk-files-title" className="tm-wk-section__title">
+            {ta('WorkDetail.tabFiles')}
+          </h2>
+          {fileCount > 0 ? <span className="tm-wk-section__meta">{fileCount}</span> : null}
+          {firstBacking && reviewVersion ? (
+            <Button
+              tone="text"
+              size="header"
+              flush
+              onClick={() => setOverlay({ kind: 'approval' })}
+            >
+              {reviewerName
+                ? `${ta('WorkDetail.reviewer')}: ${reviewerName}`
+                : ta('WorkDetail.sendForApproval')}
+            </Button>
+          ) : null}
+        </div>
+        <FilesCard
+          api={api}
+          organizationSlug={organizationSlug}
+          item={item}
+          files={attached}
+          loading={files.isPending}
+          failed={files.isError}
+          backingOf={backingOf}
+          latestOf={latestOf}
+          members={directory}
+          locale={locale}
+        />
+        <CloudFoldersCard
+          organizationSlug={organizationSlug}
+          client={api}
+          workItemId={item.id}
+          projectId={item.projectId}
+        />
+        <FigmaLinksPanel
+          organizationSlug={organizationSlug}
+          projectId={item.projectId}
+          target={{ type: 'work_item', id: item.id }}
+          canAttach
+          client={api}
+        />
+        <WorkItemCodeLinks organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+      </section>
+
+      <section className="tm-wk-section tm-wk-talk" aria-label={ta('WorkPage.talkLabel')}>
+        <div className="tm-wk-segment" role="tablist" aria-label={ta('WorkPage.talkLabel')}>
+          {(
+            [
+              ['comments', ta('WorkPage.comments'), commentCount],
+              ['activity', ta('WorkDetail.tabActivity'), undefined],
+            ] as const
+          ).map(([id, label, count]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              aria-controls={`tm-wk-panel-${id}`}
+              id={`tm-wk-tab-${id}`}
+              onClick={() => setTab(id)}
+            >
+              {label}
+              {count === undefined || count === 0 ? null : (
+                <span className="tm-wk-count">{count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        {tab === 'comments' ? (
+          <div role="tabpanel" id="tm-wk-panel-comments" aria-labelledby="tm-wk-tab-comments">
             <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
-            <WorkItemRecurrencePanel
-              organizationSlug={organizationSlug}
-              workItemId={item.id}
-              api={api}
-            />
-            <WorkItemCodeLinks organizationSlug={organizationSlug} workItemId={item.id} api={api} />
           </div>
-          <FilesCard
-            api={api}
-            organizationSlug={organizationSlug}
-            item={item}
-            files={attached}
-            loading={files.isPending}
-            failed={files.isError}
-            backingOf={backingOf}
-            latestOf={latestOf}
-            members={directory}
-            locale={locale}
-          />
-        </div>
-      ) : null}
-
-      {tab === 'files' ? (
-        <div role="tabpanel" id="tm-wk-panel-files" aria-labelledby="tm-wk-tab-files">
-          <FilesCard
-            api={api}
-            organizationSlug={organizationSlug}
-            item={item}
-            files={attached}
-            loading={files.isPending}
-            failed={files.isError}
-            backingOf={backingOf}
-            latestOf={latestOf}
-            members={directory}
-            locale={locale}
-          />
-          <CloudFoldersCard
-            organizationSlug={organizationSlug}
-            client={api}
-            workItemId={item.id}
-            projectId={item.projectId}
-          />
-          <FigmaLinksPanel
-            organizationSlug={organizationSlug}
-            projectId={item.projectId}
-            target={{ type: 'work_item', id: item.id }}
-            canAttach
-            client={api}
-          />
-        </div>
-      ) : null}
-
-      {tab === 'activity' ? (
-        <div
-          className="tm-wk-detail__stack"
-          role="tabpanel"
-          id="tm-wk-panel-activity"
-          aria-labelledby="tm-wk-tab-activity"
-        >
-          <section className="tm-wk-card" aria-labelledby="tm-wk-activity-heading">
-            <h2 id="tm-wk-activity-heading" className="tm-wk-card__title">
-              {ta('WorkDetail.tabActivity')}
-            </h2>
-            {activity.isPending ? <Skeleton height="var(--row)" /> : null}
+        ) : (
+          <div role="tabpanel" id="tm-wk-panel-activity" aria-labelledby="tm-wk-tab-activity">
+            {activity.isPending ? <Skeleton height="var(--app-row)" /> : null}
             {activity.isError ? (
-              <p className="tm-field__hint">{ta('WorkDetail.activityError')}</p>
+              <p className="tm-wk-section__empty">{ta('WorkDetail.activityError')}</p>
             ) : null}
             <ol className="tm-wk-activity">
               {(activity.data ?? []).map((entry) => (
@@ -918,39 +914,9 @@ function WorkItemBody({
                 </li>
               ))}
             </ol>
-          </section>
-        </div>
-      ) : null}
-
-      {overlay?.kind === 'edit' ? (
-        <EditWorkItemDialog
-          api={api}
-          organizationSlug={organizationSlug}
-          item={item}
-          projects={projects}
-          {...(clientName === undefined ? {} : { clientName })}
-          focusProject={overlay.focusProject}
-          saving={edit.isPending}
-          fieldErrors={fieldErrors}
-          onSave={(changes) => edit.mutate(changes)}
-          onClose={() => setOverlay(null)}
-        />
-      ) : null}
-
-      {overlay?.kind === 'owner' ? (
-        <OwnerPickerDialog
-          projectName={projectName}
-          candidates={owners.candidates}
-          loading={owners.loading}
-          value={item.ownerUserId}
-          saving={edit.isPending}
-          onAssign={(userId) => {
-            if (userId === item.ownerUserId) setOverlay(null);
-            else edit.mutate({ ownerUserId: userId });
-          }}
-          onClose={() => setOverlay(null)}
-        />
-      ) : null}
+          </div>
+        )}
+      </section>
 
       {overlay?.kind === 'delete' ? (
         <DeleteWorkItemDialog
@@ -960,6 +926,16 @@ function WorkItemBody({
           {...(clientName === undefined ? {} : { clientName })}
           deleting={false}
           onConfirm={confirmDelete}
+          onClose={() => setOverlay(null)}
+        />
+      ) : null}
+
+      {overlay?.kind === 'why' ? (
+        <WhyDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          item={item}
+          projectName={projectName}
           onClose={() => setOverlay(null)}
         />
       ) : null}
@@ -984,6 +960,45 @@ function WorkItemBody({
   );
 }
 
+/** "Why can I see this?" from the More menu: the reasons, in a small dialog. */
+function WhyDialog({
+  api,
+  organizationSlug,
+  item,
+  projectName,
+  onClose,
+}: {
+  api: ApiClient;
+  organizationSlug: string;
+  item: WorkItemSummary;
+  projectName: string;
+  onClose: () => void;
+}) {
+  const ta = useA6T();
+  const titleId = useId();
+  return (
+    <WorkDialogFrame labelledBy={titleId} onClose={onClose}>
+      <h2 id={titleId} className="tm-wk-dialog__title">
+        {ta('WorkActions.why')}
+      </h2>
+      <AccessExplainer
+        api={api}
+        organizationSlug={organizationSlug}
+        audience={item.audience}
+        projectName={projectName}
+        ownerUserId={item.ownerUserId}
+        editCapability="work.update"
+        variant="inline"
+      />
+      <div className="tm-wk-dialog__actions">
+        <Button tone="outline" size="large" onClick={onClose}>
+          {ta('WorkPage.close')}
+        </Button>
+      </div>
+    </WorkDialogFrame>
+  );
+}
+
 /** A window event, handled by the latest `handler` without re-subscribing on every render. */
 function useWindowEvent(name: string, handler: (event: Event) => void): void {
   const latest = useRef(handler);
@@ -997,89 +1012,73 @@ function useWindowEvent(name: string, handler: (event: Event) => void): void {
   }, [name]);
 }
 
-function DateChip({
-  label,
-  heading,
-  value,
-  min,
-  open,
-  now,
-  onOpen,
-  onClose,
-  onSet,
-}: {
-  label: string;
-  heading: string;
-  value: string;
-  min?: string;
-  open: boolean;
-  now?: Date;
-  onOpen: () => void;
-  onClose: () => void;
-  onSet: (day: string | null) => void;
-}) {
-  const ta = useA6T();
-  const locale = useActiveLocale();
-  return (
-    <div className="tm-wk-popover-anchor">
-      <button
-        type="button"
-        className="tm-wk-fact"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={onOpen}
-      >
-        <span className="tm-wk-fact__text">
-          <span className="tm-wk-fact__label">{label}</span>
-          <span className="tm-wk-fact__value">
-            {value === '' ? ta('WorkDetail.noDate') : formatChipDay(value, locale)}
-          </span>
-        </span>
-        <span className="tm-wk-fact__caret" aria-hidden="true">
-          ▾
-        </span>
-      </button>
-      {open ? (
-        <DueDatePicker
-          heading={heading}
-          value={value}
-          {...(min === undefined || min === '' ? {} : { min })}
-          {...(now === undefined ? {} : { now })}
-          onSet={(day) => {
-            onClose();
-            if (day !== (value === '' ? null : value)) onSet(day);
-          }}
-          onClose={onClose}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * The Details tab's left card: the description, a rule, and the checklist. The checklist is the
- * shared `WorkChecklistPanel` (its own count, toggles and add form), drawn flat inside the card.
- */
-function DescriptionCard({
+/** The description, edited in place: a press on it opens the box; leaving the box saves. */
+function DescriptionSection({
   item,
-  api,
-  organizationSlug,
+  saving,
+  onSave,
 }: {
   item: WorkItemSummary;
-  api: ApiClient;
-  organizationSlug: string;
+  saving: boolean;
+  onSave: (description: string | null) => void;
 }) {
   const ta = useA6T();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(item.description ?? '');
+  const boxId = useId();
+  useEffect(() => {
+    if (!editing) setDraft(item.description ?? '');
+  }, [item.description, editing]);
+
+  function save() {
+    setEditing(false);
+    const next = draft.trim();
+    if (next !== (item.description ?? '').trim()) onSave(next === '' ? null : next);
+  }
+
   return (
-    <section className="tm-wk-card tm-wk-description" aria-labelledby="tm-wk-description">
-      <h2 id="tm-wk-description" className="tm-wk-card__title">
-        {ta('WorkDetail.description')}
+    <section className="tm-wk-section tm-wk-description" aria-labelledby="tm-wk-description">
+      <h2 id="tm-wk-description" className="tm-wk-section__title">
+        {editing ? (
+          <label htmlFor={boxId}>{ta('WorkDetail.description')}</label>
+        ) : (
+          ta('WorkDetail.description')
+        )}
       </h2>
-      <p className="tm-wk-card__prose" data-empty={!item.description}>
-        {item.description ? item.description : ta('WorkDetail.noDescription')}
-      </p>
-      <hr className="tm-wk-card__rule" />
-      <WorkChecklistPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+      {editing ? (
+        <textarea
+          id={boxId}
+          className="tm-wk-textarea tm-wk-description__box"
+          value={draft}
+          dir="auto"
+          rows={4}
+          maxLength={20000}
+          // Opened by the person's press on the description, so the box takes focus.
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={save}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setDraft(item.description ?? '');
+              setEditing(false);
+            }
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="tm-wk-description__text"
+          data-empty={!item.description || undefined}
+          aria-busy={saving || undefined}
+          aria-label={ta('WorkPage.editDescription')}
+          onClick={() => setEditing(true)}
+        >
+          <span dir="auto">
+            {item.description ? item.description : ta('WorkPage.addDescription')}
+          </span>
+        </button>
+      )}
     </section>
   );
 }
@@ -1312,9 +1311,9 @@ function FilesCard({
   const nameOf = (userId: string) => memberDisplayName(userId, members.members, members.isPending);
 
   return (
-    <section
+    // The page's Files section owns the heading; this is its body (no second "Files" landmark).
+    <div
       className="tm-wk-card"
-      aria-labelledby="tm-wk-files"
       onDragOver={(event) => {
         if (!noStorage && event.dataTransfer.types.includes('Files')) event.preventDefault();
       }}
@@ -1325,9 +1324,6 @@ function FilesCard({
       }}
     >
       <div className="tm-wk-card__head">
-        <h2 id="tm-wk-files" className="tm-wk-card__title">
-          {ta('WorkDetail.files')}
-        </h2>
         {noStorage ? null : (
           <>
             <button
@@ -1652,7 +1648,7 @@ function FilesCard({
             </li>
           ))}
       </ul>
-    </section>
+    </div>
   );
 }
 

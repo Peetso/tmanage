@@ -1,40 +1,12 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert } from '@tmanage/ui';
-import {
-  addWorkComment,
-  addWorkItemWatchers,
-  getWorkItemPeople,
-  removeWorkItemWatcher,
-  setWorkItemPeople,
-  transitionWorkItem,
-  type WorkItemPeople,
-  type WorkItemSummary,
-} from '../../lib/api/work-items';
-import type { ApiClient } from '../../lib/api/client';
-import { useDescribeApiError } from '../../lib/api/describe-error';
-import { workItemKeys } from '../../lib/query-keys';
-import { memberDisplayName } from '../../lib/members-presentation';
-import { useMembers } from '../../lib/use-members';
+import { Button } from '@tmanage/ui';
+import type { WorkItemPeople } from '../../lib/api/work-items';
 import { useA6T, WorkDialogFrame } from './DueDatePicker';
-import { initialsOf, useOwnerCandidates, type OwnerCandidate } from './OwnerPickerDialog';
+import { initialsOf, type OwnerCandidate } from './OwnerPickerDialog';
 import { PersonAvatar } from '../people/PersonAvatar';
 
-type Row = 'doers' | 'supervisors' | 'watchers';
-
-const ROWS: readonly Row[] = ['doers', 'supervisors', 'watchers'];
-const LABEL: Record<Row, string> = {
-  doers: 'WorkPeople.doers',
-  supervisors: 'WorkPeople.supervisors',
-  watchers: 'WorkPeople.watchers',
-};
-const PICK: Record<Row, string> = {
-  doers: 'WorkPeople.pickDoers',
-  supervisors: 'WorkPeople.pickSupervisors',
-  watchers: 'WorkPeople.pickWatchers',
-};
 /** Avatars shown before the "+N" orb. */
 const STACK = 3;
 
@@ -97,218 +69,8 @@ export function DoerStack({
   );
 }
 
-export interface WorkPeopleBlockProps {
-  readonly api: ApiClient;
-  readonly organizationSlug: string;
-  readonly workItemId: string;
-  readonly projectId: string;
-  readonly projectName: string;
-  /** C27: the item, for the supervisor's Approve / Send back while it waits in review. */
-  readonly item?: WorkItemSummary;
-  readonly onChanged?: (next: WorkItemSummary) => void;
-}
-
-/**
- * **C26 — the people on a task (Figma R33 C26, 531:30917).** Three rows: Doers (the first is the
- * lead, the item's owner), Supervisors and Watchers, each an avatar stack with "Add". "Add" opens
- * one picker where several people are ticked at once. Doers and supervisors are replaced as a
- * set; watchers are only added here (anyone can still stop watching themselves).
- */
-export function WorkPeopleBlock({
-  api,
-  organizationSlug,
-  workItemId,
-  projectId,
-  projectName,
-  item,
-  onChanged,
-}: WorkPeopleBlockProps) {
-  const t = useA6T();
-  const describe = useDescribeApiError();
-  const queries = useQueryClient();
-  const directory = useMembers(api, organizationSlug);
-  const candidates = useOwnerCandidates(api, organizationSlug, projectId);
-  const [picking, setPicking] = useState<Row | null>(null);
-  const [failure, setFailure] = useState<string | undefined>(undefined);
-  const key = workItemPeopleKey(organizationSlug, workItemId);
-  const [sendingBack, setSendingBack] = useState(false);
-
-  const people = useQuery({
-    queryKey: key,
-    queryFn: () => getWorkItemPeople(api, organizationSlug, workItemId),
-  });
-
-  const save = useMutation({
-    mutationFn: async ({ row, userIds }: { row: Row; userIds: readonly string[] }) => {
-      if (row === 'watchers') {
-        // C27: the picker opens with the current watchers ticked; unticking takes them off.
-        const now = people.data?.watcherUserIds ?? [];
-        const added = userIds.filter((id) => !now.includes(id));
-        if (added.length > 0) await addWorkItemWatchers(api, organizationSlug, workItemId, added);
-        for (const id of now.filter((id) => !userIds.includes(id))) {
-          await removeWorkItemWatcher(api, organizationSlug, workItemId, id);
-        }
-      } else await setWorkItemPeople(api, organizationSlug, workItemId, row, userIds);
-      return row;
-    },
-    onSuccess: (row) => {
-      setPicking(null);
-      setFailure(undefined);
-      void queries.invalidateQueries({ queryKey: key });
-      if (row === 'doers')
-        void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
-      if (row === 'watchers') {
-        void queries.invalidateQueries({
-          queryKey: ['work-item-watchers', organizationSlug, workItemId],
-        });
-      }
-    },
-    onError: (error) => setFailure(describe(error)),
-  });
-
-  // C27: the supervisor's decision on a task waiting in internal review.
-  const decide = useMutation({
-    mutationFn: async ({ approve, note }: { approve: boolean; note: string }) => {
-      if (item === undefined) throw new Error('no item');
-      const next = await transitionWorkItem(api, organizationSlug, item.id, {
-        version: item.version,
-        to: approve ? 'done' : 'in_progress',
-        facts:
-          approve && item.ownerUserId !== null
-            ? { ownerId: item.ownerUserId, completedAt: new Date().toISOString() }
-            : {},
-      });
-      if (!approve && note.trim() !== '') {
-        await addWorkComment(api, organizationSlug, item.id, { body: note.trim() });
-      }
-      return next;
-    },
-    onSuccess: (next) => {
-      setSendingBack(false);
-      setFailure(undefined);
-      onChanged?.(next);
-      void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
-    },
-    onError: (error) => setFailure(describe(error)),
-  });
-
-  // Tolerate a partial answer (an older API, a stub): every list defaults to empty.
-  const data: WorkItemPeople = {
-    doerUserIds: people.data?.doerUserIds ?? [],
-    supervisorUserIds: people.data?.supervisorUserIds ?? [],
-    watcherUserIds: people.data?.watcherUserIds ?? [],
-    ...(people.data?.viewerUserId === undefined ? {} : { viewerUserId: people.data.viewerUserId }),
-  };
-  const inReview = item?.state === 'internal_review' && data.supervisorUserIds.length > 0;
-  const iSupervise = !needsSupervisorApproval(data);
-  const idsOf = (row: Row): readonly string[] =>
-    row === 'doers'
-      ? data.doerUserIds
-      : row === 'supervisors'
-        ? data.supervisorUserIds
-        : data.watcherUserIds;
-  const nameOf = (userId: string) =>
-    memberDisplayName(userId, directory.members, directory.isPending);
-  const lead = data.doerUserIds[0];
-
-  return (
-    <section
-      className="tm-wk-people-block"
-      aria-label={t('WorkPeople.heading')}
-      data-testid="work-item-people"
-    >
-      <p className="tm-wk-people-block__heading">{t('WorkPeople.heading')}</p>
-      {ROWS.map((row) => {
-        const ids = idsOf(row);
-        return (
-          <div key={row} className="tm-wk-people-row">
-            <span className="tm-wk-people-row__label">{t(LABEL[row])}</span>
-            {ids.length > 0 ? (
-              <span className="tm-wk-stack" role="list">
-                {ids.slice(0, STACK).map((id) => (
-                  <span
-                    key={id}
-                    className="tm-wk-orb"
-                    role="listitem"
-                    title={nameOf(id)}
-                    aria-label={nameOf(id)}
-                  >
-                    {initialsOf(nameOf(id))}
-                  </span>
-                ))}
-                {ids.length > STACK ? (
-                  <span className="tm-wk-orb" data-more="true" role="listitem">
-                    +{ids.length - STACK}
-                  </span>
-                ) : null}
-              </span>
-            ) : (
-              <span className="tm-wk-people-row__empty">{t('WorkPeople.nobody')}</span>
-            )}
-            {row === 'doers' && lead !== undefined ? (
-              <span className="tm-wk-pill">{t('WorkPeople.lead', { name: nameOf(lead) })}</span>
-            ) : null}
-            <Button tone="outline" size="compact" onClick={() => setPicking(row)}>
-              {t('WorkPeople.add')}
-            </Button>
-          </div>
-        );
-      })}
-      {inReview ? (
-        <div className="tm-wk-approval" data-testid="work-item-approval">
-          <span className="tm-wk-pill" data-tone="review">
-            {iSupervise ? t('WorkPeople.awaitingYou') : t('WorkPeople.awaitingSupervisor')}
-          </span>
-          {iSupervise ? (
-            <span className="tm-wk-approval__actions">
-              <Button
-                tone="ink"
-                size="compact"
-                loading={decide.isPending && !sendingBack}
-                loadingLabel={t('WorkA6.saving')}
-                onClick={() => decide.mutate({ approve: true, note: '' })}
-              >
-                {t('WorkPeople.approve')}
-              </Button>
-              <Button tone="outline" size="compact" onClick={() => setSendingBack(true)}>
-                {t('WorkPeople.sendBack')}
-              </Button>
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-      {failure ? (
-        <InlineAlert tone="danger" title={t('WorkPeople.failure')} live>
-          {failure}
-        </InlineAlert>
-      ) : null}
-      {picking !== null ? (
-        <PeoplePickerDialog
-          title={t(PICK[picking])}
-          projectName={projectName}
-          candidates={candidates.candidates}
-          loading={candidates.loading}
-          initial={idsOf(picking)}
-          showLeadHint={picking === 'doers'}
-          removeHint={picking === 'watchers'}
-          saving={save.isPending}
-          onSave={(userIds) => save.mutate({ row: picking, userIds })}
-          onClose={() => setPicking(null)}
-        />
-      ) : null}
-      {sendingBack ? (
-        <SendBackDialog
-          saving={decide.isPending}
-          onSend={(note) => decide.mutate({ approve: false, note })}
-          onClose={() => setSendingBack(false)}
-        />
-      ) : null}
-    </section>
-  );
-}
-
 /** C27 — "Send back": the task returns to in progress, with an optional note for the doers. */
-function SendBackDialog({
+export function SendBackDialog({
   saving,
   onSend,
   onClose,
@@ -371,7 +133,7 @@ interface PeoplePickerDialogProps {
 }
 
 /** The multi-select people picker: search, tick several at once, in the order ticked. */
-function PeoplePickerDialog({
+export function PeoplePickerDialog({
   title,
   projectName,
   candidates,

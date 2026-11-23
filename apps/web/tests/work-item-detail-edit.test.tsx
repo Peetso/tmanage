@@ -8,8 +8,9 @@ import { translate, type MessageKey } from '../src/lib/i18n/t';
 import { undoQueue } from '../src/lib/undo/use-undo';
 
 /**
- * A6 (on P9) — the work item detail's owner picker, date picker, edit dialog, actions menu and
- * delete confirm. What the API does with the PATCH, POST and DELETE is the API's suite; this
+ * A6 (on P9), rebuilt for the Work area v2 page (W-WEB-1) — the properties panel's people picker,
+ * date picker and project choice, the inline title and description, the actions menu and the
+ * delete confirm. There is no "Edit details" form any more: each property is edited in its row. What the API does with the PATCH, POST and DELETE is the API's suite; this
  * proves what the screen sends and what it does with the answer. Labels are read through
  * `translate`, so the file holds whether or not the wave's i18n fragment has been merged yet.
  */
@@ -116,6 +117,11 @@ function renderDetail(
         );
       }
       if (path.endsWith('/activity')) return Promise.resolve(json({ activity: [] }));
+      if (path.endsWith('/people')) {
+        return Promise.resolve(
+          json({ doerUserIds: ['user-1'], supervisorUserIds: [], watcherUserIds: [] }),
+        );
+      }
       if (path.endsWith('/checklist')) return Promise.resolve(json({ items: [] }));
       if (path.endsWith('/projects/proj-1/clients')) {
         return Promise.resolve(
@@ -159,33 +165,27 @@ function renderDetail(
 const patches = (calls: readonly Call[]) => calls.filter((call) => call.method === 'PATCH');
 
 describe('A6 work item detail', () => {
-  it('assigns an owner from the project-only picker with the version read', async () => {
-    const { calls } = renderDetail(() => json({ ...ITEM, ownerUserId: 'user-omar', version: 4 }));
-    await userEvent.click(
-      await screen.findByRole('button', {
-        name: new RegExp(`^${L('WorkDetail.owner')}\\s*Mona Saleh$`),
-      }),
+  it('sets the doers from the project-only picker, first doer first', async () => {
+    const { calls } = renderDetail(() =>
+      json({ doerUserIds: ['user-1', 'user-omar'], supervisorUserIds: [], watcherUserIds: [] }),
     );
+    await userEvent.click(await screen.findByRole('button', { name: L('WorkPage.pickDoers') }));
     const dialog = await screen.findByRole('dialog');
     expect(
       within(dialog).getByText(L('OwnerPicker.onlyProject', { project: 'Website relaunch' })),
     ).toBeInTheDocument();
-    await userEvent.click(await within(dialog).findByRole('button', { name: /Omar Nabil/ }));
-    await userEvent.click(
-      within(dialog).getByRole('button', { name: L('OwnerPicker.assign', { name: 'Omar' }) }),
-    );
-    await waitFor(() =>
-      expect(patches(calls)[0]?.body).toEqual({ ownerUserId: 'user-omar', version: 3 }),
-    );
+    await userEvent.click(await within(dialog).findByRole('checkbox', { name: /Omar Nabil/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: L('WorkPeople.done') }));
+    await waitFor(() => {
+      const put = calls.find((call) => call.method === 'PUT' && call.url.includes('/people/'));
+      expect(put?.url).toMatch(/\/work-items\/wi-1\/people\/doers$/);
+      expect(put?.body).toEqual({ userIds: ['user-1', 'user-omar'] });
+    });
   });
 
   it('sets the due date from the picker as noon UTC of the picked day', async () => {
     const { calls } = renderDetail(() => json({ ...ITEM, version: 4 }));
-    await userEvent.click(
-      await screen.findByRole('button', {
-        name: new RegExp(`^${L('WorkDetail.due')}\\s*Wed 28 Oct$`),
-      }),
-    );
+    await userEvent.click(await screen.findByRole('button', { name: L('WorkPage.changeDue') }));
     const picker = await screen.findByTestId('due-date-picker');
     await userEvent.click(
       within(picker).getByRole('button', { name: new RegExp(`^${L('DueDatePicker.tomorrow')}`) }),
@@ -195,33 +195,39 @@ describe('A6 work item detail', () => {
     );
   });
 
-  it('saves a new description from the edit dialog', async () => {
+  it('saves a new description in place, without a form', async () => {
     const { calls } = renderDetail(() => json({ ...ITEM, description: 'Under 12 words.' }));
-    await userEvent.click(await screen.findByRole('button', { name: L('WorkDetail.edit') }));
-    const dialog = await screen.findByRole('dialog');
-    const description = within(dialog).getByLabelText(L('EditWorkItem.descriptionLabel'));
+    await userEvent.click(
+      await screen.findByRole('button', { name: L('WorkPage.editDescription') }),
+    );
+    const description = screen.getByRole('textbox', { name: L('WorkDetail.description') });
     await userEvent.clear(description);
     await userEvent.type(description, 'Under 12 words.');
-    await userEvent.click(within(dialog).getByRole('button', { name: L('EditWorkItem.save') }));
+    await userEvent.tab();
     await waitFor(() =>
       expect(patches(calls)[0]?.body).toEqual({ description: 'Under 12 words.', version: 3 }),
     );
   });
 
-  it('moves the item to another project with projectId', async () => {
-    const { calls } = renderDetail(() => json({ ...ITEM, projectId: 'proj-2', version: 4 }));
+  it('renames the work in place from its title', async () => {
+    const { calls } = renderDetail(() => json({ ...ITEM, title: 'Hero copy v2', version: 4 }));
     await userEvent.click(
       await screen.findByRole('button', {
-        name: L('WorkActions.trigger', { title: ITEM.title }),
+        name: L('WorkPage.renameButton', { title: ITEM.title }),
       }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: L('WorkActions.move') }));
-    const dialog = await screen.findByRole('dialog');
-    await userEvent.selectOptions(
-      within(dialog).getByRole('combobox', { name: L('EditWorkItem.project') }),
-      'proj-2',
+    const box = screen.getByRole('textbox', { name: L('WorkPage.renameLabel') });
+    await userEvent.clear(box);
+    await userEvent.type(box, 'Hero copy v2{Enter}');
+    await waitFor(() =>
+      expect(patches(calls)[0]?.body).toEqual({ title: 'Hero copy v2', version: 3 }),
     );
-    await userEvent.click(within(dialog).getByRole('button', { name: L('EditWorkItem.save') }));
+  });
+
+  it('moves the work to another project from the Project row', async () => {
+    const { calls } = renderDetail(() => json({ ...ITEM, projectId: 'proj-2', version: 4 }));
+    await userEvent.click(await screen.findByRole('button', { name: L('WorkPage.changeProject') }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Brand refresh' }));
     await waitFor(() =>
       expect(patches(calls)[0]?.body).toEqual({ projectId: 'proj-2', version: 3 }),
     );
@@ -256,7 +262,12 @@ describe('A6 work item detail', () => {
       ...ITEM,
       audience: 'client_visible',
     });
-    await userEvent.click(await screen.findByRole('button', { name: L('WorkDetail.delete') }));
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: L('WorkActions.trigger', { title: ITEM.title }),
+      }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: L('WorkActions.delete') }));
     const dialog = await screen.findByRole('dialog');
     expect(
       await within(dialog).findByText(
@@ -277,7 +288,12 @@ describe('A6 work item detail', () => {
 
   it('has no client note when deleting an internal item', async () => {
     renderDetail(() => new Response(null, { status: 204 }));
-    await userEvent.click(await screen.findByRole('button', { name: L('WorkDetail.delete') }));
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: L('WorkActions.trigger', { title: ITEM.title }),
+      }),
+    );
+    await userEvent.click(screen.getByRole('menuitem', { name: L('WorkActions.delete') }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByRole('note')).toBeNull();
   });
@@ -296,12 +312,14 @@ describe('A6 work item detail', () => {
         409,
       ),
     );
-    await userEvent.click(await screen.findByRole('button', { name: L('WorkDetail.edit') }));
-    const dialog = await screen.findByRole('dialog');
-    const title = within(dialog).getByLabelText(new RegExp(L('EditWorkItem.titleLabel')));
-    await userEvent.clear(title);
-    await userEvent.type(title, 'New title');
-    await userEvent.click(within(dialog).getByRole('button', { name: L('EditWorkItem.save') }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: L('WorkPage.editDescription') }),
+    );
+    await userEvent.type(
+      screen.getByRole('textbox', { name: L('WorkDetail.description') }),
+      ' More.',
+    );
+    await userEvent.tab();
     expect(
       await screen.findByText(translate('en-US', 'WorkItemDetailScreen.conflictTitle')),
     ).toBeInTheDocument();

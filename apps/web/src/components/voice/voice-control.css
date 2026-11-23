@@ -1,0 +1,55 @@
+/*
+ * Figma `Control/Voice` (`929:977`): the 28 px microphone and the 28 px language chip, side by
+ * side, gap 4 (`--s1`). Density v2 tokens only (ADR-0016); logical properties, so Arabic mirrors
+ * through the layout (`929:966`).
+ */
+.tm-voice {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.tm-voice .tm-mic__button {
+  inline-size: var(--app-control-sm);
+  min-inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+  min-block-size: var(--app-control-sm);
+  padding: 0;
+  border-radius: var(--r-capsule);
+  justify-content: center;
+}
+
+.tm-voice .tm-mic[data-state='listening'] .tm-mic__button,
+.tm-voice .tm-mic[data-state='processing'] .tm-mic__button {
+  inline-size: auto;
+  padding-inline: var(--inset-control);
+}
+
+.tm-voice .tm-aic-dict__chip {
+  block-size: var(--app-control-sm);
+  padding-inline: var(--inset-capsule);
+  border-color: transparent;
+  background: var(--paper-250);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-voice .tm-aic-dict__chip:hover {
+  background: var(--paper-350);
+}
+
+.tm-voice__mic-off {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+  color: var(--ink-500);
+}
+
+/* A name field at the top of a page or dialog opens the menu below the chip. */
+.tm-voice .tm-aic-dict__menu[data-placement='below'] {
+  inset-block-start: calc(100% + var(--s2));
+  inset-block-end: auto;
+}

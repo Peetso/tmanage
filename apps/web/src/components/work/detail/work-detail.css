@@ -1,0 +1,737 @@
+/*
+ * Work area v2 — the work page (Figma `933:95423` EN, `933:95923` AR, phone `933:96198`).
+ * One scroll: title row, stage trail, description, steps, files, comments/activity; the properties
+ * panel sits in the shell's lens (360, sticky). Density v2 tokens only (ADR-0016, UX-25): no
+ * hand-typed font size, height, padding, margin or gap; logical properties, so Arabic mirrors
+ * through the layout.
+ */
+
+/* ── Title row ─────────────────────────────────────────────────────────── */
+
+.tm-wk-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.tm-wk-title__text {
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-micro);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+button.tm-wk-title__text:hover {
+  background: var(--tm-hover-surface);
+}
+
+button.tm-wk-title__text:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-title__input {
+  min-inline-size: 0;
+  inline-size: min(100%, 40ch);
+  padding-inline: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+}
+
+.tm-wk-title__input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* The header's stage control, decision, timer and ⋯ wrap rather than push the page sideways. */
+.tm-wk-head-actions {
+  flex-wrap: wrap;
+  min-inline-size: 0;
+}
+
+.tm-wk-head-actions .tm-wk-menu-anchor .tm-wk-menu {
+  inset-inline-end: 0;
+}
+
+/* ── The one scroll ────────────────────────────────────────────────────── */
+
+.tm-wk-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  min-inline-size: 0;
+}
+
+.tm-wk-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding-block-end: var(--s6);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-wk-section:last-child {
+  border-block-end: 0;
+}
+
+.tm-wk-section__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: var(--app-control);
+}
+
+.tm-wk-section__title {
+  margin: 0;
+  font-size: var(--t-app-card-title);
+  line-height: var(--t-app-card-title-line);
+  font-weight: var(--t-app-card-title-weight);
+  color: var(--ink-950);
+}
+
+.tm-wk-section__meta {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-wk-section__empty {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+}
+
+/* The description: the text is the button that opens the box (capped at 720, nice-to-have 1). */
+.tm-wk-description__text {
+  max-inline-size: 720px;
+  min-block-size: var(--target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+  text-align: start;
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+.tm-wk-description__text[data-empty] {
+  color: var(--ink-650);
+}
+
+.tm-wk-description__text:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-micro);
+}
+
+.tm-wk-description__box {
+  max-inline-size: 720px;
+  padding: var(--inset-control);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+}
+
+/* ── Steps (Figma `Step/Row` 918:1958) ─────────────────────────────────── */
+
+.tm-wk-steps__bar {
+  inline-size: 96px;
+  block-size: var(--s1);
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+  overflow: hidden;
+  appearance: none;
+}
+
+.tm-wk-steps__bar::-webkit-progress-bar {
+  background: var(--paper-250);
+}
+
+.tm-wk-steps__bar::-webkit-progress-value {
+  background: var(--lime-500);
+  border-radius: var(--r-capsule);
+}
+
+.tm-wk-steps__bar::-moz-progress-bar {
+  background: var(--lime-500);
+}
+
+.tm-wk-steps__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Figma `Step/Row` (918:1958) on the work page: 44 between rows, handle · tick · name · meta. */
+.tm-wk-step {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: calc(var(--app-row) + var(--s2));
+  border-radius: var(--r-control);
+}
+
+.tm-wk-step[data-dragging] {
+  opacity: 0.5;
+}
+
+.tm-wk-step__handle {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--s4);
+  block-size: var(--app-control-sm);
+  color: var(--ink-650);
+  cursor: grab;
+}
+
+.tm-wk-tick {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  padding: 0;
+  border: var(--b-structural, 1.5px) solid var(--ink-650);
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--tm-on-lime);
+  cursor: pointer;
+}
+
+.tm-wk-tick[aria-checked='true'] {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+}
+
+.tm-wk-tick:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-step__name {
+  min-inline-size: 0;
+  min-block-size: var(--target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.tm-wk-step[data-done] .tm-wk-step__name {
+  color: var(--ink-650);
+  text-decoration: line-through;
+}
+
+.tm-wk-step__edit {
+  flex: 1;
+  min-inline-size: 0;
+  padding-inline: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-micro);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+}
+
+.tm-wk-step__meta {
+  flex: none;
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-wk-step__spacer {
+  flex: 1;
+}
+
+.tm-wk-step__more {
+  position: relative;
+  opacity: 0;
+}
+
+.tm-wk-step:hover .tm-wk-step__more,
+.tm-wk-step:focus-within .tm-wk-step__more,
+.tm-wk-step__more:has([aria-expanded='true']) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .tm-wk-step__more {
+    opacity: 1;
+  }
+}
+
+.tm-wk-step__menu {
+  min-inline-size: 260px;
+}
+
+.tm-wk-menu__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s1) var(--inset-control);
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-wk-menu__field select,
+.tm-wk-menu__field input {
+  min-block-size: var(--app-control-sm);
+  padding-inline: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-micro);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+}
+
+/* The add row: one field with the plus, then the voice control (Figma "Add a step, press Enter"). */
+.tm-wk-addrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-wk-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-control);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-650);
+}
+
+.tm-wk-field:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-field input {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  outline: none;
+}
+
+/* ── Files: the old card drawn flat inside the section ─────────────────── */
+
+.tm-wk-files .tm-wk-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tm-wk-files .tm-wk-card > h2 {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── Comments | Activity: the tabs are the heading (nice-to-have 2) ────── */
+
+.tm-wk-segment {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: var(--s1);
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+}
+
+.tm-wk-segment > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control-sm);
+  padding-inline: var(--inset-capsule);
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  cursor: pointer;
+}
+
+.tm-wk-segment > button[aria-selected='true'] {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+.tm-wk-segment > button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-talk .tm-panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Figma "Comments 4": the count is plain text beside the tab name, not a bubble. */
+.tm-wk-segment .tm-wk-count {
+  min-inline-size: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+/* ── Properties panel (Figma `Panel/Row` 918:1957) ─────────────────────── */
+
+.tm-lens:has(> .tm-wk-props),
+.tm-lens:has(> :first-child.tm-wk-props) {
+  position: sticky;
+  inset-block-start: var(--s4);
+  align-self: flex-start;
+  inline-size: var(--properties-panel);
+  padding: var(--inset-card);
+  border-radius: var(--r-card);
+}
+
+.tm-wk-props {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-wk-props__title {
+  margin: 0 0 var(--s2);
+  color: var(--ink-650);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+  font-weight: var(--t-app-overline-weight);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tm-wk-prow {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--panel-label) minmax(0, 1fr) var(--app-control-sm);
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-panel-row);
+}
+
+.tm-wk-prow__label {
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  font-weight: 400;
+}
+
+.tm-wk-prow__value {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: var(--app-control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-micro);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+span.tm-wk-prow__value {
+  cursor: default;
+}
+
+.tm-wk-prow__value[data-empty] {
+  color: var(--ink-650);
+}
+
+button.tm-wk-prow__value:focus-visible,
+a.tm-wk-prow__value:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-prow__text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-wk-prow__slot {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+}
+
+.tm-wk-prow__glyph {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-650);
+}
+
+.tm-wk-prow .tm-icon-button {
+  border-color: var(--line-300);
+  border-radius: var(--r-capsule);
+}
+
+.tm-wk-popover {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s1));
+  inset-inline-end: 0;
+  z-index: 40;
+  box-sizing: border-box;
+  inline-size: max(100%, 320px);
+  max-block-size: 70vh;
+  padding: var(--s3);
+  overflow: auto;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 24%);
+}
+
+/* The editors that used to be cards open flat inside the popover. */
+.tm-wk-popover .tm-wk-card,
+.tm-wk-popover .tm-panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tm-wk-popover .tm-wk-datepicker {
+  position: static;
+  box-shadow: none;
+  border: 0;
+}
+
+.tm-wk-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-wk-faces {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-wk-faces__stack {
+  display: inline-flex;
+}
+
+.tm-wk-face {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--s6);
+  block-size: var(--s6);
+  margin-inline-start: calc(var(--s1) * -1);
+  border: var(--b-quiet) solid var(--paper-0);
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  color: var(--ink-950);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+}
+
+.tm-wk-face:first-child {
+  margin-inline-start: 0;
+}
+
+.tm-wk-faces__more {
+  color: var(--ink-650);
+  unicode-bidi: isolate;
+}
+
+.tm-wk-labels {
+  display: inline-flex;
+  gap: var(--s1);
+  overflow: hidden;
+}
+
+.tm-wk-label {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--s6);
+  padding-inline: var(--inset-capsule);
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-wk-client-dot {
+  inline-size: var(--s2);
+  block-size: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--client-500);
+}
+
+.tm-wk-choice {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-wk-choice .tm-wk-menu__item,
+.tm-wk-stagemenu .tm-wk-menu__item,
+.tm-wk-setpicker .tm-wk-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  inline-size: 100%;
+  min-block-size: var(--app-row);
+  padding-block: 0;
+  padding-inline: var(--inset-control);
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+.tm-wk-icon--flip:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+/* ── Phone (Figma `933:96198`): one column; the panel follows the title ── */
+
+@media (max-width: 60rem) {
+  .tm-lens:has(> .tm-wk-props) {
+    position: static;
+    inline-size: auto;
+  }
+
+  .tm-wk-step__more {
+    opacity: 1;
+  }
+
+  .tm-wk-title {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+  }
+
+  /* Figma phone: the name takes the line, the voice control follows it. */
+  .tm-wk-title__text {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+}
+
+/* ── Comment composer (Figma "Write a comment…" · mic · language · Send) ── */
+
+.tm-wk-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-wk-composer__box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control-lg);
+  padding-block: var(--s1);
+  padding-inline: var(--inset-control) var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-wk-composer__box:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-composer__input {
+  flex: 1;
+  min-inline-size: 0;
+  max-block-size: 40vh;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+  resize: none;
+  field-sizing: content;
+  outline: none;
+}
+
+.tm-wk-comments .tm-list {
+  gap: var(--s3);
+}
+
+/* ── Files section: the older file cards drawn at the page's density (ADR-0016 insets) ── */
+
+.tm-wk-files .tm-wk-pill-button {
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
+}
+
+.tm-wk-files .tm-wk-badge {
+  padding-inline: var(--inset-capsule);
+}
+
+.tm-wk-files .tm-figma-links,
+.tm-wk-files .tm-panel {
+  padding: var(--inset-card);
+}

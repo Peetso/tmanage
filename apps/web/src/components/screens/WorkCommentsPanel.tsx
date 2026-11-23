@@ -9,8 +9,9 @@ import { usePendingWrites } from '../../lib/offline/use-offline';
 import { PendingBadge } from '../pwa/PendingBadge';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
-import { useDictation } from '../voice/useDictation';
-import { MicButton, MicNotice } from '../voice/VoiceControls';
+import { MicNotice } from '../voice/VoiceControls';
+import { VoiceControl } from '../voice/VoiceControl';
+import { useVoiceInput } from '../voice/use-voice-language';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { appIntlLocale } from '../../lib/i18n/app-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -60,10 +61,15 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
   const queryKey = ['work-item-comments', organizationSlug, workItemId] as const;
   const bodyId = useId();
   const [body, setBody] = useState('');
-  const dictation = useDictation({
+  // Work area v2: the member's own dictation language (the chip beside the mic), not only the
+  // app language (WORK-AREA plan W-WEB-3).
+  const voice = useVoiceInput({
+    api,
+    organizationSlug,
     value: body,
     onChange: (next) => setBody(next.slice(0, MAX_BODY_LENGTH)),
   });
+  const dictation = voice.dictation;
   const [failure, setFailure] = useState<string | undefined>(undefined);
 
   // A19 (2026-11-02 live test): typing "@" here offered nobody — the box had no people source at
@@ -192,9 +198,10 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
   const pendingComments = usePendingWrites(organizationSlug, workItemId, 'comment');
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-work-comments">
-      <h2 id="tm-work-comments" className="tm-eyebrow">
-        {t('WorkCommentsPanel.heading')}
+    <section className="tm-stack tm-wk-comments" aria-labelledby="tm-work-comments">
+      {/* The Comments tab is the visible heading (Figma nice-to-have 2); this names the region. */}
+      <h2 id="tm-work-comments" className="tm-visually-hidden">
+        {t('WorkCommentsPanel.commentsHeading')}
       </h2>
 
       {comments.isPending ? (
@@ -248,71 +255,66 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
         </ul>
       ) : null}
 
-      <form className="tm-stack" noValidate onSubmit={submit}>
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor={bodyId}>
-            {t('WorkCommentsPanel.addLabel')}
-          </label>
-          <div style={{ position: 'relative' }}>
-            <textarea
-              ref={textRef}
-              id={bodyId}
-              className="tm-field__control"
-              value={body}
-              rows={3}
-              maxLength={MAX_BODY_LENGTH}
-              role={mention ? 'combobox' : undefined}
-              aria-expanded={mention ? true : undefined}
-              aria-controls={mention ? pickerId : undefined}
-              aria-autocomplete={mention ? 'list' : undefined}
-              aria-activedescendant={
-                mention && mentionOptions.length > 0 ? `${pickerId}-${safeActive}` : undefined
-              }
-              onChange={(event) => {
-                setBody(event.target.value);
-                refreshMention(event.target.value, event.target.selectionStart);
-              }}
-              onKeyDown={onBodyKeyDown}
-              onClick={(event) =>
-                refreshMention(event.currentTarget.value, event.currentTarget.selectionStart)
-              }
-              onBlur={() => setMention(null)}
-            />
-            {mention ? (
-              <MentionPicker
-                id={pickerId}
-                options={mentionOptions}
-                activeIndex={safeActive}
-                onPick={pickMention}
-                onHover={setActiveIndex}
-                othersHeading={tOr(
-                  'WorkCommentsPanel.mentionHeading',
-                  'People who can see this task',
-                )}
-                query={mention.query}
-              />
-            ) : null}
-          </div>
-          <span className="tm-field__hint">
-            {t('WorkCommentsPanel.hint')}{' '}
-            {tOr(
+      <form className="tm-wk-composer" noValidate onSubmit={submit}>
+        <label className="tm-visually-hidden" htmlFor={bodyId}>
+          {t('WorkCommentsPanel.addLabel')}
+        </label>
+        <div className="tm-wk-composer__box">
+          <textarea
+            ref={textRef}
+            id={bodyId}
+            className="tm-wk-composer__input"
+            value={body}
+            rows={1}
+            dir="auto"
+            maxLength={MAX_BODY_LENGTH}
+            placeholder={t('WorkCommentsPanel.placeholder')}
+            title={tOr(
               'WorkCommentsPanel.mentionHint',
               'Type @ to mention someone. Only people who can see this task are listed, and they get a notification.',
             )}
-          </span>
-        </div>
-        <div className="tm-row">
+            role={mention ? 'combobox' : undefined}
+            aria-expanded={mention ? true : undefined}
+            aria-controls={mention ? pickerId : undefined}
+            aria-autocomplete={mention ? 'list' : undefined}
+            aria-activedescendant={
+              mention && mentionOptions.length > 0 ? `${pickerId}-${safeActive}` : undefined
+            }
+            onChange={(event) => {
+              setBody(event.target.value);
+              refreshMention(event.target.value, event.target.selectionStart);
+            }}
+            onKeyDown={onBodyKeyDown}
+            onClick={(event) =>
+              refreshMention(event.currentTarget.value, event.currentTarget.selectionStart)
+            }
+            onBlur={() => setMention(null)}
+          />
+          {mention ? (
+            <MentionPicker
+              id={pickerId}
+              options={mentionOptions}
+              activeIndex={safeActive}
+              onPick={pickMention}
+              onHover={setActiveIndex}
+              othersHeading={tOr(
+                'WorkCommentsPanel.mentionHeading',
+                'People who can see this task',
+              )}
+              query={mention.query}
+            />
+          ) : null}
+          <VoiceControl input={voice} placement="above" />
           <Button
             type="submit"
-            tone="ink"
-            size="accessible"
+            tone="lime"
+            size="header"
             loading={add.isPending}
             loadingLabel={t('WorkCommentsPanel.adding')}
             disabled={body.trim() === ''}
           >
-            {t('WorkCommentsPanel.add')}
+            {t('WorkCommentsPanel.send')}
           </Button>
-          <MicButton dictation={dictation} compact />
         </div>
         <MicNotice dictation={dictation} />
       </form>

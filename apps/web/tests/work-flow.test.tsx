@@ -586,11 +586,30 @@ const MEMBERS = {
   nextAfter: null,
 };
 
+/**
+ * The work page reads many side resources (steps, files, cloud folders, labels…). These tests
+ * are about the item itself, so every other read answers 404 — the page's own "could not load"
+ * state — rather than the item's body under a wrong URL.
+ */
+function detailRoutes(
+  handler: (call: Call) => Response | Promise<Response>,
+  members: () => Response | Promise<Response> = () => json(MEMBERS),
+) {
+  return (call: Call) => {
+    const path = call.url.split('?')[0] ?? '';
+    if (call.method !== undefined && call.method !== 'GET') return handler(call);
+    if (path.endsWith('/members')) return members();
+    if (path.endsWith('/work-items/wi-1')) return handler(call);
+    if (path.endsWith('/people')) {
+      return json({ doerUserIds: ['user-1'], supervisorUserIds: [], watcherUserIds: [] });
+    }
+    return json({ error: { code: 'not_found', message: 'none' } }, 404);
+  };
+}
+
 describe('TM-13 the work item detail', () => {
   function renderDetail(handler: (call: Call) => Response) {
-    const { client, calls } = clientOver((call) =>
-      call.url.includes('/members') ? json(MEMBERS) : handler(call),
-    );
+    const { client, calls } = clientOver(detailRoutes(handler));
     render(
       withQuery(
         <WorkItemDetailScreen
@@ -604,10 +623,21 @@ describe('TM-13 the work item detail', () => {
     return calls;
   }
 
+  /** The state move lives in the properties panel's Status row (Work area v2, plan §4.3). */
+  async function openMove() {
+    await userEvent.click(await screen.findByRole('button', { name: 'Change the status' }));
+    return screen.findByLabelText('Move to');
+  }
+
+  /** "Who sees it" opens the audience choice in place. */
+  async function openAudience() {
+    await userEvent.click(await screen.findByRole('button', { name: 'Change who sees it' }));
+  }
+
   it('offers only the states the machine can reach from this one', async () => {
     renderDetail(() => json(workItem({ state: 'in_progress' })));
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     // §5 from in_progress: ready, blocked, internal_review; FIX4 item 7 adds backlog and archive.
     // Done still only through review.
     expect(screen.getByRole('option', { name: 'Ready' })).toBeInTheDocument();
@@ -621,7 +651,7 @@ describe('TM-13 the work item detail', () => {
   it('asks for exactly the facts the chosen move requires', async () => {
     renderDetail(() => json(workItem({ state: 'in_progress' })));
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
 
     expect(screen.getByLabelText(/What is blocking this/)).toBeInTheDocument();
@@ -632,7 +662,7 @@ describe('TM-13 the work item detail', () => {
   it('asks for nothing when the move requires nothing', async () => {
     renderDetail(() => json(workItem({ state: 'in_progress' })));
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'internal_review');
 
     expect(screen.getByText('This move needs nothing else from you.')).toBeInTheDocument();
@@ -643,7 +673,7 @@ describe('TM-13 the work item detail', () => {
       call.method === 'POST' ? json(workItem({ state: 'blocked', version: 4 })) : json(workItem()),
     );
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
     await userEvent.type(screen.getByLabelText(/What is blocking this/), 'Waiting on brand assets');
     await userEvent.type(screen.getByLabelText(/What you need, and from whom/), 'Logos from Priya');
@@ -680,7 +710,7 @@ describe('TM-13 the work item detail', () => {
       return json(workItem());
     });
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'internal_review');
     await userEvent.click(screen.getByRole('button', { name: /Move to Internal review/ }));
 
@@ -699,7 +729,7 @@ describe('TM-13 the work item detail', () => {
         : json(workItem()),
     );
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
     await userEvent.type(screen.getByLabelText(/What is blocking this/), 'Waiting on brand assets');
     await userEvent.type(screen.getByLabelText(/What you need, and from whom/), 'Logos from Priya');
@@ -716,7 +746,7 @@ describe('TM-13 the work item detail', () => {
       call.method === 'POST' ? json(workItem({ state: 'blocked', version: 4 })) : json(workItem()),
     );
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
 
     // Offered, and not marked required — the asterisk is the machine's word, not the form's.
@@ -749,7 +779,7 @@ describe('TM-13 the work item detail', () => {
       call.method === 'POST' ? json(workItem({ state: 'blocked', version: 4 })) : json(workItem()),
     );
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
     await userEvent.type(screen.getByLabelText(/What is blocking this/), 'No sandbox key');
     await userEvent.type(
@@ -786,7 +816,7 @@ describe('TM-13 the work item detail', () => {
         : json(workItem({ state: 'internal_review' })),
     );
 
-    await screen.findByLabelText('Move to');
+    await openMove();
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'done');
 
     // Seeded with the item's current owner, and shown as the name that owner has rather than
@@ -811,14 +841,14 @@ describe('TM-13 the work item detail', () => {
       expect(body.facts['completedAt']).toBe(new Date('2026-09-01T11:30').toISOString());
     });
 
-    // And the answer's completion time is shown as a fact of the item.
-    expect(await screen.findByText('Completed')).toBeInTheDocument();
+    // And the answer's completion day is shown on the Status row.
+    expect(await screen.findByText(/^Completed /)).toBeInTheDocument();
   });
 
   it('shows no Completed row for an item that has not been completed', async () => {
     renderDetail(() => json(workItem()));
-    await screen.findByLabelText('Move to');
-    expect(screen.queryByText('Completed')).not.toBeInTheDocument();
+    await screen.findByRole('button', { name: 'Change the status' });
+    expect(screen.queryByText(/^Completed /)).not.toBeInTheDocument();
   });
 
   it('confirms before widening the audience to the client', async () => {
@@ -828,7 +858,7 @@ describe('TM-13 the work item detail', () => {
         : json(workItem()),
     );
 
-    await screen.findByRole('button', { name: 'Client can see' });
+    await openAudience();
     await userEvent.click(screen.getByRole('button', { name: 'Client can see' }));
 
     // Nothing has been sent yet — the confirmation is the point.
@@ -850,7 +880,7 @@ describe('TM-13 the work item detail', () => {
         : json(workItem({ audience: 'client_visible' })),
     );
 
-    await screen.findByRole('button', { name: 'Internal' });
+    await openAudience();
     await userEvent.click(screen.getByRole('button', { name: 'Internal' }));
 
     await waitFor(() => {
@@ -862,7 +892,7 @@ describe('TM-13 the work item detail', () => {
   it('offers a restore to the backlog from the archive (2026-10-31 live test)', async () => {
     renderDetail(() => json(workItem({ state: 'archived' })));
 
-    const select = await screen.findByLabelText('Move to');
+    const select = await openMove();
     expect(screen.queryByText(/is the end of the lifecycle/)).not.toBeInTheDocument();
     expect(
       [...(select as HTMLSelectElement).options].map((option) => option.value).filter(Boolean),
@@ -870,7 +900,7 @@ describe('TM-13 the work item detail', () => {
   });
 
   it('has no axe violations', async () => {
-    const { client } = clientOver(() => json(workItem()));
+    const { client } = clientOver(detailRoutes(() => json(workItem())));
     const { container } = render(
       withQuery(
         <WorkItemDetailScreen
@@ -882,7 +912,7 @@ describe('TM-13 the work item detail', () => {
       ),
     );
 
-    await screen.findByLabelText('Move to');
+    await screen.findByRole('button', { name: 'Change the status' });
     await expectNoAxeViolations(container);
   });
 });
@@ -1058,8 +1088,11 @@ describe('D16 follow-up — the owner reads as a name on all three surfaces (x42
     const membersPending = new Promise<Response>((resolve) => {
       release = resolve;
     });
-    const { client } = clientOver((call) =>
-      call.url.includes('/members') ? membersPending : json(workItem({ state: 'in_progress' })),
+    const { client } = clientOver(
+      detailRoutes(
+        () => json(workItem({ state: 'in_progress' })),
+        () => membersPending,
+      ),
     );
     render(
       withQuery(
@@ -1077,7 +1110,8 @@ describe('D16 follow-up — the owner reads as a name on all three surfaces (x42
     expect(await screen.findByText(LOADING_MEMBER_LABEL)).toBeInTheDocument();
     expect(screen.queryByText(/Former or hidden member/)).not.toBeInTheDocument();
 
-    // It resolves to the name once the directory answers.
+    // It resolves to the name once the directory answers (the Doers row: "Ada" on screen, the
+    // full name for a screen reader).
     release(json(MEMBERS));
     expect(await screen.findByText('Ada Okonkwo')).toBeInTheDocument();
   });

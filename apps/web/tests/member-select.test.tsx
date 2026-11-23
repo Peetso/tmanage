@@ -162,6 +162,9 @@ describe('searching the directory', () => {
 });
 
 describe('TM-13 owner identity', () => {
+  /** Only the item, its people and the directory: the page's other reads are not this test's. */
+  const OURS = /\/(?:members|people|work-items\/wi-1)(?:\?|$)/u;
+
   function renderDetail(ownerUserId: string | null) {
     const client = new ApiClient({
       baseUrl: 'https://api.example.test',
@@ -170,26 +173,37 @@ describe('TM-13 owner identity', () => {
         Promise.resolve(
           new Response(
             JSON.stringify(
-              String(input).includes('/members')
-                ? { members: MEMBERS, nextAfter: null }
-                : {
-                    id: 'wi-1',
-                    projectId: 'proj-1',
-                    type: 'task',
-                    title: 'Draft the homepage copy',
-                    state: 'in_progress',
-                    ownerUserId,
-                    audience: 'internal',
-                    startAt: null,
-                    dueAt: null,
-                    completedAt: null,
-                    version: 3,
-                    createdAt: '2026-08-26T00:00:00.000Z',
-                    updatedAt: '2026-08-28T00:00:00.000Z',
-                    deletedAt: null,
-                  },
+              !OURS.test(String(input))
+                ? { error: { code: 'not_found', message: 'none' } }
+                : String(input).includes('/members')
+                  ? { members: MEMBERS, nextAfter: null }
+                  : String(input).endsWith('/people')
+                    ? {
+                        doerUserIds: ownerUserId === null ? [] : [ownerUserId],
+                        supervisorUserIds: [],
+                        watcherUserIds: [],
+                      }
+                    : {
+                        id: 'wi-1',
+                        projectId: 'proj-1',
+                        type: 'task',
+                        title: 'Draft the homepage copy',
+                        state: 'in_progress',
+                        ownerUserId,
+                        audience: 'internal',
+                        startAt: null,
+                        dueAt: null,
+                        completedAt: null,
+                        version: 3,
+                        createdAt: '2026-08-26T00:00:00.000Z',
+                        updatedAt: '2026-08-28T00:00:00.000Z',
+                        deletedAt: null,
+                      },
             ),
-            { status: 200, headers: { 'content-type': 'application/json' } },
+            {
+              status: OURS.test(String(input)) ? 200 : 404,
+              headers: { 'content-type': 'application/json' },
+            },
           ),
         )) as typeof globalThis.fetch,
       readCsrfToken: () => 'csrf-token',
@@ -218,8 +232,8 @@ describe('TM-13 owner identity', () => {
     expect(screen.queryByText('Assigned')).not.toBeInTheDocument();
   });
 
-  it('still says Unassigned when nobody owns it', async () => {
+  it('offers to add a doer when nobody owns it', async () => {
     renderDetail(null);
-    expect(await screen.findByText('Unassigned')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Doers Add' })).toBeInTheDocument();
   });
 });

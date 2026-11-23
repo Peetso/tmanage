@@ -42,6 +42,11 @@ export interface DictationLanguagePickerProps {
   readonly blocked: DictationBlock;
   /** Locked while the microphone listens. */
   readonly locked: boolean;
+  /**
+   * Where the menu opens: `above` the chip (the AI composer at the foot of its panel, the
+   * default) or `below` it (a name field at the top of a page or dialog, Figma `935:97514`).
+   */
+  readonly placement?: 'above' | 'below';
 }
 
 function isPhone(): boolean {
@@ -66,6 +71,7 @@ export function DictationLanguagePicker({
   onChange,
   blocked,
   locked,
+  placement = 'above',
 }: DictationLanguagePickerProps) {
   const text = useAiText();
   const { t } = text;
@@ -246,6 +252,7 @@ export function DictationLanguagePicker({
           ref={menu}
           id={menuId}
           className="tm-aic-dict__menu"
+          data-placement={placement}
           role="dialog"
           aria-labelledby={titleId}
           onKeyDown={onMenuKey}

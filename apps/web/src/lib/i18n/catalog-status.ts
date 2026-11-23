@@ -85,7 +85,6 @@ export const PARTIAL_CORE_NAMESPACES: readonly string[] = [
   'WorkActions',
   'WorkItemType',
   'DeleteWorkItem',
-  'EditWorkItem',
   'WorkBulkActionBar',
   'WorkCommentsPanel',
   // Chat

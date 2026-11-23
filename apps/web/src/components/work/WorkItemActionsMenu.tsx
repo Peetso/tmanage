@@ -2,15 +2,19 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useA6T } from './DueDatePicker';
+import { MoreIcon } from './work-icons';
 
-export type WorkItemAction = 'edit' | 'owner' | 'dates' | 'duplicate' | 'move' | 'delete';
+export type WorkItemAction = 'delete' | 'duplicate' | 'copyLink' | 'why';
 
+/**
+ * Work area v2 (Figma `933:96473`): the work page's More menu. Every property is edited in place
+ * on the page now, so the menu holds only what is not a property: Delete, Duplicate, Copy link
+ * and "Why can I see this?" (the old Edit, Owner, Dates and Move entries are panel rows).
+ */
 const ACTIONS: readonly { readonly action: WorkItemAction; readonly key: string }[] = [
-  { action: 'edit', key: 'WorkActions.edit' },
-  { action: 'owner', key: 'WorkActions.owner' },
-  { action: 'dates', key: 'WorkActions.dates' },
   { action: 'duplicate', key: 'WorkActions.duplicate' },
-  { action: 'move', key: 'WorkActions.move' },
+  { action: 'copyLink', key: 'WorkActions.copyLink' },
+  { action: 'why', key: 'WorkActions.why' },
 ];
 
 export interface WorkItemActionsMenuProps {
@@ -72,7 +76,7 @@ export function WorkItemActionsMenu({ itemTitle, onAction, disabled }: WorkItemA
       <button
         ref={trigger}
         type="button"
-        className="tm-wk-more"
+        className="tm-icon-button tm-icon-button--header"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -80,7 +84,9 @@ export function WorkItemActionsMenu({ itemTitle, onAction, disabled }: WorkItemA
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
       >
-        <span aria-hidden="true">⋯</span>
+        <span className="tm-icon-button__glyph" aria-hidden="true">
+          <MoreIcon />
+        </span>
       </button>
       {open ? (
         <div id={menuId} role="menu" tabIndex={-1} className="tm-wk-menu" onKeyDown={onMenuKey}>

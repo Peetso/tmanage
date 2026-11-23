@@ -59,6 +59,11 @@ export interface AppShellProps {
   /** The screen title. Rendered as the one `<h1>` of the document. */
   title: string;
   /**
+   * What the `<h1>` holds instead of the plain `title` text: a work's name that renames in place
+   * (Work area v2, Figma `933:95423`). `title` stays the screen's name everywhere else.
+   */
+  titleContent?: ReactNode;
+  /**
    * `page` (default) is the design's `heading.page` (36/42, weight 500) used by list and detail
    * screens (WK-02 "Delivery risk"); `display` is the 64px uppercase display headline HOME-01
    * draws ("MY DAY").
@@ -213,6 +218,7 @@ export function AppShell({
   organizationName,
   activeNavigationId,
   title,
+  titleContent,
   titleVariant = 'page',
   eyebrow,
   titleMeta,
@@ -328,7 +334,7 @@ export function AppShell({
                   ) : null}
                 </p>
                 <div className="tm-canvas-header__title-row">
-                  <h1 className="tm-canvas-header__title">{title}</h1>
+                  <h1 className="tm-canvas-header__title">{titleContent ?? title}</h1>
                   {titleMeta ? <span className="tm-canvas-header__meta">{titleMeta}</span> : null}
                   {pageControls ? (
                     actions ? (

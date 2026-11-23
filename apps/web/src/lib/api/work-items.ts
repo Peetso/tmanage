@@ -105,6 +105,14 @@ export interface CreateWorkItemInput {
   readonly audience?: WorkItemAudience;
   readonly startAt?: string;
   readonly dueAt?: string;
+  /** Work area D2: several doers (lead first), supervisors and watchers from the start. */
+  readonly doerUserIds?: readonly string[];
+  readonly supervisorUserIds?: readonly string[];
+  readonly watcherUserIds?: readonly string[];
+  /** Work area D2: the project's client companies that may follow it (the client tag). */
+  readonly clientOrganizationIds?: readonly string[];
+  /** Work area D2: the first steps, in order. */
+  readonly steps?: readonly { readonly label: string }[];
 }
 
 export async function createWorkItem(
@@ -337,7 +345,11 @@ export async function addChecklistItem(
   client: ApiClient,
   organizationSlug: string,
   workItemId: string,
-  input: { readonly label: string },
+  input: {
+    readonly label: string;
+    readonly assigneeUserId?: string | null;
+    readonly dueOn?: string | null;
+  },
 ): Promise<WorkChecklistItem> {
   const { data } = await client.request<WorkChecklistItem>({
     method: 'POST',
@@ -352,12 +364,65 @@ export async function updateChecklistItem(
   organizationSlug: string,
   workItemId: string,
   itemId: string,
-  input: { readonly label?: string; readonly done?: boolean },
+  input: {
+    readonly label?: string;
+    readonly done?: boolean;
+    /** Work area D3: who does the step; `null` clears it. */
+    readonly assigneeUserId?: string | null;
+    /** Work area D3: the step's day (`YYYY-MM-DD`); `null` clears it. */
+    readonly dueOn?: string | null;
+  },
 ): Promise<WorkChecklistItem> {
   const { data } = await client.request<WorkChecklistItem>({
     method: 'PATCH',
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/checklist/${encodeURIComponent(itemId)}`,
     body: input,
+  });
+  return data;
+}
+
+function checklistPath(organizationSlug: string, workItemId: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/checklist`;
+}
+
+/** Work area D3: delete a step. */
+export async function deleteChecklistItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  itemId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${checklistPath(organizationSlug, workItemId)}/${encodeURIComponent(itemId)}`,
+  });
+}
+
+/** Work area D3: the steps' new order, every step id of the work once. */
+export async function reorderChecklist(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  itemIds: readonly string[],
+): Promise<readonly WorkChecklistItem[]> {
+  const { data } = await client.request<{ items: readonly WorkChecklistItem[] }>({
+    method: 'PUT',
+    path: `${checklistPath(organizationSlug, workItemId)}/order`,
+    body: { itemIds },
+  });
+  return data.items;
+}
+
+/** Work area D3: turn a step into a work of its own in the same project; answers the new work. */
+export async function convertChecklistItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  itemId: string,
+): Promise<WorkItemSummary> {
+  const { data } = await client.request<WorkItemSummary>({
+    method: 'POST',
+    path: `${checklistPath(organizationSlug, workItemId)}/${encodeURIComponent(itemId)}/convert`,
   });
   return data;
 }

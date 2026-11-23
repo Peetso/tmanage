@@ -72,7 +72,7 @@ describe('WorkCommentsPanel @mention', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 
     // 53-11: what is sent is the token, not the name — that is what notifies Omar.
-    await userEvent.click(screen.getByRole('button', { name: /comment|add/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(sent.some((r) => r.url.includes('/w-1/comments'))).toBe(true));
     const post = sent.find((r) => r.url.includes('/w-1/comments'));
     expect(JSON.parse(post?.body ?? '{}')).toMatchObject({ body: 'Ping @u-omar' });

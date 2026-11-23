@@ -1,0 +1,172 @@
+/*
+ * Work area v2 — stages: the capsule (Figma `Stage/Capsule` 918:1959), the stage trail under a
+ * work's title, the stage control and its menu (`933:96783`), the set picker (`934:96394`) and
+ * the stages editor (`937:99028`). Density v2 tokens only (ADR-0016); logical properties.
+ */
+
+.tm-wk-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+  color: var(--ink-950);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  white-space: nowrap;
+}
+
+.tm-wk-stage[data-muted] {
+  color: var(--ink-650);
+}
+
+.tm-wk-stage__dot {
+  flex: none;
+  inline-size: var(--s2);
+  block-size: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--ink-500);
+}
+
+/* The stage trail: "Empathize › Define › Ideate › Prototype › Test › Done", current strong. */
+.tm-wk-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+  padding: 0;
+  list-style: none;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-wk-trail li + li::before {
+  content: '›';
+  margin-inline-end: var(--s2);
+  color: var(--ink-500);
+}
+
+.tm-wk-trail li[aria-current='step'] {
+  color: var(--ink-950);
+  font-weight: var(--t-app-ui-strong-weight);
+}
+
+/* The control: a 32 px capsule in the header, a bare capsule in the panel row. */
+.tm-wk-stagectl {
+  position: relative;
+  display: inline-flex;
+  min-inline-size: 0;
+}
+
+.tm-wk-stagectl__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-wk-stagectl[data-variant='panel'] .tm-wk-stagectl__trigger {
+  min-block-size: var(--app-control-sm);
+  padding-inline: var(--inset-capsule);
+  border-color: transparent;
+  background: var(--paper-250);
+}
+
+.tm-wk-stagectl__trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-stagectl .tm-wk-menu {
+  min-inline-size: 300px;
+}
+
+.tm-wk-menu__title {
+  margin: 0;
+  padding: var(--s2) var(--inset-control) var(--s1);
+  color: var(--ink-650);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tm-wk-menu__group {
+  margin: 0;
+  padding: var(--s2) var(--inset-control) 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-wk-menu__item[aria-pressed='true'] {
+  background: var(--lime-100);
+}
+
+.tm-wk-menu__ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s2) var(--inset-control);
+}
+
+.tm-wk-menu__ask-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+}
+
+.tm-wk-input {
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-control);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+}
+
+.tm-wk-input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-setpicker__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding-block: var(--s2);
+}
+
+.tm-wk-setpicker__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-wk-setpicker__note {
+  padding-inline: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-wk-setpicker__dots {
+  display: inline-flex;
+  gap: var(--s1);
+}

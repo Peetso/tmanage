@@ -24,6 +24,12 @@ export interface AccessExplainerProps {
   readonly ownerUserId: string | null;
   /** The capability editing this item needs. */
   readonly editCapability: string;
+  /**
+   * `popover` (default): the "Why can I see this?" link that opens the reasons. `inline`: the
+   * reasons themselves, for a dialog opened from a menu (the work page's More menu, Figma
+   * `933:96473`).
+   */
+  readonly variant?: 'popover' | 'inline';
 }
 
 /**
@@ -39,6 +45,7 @@ export function AccessExplainer({
   projectName,
   ownerUserId,
   editCapability,
+  variant = 'popover',
 }: AccessExplainerProps) {
   const tOr = useTOr();
   const describeRole = useRoleDescription();
@@ -61,6 +68,33 @@ export function AccessExplainer({
     editCapabilityLabel: capabilityLabel(editCapability),
   });
   const say = (reason: AccessReason) => fillReason(tOr(reason.key, reason.english), reason.vars);
+
+  if (variant === 'inline') {
+    return (
+      <div className="tm-access-inline" data-testid="access-explainer">
+        <ul className="tm-access__reasons">
+          {explanation.see.map(say).map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+        {explanation.canEdit ? null : (
+          <>
+            <p className="tm-access__title">
+              {tOr('AccessExplainer.whyNotEditTitle', 'Why you cannot edit this item')}
+            </p>
+            <ul className="tm-access__reasons">
+              {explanation.edit.map(say).map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p className="tm-access__foot">
+          {tOr('AccessExplainer.foot', 'Ask a workspace owner to change who can see it.')}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <span className="tm-access-row" data-testid="access-explainer">
