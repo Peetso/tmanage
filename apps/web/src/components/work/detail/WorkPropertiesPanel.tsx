@@ -172,7 +172,7 @@ export function WorkPropertiesPanel({
         {/* One person by full name, several by the first one's first name and "+N" (Figma); the
             full names for a screen reader once the directory has answered, its loading words
             until then (D16: never a former-member label). */}
-        <bdi aria-hidden={directory.isPending ? undefined : true}>
+        <bdi aria-hidden={directory.isPending || ids.length === 1 ? undefined : true}>
           {directory.isPending || ids.length === 1
             ? nameOf(ids[0] as string)
             : nameOf(ids[0] as string).split(/\s+/)[0]}
@@ -181,7 +181,7 @@ export function WorkPropertiesPanel({
           // U+200E keeps "+2" reading left to right inside Arabic text (Fable must-fix 6).
           <span className="tm-wk-faces__more" aria-hidden="true">{`‎+${ids.length - 1}`}</span>
         ) : null}
-        {directory.isPending ? null : (
+        {directory.isPending || ids.length === 1 ? null : (
           <span className="tm-visually-hidden">{ids.map(nameOf).join(', ')}</span>
         )}
       </span>
