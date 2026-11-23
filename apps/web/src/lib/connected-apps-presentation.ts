@@ -44,7 +44,7 @@ export function scopeLabelKey(scope: string): MessageKey | undefined {
 /** "12 Jul 2026" (English), "12 يوليو 2026" (Arabic). */
 export function formatConnectedDate(iso: string, locale: string): string {
   const arabic = locale.toLowerCase().startsWith('ar');
-  return new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
+  return new Intl.DateTimeFormat(appDateLocale(locale), {
     day: 'numeric',
     month: arabic ? 'long' : 'short',
     year: 'numeric',

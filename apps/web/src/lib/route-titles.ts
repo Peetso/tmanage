@@ -110,7 +110,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/platform/companies': { en: 'Companies', key: 'RouteTitle.platformCompanies' },
   '/platform/companies/[organizationId]': { en: 'Company', key: 'RouteTitle.platformCompany' },
   '/platform/people': { en: 'People', key: 'RouteTitle.platformPeople' },
-  '/platform/security/attack-tracker': { en: 'Attack tracker', key: 'AttackTracker.title' },
+  '/platform/security/attack-tracker': {
+    en: 'Attack tracker',
+    key: 'RouteTitle.platformAttackTracker',
+  },
   '/platform/settings': { en: 'Platform settings', key: 'RouteTitle.platformSettings' },
   '/[orgSlug]': { en: 'Home', key: 'RouteTitle.home' },
   '/[orgSlug]/home': { en: 'Home', key: 'RouteTitle.home' },

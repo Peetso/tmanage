@@ -80,6 +80,15 @@ describe('PeopleDirectoryScreen', () => {
     );
   });
 
+  it('draws no empty invitations anchor for someone who does not manage invitations', async () => {
+    // QA-FIX-P L8's `#invitations` wrapper, drawn empty, was still a column item and pushed the
+    // owner footnote a gap lower for every member (VR people directory, 2026-11-23).
+    const { container } = mount({ body: PEOPLE });
+
+    await screen.findByRole('table', { name: /people in this organization/i });
+    expect(container.querySelector('#invitations')).toBeNull();
+  });
+
   it('surfaces a work.read refusal rather than rendering blank', async () => {
     mount({
       body: { error: { code: 'forbidden', message: 'You need work.read.', correlationId: 'c' } },

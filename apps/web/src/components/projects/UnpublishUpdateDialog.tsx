@@ -36,7 +36,7 @@ export function formatUpdateDay(value: string, locale: string, utc = false): str
     : new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   const arabic = locale.toLowerCase().startsWith('ar');
-  const parts = new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
+  const parts = new Intl.DateTimeFormat(appDateLocale(locale), {
     weekday: arabic ? 'long' : 'short',
     day: 'numeric',
     month: arabic ? 'long' : 'short',

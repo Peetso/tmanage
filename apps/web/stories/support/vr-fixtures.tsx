@@ -1,4 +1,6 @@
 import type { Decorator } from '@storybook/react-vite';
+import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { ApiClient } from '../../src/lib/api/client';
 import type {
   CreatedPersonalAccessTokenView,
@@ -702,7 +704,44 @@ export const withWaitingServiceWorker: Decorator = (Story) => {
   return <Story />;
 };
 
+/**
+ * A Next app router that goes nowhere, for a screen that calls `useRouter()` (the unsaved-changes
+ * guard does): `.storybook/preview.tsx` mounts no app router, so without this the story throws
+ * "invariant expected app router to be mounted" and renders nothing. A story never navigates.
+ */
+const STILL_ROUTER: AppRouterInstance = {
+  back: () => undefined,
+  forward: () => undefined,
+  refresh: () => undefined,
+  push: () => undefined,
+  replace: () => undefined,
+  prefetch: () => undefined,
+  bfcacheId: 'story',
+};
+
+export const withStillAppRouter: Decorator = (Story) => (
+  <AppRouterContext.Provider value={STILL_ROUTER}>
+    <Story />
+  </AppRouterContext.Provider>
+);
+
 /* ------------------------------------------------------------------ play helpers */
+
+/**
+ * Start the page clock at `at` for one story and give it back afterwards (a `beforeEach`). Time
+ * keeps running from there — `Date.now()` is `at` plus the time since the story began — so the
+ * waits in {@link waitForElement} still time out, while anything that counts from "now" (the
+ * platform step-up pill's "N min left") reads the same in every run instead of the real clock.
+ * Only `Date.now()` moves; `new Date()` is left alone.
+ */
+export function startClockAt(at: Date): () => void {
+  const realNow = Date.now.bind(Date);
+  const offset = realNow() - at.getTime();
+  Date.now = () => realNow() - offset;
+  return () => {
+    Date.now = realNow;
+  };
+}
 
 /** Signal to the VR spec that a scripted story has reached its target state. */
 export function markVrReady(): void {

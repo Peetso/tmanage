@@ -4,6 +4,7 @@ import { QuietHoursScreen } from '../src/components/screens/QuietHoursScreen';
 import {
   profilePreferencesClient,
   quietHoursClient,
+  withStillAppRouter,
   withStoredDisplayPreferences,
   withStubbedNetwork,
 } from './support/vr-fixtures';
@@ -24,7 +25,8 @@ type Story = StoryObj<typeof meta>;
 
 /** Profile & preferences, seeded from the stored profile, display row and enrolled factors. */
 export const Appearance: Story = {
-  decorators: [withStoredDisplayPreferences],
+  // The screen's unsaved-changes guard (QA-FIX-R, cec9c071) calls `useRouter()`.
+  decorators: [withStoredDisplayPreferences, withStillAppRouter],
   render: () => (
     <PreferencesScreen
       organizationSlug="northstar"

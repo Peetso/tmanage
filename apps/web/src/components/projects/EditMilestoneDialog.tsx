@@ -27,7 +27,7 @@ export function shortDay(day: string, locale: string): string {
   const parsed = new Date(Date.UTC(year, month - 1, date));
   if (Number.isNaN(parsed.getTime())) return day;
   const arabic = locale.toLowerCase().startsWith('ar');
-  const parts = new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
+  const parts = new Intl.DateTimeFormat(appDateLocale(locale), {
     weekday: arabic ? 'long' : 'short',
     day: 'numeric',
     month: arabic ? 'long' : 'short',

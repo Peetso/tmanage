@@ -27,7 +27,9 @@ const LATIN_ALLOWED = [
   /@?(Maya|Lina|Omar|Salma|Youssef|Karim|Noor)( (Hassan|Samir|Adel|Riad|Kamal|Nabil|Fathy))?/g,
   'Atlas',
   'DEC-42',
-  /\b(TSK|DEL|DEC|v2|v3|MB)\b/g,
+  // Letter bounds, not \b: textContent runs a row's number into its kind ("3DEL"), and since
+  // Arabic defaults to Latin digits (AR-DIGITS a7b6d3c0) \b sees no edge between 3 and D.
+  /(?<![A-Za-z])(TSK|DEL|DEC|v2|v3|MB)(?![A-Za-z])/g,
 ];
 
 /** This slice's scene bodies (not the shared ProductScenes), allowed Latin names removed. */

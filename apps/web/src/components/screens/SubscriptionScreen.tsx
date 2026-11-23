@@ -428,7 +428,7 @@ function infoLine(
 function formatBillDate(iso: string, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  const tag = appDateLocale(locale.startsWith('ar') ? locale : 'en-GB');
+  const tag = appDateLocale(locale);
   return new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
     at,
   );

@@ -11,13 +11,12 @@ import { appDateLocale } from '../../lib/i18n/app-locale';
 
 type TOr = (key: string, english: string) => string;
 
-function isArabic(locale: string): boolean {
-  return locale.toLowerCase().startsWith('ar');
-}
-
-/** The tag dates use: Arabic, else en-GB; digits by the app rule (Latin unless chosen). */
+/**
+ * The tag dates use: the member's language (English in the en-GB shape, "Tue 4 Dec"), so a French
+ * or German member reads their own day names; digits by the app rule (Latin unless chosen).
+ */
 export function dateTag(locale: string): string {
-  return appDateLocale(isArabic(locale) ? locale : 'en-GB');
+  return appDateLocale(locale);
 }
 
 /** "3 days late" (Figma late chip), from the whole days an item is overdue. */

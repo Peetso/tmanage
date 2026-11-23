@@ -473,7 +473,7 @@ export function DayPulseBar({
   const now = useClock(fixed);
   const day = now ? String(now.getDate()).padStart(2, '0') : '··';
   // The day in the reader's language, Latin digits in Arabic as the Arabic frames write them.
-  const dateTag = appDateLocale(locale.toLowerCase().startsWith('ar') ? locale : 'en-GB');
+  const dateTag = appDateLocale(locale);
   const date = now
     ? now.toLocaleDateString(dateTag, { weekday: 'short', day: 'numeric', month: 'short' })
     : '';

@@ -40,9 +40,9 @@ export function useA6T(): (
   );
 }
 
-/** Arabic, else en-GB; digits by the app rule (Latin, as the Figma catalog writes them, unless chosen). */
+/** The member's language (English in the en-GB shape); digits by the app rule (Latin unless chosen). */
 function intlLocale(locale: string): string {
-  return appDateLocale(locale.toLowerCase().startsWith('ar') ? locale : 'en-GB');
+  return appDateLocale(locale);
 }
 
 export function isArabic(locale: string): boolean {

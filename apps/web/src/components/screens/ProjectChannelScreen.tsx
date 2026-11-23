@@ -905,8 +905,7 @@ function phoneDayLabel(
   tOr: (key: string, english: string) => string,
 ): string {
   const parsed = new Date(value);
-  const arabic = locale.toLowerCase().startsWith('ar');
-  const day = parsed.toLocaleDateString(appDateLocale(arabic ? locale : 'en-GB'), {
+  const day = parsed.toLocaleDateString(appDateLocale(locale), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',

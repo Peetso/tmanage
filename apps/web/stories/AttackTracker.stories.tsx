@@ -3,7 +3,12 @@ import { AttackTrackerScreen } from '../src/components/platform/security/AttackT
 import { SCREEN_VIEWPORTS } from '../.storybook/vr-viewport';
 import { ARABIC_STORY } from './support/arabic';
 import { TRACKER_NOW, trackerClient } from './support/attack-tracker-fixtures';
-import { markVrReady, waitForElement, withStubbedNetwork } from './support/vr-fixtures';
+import {
+  markVrReady,
+  startClockAt,
+  waitForElement,
+  withStubbedNetwork,
+} from './support/vr-fixtures';
 
 /**
  * **Platform admin › Security › Attack tracker** (SEC-TRACKER; Figma section 833:85442): EN light
@@ -39,6 +44,8 @@ const meta = {
   },
   globals: { viewport: { value: DESIGN_VIEWPORT } },
   args: { client: trackerClient(), now: () => TRACKER_NOW },
+  // The step-up pill counts its minutes from Date.now(): start it at the fixtures' noon.
+  beforeEach: () => startClockAt(TRACKER_NOW),
 } satisfies Meta<typeof AttackTrackerScreen>;
 
 export default meta;

@@ -36,7 +36,7 @@ function signedUpDay(iso: string, locale: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '';
   const arabic = locale.toLowerCase().startsWith('ar');
-  return new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
+  return new Intl.DateTimeFormat(appDateLocale(locale), {
     day: 'numeric',
     month: arabic ? 'long' : 'short',
   }).format(at);

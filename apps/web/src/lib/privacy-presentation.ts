@@ -24,7 +24,7 @@ export function privacyDay(iso: string, locale: string, timeZone?: string): stri
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   const arabic = isArabic(locale);
-  return new Intl.DateTimeFormat(appDateLocale(arabic ? locale : 'en-GB'), {
+  return new Intl.DateTimeFormat(appDateLocale(locale), {
     day: 'numeric',
     month: arabic ? 'long' : 'short',
     year: 'numeric',

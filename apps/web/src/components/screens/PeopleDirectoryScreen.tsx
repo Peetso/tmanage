@@ -427,14 +427,16 @@ export function PeopleDirectoryScreen({
           </InlineAlert>
         ) : null}
 
-        {/* QA-FIX-P L8: the Control Center's "Invitations" entry lands here (`/people#invitations`). */}
-        <div id="invitations" tabIndex={-1}>
-          {canManage && people.isSuccess && invitations.isSuccess && pending.length === 0 ? (
-            <p className="ppl-members__empty">
-              {tr('PeopleDirectoryScreen.noInvitations', 'No invitations are waiting.')}
-            </p>
-          ) : null}
-          {canManage && people.isSuccess ? (
+        {/* QA-FIX-P L8: the Control Center's "Invitations" entry lands here (`/people#invitations`).
+            Drawn only for someone who manages invitations: an empty wrapper is still a column item
+            and pushed the owner footnote down by a gap for everyone else. */}
+        {canManage && people.isSuccess ? (
+          <div id="invitations" tabIndex={-1}>
+            {invitations.isSuccess && pending.length === 0 ? (
+              <p className="ppl-members__empty">
+                {tr('PeopleDirectoryScreen.noInvitations', 'No invitations are waiting.')}
+              </p>
+            ) : null}
             <PendingInvitationsSection
               api={api}
               organizationSlug={organizationSlug}
@@ -450,8 +452,8 @@ export function PeopleDirectoryScreen({
                 setDialog({ kind: 'invite', email: invitation.email })
               }
             />
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {people.isSuccess && !complete ? (
           <p className="ppl-members-footnote">

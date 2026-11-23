@@ -62,14 +62,16 @@ export function money(cents: number, currency: string): string {
   return currency.toLowerCase() === 'usd' ? `$${text}` : `${text} ${currency.toUpperCase()}`;
 }
 
-/** A `YYYY-MM-DD` day as "1 November" (English) or "1 نوفمبر" (Arabic), always in UTC. */
+/**
+ * A `YYYY-MM-DD` day in the member's language, always in UTC: "1 November" (English),
+ * "1 نوفمبر" (Arabic), "1 novembre" (French), "1. November" (German).
+ */
 export function dayMonth(isoDay: string, locale: string): string {
   const at = new Date(`${isoDay.slice(0, 10)}T00:00:00.000Z`);
   if (Number.isNaN(at.getTime())) return isoDay;
-  const arabic = locale.toLowerCase().startsWith('ar');
-  const month = new Intl.DateTimeFormat(arabic ? 'ar' : 'en-GB', {
+  return new Intl.DateTimeFormat(appDateLocale(locale), {
+    day: 'numeric',
     month: 'long',
     timeZone: 'UTC',
   }).format(at);
-  return `${at.getUTCDate()} ${month}`;
 }

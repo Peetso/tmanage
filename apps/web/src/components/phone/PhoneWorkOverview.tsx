@@ -297,12 +297,9 @@ function rowIcon(item: WorkItemSummary): PhoneIconName {
 function phoneDay(value: string, locale: string): string {
   const parsed = new Date(value.length === 10 ? `${value}T00:00:00` : value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString(
-    appDateLocale(locale.toLowerCase().startsWith('ar') ? locale : 'en-GB'),
-    {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    },
-  );
+  return parsed.toLocaleDateString(appDateLocale(locale), {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
 }

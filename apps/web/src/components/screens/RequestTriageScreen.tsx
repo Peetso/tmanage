@@ -88,7 +88,7 @@ function orbOf(name: string): string {
 }
 
 function intlLocale(locale: string): string {
-  return appDateLocale(isArabic(locale) ? locale : 'en-GB');
+  return appDateLocale(locale);
 }
 
 /** "2h" · "1d" in English; "ساعتان" · "3 أيام" in Arabic — the list's age column. */
