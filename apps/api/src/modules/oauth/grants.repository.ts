@@ -31,6 +31,20 @@ export interface ConnectedGrantRow {
   readonly verified: boolean;
   readonly scopes: string;
   readonly createdAt: Date;
+  /** The client's row id (`oauth_clients.id`), the id an MCP audit row names it by. */
+  readonly clientPk: string;
+  /** The OAuth `client_id` (a CIMD URL or a DCR id) and its kind, for the known-app table. */
+  readonly clientId: string;
+  readonly clientKind: string;
+}
+
+/** One OAuth client as the AI panel names it. */
+export interface OauthClientIdentityRow {
+  readonly id: string;
+  readonly name: string;
+  readonly clientId: string;
+  readonly kind: string;
+  readonly verified: boolean;
 }
 
 export class GrantsRepository {
@@ -50,6 +64,9 @@ export class GrantsRepository {
         verified: oauthClients.verified,
         scopes: oauthGrants.scopes,
         createdAt: oauthGrants.createdAt,
+        clientPk: oauthClients.id,
+        clientId: oauthClients.clientId,
+        clientKind: oauthClients.kind,
       })
       .from(oauthGrants)
       .innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientPk))
@@ -158,6 +175,35 @@ export class GrantsRepository {
         ),
       );
     return owned.map((row) => row.id);
+  }
+
+  /**
+   * The clients granted in this workspace, by row id: the ones the member's MCP audit rows name.
+   * Reached through `oauth_grants` (tenant-owned, `organization_id` first), so a client that never
+   * had a grant here names nothing; revoked grants count, so an old row keeps its app's name.
+   */
+  async clientsGrantedHere(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    clientPks: readonly string[],
+  ): Promise<OauthClientIdentityRow[]> {
+    if (clientPks.length === 0) return [];
+    return tenantDrizzle(runner)
+      .selectDistinct({
+        id: oauthClients.id,
+        name: oauthClients.name,
+        clientId: oauthClients.clientId,
+        kind: oauthClients.kind,
+        verified: oauthClients.verified,
+      })
+      .from(oauthGrants)
+      .innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientPk))
+      .where(
+        and(
+          eq(oauthGrants.organizationId, context.organizationId),
+          inArray(oauthGrants.clientPk, [...clientPks]),
+        ),
+      );
   }
 
   /** The signed-in person's display name, for the "Owner view · <name>" line. */

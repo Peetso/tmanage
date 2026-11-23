@@ -30,6 +30,8 @@ const VIEW: AiApprovalView = {
     subject: 'Homepage direction review',
     fields: [{ name: 'workItemId', value: '#2451' }],
   },
+  confirmation: 'none',
+  amount: null,
   expiresAt: new Date(NOW + 581_000).toISOString(),
   decidedAt: null,
 };

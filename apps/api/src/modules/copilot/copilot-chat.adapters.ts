@@ -18,11 +18,13 @@ import { AiChatRepository } from './ai-chat.repository.js';
 import type { ChangeApprovals } from './ai-change.service.js';
 import type { AiReadiness } from './ai-settings.service.js';
 import type { AiSpendingPool } from './ai-tiers.js';
+import { tmanageAiStatusOf } from './copilot-chat.service.js';
 import type {
   ChatApprovalFreezer,
   ChatStanding,
   ChatSurface,
   ChatSurfaceInput,
+  TmanageAiStatus,
 } from './copilot-chat.service.js';
 
 /**
@@ -93,6 +95,20 @@ export function aiReadiness(
     const read = await standing(context);
     if (!read.copilotFlag) return 'flag_off';
     return hasKey(read.poolClass) ? 'ready' : 'no_key';
+  };
+}
+
+/**
+ * AI panel (`GET …/ai/panel`): whether TManage AI answers this member, decided by the chat's own
+ * gates ({@link tmanageAiStatusOf}) over the same standing read and pool key the chat uses.
+ */
+export function tmanageAiStatusReader(
+  standing: (context: TenantContext) => Promise<ChatStanding>,
+  hasKey: (pool: AiSpendingPool) => boolean = (pool) => poolKey(process.env, pool) !== '',
+): (context: TenantContext) => Promise<TmanageAiStatus> {
+  return async (context) => {
+    const read = await standing(context);
+    return tmanageAiStatusOf(read, hasKey(read.poolClass));
   };
 }
 

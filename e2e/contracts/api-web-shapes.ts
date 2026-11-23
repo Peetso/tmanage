@@ -147,9 +147,15 @@ import type {
 } from '../../apps/api/src/modules/onedrive/onedrive.service.js';
 import type { ConsentView as ApiConsentView } from '../../apps/api/src/modules/oauth/consent.controller.js';
 import type {
+  AiPanelAppView as ApiAiPanelAppView,
   ConnectedAppView as ApiConnectedAppView,
   ConnectedAppsView as ApiConnectedAppsView,
 } from '../../apps/api/src/modules/oauth/grants.service.js';
+import type { AiPanelView as ApiAiPanelView } from '../../apps/api/src/modules/ai-panel/ai-panel.service.js';
+import type {
+  AiActivityItemView as ApiAiActivityItemView,
+  AiActivityPageView as ApiAiActivityPageView,
+} from '../../apps/api/src/modules/ai-panel/ai-activity.service.js';
 import type { PendingAiActionView as ApiPendingAiActionView } from '../../apps/api/src/modules/mcp/pending-actions.service.js';
 import type {
   GoogleAvailabilityView as ApiGoogleAvailabilityView,
@@ -903,6 +909,12 @@ import type {
   ConnectedAppsView as WebConnectedAppsView,
 } from '../../apps/web/src/lib/api/connected-apps';
 import type { AiApprovalView as WebAiApprovalView } from '../../apps/web/src/lib/api/ai-approvals';
+import type {
+  AiActivityItem as WebAiActivityItem,
+  AiActivityPage as WebAiActivityPage,
+  AiPanelApp as WebAiPanelApp,
+  AiPanelView as WebAiPanelView,
+} from '../../apps/web/src/lib/api/ai-panel';
 import type {
   GoogleAvailabilityView as WebGoogleAvailabilityView,
   GooglePendingMfaView as WebGooglePendingMfaView,
@@ -3394,6 +3406,11 @@ type _consent = Assert<Exact<ApiConsentView, WebConsentView>>;
 type _connectedApp = Assert<Exact<ApiConnectedAppView, WebConnectedApp>>;
 type _connectedApps = Assert<Exact<ApiConnectedAppsView, WebConnectedAppsView>>;
 type _aiApproval = Assert<Exact<ApiPendingAiActionView, WebAiApprovalView>>;
+// AI panel with two tabs (2026-11-23): `GET …/ai/panel` and `GET …/ai/activity`.
+type _aiPanelApp = Assert<Exact<ApiAiPanelAppView, WebAiPanelApp>>;
+type _aiPanel = Assert<Exact<ApiAiPanelView, WebAiPanelView>>;
+type _aiActivityItem = Assert<Exact<ApiAiActivityItemView, WebAiActivityItem>>;
+type _aiActivityPage = Assert<Exact<ApiAiActivityPageView, WebAiActivityPage>>;
 
 // P7 / BG2 (0211): team deliverables and Send for approval — the five views leave EXEMPT now that
 // `apps/web/src/lib/api/deliverables.ts` consumes them.

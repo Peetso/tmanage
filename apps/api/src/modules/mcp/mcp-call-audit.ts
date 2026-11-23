@@ -11,6 +11,9 @@ import {
   MembershipNotResolvedError,
   MembershipResolver,
 } from '../tenancy/membership-resolver.repository.js';
+import { findOpById } from '../ai-actions/registry/index.js';
+import { callSubject } from '../ai-actions/registry/subject.js';
+import type { CallSubject } from '../ai-actions/registry/subject.js';
 import { argsSha256 } from './internal-grant.js';
 
 /**
@@ -23,8 +26,11 @@ import { argsSha256 } from './internal-grant.js';
  * `actor_channel=ai_assistant` is stamped by the AUT-08 context).
  *
  * What a row holds: the token's user (the row's actor), the AI client id, the tool name, the
- * registry op id, the outcome, the latency and a SHA-256 of the canonical arguments. Never the
- * token, never an argument value, never a result body. Values outside the safe identifier shape
+ * registry op id, the outcome, the latency and a SHA-256 of the canonical arguments; and, since
+ * the AI panel (2026-11-23), the *identifiers* of the item the call touched (`target_kind`,
+ * `target_id`, `project_id`, or `target_count` for a bulk read), from the op's declared subject
+ * (`registry/subject.ts`). Never the token, never an argument value, never a name, never a result
+ * body. Values outside the safe identifier shape
  * (a CIMD client id is a URL) are recorded as a short hash rather than refused or dropped.
  *
  * Best-effort, like `AuditService.recordDenial`: the tool call's answer never waits on, or fails
@@ -65,6 +71,8 @@ export interface McpToolCallAudit {
   /** SHA-256 of the canonical arguments. Never the arguments themselves. */
   readonly argsSha256: string;
   readonly latencyMs: number;
+  /** The item the call touched, identifiers only; `null` for a meta-tool or an unknown op. */
+  readonly subject: CallSubject | null;
 }
 
 export interface McpCallAuditor {
@@ -102,7 +110,43 @@ export function mcpToolCallMetadata(
     outcome: call.outcome,
     args_sha256: call.argsSha256,
     latency_ms: Math.max(0, Math.round(call.latencyMs)),
+    ...subjectMetadata(call.subject),
   };
+}
+
+/** The subject's keys; absent entirely when the call names no subject (older rows read alike). */
+function subjectMetadata(subject: CallSubject | null): AuditMetadata {
+  if (subject === null) return {};
+  return {
+    target_kind: safeAuditValue(subject.kind),
+    target_id: subject.id === null ? null : safeAuditValue(subject.id),
+    target_count: subject.count,
+    project_id: subject.projectId === null ? null : safeAuditValue(subject.projectId),
+  };
+}
+
+/** The arguments the op itself ran with: `tmanage_run_action` carries them under `args`. */
+function opArgs(tool: CatalogTool, args: Record<string, unknown>): Record<string, unknown> {
+  if (tool.opId !== undefined) return args;
+  const inner = args['args'];
+  return typeof inner === 'object' && inner !== null && !Array.isArray(inner)
+    ? (inner as Record<string, unknown>)
+    : {};
+}
+
+/** The subject of one call, from the registry's declaration; never throws. */
+function subjectOfCall(
+  opId: string | null,
+  args: Record<string, unknown>,
+  result: unknown,
+): CallSubject | null {
+  const op = opId === null ? undefined : findOpById(opId);
+  if (op === undefined) return null;
+  try {
+    return callSubject(op, args, result);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -116,11 +160,9 @@ export function auditedRuntime(
   return {
     async runTool(tool: CatalogTool, args: Record<string, unknown>): Promise<RunResult> {
       const actionId = tool.name === 'tmanage_run_action' ? args['action_id'] : undefined;
-      const base = {
-        tool: tool.name,
-        opId: tool.opId ?? (typeof actionId === 'string' ? actionId : null),
-        argsSha256: argsSha256(args),
-      };
+      const opId = tool.opId ?? (typeof actionId === 'string' ? actionId : null);
+      const base = { tool: tool.name, opId, argsSha256: argsSha256(args) };
+      const ranWith = opArgs(tool, args);
       const startedAt = Date.now();
       try {
         const result = await runtime.runTool(tool, args);
@@ -128,10 +170,16 @@ export function auditedRuntime(
           ...base,
           outcome: result.isError ? 'tool_error' : 'ok',
           latencyMs: Date.now() - startedAt,
+          subject: subjectOfCall(opId, ranWith, result.isError ? null : result.data),
         });
         return result;
       } catch (error) {
-        onToolCall({ ...base, outcome: 'failed', latencyMs: Date.now() - startedAt });
+        onToolCall({
+          ...base,
+          outcome: 'failed',
+          latencyMs: Date.now() - startedAt,
+          subject: subjectOfCall(opId, ranWith, null),
+        });
         throw error;
       }
     },

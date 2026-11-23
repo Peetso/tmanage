@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import { REAUTH_HEADER } from './passkeys';
 
 /**
  * Confirm-class AI approvals (MCP connector S10) — the approve page's API. A cookie session of
@@ -8,6 +9,13 @@ import type { ApiClient } from './client';
  */
 
 export type AiApprovalStatus = 'pending' | 'approved' | 'declined' | 'expired' | 'failed';
+
+/**
+ * AI panel gap 3: `step_up` is a money or HR action. Show "Review" (the step-up card), never a
+ * one-click Approve; the server refuses an approve without a fresh step-up and, when `amount` is
+ * set, without that amount typed back.
+ */
+export type AiApprovalConfirmation = 'none' | 'step_up';
 
 export interface AiApprovalField {
   readonly name: string;
@@ -33,6 +41,9 @@ export interface AiApprovalView {
   readonly memberName: string;
   readonly memberEmail: string;
   readonly summary: AiApprovalSummary;
+  readonly confirmation: AiApprovalConfirmation;
+  /** The amount a money approval types back; `null` when none is asked. */
+  readonly amount: number | null;
   readonly expiresAt: string;
   readonly decidedAt: string | null;
 }
@@ -71,15 +82,26 @@ export function pendingAiApprovalsKey(organizationSlug: string): readonly string
   return ['ai-approvals-pending', organizationSlug];
 }
 
+/** A `step_up` approve's proof: the step-up token and, for money, the amount typed back. */
+export interface AiApprovalStepUpInput {
+  readonly reauthToken?: string;
+  readonly amount?: number;
+}
+
 export async function decideAiApproval(
   client: ApiClient,
   organizationSlug: string,
   id: string,
   decision: 'approve' | 'decline',
+  stepUp: AiApprovalStepUpInput = {},
 ): Promise<AiApprovalView> {
   const { data } = await client.request<AiApprovalView>({
     method: 'POST',
     path: `${approvalPath(organizationSlug, id)}/${decision}`,
+    ...(stepUp.amount === undefined ? {} : { body: { amount: stepUp.amount } }),
+    ...(stepUp.reauthToken === undefined
+      ? {}
+      : { headers: { [REAUTH_HEADER]: stepUp.reauthToken } }),
   });
   return data;
 }

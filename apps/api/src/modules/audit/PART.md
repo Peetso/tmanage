@@ -76,7 +76,10 @@ owns four things:
    (`apps/worker/src/jobs/audit-anchor.ts:4-18`) and a read-only verifier
    (`audit-integrity.service.ts:80-182`).
 3. _Reading_ it for people: the admin viewer (keyset pages of a narrow projection), the field-level
-   before/after detail, two CSV exports and a signed export manifest.
+   before/after detail, two CSV exports and a signed export manifest. Since AI-PANEL (2026-11-23)
+   also the member's own connected-AI tool calls (`AiActivityReader` in `ai-activity.service.ts`):
+   only `mcp.tool_called` rows of the caller's own user and membership, identifiers only, read by
+   the AI panel's `GET …/ai/activity` (AR-5: through this service, never the repository).
 4. _The catalogue_ of actions with English and Arabic descriptions (`audit-catalog.ts:71-81`); the
    action list itself is `AUDIT_ACTIONS` in `packages/domain/src/policies/audit.ts:1789`.
 

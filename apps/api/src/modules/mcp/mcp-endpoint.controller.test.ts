@@ -251,6 +251,10 @@ describe('hosted MCP endpoint — one audit event per tool call (plan §4.4)', (
     expect(metadata['client_id']).toMatch(/^sha256:[0-9a-f]{32}$/);
     const serialised = JSON.stringify([calls, metadata]);
     expect(serialised).not.toContain(LIVE);
-    expect(serialised).not.toContain('wi-1');
+    // AI panel (2026-11-23): the item's identifier is recorded as `target_id`, and only there;
+    // every other argument value (the note) stays out.
+    expect(metadata['target_id']).toBe('wi-1');
+    expect(serialised.split('wi-1').length - 1).toBe(2);
+    expect(serialised).not.toContain('Bearer');
   });
 });

@@ -5,6 +5,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { InternalGrantPayload } from './internal-grant.js';
 import {
   PENDING_AI_ACTION_TTL_MS,
+  approvalGateOf,
   approvalRequiredResult,
   approvalUrl,
   buildApprovalSummary,
@@ -17,7 +18,13 @@ import {
   subjectLookupOp,
   verifyFrozenAction,
 } from './pending-actions.js';
-import type { ApprovalSummary, FrozenAction, OpRequest, PendingStatus } from './pending-actions.js';
+import type {
+  ApprovalConfirmation,
+  ApprovalSummary,
+  FrozenAction,
+  OpRequest,
+  PendingStatus,
+} from './pending-actions.js';
 import { PendingAiActionsRepository } from './pending-actions.repository.js';
 import type { PendingAiActionWithMember } from './pending-actions.repository.js';
 
@@ -67,8 +74,19 @@ export interface PendingAiActionView {
   readonly memberName: string;
   readonly memberEmail: string;
   readonly summary: ApprovalSummary;
+  /** `step_up`: money or HR, approved only with a fresh step-up (the panel shows "Review"). */
+  readonly confirmation: ApprovalConfirmation;
+  /** The amount a money approval types back; `null` when none is asked. */
+  readonly amount: number | null;
   readonly expiresAt: string;
   readonly decidedAt: string | null;
+}
+
+/** What the person brought to an approve: their step-up and the amount they typed. */
+export interface ApprovalProof {
+  /** Identity's decision (`isFreshStepUp`) for this request's session and user. */
+  readonly stepUpFresh: boolean;
+  readonly amount: number | undefined;
 }
 
 export interface CreatedPendingAction {
@@ -225,6 +243,64 @@ export class PendingAiActionsService {
     return this.toView(await this.loadOwn(context, id));
   }
 
+  /**
+   * The approve route's entry (AI panel gap 3): a money or HR action is refused without a fresh
+   * step-up (403 `reauthentication_required`) and, when it names an amount, without that amount
+   * typed back (400). The screen is not the control: a bare `POST …/approve` gets the same refusal.
+   * Checked only while the action is still pending; a decided or expired one runs nothing anyway.
+   */
+  async approveInPerson(
+    context: TenantContext,
+    orgSlug: string,
+    id: string,
+    proof: ApprovalProof,
+  ): Promise<PendingAiActionView> {
+    const found = await this.loadOwn(context, id);
+    const frozen = verifyFrozenAction(found.row.opId, found.row.argsJson, found.row.argsSha256);
+    if (frozen === undefined) throw notFound();
+    if (effectiveStatus(found.row, this.now()) === 'pending') {
+      const gate = approvalGateOf(frozen.op, frozen.args);
+      if (gate.confirmation === 'step_up' && !proof.stepUpFresh) {
+        throw new ApiError(
+          403,
+          'reauthentication_required',
+          'Confirm it is you to approve this.',
+          undefined,
+          'ai_approval_step_up',
+        );
+      }
+      if (gate.amount !== null && proof.amount !== gate.amount) {
+        throw new ApiError(
+          400,
+          'validation_failed',
+          'The amount does not match.',
+          [{ field: 'amount', message: 'type the amount the card shows' }],
+          'ai_approval_amount_mismatch',
+        );
+      }
+    }
+    return this.approve(context, orgSlug, id);
+  }
+
+  /**
+   * AI panel: how many of the member's own actions wait, counted exactly as {@link listPending}
+   * lists them (a row whose arguments no longer verify is left out), without naming any.
+   */
+  async countPending(context: TenantContext): Promise<number> {
+    const rows = await this.database.read(context, (runner) =>
+      this.repository.listOwnPending(
+        runner,
+        context,
+        this.owner(context),
+        this.now(),
+        PENDING_LIST_LIMIT,
+      ),
+    );
+    return rows.filter(
+      ({ row }) => verifyFrozenAction(row.opId, row.argsJson, row.argsSha256) !== undefined,
+    ).length;
+  }
+
   /** Decline. A no-op on anything no longer pending. */
   async decline(context: TenantContext, id: string): Promise<PendingAiActionView> {
     await this.loadOwn(context, id);
@@ -308,6 +384,7 @@ export class PendingAiActionsService {
     const { row } = found;
     const frozen = verifyFrozenAction(row.opId, row.argsJson, row.argsSha256);
     if (frozen === undefined) throw notFound();
+    const gate = approvalGateOf(frozen.op, frozen.args);
     return {
       id: row.id,
       status: effectiveStatus(row, this.now()),
@@ -315,6 +392,8 @@ export class PendingAiActionsService {
       memberName: found.memberName,
       memberEmail: found.memberEmail,
       summary: buildApprovalSummary(frozen.op, frozen.detail, frozen.args),
+      confirmation: gate.confirmation,
+      amount: gate.amount,
       expiresAt: row.expiresAt.toISOString(),
       decidedAt: row.decidedAt?.toISOString() ?? null,
     };

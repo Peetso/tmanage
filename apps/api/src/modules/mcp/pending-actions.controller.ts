@@ -1,9 +1,12 @@
 import {
+  Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   Inject,
   Module,
+  Optional,
   Param,
   Post,
   UseGuards,
@@ -11,11 +14,14 @@ import {
 } from '@nestjs/common';
 import type { DynamicModule, ExecutionContext, Provider } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { Ctx, RequireCapability } from '../../common/http/decorators.js';
+import { Ctx, CurrentSession, RequireCapability } from '../../common/http/decorators.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import { isFreshStepUp } from '../identity/reauth-token.js';
+import type { AuthenticatedSession } from '../identity/session.service.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { requestState } from '../../common/http/request-state.js';
 import { CORRELATION_HEADER } from '../../common/http/correlation.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { API_CONFIG, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import {
   AI_ACCESS_SWITCHES,
@@ -49,6 +55,11 @@ import type { OpExecutor, PendingAiActionView } from './pending-actions.service.
  * The bare `GET …/ai/approvals` lists the member's own waiting actions (55-15p) under the same
  * three rules.
  *
+ * A money or HR action (`confirmation: 'step_up'`) is approved only with a fresh step-up
+ * (`x-reauth-token`, bound to this session) and, when it names one, the amount typed back in the
+ * body (`{ "amount": 18400 }`): {@link PendingAiActionsService.approveInPerson} refuses a bare
+ * approve (AI panel gap 3).
+ *
  * These routes are in the AI registry's NEVER list: no AI tool can reach them.
  *
  * They are also behind the AI kill switches (S11): 503 while the platform switch is off, and an
@@ -60,6 +71,20 @@ const AuthScheme = createParamDecorator(
   (_data: unknown, context: ExecutionContext): string | undefined =>
     requestState(context.switchToHttp().getRequest())?.authScheme,
 );
+
+/** The typed-back amount of an approve body (IP-2: parsed once, at the boundary). */
+export function parseApprovalAmount(
+  body: Readonly<Record<string, unknown>> | null | undefined,
+): number | undefined {
+  const amount = body?.['amount'];
+  if (amount === undefined || amount === null) return undefined;
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) {
+    throw new ApiError(400, 'validation_failed', 'Type the amount as a number.', [
+      { field: 'amount', message: 'must be a number' },
+    ]);
+  }
+  return amount;
+}
 
 /** Rule 1: only a person in a browser session may see or decide an approval. */
 export function requireCookieSession(authScheme: string | undefined): void {
@@ -81,6 +106,7 @@ export class PendingAiActionsController {
   constructor(
     @Inject(PENDING_AI_ACTIONS_SERVICE) private readonly approvals: PendingAiActionsService,
     @Inject(AI_ACCESS_SWITCHES) private readonly aiAccess: AiAccessSwitches,
+    @Optional() @Inject(API_CONFIG) private readonly config?: ApiConfig,
   ) {}
 
   /** 55-15p: the member's own actions waiting for approval, for the "AI actions" list and badge. */
@@ -115,13 +141,23 @@ export class PendingAiActionsController {
     @Param('orgSlug') orgSlug: string,
     @Param('id') id: string,
     @AuthScheme() authScheme: string | undefined,
+    @Body() body: Readonly<Record<string, unknown>> | null | undefined,
+    @Headers('x-reauth-token') reauthToken: string | undefined,
+    @CurrentSession() session?: AuthenticatedSession,
   ): Promise<PendingAiActionView> {
     requireCookieSession(authScheme);
     // S11: nothing an AI asked for runs while the workspace owner has AI apps turned off.
     if (!(await this.aiAccess.organizationOn(context.organizationId, context.correlationId))) {
       throw aiWorkspaceDisabledError();
     }
-    return this.approvals.approve(context, orgSlug, id);
+    return this.approvals.approveInPerson(context, orgSlug, id, {
+      stepUpFresh: isFreshStepUp(
+        { reauthToken, sessionId: session?.sessionId },
+        context.userId,
+        this.config?.sessionSecret,
+      ),
+      amount: parseApprovalAmount(body),
+    });
   }
 
   @Post(':id/decline')

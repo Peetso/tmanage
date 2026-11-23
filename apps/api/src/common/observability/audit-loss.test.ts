@@ -49,7 +49,7 @@ describe('lost audit rows (ASVS 5.0 V16)', () => {
         clientId: 'pat:1',
         correlationId: 'c',
       },
-      { tool: 't', opId: null, argsSha256: 'x', outcome: 'ok', latencyMs: 1 },
+      { tool: 't', opId: null, argsSha256: 'x', outcome: 'ok', latencyMs: 1, subject: null },
     );
     await settle();
     expect(loss.count('mcp_tool_call')).toBe(1);

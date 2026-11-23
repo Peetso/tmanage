@@ -1,7 +1,7 @@
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
-import { verifyReauthToken } from '../identity/reauth-token.js';
+import { isFreshStepUp } from '../identity/reauth-token.js';
 import type { AiBudgetService } from './ai-budget.service.js';
 import { currentValues, readTarget, runOp, runChange } from './ai-change.js';
 import { billingCardAmount } from './packs/billing.js';
@@ -417,14 +417,7 @@ export class AiChangeService {
   }
 
   private stepUpFresh(context: TenantContext, meta: ConfirmMeta): boolean {
-    const secret = this.deps.sessionSecret;
-    if (secret === undefined || meta.sessionId === undefined) return false;
-    const verified = verifyReauthToken(meta.reauthToken, secret, this.now().getTime());
-    return (
-      verified.ok &&
-      verified.claims.userId === context.userId &&
-      verified.claims.sessionId === meta.sessionId
-    );
+    return isFreshStepUp(meta, context.userId, this.deps.sessionSecret, this.now().getTime());
   }
 
   /** Approve a confirm-class item's frozen row and read its outcome back as a tool result. */

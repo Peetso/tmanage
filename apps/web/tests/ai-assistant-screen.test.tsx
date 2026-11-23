@@ -59,6 +59,8 @@ function approval(id: string, clientName = 'Claude'): AiApprovalView {
       subject: null,
       fields: [],
     },
+    confirmation: 'none',
+    amount: null,
     expiresAt: '2026-11-18T13:00:00.000Z',
     decidedAt: null,
   };

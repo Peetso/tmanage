@@ -152,6 +152,7 @@ import { MicrosoftCalendarModule } from './modules/microsoft-calendar/microsoft-
 import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
 import { AiConnectorFallbacksModule } from './modules/mcp/ai-connector-fallbacks.controller.js';
 import { PendingAiActionsModule } from './modules/mcp/pending-actions.controller.js';
+import { AiPanelModule } from './modules/ai-panel/ai-panel.controller.js';
 import { OAuthModule } from './modules/oauth/oauth.module.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
@@ -1227,6 +1228,9 @@ export class AppModule {
         // Confirm-class AI approvals (MCP connector S10): the approve page's API. A cookie session
         // of the same member views, approves (runs the frozen op once, on the server) or declines.
         PendingAiActionsModule.register(),
+        // AI panel with two tabs (2026-11-23): `GET …/ai/panel` (what the panel shows) and
+        // `GET …/ai/activity` (the member's own connected AI's tool calls, named as the member).
+        AiPanelModule.register(),
         // OAuth 2.1 authorization server (MCP connector S7): discovery metadata, /oauth/authorize,
         // /oauth/token and /oauth/revoke, so AI apps connect with a browser consent instead of a
         // copied key. PKCE S256 only, opaque hashed tokens, rotation with reuse detection.

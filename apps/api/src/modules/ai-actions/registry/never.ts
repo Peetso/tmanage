@@ -73,6 +73,10 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/ai/approvals/:id/decline',
     reason: 'mcp_endpoint',
   },
+  // AI panel (2026-11-23): what the panel shows and the member's own connected AI's activity.
+  // Cookie session only; an AI app must never read its own activity or the panel's switches.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/ai/panel', reason: 'mcp_endpoint' },
+  { method: 'GET', path: '/v1/organizations/:orgSlug/ai/activity', reason: 'mcp_endpoint' },
   // S11: the Connected apps page's API — list, disconnect, and the workspace AI switch. A cookie
   // session only; an AI principal must never change its own connection or switch (B3).
   { method: 'GET', path: '/v1/organizations/:orgSlug/oauth/grants', reason: 'oauth' },

@@ -5,6 +5,7 @@ import type { AiActionDetail } from '../ai-actions/registry/detail.js';
 import { allDetailsById } from './tool-catalog.js';
 import { argsSha256 } from './internal-grant.js';
 import { mcpBodyShapeRefusal } from './mcp-body-shape.js';
+import { amountOf, changeGateFor } from '../copilot/ai-preview.js';
 
 /**
  * **Confirm-class approvals — the pure half (MCP connector S10, plan §4.3, architecture F3).**
@@ -251,6 +252,33 @@ export function buildApprovalSummary(
     notifies: detail.notifies,
     subject,
     fields,
+  };
+}
+
+/**
+ * What the member must do beyond pressing Approve (AI panel gap 3, Fable 5.2 ruling 2026-11-23).
+ * `step_up`: a money or HR action. The panel shows "Review", never a one-click Approve, and the
+ * server refuses an approve without a fresh step-up (and, for money, the amount typed back).
+ */
+export type ApprovalConfirmation = 'none' | 'step_up';
+
+/** What one frozen action asks of the approver, from the same gate as the in-app AI's cards. */
+export interface ApprovalGate {
+  readonly confirmation: ApprovalConfirmation;
+  /** The amount the member types back (money), when the frozen arguments name one. */
+  readonly amount: number | null;
+}
+
+/**
+ * The gate of a frozen action, decided by the in-app AI's own rule (`changeGateFor`: money and
+ * HR need a step-up, money also the typed amount) so the panel and the chat never disagree
+ * (AR-8). Pure.
+ */
+export function approvalGateOf(op: AiActionOp, args: Record<string, unknown>): ApprovalGate {
+  const gate = changeGateFor(op, { runAtOnce: false, hasUndo: false });
+  return {
+    confirmation: gate?.stepUp === true ? 'step_up' : 'none',
+    amount: gate?.typedAmount === true ? amountOf(args, null) : null,
   };
 }
 

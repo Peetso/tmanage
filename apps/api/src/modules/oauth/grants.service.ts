@@ -7,6 +7,8 @@ import type { AiAccessSwitches } from './ai-access.js';
 import { GrantsRepository } from './grants.repository.js';
 import { OauthTokensRepository } from './oauth-tokens.repository.js';
 import { KNOWN_SCOPES } from './scopes.js';
+import { knownAiAppOf, openUrlOf } from './known-clients.js';
+import type { KnownAiApp } from './known-clients.js';
 
 /**
  * **Connected apps (MCP connector S11; architecture F4).** Lists the AI apps connected to a
@@ -42,6 +44,28 @@ export interface ConnectedAppsView {
   /** The workspace switch: are AI apps allowed here? */
   readonly aiAccessEnabled: boolean;
   readonly apps: readonly ConnectedAppView[];
+}
+
+/**
+ * AI panel: one of the signed-in member's own connected AI apps. `app` and `openUrl` come from the
+ * verified client id ({@link knownAiAppOf}), never from `clientName`.
+ */
+export interface AiPanelAppView {
+  readonly grantId: string;
+  readonly clientName: string;
+  readonly verified: boolean;
+  /** The recognised app, or `null`: the panel then shows the neutral mark. */
+  readonly app: KnownAiApp | null;
+  /** Where "Open" goes; `null` = no "Open" (Cursor, every unrecognised app). */
+  readonly openUrl: string | null;
+  readonly connectedAt: string;
+  readonly lastUsedAt: string | null;
+}
+
+/** An AI client as the activity list names it: its registered name and recognised app. */
+export interface AiClientLabel {
+  readonly clientName: string;
+  readonly app: KnownAiApp | null;
 }
 
 /** The capability that makes the viewer the workspace's AI owner. */
@@ -96,6 +120,52 @@ export class ConnectedAppsService {
         })),
       };
     });
+  }
+
+  /** AI panel: the member's own live connections, newest first, with the recognised app. */
+  async ownApps(context: TenantContext): Promise<AiPanelAppView[]> {
+    return this.database.read(context, async (runner) => {
+      const rows = await this.grants.listLive(runner, context, context.membershipId);
+      const lastUsed = await this.grants.lastTokenIssuedAt(
+        runner,
+        rows.map((row) => row.id),
+      );
+      return rows.map((row) => {
+        const app = knownAiAppOf({
+          kind: row.clientKind,
+          clientId: row.clientId,
+          verified: row.verified,
+        });
+        return {
+          grantId: row.id,
+          clientName: row.clientName,
+          verified: row.verified,
+          app,
+          openUrl: openUrlOf(app),
+          connectedAt: row.createdAt.toISOString(),
+          lastUsedAt: lastUsed.get(row.id)?.toISOString() ?? null,
+        };
+      });
+    });
+  }
+
+  /** AI panel: the clients MCP audit rows name (by `oauth_clients.id`), granted here. */
+  async clientLabels(
+    context: TenantContext,
+    clientPks: readonly string[],
+  ): Promise<Map<string, AiClientLabel>> {
+    const rows = await this.database.read(context, (runner) =>
+      this.grants.clientsGrantedHere(runner, context, clientPks),
+    );
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        {
+          clientName: row.name,
+          app: knownAiAppOf({ kind: row.kind, clientId: row.clientId, verified: row.verified }),
+        },
+      ]),
+    );
   }
 
   /** Disconnect one app: the grant and all its tokens, in one transaction. 404 when not yours. */

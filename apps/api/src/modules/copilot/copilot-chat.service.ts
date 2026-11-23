@@ -619,10 +619,8 @@ export async function openStanding(
     throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'copilot.chat:caller');
   }
   const read = await standing(context);
-  if (!read.onTestList) throw aiUnavailable('not_on_test_list');
-  if (!read.copilotFlag) throw aiUnavailable('flag_off');
-  if (!read.aiEnabled) throw aiUnavailable('ai_off');
-  if (read.memberBlocked) {
+  const refusal = standingRefusal(read);
+  if (refusal === 'member_blocked') {
     throw new ApiError(
       403,
       'forbidden',
@@ -631,7 +629,52 @@ export async function openStanding(
       'copilot.chat:member_blocked',
     );
   }
+  if (refusal !== null) throw aiUnavailable(refusal);
   return read;
+}
+
+/**
+ * The first of the chat's standing gates the workspace or member fails, in {@link openStanding}'s
+ * order, or `null` when all pass. Pure: the one place the order is decided (AR-8), read by the
+ * chat and by the AI panel's `GET …/ai/panel` (via {@link tmanageAiStatusOf}).
+ */
+export function standingRefusal(
+  read: ChatStanding,
+): Exclude<AiUnavailableReason, 'no_key'> | 'member_blocked' | null {
+  if (!read.onTestList) return 'not_on_test_list';
+  if (!read.copilotFlag) return 'flag_off';
+  if (!read.aiEnabled) return 'ai_off';
+  if (read.memberBlocked) return 'member_blocked';
+  return null;
+}
+
+/** Why TManage AI cannot answer this member: the workspace's reason, or the member's block. */
+export type TmanageAiUnavailableReason = AiUnavailableReason | 'member_blocked';
+
+/** Whether TManage AI answers this member in this workspace, and if not, why (AI panel). */
+export interface TmanageAiStatus {
+  /** The workspace has the feature (on the test list and the `copilot` module flag on). */
+  readonly inPlan: boolean;
+  /** The owner's master switch (`ai_enabled`). */
+  readonly enabled: boolean;
+  /** A chat turn would be admitted past the standing gates and the pool key. */
+  readonly available: boolean;
+  readonly reason: TmanageAiUnavailableReason | null;
+}
+
+/**
+ * The panel's view of the chat's gates: {@link standingRefusal}, then the pool key, the order the
+ * chat checks them in. Pure.
+ */
+export function tmanageAiStatusOf(read: ChatStanding, hasKey: boolean): TmanageAiStatus {
+  const refusal = standingRefusal(read);
+  const reason: TmanageAiUnavailableReason | null = refusal ?? (hasKey ? null : 'no_key');
+  return {
+    inPlan: read.onTestList && read.copilotFlag,
+    enabled: read.aiEnabled,
+    available: reason === null,
+    reason,
+  };
 }
 
 /**

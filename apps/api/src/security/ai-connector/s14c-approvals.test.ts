@@ -147,7 +147,9 @@ describe('S14C approvals — only the owning member decides', () => {
     const approvals = { approve: vi.fn(), decline: vi.fn(), view: vi.fn() };
     const controller = new PendingAiActionsController(approvals as never, switches(true));
     for (const scheme of ['ai_grant', 'personal_access_token', undefined]) {
-      await expect(controller.approve(owner, 'studio', 'pa-1', scheme)).rejects.toMatchObject({
+      await expect(
+        controller.approve(owner, 'studio', 'pa-1', scheme, undefined, undefined),
+      ).rejects.toMatchObject({
         status: 403,
       });
       await expect(controller.decline(owner, 'pa-1', scheme)).rejects.toMatchObject({
@@ -249,7 +251,9 @@ describe('S14C approvals — the AI kill switch', () => {
     const approvals = { approve: vi.fn(), decline: vi.fn(), view: vi.fn() };
     const aiAccess = switches(false);
     const controller = new PendingAiActionsController(approvals as never, aiAccess);
-    await expect(controller.approve(owner, 'studio', 'pa-1', 'cookie')).rejects.toMatchObject({
+    await expect(
+      controller.approve(owner, 'studio', 'pa-1', 'cookie', undefined, undefined),
+    ).rejects.toMatchObject({
       status: 403,
       auditCode: 'ai_disabled',
     });

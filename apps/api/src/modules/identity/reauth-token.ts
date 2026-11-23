@@ -109,3 +109,30 @@ export function verifyReauthToken(
 function signature(payload: string, secret: string): string {
   return createHmac('sha256', secret).update(payload, 'utf8').digest('base64url');
 }
+
+/** What a route has in hand to ask "did this person just prove it is them?" */
+export interface StepUpProof {
+  readonly reauthToken: string | undefined;
+  /** The cookie session the request runs on; `undefined` off a browser session. */
+  readonly sessionId: string | undefined;
+}
+
+/**
+ * SE-3: the one step-up decision a route asks identity for. True only for a valid, unexpired
+ * re-authentication token issued to this user **for this session**: a token copied from another
+ * session, another person's, or one without a session to bind to proves nothing.
+ */
+export function isFreshStepUp(
+  proof: StepUpProof,
+  userId: string,
+  secret: string | undefined,
+  nowMs: number = Date.now(),
+): boolean {
+  if (secret === undefined || secret === '' || proof.sessionId === undefined) return false;
+  const verified = verifyReauthToken(proof.reauthToken, secret, nowMs);
+  return (
+    verified.ok &&
+    verified.claims.userId === userId &&
+    verified.claims.sessionId === proof.sessionId
+  );
+}
