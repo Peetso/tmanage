@@ -36,10 +36,11 @@ import { waveADetails } from '../ai-actions/registry/wave-a.js';
 import { waveBDetails } from '../ai-actions/registry/wave-b.js';
 import { waveCDetails } from '../ai-actions/registry/wave-c.js';
 import { mcpReadGapDetails } from '../ai-actions/registry/mcp-read-gaps.js';
+import { parityDetails } from '../ai-actions/registry/parity-2026-11-23.js';
 
 /** Every op detail across the three registry waves plus the 52-22 read gaps, indexed by op id. */
 export const allDetailsById: ReadonlyMap<string, AiActionDetail> = new Map(
-  [...waveADetails, ...waveBDetails, ...waveCDetails, ...mcpReadGapDetails].map(
+  [...waveADetails, ...waveBDetails, ...waveCDetails, ...mcpReadGapDetails, ...parityDetails].map(
     (d) => [d.id, d] as const,
   ),
 );

@@ -119,9 +119,11 @@ describe('S9 consent screen', () => {
     );
 
     const switches = await screen.findAllByRole('switch');
-    // Billing is greyed out for a member; admin is opt-in.
+    // Owner 2026-11-23: every scope the person can grant is on by default; billing is greyed out
+    // (and never sent) for a member.
+    expect(switches[2]).toBeChecked();
     expect(switches[3]).toBeDisabled();
-    await userEvent.click(switches[2] as HTMLElement);
+    expect(switches[3]).not.toBeChecked();
     await userEvent.click(screen.getByRole('button', { name: /Consent\.allow$|Allow access/ }));
 
     await waitFor(() => expect(went).toEqual(['https://notes.example/cb?code=c&state=s1']));

@@ -28,8 +28,10 @@ import '../../styles/screens/consent.css';
  * - an **unverified** app first gets the red "Check before you continue" gate (threat model B2,
  *   consent phishing); only "Continue anyway" reaches the choices;
  * - the person picks the **workspace** the connection is bound to, and the **scopes** — read is
- *   always on, everyday changes on by default, admin and billing opt-in (billing only for owners
- *   and organization admins);
+ *   always on; owner 2026-11-23 ("the MCP should do whatever the account has the right to do"):
+ *   every scope this person can grant is on by default (changes, admin, and billing for owners
+ *   and organization admins only), and each can be switched off. The scopes only narrow: what
+ *   the app can do is still the person's own rights;
  * - "Allow access" posts the decision with the session-bound ticket; "Cancel" tells the app no.
  *   Both answer with the URL to go to, followed with `location.assign`.
  */
@@ -193,11 +195,8 @@ function ConsentDecision({
   const [failed, setFailed] = useState(false);
   const [chosen, setChosen] = useState<ReadonlySet<string>>(
     () =>
-      new Set([
-        SCOPE_READ,
-        SCOPE_WRITE,
-        ...view.requestedScopes.filter((s) => s !== SCOPE_BILLING),
-      ]),
+      // Every scope on; billing is dropped below (`granted`) where the role cannot grant it.
+      new Set([SCOPE_READ, SCOPE_WRITE, SCOPE_MANAGE, SCOPE_BILLING, ...view.requestedScopes]),
   );
 
   const workspace = workspaces.find((org) => org.id === workspaceId) ?? workspaces[0];

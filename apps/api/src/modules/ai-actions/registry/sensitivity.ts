@@ -17,6 +17,12 @@ import type { Sensitivity } from './types.js';
  * Plan 59 (payments, refunds, payroll) inherits the gates by classifying its new ops here.
  */
 export const OP_SENSITIVITY: Readonly<Record<string, Sensitivity>> = {
+  // Parity 2026-11-23 batch 1: planning changes; no money, people or outside reach.
+  'iterations.complete': 'none',
+  'iterations.create': 'none',
+  'iterations.items.move': 'none',
+  'iterations.settings.set': 'none',
+  'iterations.update': 'none',
   'admin.announcements.create': 'none',
   'admin.announcements.delete': 'destructive',
   'admin.branding.set': 'none',

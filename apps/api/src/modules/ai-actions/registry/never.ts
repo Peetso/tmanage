@@ -2353,32 +2353,7 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/portal/invoices/:invoiceId/pdf',
     reason: 'finance_settings',
   },
-  // ---- R19-d · 53-21 iterations: every planning write (reads are ops in index.ts) ----
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/iterations',
-    reason: 'work_planning',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/projects/:projectId/iteration-settings',
-    reason: 'work_planning',
-  },
-  {
-    method: 'PUT',
-    path: '/v1/organizations/:orgSlug/iterations/:iterationId',
-    reason: 'work_planning',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/iterations/:iterationId/items',
-    reason: 'work_planning',
-  },
-  {
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/iterations/:iterationId/complete',
-    reason: 'work_planning',
-  },
+  // ---- R19-d · 53-21 iterations: the planning writes are ops now (parity 2026-11-23) ----
   // 56-06 (R19-e): changing file safety (type presets, scanned-only for clients) is a security
   // policy change an AI must not drive.
   {

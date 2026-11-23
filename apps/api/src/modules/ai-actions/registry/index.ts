@@ -6436,6 +6436,47 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // ---- parity 2026-11-23 · batch 1: the iteration writes (were NEVER `work_planning`) ----
+  {
+    id: 'iterations.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/iterations',
+    capability: 'project.manage',
+    risk: 'write',
+    scope: 'manage',
+  },
+  {
+    id: 'iterations.settings.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/iteration-settings',
+    capability: 'project.manage',
+    risk: 'write',
+    scope: 'manage',
+  },
+  {
+    id: 'iterations.update',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/iterations/:iterationId',
+    capability: 'project.manage',
+    risk: 'write',
+    scope: 'manage',
+  },
+  {
+    id: 'iterations.items.move',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/iterations/:iterationId/items',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'iterations.complete',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/iterations/:iterationId/complete',
+    capability: 'project.manage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
   // ---- R19-c · 53-07 the client timeline (read: published copies only) ----
   {
     id: 'portal.timeline.get',
