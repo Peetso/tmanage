@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { Reflector } from '@nestjs/core';
+import { findOpById } from '../ai-actions/registry/index.js';
 import { isNever } from '../ai-actions/registry/never.js';
 import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
 import { PLATFORM_PERMISSION_METADATA } from '../platform-admin/require-platform-permission.decorator.js';
@@ -44,7 +45,7 @@ function service() {
 }
 
 describe('56-31 platform mail health', () => {
-  it('guards health with activity.view and the pause with settings.edit, both NEVER', () => {
+  it('guards health with activity.view and the pause with settings.edit; both are platform AI ops (ADR-0015)', () => {
     const permission = (method: 'health' | 'pause') =>
       new Reflector().get(
         PLATFORM_PERMISSION_METADATA,
@@ -52,8 +53,11 @@ describe('56-31 platform mail health', () => {
       );
     expect(permission('health')).toBe('platform.activity.view');
     expect(permission('pause')).toBe('platform.settings.edit');
-    expect(isNever('GET', '/v1/platform/mail/health')).toBe(true);
-    expect(isNever('POST', '/v1/platform/mail/lanes/:lane/pause')).toBe(true);
+    // ADR-0015 part 2: a platform admin's AI reaches them, through the step-up-bound path.
+    expect(isNever('GET', '/v1/platform/mail/health')).toBe(false);
+    expect(isNever('POST', '/v1/platform/mail/lanes/:lane/pause')).toBe(false);
+    expect(findOpById('platform.mail.health.get')?.path).toBe('/v1/platform/mail/health');
+    expect(findOpById('platform.mail.lanes.pause')?.risk).not.toBe('read');
   });
 
   it('reports counts only, ceilings with reservation, deferred auth and degradation', async () => {
