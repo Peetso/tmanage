@@ -12,7 +12,7 @@ export const notificationsDetails: readonly AiActionDetail[] = [
     id: 'notifications.list',
     title: 'List notification',
     description: 'List notification.',
-    input: listArgs([], { unread: f.bool().optional() }),
+    input: listArgs([], { unread: f.bool().optional() }, { cursor: 'before' }),
     redact: 'standard',
     examples: [{ summary: 'List notification', args: {} }],
   }),

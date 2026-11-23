@@ -10,7 +10,7 @@ import {
   validateProfile,
   validateTaxRate,
 } from './finance-rules.js';
-import { taxDocumentRulesFor } from './finance.service.js';
+import { profileTaxDocumentRule, taxDocumentRulesFor } from './finance.service.js';
 
 /** An in-memory store whose `lockAndTake` serializes issuers on a per-row lock, like FOR UPDATE. */
 function fakeStore(timeZone: string): DocumentSequenceStore {
@@ -201,5 +201,18 @@ describe('52-28 finance profile tax-document fields', () => {
     });
     const de = taxDocumentRulesFor({ ...eg, country: 'DE' });
     expect(de).toMatchObject({ regime: 'none', defaultLabel: 'invoice', noticeRequired: false });
+  });
+
+  it('the profile shows the label in force, as the rules route does (fix 12, 2026-11-23)', () => {
+    const eg = defaultProfile({ name: 'Acme', defaultLocale: 'ar-EG' });
+    for (const vatRegistrationStatus of ['not_registered', 'registered'] as const) {
+      const profile = { ...eg, vatRegistrationStatus };
+      expect(profileTaxDocumentRule(profile).defaultLabel).toBe(
+        taxDocumentRulesFor(profile).defaultLabel,
+      );
+    }
+    expect(
+      profileTaxDocumentRule({ ...eg, vatRegistrationStatus: 'not_registered' }),
+    ).toMatchObject({ defaultLabel: 'invoice' });
   });
 });

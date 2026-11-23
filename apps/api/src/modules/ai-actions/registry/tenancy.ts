@@ -6,16 +6,39 @@
  * *definitions*, IP allowlist and security settings stay in `NEVER` too, so none appear here.
  */
 import { z } from 'zod';
-import { det, listArgs, pathOnly, bodyArgs, noArgs, f, type AiActionDetail } from './detail.js';
+import {
+  det,
+  queryArgs,
+  listArgs,
+  pathOnly,
+  bodyArgs,
+  noArgs,
+  f,
+  type AiActionDetail,
+} from './detail.js';
+import { INVITATION_STATUSES } from '../../tenancy/invitations.repository.js';
+
+/** `status` on the invitations list: a comma list of the statuses the controller accepts. */
+const INVITATION_STATUS = INVITATION_STATUSES.join('|');
+const INVITATION_STATUS_LIST = new RegExp(
+  String.raw`^(${INVITATION_STATUS})(\s*,\s*(${INVITATION_STATUS}))*$`,
+);
 
 export const tenancyDetails: readonly AiActionDetail[] = [
   det({
     id: 'invitations.list',
-    title: 'List pending invitations',
-    description: 'Invitations that have been sent but not yet accepted.',
-    input: listArgs(),
+    title: 'List invitations',
+    description:
+      'Invitations sent to join the workspace. Filter with status, a comma list of pending, accepted, expired, revoked.',
+    input: queryArgs([], {
+      status: z
+        .string()
+        .max(60)
+        .regex(INVITATION_STATUS_LIST, 'a comma list of pending, accepted, expired, revoked')
+        .optional(),
+    }),
     redact: 'standard',
-    examples: [{ summary: 'All pending', args: {} }],
+    examples: [{ summary: 'Pending only', args: { status: 'pending' } }],
   }),
   det({
     id: 'invitations.create',
@@ -157,7 +180,8 @@ export const tenancyDetails: readonly AiActionDetail[] = [
   det({
     id: 'settings.logo_image.get',
     title: 'Fetch the company logo image',
-    description: 'The logo image bytes (PNG, JPEG, WebP or sanitised SVG).',
+    description:
+      'The logo image bytes (PNG, JPEG, WebP or sanitised SVG). Ask settings.logo_image.info first: it says null when there is no logo, and then this answers not found.',
     input: noArgs(),
     redact: 'standard',
     examples: [{ summary: 'Image', args: {} }],
@@ -201,7 +225,7 @@ export const tenancyDetails: readonly AiActionDetail[] = [
     id: 'workspaces.list',
     title: 'List sub-workspaces',
     description: 'The workspaces (spaces) inside this organization.',
-    input: listArgs(),
+    input: listArgs([], {}, { cursor: 'after' }),
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),

@@ -11,7 +11,7 @@
  */
 import { z } from 'zod';
 import type { AiActionOp } from './types.js';
-import { bodyArgs, det, f, listArgs, type AiActionDetail } from './detail.js';
+import { bodyArgs, det, f, queryArgs, type AiActionDetail } from './detail.js';
 
 const ENTITY_TYPES = ['client', 'project', 'person', 'process', 'company'] as const;
 const AUDIENCES = ['internal', 'client_visible', 'finance', 'hr'] as const;
@@ -63,7 +63,7 @@ export const businessMemoryDetails: readonly AiActionDetail[] = [
     descriptionAr:
       'الحقائق المعتمدة التي تحفظها مساحة العمل عن عملائها ومشاريعها وأفرادها وإجراءاتها ' +
       'وشركتها، مما يحق لك قراءته، الأحدث أولاً.',
-    input: listArgs([], {
+    input: queryArgs([], {
       status: z.enum(['proposed', 'approved', 'retired', 'all']).optional(),
       entityType: z.enum(ENTITY_TYPES).optional(),
       entityId: f.id().optional(),
@@ -79,7 +79,7 @@ export const businessMemoryDetails: readonly AiActionDetail[] = [
       'At most eight approved facts about the named entities (client:<id>, project:<id>, ' +
       'person:<id>, process, company; up to five, comma separated) that you may read.',
     descriptionAr: 'ثماني حقائق معتمدة على الأكثر عن الكيانات المذكورة مما يحق لك قراءته.',
-    input: listArgs([], { entities: f.shortText(300) }),
+    input: queryArgs([], { entities: f.shortText(300) }),
     redact: 'standard',
     examples: [{ summary: 'What do we know about this client?', args: { entities: 'company' } }],
   }),

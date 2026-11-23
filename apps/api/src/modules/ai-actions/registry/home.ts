@@ -7,24 +7,52 @@
  * (`config` profile); the rest are `standard`. `:orgSlug` is never an argument.
  */
 import { z } from 'zod';
-import { det, pathOnly, listArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { det, queryArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
+
+// = common/database/schema.ts:HOME_PIN_TARGET_KINDS
+const pinTargetKind = z.enum(['work', 'project', 'document']);
+// = common/database/schema.ts:RECENT_ITEM_OBJECT_TYPES
+const recentObjectType = z.enum(['work', 'project', 'document', 'meeting']);
+// = common/database/schema.ts:SAVED_CONTEXT_ENTITY_TYPES
+const savedContextEntityType = z.enum(['message', 'doc', 'work', 'file']);
+// = common/database/schema.ts:HOME_WIDGET_IDS
+const homeWidgetId = z.enum([
+  'myDay',
+  'waiting',
+  'pulse',
+  'summary',
+  'pins',
+  'savedContext',
+  'businessBriefing',
+  'next',
+  'byProject',
+  'timer',
+  'gettingStarted',
+  'quickQuestion',
+  'recent',
+]);
 
 export const homeDetails: readonly AiActionDetail[] = [
   det({
     id: 'home.my_day.list',
     title: 'List home my day',
     description: 'List home my day.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List home my day', args: {} }],
   }),
   det({
     id: 'home.pins.create',
-    title: 'Create home pins',
-    description: 'Create home pins.',
-    input: bodyArgs([], { targetKind: f.shortText().optional(), targetId: f.id().optional() }),
+    title: 'Pin to Home',
+    description: 'Pin a work item, project or document to your Home.',
+    input: bodyArgs([], { targetKind: pinTargetKind, targetId: f.id() }),
     redact: 'config',
-    examples: [{ summary: 'Create home pins', args: {} }],
+    examples: [
+      {
+        summary: 'Pin a project',
+        args: { targetKind: 'project', targetId: '01a20864-92a3-7a1c-b107-397ebef031dc' },
+      },
+    ],
   }),
   det({
     id: 'home.pins.delete',
@@ -38,7 +66,7 @@ export const homeDetails: readonly AiActionDetail[] = [
     id: 'home.pins.list',
     title: 'List home pins',
     description: 'List home pins.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List home pins', args: {} }],
   }),
@@ -46,7 +74,7 @@ export const homeDetails: readonly AiActionDetail[] = [
     id: 'home.pulse.list',
     title: 'List home pulse',
     description: 'List home pulse.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List home pulse', args: {} }],
   }),
@@ -70,7 +98,7 @@ export const homeDetails: readonly AiActionDetail[] = [
     id: 'home.quick_links.list',
     title: 'List home quick links',
     description: 'List home quick links.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List home quick links', args: {} }],
   }),
@@ -86,29 +114,43 @@ export const homeDetails: readonly AiActionDetail[] = [
     id: 'home.recent_items.list',
     title: 'List home recent items',
     description: 'List home recent items.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List home recent items', args: {} }],
   }),
   det({
     id: 'home.recent_items.set',
-    title: 'Set home recent items',
-    description: 'Set home recent items.',
-    input: bodyArgs([], { objectType: f.shortText().optional(), objectId: f.id().optional() }),
+    title: 'Record a recently viewed item',
+    description: 'Add a work item, project, document or meeting to your recently viewed list.',
+    input: bodyArgs([], { objectType: recentObjectType, objectId: f.id() }),
     redact: 'config',
-    examples: [{ summary: 'Set home recent items', args: {} }],
+    examples: [
+      {
+        summary: 'Viewed a meeting',
+        args: { objectType: 'meeting', objectId: '01a20864-92a3-7a1c-b107-397ebef031dc' },
+      },
+    ],
   }),
   det({
     id: 'home.saved_context.create',
-    title: 'Create home saved context',
-    description: 'Create home saved context.',
+    title: 'Save an item to Home',
+    description: 'Save a message, doc, work item or file of a project to your Home saved items.',
     input: bodyArgs([], {
-      entityType: f.shortText().optional(),
-      entityId: f.id().optional(),
-      projectId: f.id().optional(),
+      entityType: savedContextEntityType,
+      entityId: f.id(),
+      projectId: f.id(),
     }),
     redact: 'config',
-    examples: [{ summary: 'Create home saved context', args: { projectId: 'proj_1' } }],
+    examples: [
+      {
+        summary: 'Save a doc',
+        args: {
+          entityType: 'doc',
+          entityId: '01a20864-92a3-7a1c-b107-397ebef031dc',
+          projectId: '01a20864-92a3-7a1c-b107-397ebef031dd',
+        },
+      },
+    ],
   }),
   det({
     id: 'home.saved_context.delete',
@@ -123,7 +165,7 @@ export const homeDetails: readonly AiActionDetail[] = [
     title: 'List home saved context',
     description:
       "List the caller's saved items by project, each with its name where the caller may read the source.",
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List home saved context', args: {} }],
   }),
@@ -132,7 +174,7 @@ export const homeDetails: readonly AiActionDetail[] = [
     title: 'Get home business briefing',
     description:
       'Get what needs the reader across the company or their projects, from the hourly check.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'Get home business briefing', args: {} }],
   }),
@@ -156,7 +198,7 @@ export const homeDetails: readonly AiActionDetail[] = [
     id: 'home.summary.list',
     title: 'List home summary',
     description: 'List home summary.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List home summary', args: {} }],
   }),
@@ -164,7 +206,7 @@ export const homeDetails: readonly AiActionDetail[] = [
     id: 'home.waiting.list',
     title: 'List home waiting',
     description: 'List home waiting.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List home waiting', args: {} }],
   }),
@@ -172,21 +214,21 @@ export const homeDetails: readonly AiActionDetail[] = [
     id: 'home.widget_prefs.list',
     title: 'List home widget prefs',
     description: 'List home widget prefs.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List home widget prefs', args: {} }],
   }),
   det({
     id: 'home.widget_prefs.set',
     title: 'Set home widget prefs',
-    description: 'Set home widget prefs.',
+    description: 'Save the order of your Home widgets and which ones are hidden (widget ids).',
     input: bodyArgs([], {
-      order: z.array(f.shortText(80)).max(100),
-      hidden: z.array(f.shortText(80)).max(100),
+      order: z.array(homeWidgetId).max(homeWidgetId.options.length),
+      hidden: z.array(homeWidgetId).max(homeWidgetId.options.length),
     }),
     redact: 'config',
     examples: [
-      { summary: 'Set home widget prefs', args: { order: ['tasks', 'calendar'], hidden: [] } },
+      { summary: 'Set home widget prefs', args: { order: ['next', 'pulse'], hidden: ['timer'] } },
     ],
   }),
 ];

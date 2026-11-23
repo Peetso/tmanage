@@ -24,7 +24,7 @@
 import { z } from 'zod';
 import type { Capability } from '@tmanage/domain';
 import type { AiActionOp, AiScope, HttpMethod, Sensitivity } from './types.js';
-import { bodyArgs, det, f, noArgs, pathOnly, type AiActionDetail } from './detail.js';
+import { atLeastOne, bodyArgs, det, f, noArgs, pathOnly, type AiActionDetail } from './detail.js';
 
 const ORG = '/v1/organizations/:orgSlug';
 
@@ -507,17 +507,20 @@ const newOpDetails: readonly AiActionDetail[] = [
       'Drive location: {kind: my_drive}, {kind: folder, folderId} or {kind: shared_drive, ' +
       'driveId} (ids from google_drive.root_options.list). Send at least one of the two. ' +
       'Owner/admin (org.manage); returns the storage status (google_drive.storage.get).',
-    input: bodyArgs([], {
-      storageMode: z.enum(['tmanage', 'google_drive']).optional(),
-      location: z
-        .object({
-          kind: z.enum(['my_drive', 'folder', 'shared_drive']),
-          folderId: driveId().optional(),
-          driveId: driveId().optional(),
-        })
-        .strict()
-        .optional(),
-    }),
+    input: atLeastOne(
+      bodyArgs([], {
+        storageMode: z.enum(['tmanage', 'google_drive']).optional(),
+        location: z
+          .object({
+            kind: z.enum(['my_drive', 'folder', 'shared_drive']),
+            folderId: driveId().optional(),
+            driveId: driveId().optional(),
+          })
+          .strict()
+          .optional(),
+      }),
+      ['storageMode', 'location'],
+    ),
     redact: 'config',
     examples: [{ summary: 'Keep files in Google Drive', args: { storageMode: 'google_drive' } }],
   }),
@@ -543,7 +546,12 @@ const newOpDetails: readonly AiActionDetail[] = [
       pageToken: drivePageToken().optional(),
     }),
     redact: 'standard',
-    examples: [{ summary: 'Project root folder', args: { projectId: 'pr_1' } }],
+    examples: [
+      {
+        summary: 'Project root folder',
+        args: { projectId: '01a20864-92a3-7a1c-b107-397ebef031dc' },
+      },
+    ],
   }),
   det({
     id: 'google_drive.root_options.list',
@@ -564,17 +572,20 @@ const newOpDetails: readonly AiActionDetail[] = [
       'location: {kind: my_files}, {kind: folder, driveId, itemId} (from onedrive.folders.list) ' +
       'or {kind: library, driveId} (from onedrive.root_options.list). Send at least one of the ' +
       'two. Owner/admin only; returns the storage status (onedrive.storage.get).',
-    input: bodyArgs([], {
-      storageMode: z.enum(['tmanage', 'onedrive']).optional(),
-      location: z
-        .object({
-          kind: z.enum(['my_files', 'folder', 'library']),
-          driveId: graphId().optional(),
-          itemId: graphId().optional(),
-        })
-        .strict()
-        .optional(),
-    }),
+    input: atLeastOne(
+      bodyArgs([], {
+        storageMode: z.enum(['tmanage', 'onedrive']).optional(),
+        location: z
+          .object({
+            kind: z.enum(['my_files', 'folder', 'library']),
+            driveId: graphId().optional(),
+            itemId: graphId().optional(),
+          })
+          .strict()
+          .optional(),
+      }),
+      ['storageMode', 'location'],
+    ),
     redact: 'config',
     examples: [{ summary: 'Keep files in OneDrive', args: { storageMode: 'onedrive' } }],
   }),
@@ -624,7 +635,12 @@ const newOpDetails: readonly AiActionDetail[] = [
       pageToken: graphPageToken().optional(),
     }),
     redact: 'standard',
-    examples: [{ summary: 'Project root folder', args: { projectId: 'pr_1' } }],
+    examples: [
+      {
+        summary: 'Project root folder',
+        args: { projectId: '01a20864-92a3-7a1c-b107-397ebef031dc' },
+      },
+    ],
   }),
   // Storage hand-over and move.
   det({
@@ -1449,12 +1465,20 @@ const existingOpDetails: readonly AiActionDetail[] = [
     description:
       'Attach a live drive folder: provider google_drive with folderId, or onedrive with ' +
       'driveId and itemId (provider ids, never a URL).',
-    input: bodyArgs(['workItemId'], {
-      provider: storageProvider(),
-      folderId: driveId().optional(),
-      driveId: graphId().optional(),
-      itemId: graphId().optional(),
-    }),
+    input: (
+      bodyArgs(['workItemId'], {
+        provider: storageProvider(),
+        folderId: driveId().optional(),
+        driveId: graphId().optional(),
+        itemId: graphId().optional(),
+      }) as z.ZodObject<z.ZodRawShape>
+    ).refine(
+      (value: Record<string, unknown>) =>
+        value['provider'] === 'google_drive'
+          ? value['folderId'] !== undefined
+          : value['driveId'] !== undefined && value['itemId'] !== undefined,
+      { message: 'google_drive needs folderId; onedrive needs driveId and itemId' },
+    ),
     redact: 'standard',
     examples: [
       {

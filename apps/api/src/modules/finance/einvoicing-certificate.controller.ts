@@ -38,7 +38,7 @@ export class EinvoicingCertificateController {
   get(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
-  ): Promise<CertificateStatusView> {
+  ): Promise<CertificateStatusView | null> {
     return this.service.certificate(context, principal);
   }
 

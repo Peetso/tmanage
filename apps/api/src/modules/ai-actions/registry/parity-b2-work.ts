@@ -75,7 +75,7 @@ import { MAX_PM_BOARDS, PM_SOURCES } from '../../import/pm-sources.js';
 import { SUGGEST_QUERY_MAX } from '../../people/contact-suggestions.service.js';
 import { UNLOCK_REASON_MAX, UNLOCK_REASON_MIN } from '../../time/locks-rules.js';
 import type { AiActionOp, AiScope, HttpMethod, RiskClass, Sensitivity } from './types.js';
-import { bodyArgs, det, f, noArgs, pathOnly, type AiActionDetail } from './detail.js';
+import { atLeastOne, bodyArgs, det, f, noArgs, pathOnly, type AiActionDetail } from './detail.js';
 
 const ORG = '/v1/organizations/:orgSlug';
 
@@ -720,11 +720,14 @@ export const workDetails: readonly AiActionDetail[] = [
       'Turn an outbound webhook on or off, change the events it is subscribed to, or its ' +
       'description (null clears it). Send at least one field. Events are sent to the endpoint’s ' +
       'outside URL, so this changes what leaves the workspace.',
-    input: bodyArgs(['id'], {
-      enabled: f.bool().optional(),
-      events: webhookEvents().optional(),
-      description: z.string().max(WEBHOOK_DESCRIPTION_MAX).nullable().optional(),
-    }),
+    input: atLeastOne(
+      bodyArgs(['id'], {
+        enabled: f.bool().optional(),
+        events: webhookEvents().optional(),
+        description: z.string().max(WEBHOOK_DESCRIPTION_MAX).nullable().optional(),
+      }),
+      ['enabled', 'events', 'description'],
+    ),
     redact: 'config',
     examples: [{ summary: 'Turn off', args: { id: 'wh_1', enabled: false } }],
   }),
@@ -1304,12 +1307,15 @@ export const workDetails: readonly AiActionDetail[] = [
       'Group admins only: rename (1–120), describe (null clears, at most 500), set the photo ' +
       '(a file id or null) or who may send (onlyAdminsCanSend). Send at least one field. ' +
       'Members see a notice in the chat.',
-    input: bodyArgs(['conversationId'], {
-      name: f.shortText(120).optional(),
-      description: z.string().max(500).nullable().optional(),
-      photoFileAssetId: uuid().nullable().optional(),
-      onlyAdminsCanSend: f.bool().optional(),
-    }),
+    input: atLeastOne(
+      bodyArgs(['conversationId'], {
+        name: f.shortText(120).optional(),
+        description: z.string().max(500).nullable().optional(),
+        photoFileAssetId: uuid().nullable().optional(),
+        onlyAdminsCanSend: f.bool().optional(),
+      }),
+      ['name', 'description', 'photoFileAssetId', 'onlyAdminsCanSend'],
+    ),
     redact: 'standard',
     notifies: true,
     examples: [{ summary: 'Rename', args: { conversationId: 'cv_1', name: 'Launch team' } }],
@@ -1559,10 +1565,13 @@ export const workDetails: readonly AiActionDetail[] = [
       'Change a typed dependency of a work item: kind FS, SS, FF or SF and/or lagWorkingDays ' +
       `(${MIN_DEPENDENCY_LAG}–${MAX_DEPENDENCY_LAG}). Send at least one. Ids from ` +
       'projects.dependencies.list.',
-    input: bodyArgs(['workItemId', 'dependencyId'], {
-      kind: z.enum(DEPENDENCY_KINDS).optional(),
-      lagWorkingDays: f.int(MIN_DEPENDENCY_LAG, MAX_DEPENDENCY_LAG).optional(),
-    }),
+    input: atLeastOne(
+      bodyArgs(['workItemId', 'dependencyId'], {
+        kind: z.enum(DEPENDENCY_KINDS).optional(),
+        lagWorkingDays: f.int(MIN_DEPENDENCY_LAG, MAX_DEPENDENCY_LAG).optional(),
+      }),
+      ['kind', 'lagWorkingDays'],
+    ),
     redact: 'standard',
     examples: [
       {
@@ -1834,10 +1843,13 @@ export const workDetails: readonly AiActionDetail[] = [
     title: 'Edit a glossary term',
     description:
       'Change a term and/or its definition (id from glossary.terms.list). Send at least one.',
-    input: bodyArgs(['id'], {
-      term: f.shortText(MAX_TERM_LENGTH).optional(),
-      definition: f.text(MAX_DEFINITION_LENGTH).optional(),
-    }),
+    input: atLeastOne(
+      bodyArgs(['id'], {
+        term: f.shortText(MAX_TERM_LENGTH).optional(),
+        definition: f.text(MAX_DEFINITION_LENGTH).optional(),
+      }),
+      ['term', 'definition'],
+    ),
     redact: 'standard',
     examples: [{ summary: 'Definition', args: { id: 'gt_1', definition: 'Updated meaning.' } }],
   }),
@@ -1900,12 +1912,15 @@ export const workDetails: readonly AiActionDetail[] = [
     description:
       'Change a key result’s title, unit, targetValue or currentValue (ids from ' +
       'objectives.key_results.list). Send at least one.',
-    input: bodyArgs(['objectiveId', 'keyResultId'], {
-      title: f.shortText(300).optional(),
-      unit: f.shortText(64).optional(),
-      targetValue: safeCount().optional(),
-      currentValue: safeCount().optional(),
-    }),
+    input: atLeastOne(
+      bodyArgs(['objectiveId', 'keyResultId'], {
+        title: f.shortText(300).optional(),
+        unit: f.shortText(64).optional(),
+        targetValue: safeCount().optional(),
+        currentValue: safeCount().optional(),
+      }),
+      ['title', 'unit', 'targetValue', 'currentValue'],
+    ),
     redact: 'standard',
     examples: [
       { summary: 'Progress', args: { objectiveId: 'ob_1', keyResultId: 'kr_1', currentValue: 4 } },

@@ -156,14 +156,22 @@ export class EinvoiceSigningService {
 
   // ---- the certificate (controller) ----
 
-  async certificate(context: TenantContext, principal: Principal): Promise<CertificateStatusView> {
+  /**
+   * The active signing certificate's status, or `null` when the organization has none yet (fix
+   * lane B 2026-11-23, AI-ACTIONS-LIVE-TEST fix 9): "no certificate" is the empty state of a
+   * settings read, not a missing resource, so it is a 200 `null` rather than a 404 the AI (and any
+   * client) must tell apart from a wrong URL. No web caller relied on the 404.
+   */
+  async certificate(
+    context: TenantContext,
+    principal: Principal,
+  ): Promise<CertificateStatusView | null> {
     this.require(principal, context, FINANCE_MANAGE, 'org_secret.view');
     return this.options.database.read(context, async (r) => {
       const row = (await this.repo.listMeta(r, context.organizationId, ZATCA_SIGNING_SECRET)).find(
         (candidate) => candidate.status === 'active',
       );
-      if (row === undefined) throw new ApiError(404, 'not_found', MESSAGES.notFound);
-      return this.statusView(row);
+      return row === undefined ? null : this.statusView(row);
     });
   }
 

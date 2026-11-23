@@ -7,7 +7,19 @@
  * op here changes what TManage charges. The `billing` redaction profile strips payment-provider
  * references and any stored secrets.
  */
-import { det, listArgs, pathOnly, bodyArgs, noArgs, f, type AiActionDetail } from './detail.js';
+import { z } from 'zod';
+import {
+  det,
+  queryArgs,
+  listArgs,
+  pathOnly,
+  bodyArgs,
+  noArgs,
+  atLeastOne,
+  f,
+  type AiActionDetail,
+} from './detail.js';
+import { PLAN_IDS } from '../../billing/plan-catalog.js';
 
 const money = () => f.int(0, 1_000_000_000);
 
@@ -23,8 +35,9 @@ export const billingDetails: readonly AiActionDetail[] = [
   det({
     id: 'billing.seats.list',
     title: 'List seats',
-    description: 'Assigned and available seats.',
-    input: listArgs(),
+    description:
+      'Seats assigned one by one (often none). The bill counts people, not these rows: see internalPeopleCount in billing.subscription.list.',
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'All seats', args: {} }],
   }),
@@ -32,7 +45,7 @@ export const billingDetails: readonly AiActionDetail[] = [
     id: 'billing.invoices.list',
     title: 'List invoices',
     description: 'Invoices for the workspace, newest first.',
-    input: listArgs(),
+    input: listArgs([], {}, { cursor: null }),
     redact: 'billing',
     examples: [{ summary: 'Recent', args: { limit: 12 } }],
   }),
@@ -48,7 +61,7 @@ export const billingDetails: readonly AiActionDetail[] = [
     id: 'billing.invoices.lines.list',
     title: 'Invoice line items',
     description: 'The line items on one invoice.',
-    input: listArgs(['invoiceId']),
+    input: queryArgs(['invoiceId']),
     redact: 'billing',
     examples: [{ summary: 'Lines', args: { invoiceId: 'inv_1' } }],
   }),
@@ -93,7 +106,7 @@ export const billingDetails: readonly AiActionDetail[] = [
     id: 'billing.contacts.list',
     title: 'List billing contacts',
     description: 'People who receive billing notifications.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -117,7 +130,7 @@ export const billingDetails: readonly AiActionDetail[] = [
     id: 'billing.cost_centers.list',
     title: 'List cost centers',
     description: 'Cost centers used to split billing.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -156,16 +169,16 @@ export const billingDetails: readonly AiActionDetail[] = [
   det({
     id: 'billing.cost_center_report.list',
     title: 'Cost-center report',
-    description: 'Spend attributed to each cost center.',
-    input: listArgs([], { period: f.shortText(20).optional() }),
+    description: 'Spend attributed to each cost center, by cost-center code.',
+    input: noArgs(),
     redact: 'billing',
-    examples: [{ summary: 'This quarter', args: {} }],
+    examples: [{ summary: 'All cost centers', args: {} }],
   }),
   det({
     id: 'billing.credits.list',
     title: 'List credits',
     description: 'Account credits applied to the workspace.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -181,7 +194,7 @@ export const billingDetails: readonly AiActionDetail[] = [
     id: 'billing.discounts.list',
     title: 'List discounts',
     description: 'Discounts applied to the workspace.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -210,7 +223,7 @@ export const billingDetails: readonly AiActionDetail[] = [
     id: 'billing.purchase_orders.list',
     title: 'List purchase orders',
     description: 'Purchase orders on file.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -247,7 +260,7 @@ export const billingDetails: readonly AiActionDetail[] = [
     id: 'billing.usage_alerts.list',
     title: 'List usage alerts',
     description: 'Thresholds that warn when usage is high.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -274,11 +287,15 @@ export const billingDetails: readonly AiActionDetail[] = [
   det({
     id: 'billing.usage_alerts.update',
     title: 'Update a usage alert',
-    description: 'Change a usage alert threshold or active flag. Confirm-class.',
-    input: bodyArgs(['id'], {
-      thresholdPercent: f.int(1, 100).optional(),
-      active: f.bool().optional(),
-    }),
+    description:
+      'Change a usage alert threshold or active flag (send at least one). Confirm-class.',
+    input: atLeastOne(
+      bodyArgs(['id'], {
+        thresholdPercent: f.int(1, 100).optional(),
+        active: f.bool().optional(),
+      }),
+      ['thresholdPercent', 'active'],
+    ),
     redact: 'billing',
     examples: [{ summary: 'Disable', args: { id: 'ua_1', active: false } }],
   }),
@@ -287,23 +304,24 @@ export const billingDetails: readonly AiActionDetail[] = [
     title: 'List plan-change requests',
     description:
       'Pending requests to change the plan (read-only; changes are done in the web app).',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'billing',
     examples: [{ summary: 'Pending', args: {} }],
   }),
   det({
     id: 'billing.plan_change.preview',
     title: 'Preview a plan change',
-    description: 'What a plan change would cost, without applying it.',
-    input: listArgs([], { targetPlanCode: f.shortText(60).optional() }),
+    description:
+      'What moving to the target plan would cost at a number of seats (default 1), without applying it.',
+    input: queryArgs([], { target: z.enum(PLAN_IDS), seats: f.int(1, 1000).optional() }),
     redact: 'billing',
-    examples: [{ summary: 'Preview', args: { targetPlanCode: 'pro' } }],
+    examples: [{ summary: 'Studio for 5 seats', args: { target: 'studio', seats: 5 } }],
   }),
   det({
     id: 'billing.plan.get',
     title: 'Current plan',
     description:
-      'The workspace plan in use, its version, price and limits. During the free beta every workspace is on the beta plan.',
+      'The plan whose limits and features apply now, its version, price and limits. During the free beta that is the top plan for every workspace, while billing.subscription.list shows the stored plan (free).',
     input: noArgs(),
     redact: 'billing',
     examples: [{ summary: 'Current plan', args: {} }],
@@ -330,9 +348,14 @@ export const billingDetails: readonly AiActionDetail[] = [
     id: 'billing.usage.export_csv',
     title: 'Export usage as CSV',
     description:
-      'Download a usage report as CSV. A bulk extraction (results are capped and redacted).',
-    input: noArgs(),
+      'Download a usage report for a from/to window (ISO instants) as CSV. A bulk extraction (results are capped and redacted).',
+    input: queryArgs([], { from: f.iso(), to: f.iso() }),
     redact: 'billing',
-    examples: [{ summary: 'Export', args: {} }],
+    examples: [
+      {
+        summary: 'November usage',
+        args: { from: '2026-11-01T00:00:00Z', to: '2026-11-30T23:59:59Z' },
+      },
+    ],
   }),
 ];

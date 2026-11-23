@@ -10,10 +10,12 @@
  * cost/estimate/review/rationale fields.
  */
 import { z } from 'zod';
-import { det, listArgs, noArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { det, queryArgs, noArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 /** The reviewer decision enum mirrored from `approvals.controller.ts`. */
 const decision = z.enum(['approve', 'request_changes']);
+// = approvals/steps.controller.ts decide: a chain step is approved or rejected.
+const stepDecision = z.enum(['approve', 'reject']);
 
 /** The client-safe projection payload (allowlist only; the controller rejects any other key). */
 const projection = z
@@ -52,34 +54,70 @@ export const approvalsDetails: readonly AiActionDetail[] = [
     id: 'approvals.decision.create',
     title: 'Decide an approval',
     description:
-      'Approve or request changes on an approval. Confirm-class; the requester is notified.',
-    input: bodyArgs(['approvalId'], { decision, feedback: f.text(5_000).optional() }),
+      'Approve or request changes on an approval. version is the approval’s current version, as ' +
+      'returned when it was opened or last read (a stale one is refused). Confirm-class; the ' +
+      'requester is notified.',
+    input: bodyArgs(['approvalId'], {
+      decision,
+      version: f
+        .int(1, 2_147_483_647)
+        .describe('The approval’s current version (from the approval you read)'),
+      feedback: f.text(5_000).optional(),
+    }),
     redact: 'standard',
     notifies: true,
-    examples: [{ summary: 'Approve', args: { approvalId: 'appr_1', decision: 'approve' } }],
+    examples: [
+      { summary: 'Approve', args: { approvalId: 'appr_1', decision: 'approve', version: 3 } },
+    ],
   }),
   det({
     id: 'approvals.steps.list',
     title: 'List approval steps',
     description: 'The review steps of an approval.',
-    input: listArgs(['approvalId']),
+    input: queryArgs(['approvalId']),
     redact: 'standard',
     examples: [{ summary: 'Steps', args: { approvalId: 'appr_1' } }],
   }),
   det({
     id: 'approvals.steps.create',
-    title: 'Add an approval step',
-    description: 'Add a review step to an approval. Confirm-class; reviewers are notified.',
-    input: bodyArgs(['approvalId'], { reviewerIds: z.array(f.id()).min(1).max(50).optional() }),
+    title: 'Set the approval steps',
+    description:
+      'Define the review chain of an approval: each step has a unique position (0 to 1000), the ' +
+      'approver role, and optionally one approver user. Confirm-class; reviewers are notified.',
+    input: bodyArgs(['approvalId'], {
+      steps: z
+        .array(
+          z
+            .object({
+              position: f.int(0, 1000),
+              approverRole: f.shortText(64),
+              approverUserId: f.id().nullable().optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(50),
+    }),
     redact: 'standard',
     notifies: true,
-    examples: [{ summary: 'Add step', args: { approvalId: 'appr_1', reviewerIds: ['user_4'] } }],
+    examples: [
+      {
+        summary: 'Add step',
+        args: {
+          approvalId: 'appr_1',
+          steps: [
+            { position: 0, approverRole: 'project_lead' },
+            { position: 1, approverRole: 'client', approverUserId: 'user_4' },
+          ],
+        },
+      },
+    ],
   }),
   det({
     id: 'approvals.steps.set',
     title: 'Decide an approval step',
-    description: 'Record a decision on one approval step. Confirm-class.',
-    input: bodyArgs(['approvalId', 'stepId'], { decision }),
+    description: 'Approve or reject the active step of an approval chain. Confirm-class.',
+    input: bodyArgs(['approvalId', 'stepId'], { decision: stepDecision }),
     redact: 'standard',
     examples: [
       {
@@ -92,7 +130,7 @@ export const approvalsDetails: readonly AiActionDetail[] = [
     id: 'approvals.delegations.list',
     title: 'List approval delegations',
     description: 'Who approvals are delegated to, and when.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'Delegations', args: {} }],
   }),
@@ -100,15 +138,25 @@ export const approvalsDetails: readonly AiActionDetail[] = [
     id: 'approvals.delegations.create',
     title: 'Delegate approvals',
     description:
-      'Delegate your approvals to another member for a period. Confirm-class; they are notified.',
+      'Delegate your approvals to another member from startsAt to endsAt (ISO instants). ' +
+      'Confirm-class; they are notified.',
     input: bodyArgs([], {
       delegateMembershipId: f.id(),
-      startsAt: f.iso().optional(),
-      endsAt: f.iso().optional(),
+      startsAt: f.iso(),
+      endsAt: f.iso(),
     }),
     redact: 'standard',
     notifies: true,
-    examples: [{ summary: 'Delegate', args: { delegateMembershipId: 'mem_5' } }],
+    examples: [
+      {
+        summary: 'Delegate',
+        args: {
+          delegateMembershipId: 'mem_5',
+          startsAt: '2026-12-01T00:00:00Z',
+          endsAt: '2026-12-15T00:00:00Z',
+        },
+      },
+    ],
   }),
   det({
     id: 'approvals.delegations.delete',
@@ -183,7 +231,7 @@ export const approvalsDetails: readonly AiActionDetail[] = [
     id: 'approvals.deliverables.list',
     title: 'List deliverables',
     description: 'List a project’s deliverables with their approval state and latest version.',
-    input: listArgs([], { projectId: f.id() }),
+    input: queryArgs([], { projectId: f.id() }),
     redact: 'standard',
     examples: [{ summary: 'In a project', args: { projectId: 'proj_1' } }],
   }),
@@ -337,7 +385,7 @@ export const approvalsDetails: readonly AiActionDetail[] = [
     id: 'esign.requests.list',
     title: 'List signature requests',
     description: 'The signature requests on one deliverable version, with who signed.',
-    input: listArgs([], { deliverableVersionId: f.id() }),
+    input: queryArgs([], { deliverableVersionId: f.id() }),
     redact: 'standard',
     examples: [{ summary: 'By version', args: { deliverableVersionId: 'dv_1' } }],
   }),

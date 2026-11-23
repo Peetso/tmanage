@@ -44,10 +44,7 @@ export const knowledgeDetails: readonly AiActionDetail[] = [
     descriptionAr:
       'المقاطع من الملفات التي يمكنك فتحها والتي تجيب عن سؤال، الأفضل أولاً، مع الملف والصفحة ' +
       'ورابطه داخل التطبيق. يمكن حصرها في مشروع واحد.',
-    input: listArgs([], {
-      q: f.shortText(300),
-      projectId: f.id().optional(),
-    }),
+    input: listArgs([], { q: f.shortText(300), projectId: f.id().optional() }, { cursor: null }),
     redact: 'standard',
     examples: [
       {

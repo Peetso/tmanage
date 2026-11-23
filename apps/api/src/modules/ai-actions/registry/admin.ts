@@ -7,7 +7,9 @@
  * settings, IP allowlist, security alerts, audit-retention, and role/policy *definitions* (plan §2).
  * Announcing to the whole org and revoking an invitation notify people (openWorldHint).
  */
-import { det, listArgs, pathOnly, bodyArgs, noArgs, f, type AiActionDetail } from './detail.js';
+import { z } from 'zod';
+import { det, queryArgs, pathOnly, bodyArgs, noArgs, f, type AiActionDetail } from './detail.js';
+import { OPTIONAL_MODULE_FLAGS } from '../../admin/feature-flags.service.js';
 
 export const adminDetails: readonly AiActionDetail[] = [
   det({
@@ -22,7 +24,7 @@ export const adminDetails: readonly AiActionDetail[] = [
     id: 'announcements.list',
     title: 'List announcements',
     description: 'Workspace announcements visible to members.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -46,17 +48,18 @@ export const adminDetails: readonly AiActionDetail[] = [
     id: 'admin.feature_flags.list',
     title: 'List feature flags (admin)',
     description: 'All org feature flags and their states.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),
   det({
     id: 'admin.feature_flags.set',
     title: 'Set a feature flag',
-    description: 'Turn an org feature flag on or off.',
-    input: bodyArgs(['key'], { enabled: f.bool() }),
+    description:
+      'Turn one optional module of the workspace on or off (key from admin.feature_flags.list).',
+    input: bodyArgs([], { key: z.enum(OPTIONAL_MODULE_FLAGS), enabled: f.bool() }),
     redact: 'standard',
-    examples: [{ summary: 'Enable', args: { key: 'beta_inbox', enabled: true } }],
+    examples: [{ summary: 'Turn meetings on', args: { key: 'meetings', enabled: true } }],
   }),
   det({
     id: 'admin.announcements.create',
@@ -92,7 +95,7 @@ export const adminDetails: readonly AiActionDetail[] = [
     id: 'admin.export_requests.list',
     title: 'List export requests',
     description: 'Data-export requests and their status.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -108,7 +111,7 @@ export const adminDetails: readonly AiActionDetail[] = [
     id: 'admin.invitations.list',
     title: 'List invitations (admin)',
     description: 'Invitations from the administration view.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -125,7 +128,7 @@ export const adminDetails: readonly AiActionDetail[] = [
     id: 'admin.members.notes.list',
     title: 'List member notes',
     description: 'Internal admin notes about a member.',
-    input: listArgs(['membershipId']),
+    input: queryArgs(['membershipId']),
     redact: 'standard',
     examples: [{ summary: 'By member', args: { membershipId: 'm_1' } }],
   }),
@@ -175,7 +178,7 @@ export const adminDetails: readonly AiActionDetail[] = [
     id: 'admin.sessions.list',
     title: 'List active sessions',
     description: 'Active member sessions in the workspace.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),

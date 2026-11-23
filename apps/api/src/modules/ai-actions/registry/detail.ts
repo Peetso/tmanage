@@ -114,14 +114,99 @@ export function pathOnly(...params: string[]): z.ZodTypeAny {
   return strict(pathShape(params));
 }
 
-/** A collection list: path params plus optional `limit`/`cursor` (and any extra query fields). */
-export function listArgs(params: string[] = [], extra: z.ZodRawShape = {}): z.ZodTypeAny {
-  return strict({ ...pathShape(params), limit: f.limit, cursor: f.cursor, ...extra });
+/**
+ * How a list route pages (DC-9, fix lane B 2026-11-23). The schema offers exactly the paging
+ * arguments the route reads, under the route's own names: `limit` only when the route reads
+ * `limit`, and the position as `cursor`, `after` or `before` (an opaque string, the last item or
+ * cursor of the previous page) or `page` (a page number), or no position at all.
+ * `route-contract.test.ts` fails when a list schema offers paging the route ignores.
+ */
+export interface Paging {
+  readonly limit?: boolean;
+  readonly cursor?: 'cursor' | 'after' | 'before' | 'page' | null;
+}
+
+function pagingShape(paging: Paging): z.ZodRawShape {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  if (paging.limit !== false) shape['limit'] = f.limit;
+  const cursor = paging.cursor === undefined ? 'cursor' : paging.cursor;
+  if (cursor === 'page') {
+    shape['page'] = z.number().int().min(1).max(10_000).optional().describe('Page number, from 1');
+  } else if (cursor !== null) {
+    shape[cursor] = f.cursor.describe(
+      cursor === 'before'
+        ? 'Paging: continue with the items before this position (from the previous page)'
+        : 'Paging: continue after this position (from the previous page)',
+    );
+  }
+  return shape;
+}
+
+/**
+ * A collection list: path params plus the route's paging arguments (by default `limit`/`cursor`,
+ * see {@link Paging}) and any extra query fields.
+ */
+export function listArgs(
+  params: string[] = [],
+  extra: z.ZodRawShape = {},
+  paging: Paging = {},
+): z.ZodTypeAny {
+  return strict({ ...pathShape(params), ...pagingShape(paging), ...extra });
+}
+
+/** A read that takes path params and query fields but does not page (the route returns it all). */
+export function queryArgs(params: string[] = [], extra: z.ZodRawShape = {}): z.ZodTypeAny {
+  return strict({ ...pathShape(params), ...extra });
 }
 
 /** A write/confirm op: path params plus a body shape. */
 export function bodyArgs(params: string[], body: z.ZodRawShape): z.ZodTypeAny {
   return strict({ ...pathShape(params), ...body });
+}
+
+/**
+ * Cross-field rules a route checks that a flat schema cannot say (DC-9). They refine the strict
+ * object in place (zod 4 keeps it a `ZodObject`, so the MCP tool shape is unchanged) and the
+ * runtime's `safeParse` enforces them before the route is called, with a message naming the fields.
+ */
+type Args = Record<string, unknown>;
+
+/** The strict object an args helper built, typed so a refinement sees its fields. */
+function asObject(schema: z.ZodTypeAny): z.ZodObject<z.ZodRawShape> {
+  return schema as z.ZodObject<z.ZodRawShape>;
+}
+
+function sentCount(value: Args, keys: readonly string[]): number {
+  return keys.filter((key) => value[key] !== undefined).length;
+}
+
+/** A patch route that needs at least one of `keys` to change. */
+export function atLeastOne(schema: z.ZodTypeAny, keys: readonly string[]): z.ZodTypeAny {
+  return asObject(schema).refine((value: Args) => sentCount(value, keys) >= 1, {
+    message: `Send at least one of: ${keys.join(', ')}`,
+  });
+}
+
+/** A route that takes exactly one of `keys` (e.g. a member or a client contact). */
+export function exactlyOne(schema: z.ZodTypeAny, keys: readonly string[]): z.ZodTypeAny {
+  return asObject(schema).refine((value: Args) => sentCount(value, keys) === 1, {
+    message: `Send exactly one of: ${keys.join(', ')}`,
+  });
+}
+
+/** When `field` is `equals`, at least one of `keys` must be sent too (e.g. a weekly schedule's day). */
+export function neededWhen(
+  schema: z.ZodTypeAny,
+  field: string,
+  equals: string,
+  keys: readonly string[],
+): z.ZodTypeAny {
+  return asObject(schema).refine(
+    (value: Args) => value[field] !== equals || sentCount(value, keys) >= 1,
+    {
+      message: `When ${field} is ${equals}, also send ${keys.length === 1 ? keys[0] : `one of: ${keys.join(', ')}`}`,
+    },
+  );
 }
 
 /** Build a detail, defaulting `notifies` to false and `examples` to empty. */

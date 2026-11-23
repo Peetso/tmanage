@@ -6,16 +6,30 @@
  * Decisions are governance records, so every write is confirm-class (needs the person's
  * approval); commenting notifies the decision's followers.
  */
-import { det, listArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { z } from 'zod';
+import {
+  atLeastOne,
+  det,
+  queryArgs,
+  listArgs,
+  pathOnly,
+  bodyArgs,
+  f,
+  type AiActionDetail,
+} from './detail.js';
+import { DECISION_AUDIENCES, DECISION_STATUSES } from '../../../common/database/schema.js';
 
 export const decisionsDetails: readonly AiActionDetail[] = [
   det({
     id: 'decisions.list',
     title: 'List decisions',
-    description: 'The decisions recorded in this workspace.',
-    input: listArgs([], { projectId: f.id().optional() }),
+    description:
+      "The decisions in one project's register (projectId from projects.list). To find decisions across projects, use search.list.",
+    input: listArgs([], { projectId: f.id() }, { cursor: null }),
     redact: 'standard',
-    examples: [{ summary: 'Decisions', args: {} }],
+    examples: [
+      { summary: 'One project', args: { projectId: '01a20864-92a3-7a1c-b107-397ebef031dc' } },
+    ],
   }),
   det({
     id: 'decisions.get',
@@ -28,25 +42,32 @@ export const decisionsDetails: readonly AiActionDetail[] = [
   det({
     id: 'decisions.create',
     title: 'Record a decision',
-    description: 'Record a new decision. Confirm-class.',
+    description:
+      "Record a new decision in a project's register (projectId): a title and the statement, optionally why, when and by whom. Confirm-class.",
     input: bodyArgs([], {
+      projectId: f.id(),
       title: f.shortText(300),
       statement: f.text(20_000),
-      projectId: f.id().optional(),
       meetingId: f.id().optional(),
+      status: z.enum(DECISION_STATUSES).optional().describe('Default proposed'),
+      decidedAt: f.iso().optional().describe('ISO-8601 instant; default now'),
       // A15: the Decision detail page's fields.
-      rationale: f.text(20_000).optional(),
-      sourceMessageId: f.id().optional(),
-      audience: f.shortText(40).optional(),
+      rationale: z.string().max(20_000).nullable().optional(),
+      sourceMessageId: f.id().nullable().optional(),
+      audience: z.enum(DECISION_AUDIENCES).optional().describe('Default internal'),
       // F3: who took it (an active member); the caller when absent.
-      decidedBy: f.id().optional(),
+      decidedBy: f.id().nullable().optional(),
     }),
     redact: 'standard',
     notifies: true,
     examples: [
       {
         summary: 'New decision',
-        args: { title: 'Use MariaDB', statement: 'Live DB is MariaDB 11.8.' },
+        args: {
+          projectId: 'proj_1',
+          title: 'Use MariaDB',
+          statement: 'Live DB is MariaDB 11.8.',
+        },
       },
     ],
   }),
@@ -54,15 +75,19 @@ export const decisionsDetails: readonly AiActionDetail[] = [
     id: 'decisions.update',
     title: 'Update a decision',
     description:
-      'Accept a decision, or change why it was decided and who can see it. Confirm-class.',
-    input: bodyArgs(['decisionId'], {
-      title: f.shortText(300).optional(),
-      statement: f.text(20_000).optional(),
-      status: f.shortText(40).optional(),
-      // A15: the detail page's Edit (`internal` | `client_visible`).
-      rationale: f.text(20_000).nullish(),
-      audience: f.shortText(40).optional(),
-    }),
+      'Either accept a proposed decision (status accepted, nothing else), or change why it was ' +
+      'decided (rationale; null clears it) and/or who can see it (audience). Title and statement ' +
+      'cannot be edited. Confirm-class.',
+    input: atLeastOne(
+      bodyArgs(['decisionId'], {
+        // = decisions/decisions.controller.ts patch: the one transition this route supports.
+        status: z.enum(['accepted']).optional(),
+        // A15: the detail page's Edit.
+        rationale: z.string().max(20_000).nullable().optional(),
+        audience: z.enum(DECISION_AUDIENCES).optional(),
+      }),
+      ['status', 'rationale', 'audience'],
+    ),
     redact: 'standard',
     examples: [{ summary: 'Accept', args: { decisionId: 'dec_1', status: 'accepted' } }],
   }),
@@ -70,7 +95,7 @@ export const decisionsDetails: readonly AiActionDetail[] = [
     id: 'decisions.comments.list',
     title: 'List decision comments',
     description: 'The comments on a decision.',
-    input: listArgs(['decisionId']),
+    input: queryArgs(['decisionId']),
     redact: 'standard',
     examples: [{ summary: 'Comments', args: { decisionId: 'dec_1' } }],
   }),
@@ -103,7 +128,9 @@ export const decisionsDetails: readonly AiActionDetail[] = [
     id: 'decisions.supersede.create',
     title: 'Supersede a decision',
     description: 'Mark a decision as superseded by another. Confirm-class.',
-    input: bodyArgs(['decisionId'], { supersededById: f.id().optional() }),
+    input: bodyArgs(['decisionId'], {
+      supersededById: f.id().describe('The newer decision that replaces this one'),
+    }),
     redact: 'standard',
     examples: [{ summary: 'Supersede', args: { decisionId: 'dec_1', supersededById: 'dec_2' } }],
   }),
@@ -111,7 +138,7 @@ export const decisionsDetails: readonly AiActionDetail[] = [
     id: 'decisions.work_links.list',
     title: 'List decision work links',
     description: 'The work items linked to a decision.',
-    input: listArgs(['decisionId']),
+    input: listArgs(['decisionId'], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'Links', args: { decisionId: 'dec_1' } }],
   }),

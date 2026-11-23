@@ -8,24 +8,79 @@
  * status updates set `notifies`. `:orgSlug` is never an argument (architecture B3/T-TEN-01).
  */
 import { z } from 'zod';
-import { det, pathOnly, listArgs, noArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { BUDGET_TYPES, PROJECT_NAME_MAX } from '@tmanage/domain';
+import {
+  atLeastOne,
+  det,
+  queryArgs,
+  pathOnly,
+  listArgs,
+  noArgs,
+  bodyArgs,
+  f,
+  type AiActionDetail,
+} from './detail.js';
+import { PERSON_ALLOCATION_STATUSES } from '../../people/allocations.repository.js';
+import { BASELINE_KINDS } from '../../projects/baseline.repository.js';
+import {
+  MAX_BUDGET_AMOUNT_MINOR,
+  MAX_BUDGET_HOURS,
+  MAX_BUDGET_PHASES,
+} from '../../projects/budget.service.js';
+import { ProjectCustomFieldsService } from '../../projects/custom-fields.service.js';
+import {
+  PROJECT_CUSTOM_FIELD_TYPES,
+  PROJECT_INTERNAL_RISK_IMPACTS,
+  PROJECT_INTERNAL_RISK_LIKELIHOODS,
+  PROJECT_INTERNAL_RISK_STATUSES,
+  PROJECT_OBJECTIVE_STATUSES,
+  PROJECT_RETRO_NOTE_CATEGORIES,
+  PROJECT_RISK_SEVERITIES,
+  PROJECT_RISK_STATUSES,
+  PROJECT_STATUS_BANDS,
+} from '../../../common/database/schema.js';
+import { MAX_UPDATE_COMMENT_BODY_LENGTH } from '../../clients/update-comments.service.js';
+import { PACK_ROLES } from '../../projects/template-packs.catalog.js';
+
+/** A custom-field key: lower_snake_case (`custom-fields.service.ts` FIELD_KEY_PATTERN, max 120). */
+const fieldKey = z
+  .string()
+  .min(1)
+  .max(120)
+  .regex(/^[a-z0-9_]+$/);
+
+/** A calendar date as the routes take it: `YYYY-MM-DD`. */
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .describe('A date, YYYY-MM-DD');
 
 export const projectsDetails: readonly AiActionDetail[] = [
   det({
     id: 'projects.allocations.create',
-    title: 'Create project allocations',
-    description: 'Create project allocations.',
+    title: 'Allocate a member to a project',
+    description:
+      'Allocate one member (membershipId) to the project at a percent of their capacity (1-100), optionally between two dates, tentative or confirmed. One active allocation per member and project.',
     input: bodyArgs(['projectId'], {
-      membershipId: f.id().optional(),
-      percent: z.number().optional(),
-      startDate: f.iso().optional(),
-      endDate: f.iso().optional(),
+      membershipId: f.id(),
+      percent: f.int(1, 100),
+      startDate: dateOnly.optional(),
+      endDate: dateOnly.optional(),
+      status: z.enum(PERSON_ALLOCATION_STATUSES).optional().describe('Default confirmed'),
+      hoursPerWeek: z.number().gt(0).max(168).optional(),
+      note: z.string().max(300).optional(),
     }),
     redact: 'billing',
     examples: [
       {
-        summary: 'Create project allocations',
-        args: { projectId: 'proj_1', startDate: '2026-10-20', endDate: '2026-10-20' },
+        summary: 'Allocate a member at 50 % for a month',
+        args: {
+          projectId: 'proj_1',
+          membershipId: 'mem_1',
+          percent: 50,
+          startDate: '2026-10-20',
+          endDate: '2026-11-20',
+        },
       },
     ],
   }),
@@ -66,18 +121,23 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.allocations.list',
     title: 'List project allocations',
     description: 'List project allocations.',
-    input: listArgs(['projectId']),
+    input: listArgs(['projectId'], {}, { cursor: null }),
     redact: 'billing',
     examples: [{ summary: 'List project allocations', args: { projectId: 'proj_1' } }],
   }),
   det({
     id: 'projects.baselines.create',
-    title: 'Create project baselines',
-    description: 'Create project baselines.',
-    input: bodyArgs(['projectId'], { label: f.shortText().optional() }),
+    title: 'Freeze a project baseline',
+    description:
+      "Freeze the project's current dates as a named baseline (label), of the whole plan or milestones only.",
+    input: bodyArgs(['projectId'], {
+      label: f.shortText(300),
+      note: z.string().max(500).nullable().optional(),
+      kind: z.enum(BASELINE_KINDS).optional().describe('Default full'),
+    }),
     redact: 'standard',
     examples: [
-      { summary: 'Create project baselines', args: { projectId: 'proj_1', label: 'In review' } },
+      { summary: 'Freeze a baseline', args: { projectId: 'proj_1', label: 'Signed-off plan' } },
     ],
   }),
   det({
@@ -94,7 +154,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.baselines.list',
     title: 'List project baselines',
     description: 'List project baselines.',
-    input: listArgs(['projectId']),
+    input: listArgs(['projectId'], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List project baselines', args: { projectId: 'proj_1' } }],
   }),
@@ -110,8 +170,13 @@ export const projectsDetails: readonly AiActionDetail[] = [
   det({
     id: 'projects.baselines.variance.list',
     title: 'List project baselines variance',
-    description: 'List project baselines variance.',
-    input: listArgs(['projectId', 'baselineId']),
+    description:
+      'How far each work item has moved from this baseline: against today, or against another baseline (against).',
+    input: listArgs(
+      ['projectId', 'baselineId'],
+      { against: f.id().optional().describe('Another baseline id to compare with') },
+      { limit: false },
+    ),
     redact: 'standard',
     examples: [
       {
@@ -124,29 +189,97 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.budget.list',
     title: 'List project budget',
     description: 'List project budget.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'billing',
     examples: [{ summary: 'List project budget', args: { projectId: 'proj_1' } }],
   }),
   det({
     id: 'projects.budget.set',
     title: 'Set project budget',
-    description: 'Set project budget.',
+    description:
+      "Set (create or replace) the project's budget: hours, money (minor units plus currency) or both. Give budgetHours null for a money-only budget.",
     input: bodyArgs(['projectId'], {
-      budgetHours: f.int().optional(),
-      budgetAmountMinor: f.int().optional(),
-      currency: f.shortText().optional(),
+      budgetHours: z
+        .number()
+        .min(0)
+        .max(MAX_BUDGET_HOURS)
+        .nullable()
+        .describe('Hours, in whole minutes (e.g. 40.5); null for a money-only budget'),
+      budgetAmountMinor: z
+        .number()
+        .int()
+        .min(0)
+        .max(MAX_BUDGET_AMOUNT_MINOR)
+        .nullable()
+        .optional()
+        .describe('Money in minor units (cents); needs currency'),
+      currency: z
+        .string()
+        .regex(/^[A-Z]{3}$/)
+        .nullable()
+        .optional()
+        .describe('ISO-4217 code, only with budgetAmountMinor'),
+      budgetType: z.enum(BUDGET_TYPES).optional(),
+      includeExpenses: f.bool().optional(),
+      clientVisible: f.bool().optional(),
+      alertThresholds: z
+        .array(z.number().int().min(1).max(100))
+        .min(1)
+        .max(4)
+        .optional()
+        .describe('1-4 whole percents, ascending, e.g. [50, 80, 100]'),
+      phases: z
+        .array(
+          z
+            .object({
+              phaseId: z.string().length(36).nullable().optional(),
+              name: f.shortText(120),
+              budgetHours: z.number().min(0).max(MAX_BUDGET_HOURS).nullable().optional(),
+              budgetAmountMinor: z
+                .number()
+                .int()
+                .min(0)
+                .max(MAX_BUDGET_AMOUNT_MINOR)
+                .nullable()
+                .optional(),
+              position: z.number().int().optional(),
+            })
+            .strict(),
+        )
+        .max(MAX_BUDGET_PHASES)
+        .optional()
+        .describe('Replaces the whole phase split'),
     }),
     redact: 'billing',
-    examples: [{ summary: 'Set project budget', args: { projectId: 'proj_1' } }],
+    examples: [
+      {
+        summary: 'Set a 120-hour budget',
+        args: { projectId: 'proj_1', budgetHours: 120 },
+      },
+      {
+        summary: 'Set a money budget of 25,000.00 SAR',
+        args: {
+          projectId: 'proj_1',
+          budgetHours: null,
+          budgetAmountMinor: 2_500_000,
+          currency: 'SAR',
+          budgetType: 'money',
+        },
+      },
+    ],
   }),
   det({
     id: 'projects.clients.create',
-    title: 'Create project clients',
-    description: 'Create project clients.',
-    input: bodyArgs(['projectId'], { clientOrganizationId: f.id().optional() }),
+    title: 'Share a project with a client company',
+    description: 'Share the project with one client company (clientOrganizationId).',
+    input: bodyArgs(['projectId'], { clientOrganizationId: f.id() }),
     redact: 'standard',
-    examples: [{ summary: 'Create project clients', args: { projectId: 'proj_1' } }],
+    examples: [
+      {
+        summary: 'Share with a client company',
+        args: { projectId: 'proj_1', clientOrganizationId: 'co_1' },
+      },
+    ],
   }),
   det({
     id: 'projects.clients.delete',
@@ -176,38 +309,49 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.clients.list',
     title: 'List project clients',
     description: 'List project clients.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project clients', args: { projectId: 'proj_1' } }],
   }),
   det({
     id: 'projects.create',
     title: 'Create project',
-    description: 'Create project.',
+    description:
+      'Create a project in a workspace (workspaceId, from the workspace list) with a name, and optionally an owner and a target date.',
     input: bodyArgs([], {
-      workspaceId: f.id().optional(),
-      name: f.shortText().optional(),
+      workspaceId: f.id(),
+      name: f.shortText(PROJECT_NAME_MAX),
       ownerUserId: f.id().optional(),
-      decoration: f.config().optional(),
+      targetDate: dateOnly.optional(),
     }),
     redact: 'standard',
-    examples: [{ summary: 'Create project', args: { name: 'Design review' } }],
+    examples: [
+      {
+        summary: 'Create project',
+        args: { workspaceId: 'ws_1', name: 'Design review', targetDate: '2026-12-15' },
+      },
+    ],
   }),
   det({
     id: 'projects.custom_fields.create',
-    title: 'Create project custom fields',
-    description: 'Create project custom fields.',
+    title: 'Define a project custom field',
+    description:
+      'Define a custom field every project can carry: a lower_snake_case key, a name and a type (text, number or select; a select lists its options).',
     input: bodyArgs([], {
-      key: f.shortText().optional(),
-      name: f.shortText().optional(),
-      type: f.shortText().optional(),
-      options: z.array(z.unknown()).max(500).optional(),
+      key: fieldKey,
+      name: f.shortText(ProjectCustomFieldsService.limits.maxNameLength),
+      type: z.enum(PROJECT_CUSTOM_FIELD_TYPES),
+      options: z
+        .array(f.shortText(ProjectCustomFieldsService.limits.maxOptionLength))
+        .max(ProjectCustomFieldsService.limits.maxOptions)
+        .optional()
+        .describe('The choices of a select field'),
     }),
     redact: 'config',
     examples: [
       {
-        summary: 'Create project custom fields',
-        args: { key: 'priority', name: 'Design review', type: 'task' },
+        summary: 'Define a priority select field',
+        args: { key: 'priority', name: 'Priority', type: 'select', options: ['Low', 'High'] },
       },
     ],
   }),
@@ -223,7 +367,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.custom_fields.list',
     title: 'List project custom fields',
     description: 'List project custom fields.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'config',
     examples: [{ summary: 'List project custom fields', args: { projectId: 'proj_1' } }],
   }),
@@ -231,30 +375,34 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.custom_fields.list.get',
     title: 'Get project custom fields',
     description: 'Get project custom fields.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'Get project custom fields', args: {} }],
   }),
   det({
     id: 'projects.custom_fields.set',
-    title: 'Set project custom fields',
-    description: 'Set project custom fields.',
-    input: bodyArgs(['projectId', 'fieldKey'], { value: z.number().optional() }),
+    title: 'Set a project custom field value',
+    description:
+      "Set one custom field's value on a project. The value is always text (a number field takes e.g. '100').",
+    input: bodyArgs(['projectId', 'fieldKey'], {
+      value: z.string().max(ProjectCustomFieldsService.limits.maxValueLength),
+    }),
     redact: 'config',
     examples: [
       {
-        summary: 'Set project custom fields',
-        args: { projectId: 'proj_1', fieldKey: 'priority', value: 100 },
+        summary: 'Set the priority field',
+        args: { projectId: 'proj_1', fieldKey: 'priority', value: 'High' },
       },
     ],
   }),
   det({
     id: 'projects.dependencies.create',
     title: 'Create project dependencies',
-    description: 'Create project dependencies.',
+    description:
+      'Record that this project blocks another project (blockedProjectId), with an optional note.',
     input: bodyArgs(['projectId'], {
-      blockedProjectId: f.id().optional(),
-      note: f.text().optional(),
+      blockedProjectId: f.id(),
+      note: z.string().max(5000).nullable().optional(),
     }),
     redact: 'standard',
     examples: [
@@ -281,7 +429,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.dependencies.list',
     title: 'List project dependencies',
     description: 'List project dependencies.',
-    input: listArgs(['projectId']),
+    input: listArgs(['projectId'], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List project dependencies', args: { projectId: 'proj_1' } }],
   }),
@@ -297,7 +445,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.favorite.list',
     title: 'List project favorite',
     description: 'List project favorite.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project favorite', args: { projectId: 'proj_1' } }],
   }),
@@ -313,7 +461,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.favorites.list',
     title: 'List project favorites',
     description: 'List project favorites.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List project favorites', args: {} }],
   }),
@@ -341,7 +489,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.files.list',
     title: 'List project files',
     description: 'The ready files of a project, newest first.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project files', args: { projectId: 'proj_1' } }],
   }),
@@ -349,7 +497,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.folders.files.list',
     title: 'List project folders files',
     description: 'List project folders files. Confirm-class: needs your approval before it runs.',
-    input: listArgs(['projectId', 'folderId']),
+    input: queryArgs(['projectId', 'folderId']),
     redact: 'standard',
     examples: [
       { summary: 'List project folders files', args: { projectId: 'proj_1', folderId: 'fld_1' } },
@@ -359,7 +507,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.folders.list',
     title: 'List project folders',
     description: 'List project folders. Confirm-class: needs your approval before it runs.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project folders', args: { projectId: 'proj_1' } }],
   }),
@@ -383,7 +531,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.health.get',
     title: 'Get project health',
     description: 'Get project health.',
-    input: listArgs(),
+    input: listArgs([], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'Get project health', args: {} }],
   }),
@@ -391,7 +539,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.list',
     title: 'List project',
     description: 'List project.',
-    input: listArgs(),
+    input: listArgs([], {}, { cursor: 'after' }),
     redact: 'standard',
     examples: [{ summary: 'List project', args: {} }],
   }),
@@ -425,7 +573,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.members.list',
     title: 'List project members',
     description: 'List project members. Confirm-class: needs your approval before it runs.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'people',
     examples: [{ summary: 'List project members', args: { projectId: 'proj_1' } }],
   }),
@@ -476,8 +624,8 @@ export const projectsDetails: readonly AiActionDetail[] = [
   det({
     id: 'projects.milestones.links.create',
     title: 'Create project milestones links',
-    description: 'Create project milestones links.',
-    input: bodyArgs(['milestoneId'], { dependsOnMilestoneId: f.id().optional() }),
+    description: 'Record that this milestone depends on another milestone (dependsOnMilestoneId).',
+    input: bodyArgs(['milestoneId'], { dependsOnMilestoneId: f.id() }),
     redact: 'standard',
     examples: [
       {
@@ -504,7 +652,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.milestones.links.list',
     title: 'List project milestones links',
     description: 'List project milestones links.',
-    input: listArgs(['milestoneId']),
+    input: listArgs(['milestoneId'], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List project milestones links', args: { milestoneId: 'ms_1' } }],
   }),
@@ -512,7 +660,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.milestones.list',
     title: 'List project milestones',
     description: 'List project milestones.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project milestones', args: { projectId: 'proj_1' } }],
   }),
@@ -521,7 +669,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.milestone_plan.list',
     title: 'List the project milestone plan',
     description: 'Every milestone of a project with what it delivers and its owner.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List the project milestone plan', args: { projectId: 'proj_1' } }],
   }),
@@ -536,15 +684,35 @@ export const projectsDetails: readonly AiActionDetail[] = [
   det({
     id: 'projects.milestones.update',
     title: 'Update project milestones',
-    description: 'Update project milestones.',
-    input: bodyArgs(['projectId', 'id'], {
-      title: f.shortText().optional(),
-      dueOn: f.iso().nullish(),
-      status: f.shortText(40).optional(),
-      published: f.bool().optional(),
-      description: f.text().nullish(),
-      ownerUserId: f.id().nullish(),
-    }),
+    description:
+      "Edit a milestone: give at least one field. Moving a published milestone's committedOn needs clientSafeReason (the client sees it); expectedVersion (from the milestone plan) guards against a concurrent edit.",
+    input: atLeastOne(
+      bodyArgs(['projectId', 'id'], {
+        title: f.shortText(300).optional(),
+        dueOn: dateOnly.nullable().optional(),
+        published: f.bool().optional(),
+        description: z.string().max(2000).nullable().optional(),
+        ownerUserId: f.id(36).nullable().optional(),
+        committedOn: dateOnly.nullable().optional(),
+        forecastOn: dateOnly.nullable().optional(),
+        timelineOrder: f.int(0, 1_000_000).nullable().optional(),
+        clientTitle: z.string().max(300).nullable().optional(),
+        expectedVersion: f.int(1, Number.MAX_SAFE_INTEGER).optional(),
+        clientSafeReason: z.string().max(500).nullable().optional(),
+      }),
+      [
+        'title',
+        'dueOn',
+        'published',
+        'description',
+        'ownerUserId',
+        'committedOn',
+        'forecastOn',
+        'timelineOrder',
+        'clientTitle',
+        'clientSafeReason',
+      ],
+    ),
     redact: 'standard',
     examples: [
       {
@@ -556,12 +724,13 @@ export const projectsDetails: readonly AiActionDetail[] = [
   det({
     id: 'projects.objectives.create',
     title: 'Create project objectives',
-    description: 'Create project objectives.',
+    description:
+      'Add an objective to the project: a name, and optionally a description, a target (text) and a status.',
     input: bodyArgs(['projectId'], {
-      name: f.shortText().optional(),
-      description: f.text().optional(),
-      target: z.number().optional(),
-      status: f.shortText().optional(),
+      name: f.shortText(300),
+      description: f.text(20_000).optional(),
+      target: f.shortText(300).optional().describe('What success looks like, e.g. "NPS 50"'),
+      status: z.enum(PROJECT_OBJECTIVE_STATUSES).optional(),
     }),
     redact: 'standard',
     examples: [
@@ -580,32 +749,33 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.objectives.list',
     title: 'List project objectives',
     description: 'List project objectives.',
-    input: listArgs(['projectId']),
+    input: listArgs(['projectId'], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List project objectives', args: { projectId: 'proj_1' } }],
   }),
   det({
     id: 'projects.objectives.update',
-    title: 'Update project objectives',
-    description: 'Update project objectives.',
+    title: 'Mark a project objective met or missed',
+    description: 'Close an objective as met or missed (the only change the route allows).',
     // The route is `…/projects/:projectId/objectives/:objectiveId`: both ids bind the path (without
     // projectId the request could never be built; AI tamper review 2026-11-23).
-    input: bodyArgs(['projectId', 'objectiveId'], { status: f.shortText().optional() }),
+    // = projects/project-objectives.controller.ts:TRANSITION_TARGETS
+    input: bodyArgs(['projectId', 'objectiveId'], { status: z.enum(['met', 'missed']) }),
     redact: 'standard',
     examples: [
       {
-        summary: 'Update project objectives',
-        args: { projectId: 'proj_1', objectiveId: 'obj_1', status: 'open' },
+        summary: 'Mark an objective met',
+        args: { projectId: 'proj_1', objectiveId: 'obj_1', status: 'met' },
       },
     ],
   }),
   det({
     id: 'projects.phases.create',
     title: 'Create project phases',
-    description: 'Create project phases.',
+    description: 'Add a named phase to the project, optionally at a position (0 first).',
     input: bodyArgs(['projectId'], {
-      name: f.shortText().optional(),
-      position: f.int().optional(),
+      name: f.shortText(200),
+      position: f.int(0, Number.MAX_SAFE_INTEGER).optional(),
     }),
     redact: 'standard',
     examples: [
@@ -616,7 +786,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.phases.list',
     title: 'List project phases',
     description: 'List project phases.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project phases', args: { projectId: 'proj_1' } }],
   }),
@@ -624,7 +794,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.portal_access_log.list',
     title: 'List project portal access log',
     description: 'List project portal access log.',
-    input: listArgs(['projectId']),
+    input: listArgs(['projectId'], {}, { cursor: 'before' }),
     redact: 'standard',
     examples: [{ summary: 'List project portal access log', args: { projectId: 'proj_1' } }],
   }),
@@ -632,7 +802,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.portal_settings.list',
     title: 'List project portal settings',
     description: 'List project portal settings.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project portal settings', args: { projectId: 'proj_1' } }],
   }),
@@ -658,32 +828,44 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.portfolio.capacity.list',
     title: 'List project portfolio capacity',
     description: 'List project portfolio capacity.',
-    input: listArgs([], { week: f.shortText(200).optional() }),
+    input: queryArgs([], { week: f.shortText(200).optional() }),
     redact: 'standard',
     examples: [{ summary: 'List project portfolio capacity', args: {} }],
   }),
   det({
     id: 'projects.portfolio.list',
     title: 'List project portfolio',
-    description: 'List project portfolio.',
-    input: listArgs(),
+    description: 'List every project with its health; include=burn adds the budget burn.',
+    input: listArgs(
+      [],
+      {
+        include: f.shortText(200).optional().describe('Comma-separated extras; supported: burn'),
+      },
+      { cursor: null },
+    ),
     redact: 'standard',
     examples: [{ summary: 'List project portfolio', args: {} }],
   }),
   det({
     id: 'projects.retro_notes.create',
     title: 'Create project retro notes',
-    description: 'Create project retro notes.',
+    description:
+      'Add a retrospective note to the project: what went well, what to improve, or an action; optionally tied to a milestone.',
     input: bodyArgs(['projectId'], {
-      category: f.shortText().optional(),
-      body: f.text().optional(),
+      category: z.enum(PROJECT_RETRO_NOTE_CATEGORIES),
+      body: f.text(20_000),
       milestoneId: f.id().optional(),
     }),
     redact: 'standard',
     examples: [
       {
-        summary: 'Create project retro notes',
-        args: { projectId: 'proj_1', body: 'A note', milestoneId: 'ms_1' },
+        summary: 'Add a went-well note',
+        args: {
+          projectId: 'proj_1',
+          category: 'went_well',
+          body: 'Client sign-off came a week early',
+          milestoneId: 'ms_1',
+        },
       },
     ],
   }),
@@ -701,26 +883,33 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.retro_notes.list',
     title: 'List project retro notes',
     description: 'List project retro notes.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project retro notes', args: { projectId: 'proj_1' } }],
   }),
   det({
     id: 'projects.risk_register.create',
-    title: 'Create project risk register',
-    description: 'Create project risk register.',
+    title: 'Add an internal project risk',
+    description:
+      "Add a risk to the project's internal risk register: title, likelihood and impact (low, medium, high), optional mitigation and status.",
     input: bodyArgs(['projectId'], {
-      title: f.shortText().optional(),
-      likelihood: z.unknown().optional(),
-      impact: f.text().optional(),
-      mitigation: f.text().optional(),
-      status: f.shortText().optional(),
+      title: f.shortText(300),
+      likelihood: z.enum(PROJECT_INTERNAL_RISK_LIKELIHOODS),
+      impact: z.enum(PROJECT_INTERNAL_RISK_IMPACTS),
+      mitigation: f.text(20_000).optional(),
+      status: z.enum(PROJECT_INTERNAL_RISK_STATUSES).optional().describe('Default open'),
     }),
     redact: 'standard',
     examples: [
       {
-        summary: 'Create project risk register',
-        args: { projectId: 'proj_1', title: 'Draft the Q4 brief', status: 'open' },
+        summary: 'Add a vendor-delay risk',
+        args: {
+          projectId: 'proj_1',
+          title: 'Vendor may deliver late',
+          likelihood: 'medium',
+          impact: 'high',
+          mitigation: 'Book a second supplier',
+        },
       },
     ],
   }),
@@ -728,72 +917,98 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.risk_register.list',
     title: 'List project risk register',
     description: 'List project risk register.',
-    input: listArgs(['projectId']),
+    input: listArgs(['projectId'], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List project risk register', args: { projectId: 'proj_1' } }],
   }),
   det({
     id: 'projects.risk_register.update',
     title: 'Update project risk register',
-    description: 'Update project risk register.',
-    input: bodyArgs(['riskId'], {
-      title: f.shortText().optional(),
-      likelihood: z.unknown().optional(),
-      impact: f.text().optional(),
-      mitigation: f.text().optional(),
-      status: f.shortText().optional(),
-    }),
+    description:
+      'Change an internal risk: give at least one of title, likelihood, impact, mitigation (null clears it) or status.',
+    input: atLeastOne(
+      bodyArgs(['riskId'], {
+        title: f.shortText(300).optional(),
+        likelihood: z.enum(PROJECT_INTERNAL_RISK_LIKELIHOODS).optional(),
+        impact: z.enum(PROJECT_INTERNAL_RISK_IMPACTS).optional(),
+        mitigation: z.string().max(20_000).nullable().optional(),
+        status: z.enum(PROJECT_INTERNAL_RISK_STATUSES).optional(),
+      }),
+      ['title', 'likelihood', 'impact', 'mitigation', 'status'],
+    ),
     redact: 'standard',
     examples: [
       {
-        summary: 'Update project risk register',
-        args: { riskId: 'risk_1', title: 'Draft the Q4 brief', status: 'open' },
+        summary: 'Raise a risk to high likelihood',
+        args: { riskId: 'risk_1', likelihood: 'high' },
       },
     ],
   }),
   det({
     id: 'projects.risks.create',
-    title: 'Create project risks',
-    description: 'Create project risks.',
+    title: 'Create a client-facing project risk',
+    description:
+      'Record a risk for the client portal: an internal title, the clientSummary the client reads, optional severity, status and internal note. Published (shown to the client) unless published is false.',
     input: bodyArgs(['projectId'], {
-      title: f.shortText(),
-      impact: f.shortText(40).optional(),
-      likelihood: f.shortText(40).optional(),
-      mitigation: f.text(2000).optional(),
-      status: f.shortText(40).optional(),
+      title: f.shortText(300),
+      clientSummary: f.text(2000).describe('What the client sees'),
+      internalNote: z
+        .string()
+        .max(5000)
+        .nullable()
+        .optional()
+        .describe('Never shown to the client'),
+      severity: z.enum(PROJECT_RISK_SEVERITIES).optional().describe('Default medium'),
+      status: z.enum(PROJECT_RISK_STATUSES).optional().describe('Default open'),
+      published: f.bool().optional().describe('Default true'),
     }),
     redact: 'standard',
     examples: [
-      { summary: 'Create project risks', args: { projectId: 'proj_1', title: 'Vendor delay' } },
+      {
+        summary: 'Record a vendor-delay risk',
+        args: {
+          projectId: 'proj_1',
+          title: 'Vendor delay',
+          clientSummary: 'A supplier may deliver a week late; we are lining up a backup.',
+        },
+      },
     ],
   }),
   det({
     id: 'projects.risks.list',
     title: 'List project risks',
     description: 'List project risks.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project risks', args: { projectId: 'proj_1' } }],
   }),
   det({
     id: 'projects.status_updates.create',
     title: 'Create project status updates',
-    description: 'Create project status updates. Notifies the people involved.',
+    description:
+      'Post an internal status update: a status band (on track, at risk, off track) and the text. Notifies the people involved.',
     input: bodyArgs(['projectId'], {
-      statusBand: f.shortText().optional(),
-      body: f.text().optional(),
+      statusBand: z.enum(PROJECT_STATUS_BANDS),
+      body: f.text(20_000),
     }),
     redact: 'standard',
     notifies: true,
     examples: [
-      { summary: 'Create project status updates', args: { projectId: 'proj_1', body: 'A note' } },
+      {
+        summary: 'Post an at-risk update',
+        args: {
+          projectId: 'proj_1',
+          statusBand: 'at_risk',
+          body: 'Design sign-off slipped a week; launch date holds for now.',
+        },
+      },
     ],
   }),
   det({
     id: 'projects.status_updates.list',
     title: 'List project status updates',
     description: 'List project status updates.',
-    input: listArgs(['projectId']),
+    input: listArgs(['projectId'], {}, { cursor: 'before' }),
     redact: 'standard',
     examples: [{ summary: 'List project status updates', args: { projectId: 'proj_1' } }],
   }),
@@ -817,7 +1032,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.tags.list',
     title: 'List project tags',
     description: 'List project tags.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project tags', args: { projectId: 'proj_1' } }],
   }),
@@ -825,7 +1040,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.tags.list.get',
     title: 'Get project tags',
     description: 'Get project tags.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'Get project tags', args: {} }],
   }),
@@ -840,36 +1055,77 @@ export const projectsDetails: readonly AiActionDetail[] = [
   det({
     id: 'projects.templates.create',
     title: 'Create project templates',
-    description: 'Create project templates.',
+    description:
+      'Save a reusable project template: a name, and optionally a description, default objectives, milestones and work items (each placed offsetDays after the start), client portal on, and a monthly repeat.',
+    // Bounds = projects/templates.controller.ts (MAX_NAME_LENGTH, MAX_DEFAULT_OBJECTIVES, ...).
     input: bodyArgs([], {
-      name: f.shortText().optional(),
-      description: f.text().optional(),
-      defaultObjectives: z.array(z.unknown()).max(500).optional(),
+      name: f.shortText(190),
+      description: z.string().max(20_000).optional(),
+      defaultObjectives: z.array(f.shortText(300)).max(50).optional(),
+      milestones: z
+        .array(
+          z
+            .object({
+              title: f.shortText(300),
+              offsetDays: f.int(0, 3650).describe('Days after the project start'),
+              description: z.string().max(20_000).optional(),
+              clientVisible: f.bool().optional(),
+            })
+            .strict(),
+        )
+        .max(100)
+        .nullable()
+        .optional(),
+      workItems: z
+        .array(
+          z
+            .object({
+              title: f.shortText(300),
+              offsetDays: f.int(0, 3650).optional(),
+            })
+            .strict(),
+        )
+        .max(200)
+        .nullable()
+        .optional(),
+      clientPortalOn: f.bool().optional(),
+      repeatInterval: z.enum(['monthly']).nullable().optional(),
     }),
     redact: 'standard',
     examples: [
       {
-        summary: 'Create project templates',
-        args: { name: 'Design review', description: 'Short summary' },
+        summary: 'Create a website-build template',
+        args: {
+          name: 'Website build',
+          description: 'Discovery to launch in six weeks',
+          milestones: [{ title: 'Design sign-off', offsetDays: 14 }],
+          workItems: [{ title: 'Kick-off call', offsetDays: 0 }],
+        },
       },
     ],
   }),
   det({
     id: 'projects.templates.instantiate.create',
-    title: 'Create from template project templates',
-    description: 'Create from template project templates.',
+    title: 'Create a project from a template',
+    description:
+      "Start a new project from a template in a workspace (workspaceId); optionally a name (default the template's), a start date, a client company and a lead.",
     input: bodyArgs(['templateId'], {
-      workspaceId: f.id().optional(),
-      name: f.shortText().optional(),
-      startDate: f.iso().optional(),
-      clientOrganizationId: f.id().optional(),
-      leadUserId: f.id().optional(),
+      workspaceId: f.id(),
+      name: f.shortText(190).optional(),
+      startDate: dateOnly.nullable().optional(),
+      clientOrganizationId: f.id(36).nullable().optional(),
+      leadUserId: f.id(36).nullable().optional(),
     }),
     redact: 'standard',
     examples: [
       {
-        summary: 'Create from template project templates',
-        args: { templateId: 'tmpl_1', name: 'Design review' },
+        summary: 'Start a project from a template',
+        args: {
+          templateId: 'tmpl_1',
+          workspaceId: 'ws_1',
+          name: 'Acme website',
+          startDate: '2026-12-01',
+        },
       },
     ],
   }),
@@ -955,7 +1211,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.templates.list',
     title: 'List project templates',
     description: 'List project templates.',
-    input: listArgs(),
+    input: listArgs([], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List project templates', args: {} }],
   }),
@@ -973,8 +1229,9 @@ export const projectsDetails: readonly AiActionDetail[] = [
   det({
     id: 'projects.templates.packs.list',
     title: 'List project template packs',
-    description: 'List the built-in project template packs and whether each is installed.',
-    input: listArgs(),
+    description:
+      'List the built-in project template packs and whether each is installed, optionally only those for one role.',
+    input: queryArgs([], { role: z.enum(PACK_ROLES).optional() }),
     redact: 'standard',
     examples: [{ summary: 'List project template packs', args: {} }],
   }),
@@ -982,7 +1239,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.updates.comments.create',
     title: 'Create project updates comments',
     description: 'Create project updates comments. Notifies the people involved.',
-    input: bodyArgs(['projectId', 'updateId'], { body: f.text().optional() }),
+    input: bodyArgs(['projectId', 'updateId'], { body: f.text(MAX_UPDATE_COMMENT_BODY_LENGTH) }),
     redact: 'standard',
     notifies: true,
     examples: [
@@ -996,7 +1253,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.updates.comments.list',
     title: 'List project updates comments',
     description: 'List project updates comments.',
-    input: listArgs(['projectId', 'updateId']),
+    input: queryArgs(['projectId', 'updateId']),
     redact: 'standard',
     examples: [
       {
@@ -1010,19 +1267,20 @@ export const projectsDetails: readonly AiActionDetail[] = [
     id: 'projects.updates.list',
     title: 'List project updates',
     description: 'List project updates, drafts included.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'standard',
     examples: [{ summary: 'List project updates', args: { projectId: 'proj_1' } }],
   }),
   det({
     id: 'projects.updates.create',
     title: 'Create project updates',
-    description: 'Create project updates. Notifies the people involved.',
+    description:
+      'Post a client-facing project update with a title and body, optionally tied to a milestone. Published unless published is false. Notifies the people involved.',
     input: bodyArgs(['projectId'], {
-      title: f.shortText().optional(),
-      body: f.text().optional(),
-      published: f.bool().optional(),
-      milestoneId: f.id().optional(),
+      title: f.shortText(300),
+      body: f.text(),
+      published: f.bool().optional().describe('Default true'),
+      milestoneId: f.id(36).nullable().optional(),
     }),
     redact: 'standard',
     notifies: true,
@@ -1044,12 +1302,16 @@ export const projectsDetails: readonly AiActionDetail[] = [
   det({
     id: 'projects.updates.update',
     title: 'Update project updates',
-    description: 'Update project updates.',
-    input: bodyArgs(['projectId', 'id'], {
-      title: f.shortText().optional(),
-      body: f.text().optional(),
-      milestoneId: f.id().optional(),
-    }),
+    description:
+      'Edit a project update: give at least one of title, body or milestoneId (null unlinks the milestone).',
+    input: atLeastOne(
+      bodyArgs(['projectId', 'id'], {
+        title: f.shortText(300).optional(),
+        body: f.text().optional(),
+        milestoneId: f.id(36).nullable().optional(),
+      }),
+      ['title', 'body', 'milestoneId'],
+    ),
     redact: 'standard',
     examples: [
       {

@@ -7,14 +7,37 @@
  * content. `openWorldHint` (notifies) is set on the ops that send a message or publish to a client.
  */
 import { z } from 'zod';
-import { det, listArgs, noArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
+import {
+  det,
+  queryArgs,
+  listArgs,
+  noArgs,
+  pathOnly,
+  bodyArgs,
+  f,
+  type AiActionDetail,
+} from './detail.js';
+import { UPLOAD_PURPOSES } from '../../../common/database/schema.js';
+import {
+  MAX_CLIENT_MESSAGE_BODY_LENGTH,
+  MAX_CLIENT_MESSAGE_SUBJECT_LENGTH,
+} from '../../clients/client-messages.service.js';
+import { MAX_FILE_NAME_LENGTH, MAX_MIME_TYPE_LENGTH } from '../../files/upload-input.js';
+import {
+  MAX_DESCRIPTION_LENGTH as REQUEST_DESCRIPTION_MAX,
+  MAX_TITLE_LENGTH as REQUEST_TITLE_MAX,
+  MAX_URGENCY_LENGTH as REQUEST_URGENCY_MAX,
+} from '../../requests/client-request-input.js';
+
+/** = inbox/portal-inbox.service.ts PORTAL_INBOX_MODES (typed as an array, not a tuple). */
+const PORTAL_INBOX_MODES = ['all', 'unread'] as const;
 
 export const portalDetails: readonly AiActionDetail[] = [
   det({
     id: 'portal.projects.list',
     title: 'List portal projects',
     description: 'Projects visible in client portals.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'client_safe',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -22,7 +45,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.deliverables.list',
     title: 'Portal deliverables',
     description: 'Deliverables shown to the client for a project.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'client_safe',
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
   }),
@@ -30,7 +53,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.files.list',
     title: 'Portal project files',
     description: 'Files shared with the client for a project.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'client_safe',
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
   }),
@@ -38,7 +61,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.milestones.list',
     title: 'Portal milestones',
     description: 'Milestones shown to the client for a project.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'client_safe',
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
   }),
@@ -72,7 +95,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.people.list',
     title: 'Portal project people',
     description: 'Team members shown to the client for a project.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'client_safe',
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
   }),
@@ -80,7 +103,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.portal_settings.list',
     title: 'Portal project settings',
     description: 'What is visible to the client for a project.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'client_safe',
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
   }),
@@ -88,7 +111,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.risks.list',
     title: 'Portal project risks',
     description: 'Risks shown to the client for a project.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'client_safe',
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
   }),
@@ -96,7 +119,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.updates.list',
     title: 'Portal project updates',
     description: 'Status updates shown to the client for a project.',
-    input: listArgs(['projectId']),
+    input: queryArgs(['projectId']),
     redact: 'client_safe',
     examples: [{ summary: 'By project', args: { projectId: 'p_1' } }],
   }),
@@ -104,15 +127,15 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.projects.updates.comments.list',
     title: 'Portal update comments',
     description: 'Comments on a client-visible project update.',
-    input: listArgs(['projectId', 'updateId']),
+    input: queryArgs(['projectId', 'updateId']),
     redact: 'client_safe',
     examples: [{ summary: 'By update', args: { projectId: 'p_1', updateId: 'u_1' } }],
   }),
   det({
     id: 'portal.work_items.list',
     title: 'Portal work items',
-    description: 'Work items visible to clients.',
-    input: listArgs(),
+    description: 'Work items visible to clients, optionally for one project.',
+    input: queryArgs([], { projectId: f.id().optional() }),
     redact: 'client_safe',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -128,7 +151,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.work_item_cloud_folders.children.list',
     title: 'Portal folder files',
     description: 'The files in a live folder on a client-visible work item, read live.',
-    input: listArgs(['workItemId', 'cloudFolderId'], {
+    input: queryArgs(['workItemId', 'cloudFolderId'], {
       parentId: f.text(255).optional(),
       pageToken: f.text(1024).optional(),
     }),
@@ -153,8 +176,8 @@ export const portalDetails: readonly AiActionDetail[] = [
   det({
     id: 'portal.inbox.list',
     title: 'Portal inbox',
-    description: 'Client-facing inbox bundles.',
-    input: listArgs(),
+    description: 'Client-facing inbox bundles: all of them, or only unread ones (mode unread).',
+    input: listArgs([], { mode: z.enum(PORTAL_INBOX_MODES).optional() }, { cursor: 'before' }),
     redact: 'client_safe',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -170,7 +193,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.messages.list',
     title: 'List portal messages',
     description: 'Messages in the client portal.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'client_safe',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -178,7 +201,10 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.messages.create',
     title: 'Send a portal message',
     description: 'Post a message into a client portal. Confirm-class: the client sees it.',
-    input: bodyArgs([], { subject: f.shortText(200).optional(), body: f.text(5000) }),
+    input: bodyArgs([], {
+      subject: f.shortText(MAX_CLIENT_MESSAGE_SUBJECT_LENGTH),
+      body: f.text(MAX_CLIENT_MESSAGE_BODY_LENGTH),
+    }),
     redact: 'client_safe',
     notifies: true,
     examples: [
@@ -188,16 +214,18 @@ export const portalDetails: readonly AiActionDetail[] = [
   det({
     id: 'portal.messages.admin.list',
     title: 'List portal messages (admin)',
-    description: 'All portal messages from the staff side, including internal metadata.',
-    input: listArgs(),
+    description:
+      'The messages one client company sent through its portal, from the staff side ' +
+      '(clientOrganizationId from client_organizations.list).',
+    input: queryArgs([], { clientOrganizationId: f.id() }),
     redact: 'standard',
-    examples: [{ summary: 'Admin view', args: {} }],
+    examples: [{ summary: 'Admin view', args: { clientOrganizationId: 'co_123' } }],
   }),
   det({
     id: 'portal.announcements.list',
     title: 'List portal announcements',
     description: 'Announcements shown to a client.',
-    input: listArgs(['clientId']),
+    input: queryArgs(['clientId']),
     redact: 'client_safe',
     examples: [{ summary: 'By client', args: { clientId: 'co_1' } }],
   }),
@@ -273,7 +301,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.deliverables.feedback.list',
     title: 'Deliverable feedback',
     description: 'Client feedback on a deliverable. Confirm-class: client-facing thread.',
-    input: listArgs(['deliverableId']),
+    input: queryArgs(['deliverableId']),
     redact: 'client_safe',
     examples: [{ summary: 'By deliverable', args: { deliverableId: 'd_1' } }],
   }),
@@ -290,7 +318,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.deliverables.files.list',
     title: 'Deliverable files',
     description: 'Files attached to a deliverable in the portal.',
-    input: listArgs(['deliverableId']),
+    input: queryArgs(['deliverableId']),
     redact: 'client_safe',
     examples: [{ summary: 'By deliverable', args: { deliverableId: 'd_1' } }],
   }),
@@ -298,16 +326,19 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.files.content.list',
     title: 'Get a portal file',
     description:
-      'The content/metadata of a portal file. Confirm-class: returns a client-visible file.',
-    input: pathOnly('fileAssetId'),
+      'The content of a portal file (inline 1 asks for a media original to be shown in place). ' +
+      'Confirm-class: returns a client-visible file.',
+    input: queryArgs(['fileAssetId'], {
+      inline: z.literal('1').optional().describe('Send 1 to view a media original inline'),
+    }),
     redact: 'client_safe',
     examples: [{ summary: 'By file', args: { fileAssetId: 'fa_1' } }],
   }),
   det({
     id: 'portal.requests.list',
     title: 'List portal requests',
-    description: 'Requests raised through client portals.',
-    input: listArgs(),
+    description: 'Requests raised through client portals, optionally for one project.',
+    input: queryArgs([], { projectId: f.id().optional() }),
     redact: 'client_safe',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -315,14 +346,32 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.requests.create',
     title: 'Raise a portal request',
     description: 'Create a request on behalf of a client portal. Confirm-class: client-facing.',
+    // = requests/client-request-input.ts `parseSubmitBody`.
     input: bodyArgs([], {
-      subject: f.shortText(200),
-      body: f.text(5000).optional(),
-      category: f.shortText(60).optional(),
+      projectId: f.id(),
+      title: f.shortText(REQUEST_TITLE_MAX),
+      description: f.text(REQUEST_DESCRIPTION_MAX),
+      category: f.shortText(200).optional().describe('Free text; stored as a slug'),
+      urgencyReason: f.text(REQUEST_URGENCY_MAX).optional(),
+      desiredAt: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .describe('Wanted-by date, YYYY-MM-DD'),
     }),
     redact: 'client_safe',
     notifies: true,
-    examples: [{ summary: 'New request', args: { subject: 'Need a change' } }],
+    examples: [
+      {
+        summary: 'New request',
+        args: {
+          projectId: 'p_1',
+          title: 'Need a change',
+          description: 'Please swap the hero photo on the home page.',
+          desiredAt: '2026-12-01',
+        },
+      },
+    ],
   }),
   det({
     id: 'portal.requests.get',
@@ -335,10 +384,12 @@ export const portalDetails: readonly AiActionDetail[] = [
   det({
     id: 'portal.requests.withdrawal.create',
     title: 'Withdraw a portal request',
-    description: 'Withdraw a client portal request. Confirm-class: client-facing.',
-    input: pathOnly('clientRequestId'),
+    description:
+      'Withdraw a client portal request. version is the version from portal.requests.get. ' +
+      'Confirm-class: client-facing.',
+    input: bodyArgs(['clientRequestId'], { version: f.int(1) }),
     redact: 'client_safe',
-    examples: [{ summary: 'Withdraw', args: { clientRequestId: 'cr_1' } }],
+    examples: [{ summary: 'Withdraw', args: { clientRequestId: 'cr_1', version: 2 } }],
   }),
   // 0212 (audit gap 4): the client side of the request message thread.
   det({
@@ -367,7 +418,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.meetings.list',
     title: 'List my portal meetings',
     description: 'The meetings the calling client person attends.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'client_safe',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -436,21 +487,43 @@ export const portalDetails: readonly AiActionDetail[] = [
     id: 'portal.upload_sessions.list',
     title: 'List portal uploads',
     description: 'Client portal upload sessions.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'client_safe',
     examples: [{ summary: 'All', args: {} }],
   }),
   det({
     id: 'portal.upload_sessions.create',
     title: 'Start a portal upload',
-    description: 'Begin a client portal file upload session. Confirm-class: client-facing.',
+    description:
+      'Begin a client portal file upload session into a project (purpose client_upload, or ' +
+      'request_attachment with objectId = the request). Confirm-class: client-facing.',
+    // = files/upload-input.ts `parseUploadBody`. The route also needs an Idempotency-Key header.
     input: bodyArgs([], {
-      fileName: f.shortText(255),
-      sizeBytes: f.int(0),
-      contentType: f.shortText(120).optional(),
+      projectId: f.id(),
+      fileName: f.shortText(MAX_FILE_NAME_LENGTH),
+      mimeType: f.shortText(MAX_MIME_TYPE_LENGTH).describe('A media type such as image/png'),
+      sizeBytes: f.int(1, Number.MAX_SAFE_INTEGER),
+      purpose: z.enum(UPLOAD_PURPOSES),
+      contentHash: z
+        .string()
+        .regex(/^[0-9a-f]{64}$/)
+        .nullish()
+        .describe('Lowercase hex SHA-256'),
+      objectId: f.id().nullish(),
     }),
     redact: 'client_safe',
-    examples: [{ summary: 'Start', args: { fileName: 'brief.pdf', sizeBytes: 10240 } }],
+    examples: [
+      {
+        summary: 'Start',
+        args: {
+          projectId: 'p_1',
+          fileName: 'brief.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 10240,
+          purpose: 'client_upload',
+        },
+      },
+    ],
   }),
   det({
     id: 'portal.upload_sessions.cancel',
@@ -463,10 +536,23 @@ export const portalDetails: readonly AiActionDetail[] = [
   det({
     id: 'portal.upload_sessions.complete.create',
     title: 'Complete a portal upload',
-    description: 'Finalize a client portal upload session. Confirm-class.',
-    input: pathOnly('uploadSessionId'),
+    description:
+      'Finalize a client portal upload session with the uploaded parts (number and etag of ' +
+      'each). Confirm-class.',
+    // = files/upload-input.ts `parseParts`.
+    input: bodyArgs(['uploadSessionId'], {
+      parts: z
+        .array(z.object({ partNumber: f.int(1, 10_000), etag: f.shortText(255) }).strict())
+        .min(1)
+        .max(10_000),
+    }),
     redact: 'client_safe',
-    examples: [{ summary: 'Complete', args: { uploadSessionId: 'us_1' } }],
+    examples: [
+      {
+        summary: 'Complete',
+        args: { uploadSessionId: 'us_1', parts: [{ partNumber: 1, etag: '"9b2cf535f27731c9"' }] },
+      },
+    ],
   }),
   // 53-07 (R19-c): the client timeline — published milestone copies and phase bands only.
   det({

@@ -9,26 +9,82 @@
  * the grant (architecture B3/T-TEN-01).
  */
 import { z } from 'zod';
-import { WORK_ITEM_STATES } from '@tmanage/domain';
-import { det, pathOnly, listArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
+import {
+  DEPENDENCY_KINDS,
+  MAX_DEPENDENCY_LAG,
+  MIN_DEPENDENCY_LAG,
+  WORK_ITEM_STATES,
+  WORK_ITEM_TITLE_MAX,
+} from '@tmanage/domain';
+import {
+  atLeastOne,
+  det,
+  queryArgs,
+  pathOnly,
+  listArgs,
+  bodyArgs,
+  f,
+  type AiActionDetail,
+} from './detail.js';
+import { WORK_FORM_FIELD_TYPES, WORK_ITEM_LINK_TYPES } from '../../../common/database/schema.js';
+import { MAX_ESTIMATE_MINUTES } from '../../work/item-estimate.service.js';
+
+/** = work/work-items.controller.ts:AUDIENCES */
+const AUDIENCES = ['internal', 'client_visible', 'client_action_required'] as const;
+
+/** An ISO-8601 instant with a time of day (a bare date is refused by the work-item route). */
+const instant = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T/)
+  .max(40)
+  .describe('An ISO-8601 instant, e.g. 2026-09-30T17:00:00Z');
+
+/** A calendar day, `YYYY-MM-DD`. */
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .describe('A date, YYYY-MM-DD');
 
 export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_forms.create',
-    title: 'Create work form',
-    description: 'Create work form.',
+    title: 'Create a work form',
+    description:
+      'Create an intake form: a name and 1 to 50 fields, each with a unique label, a type and whether it is required.',
     input: bodyArgs([], {
-      name: f.shortText().optional(),
-      fields: z.array(z.unknown()).max(500).optional(),
+      name: f.shortText(300),
+      fields: z
+        .array(
+          z
+            .object({
+              label: f.shortText(200),
+              type: z.enum(WORK_FORM_FIELD_TYPES),
+              required: f.bool(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(50),
     }),
     redact: 'standard',
-    examples: [{ summary: 'Create work form', args: { name: 'Design review' } }],
+    examples: [
+      {
+        summary: 'Design request form',
+        args: {
+          name: 'Design request',
+          fields: [
+            { label: 'What do you need?', type: 'text', required: true },
+            { label: 'Deadline', type: 'date', required: false },
+          ],
+        },
+      },
+    ],
   }),
   det({
     id: 'work_forms.list',
     title: 'List work form',
     description: 'List work form.',
-    input: listArgs(),
+    input: listArgs([], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List work form', args: {} }],
   }),
@@ -53,7 +109,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.activity.list',
     title: 'List work item activity',
     description: 'List work item activity.',
-    input: listArgs(['workItemId']),
+    input: listArgs(['workItemId'], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List work item activity', args: { workItemId: 'wi_1' } }],
   }),
@@ -74,7 +130,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.blockers.list',
     title: 'List work item blockers',
     description: 'List work item blockers.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item blockers', args: { workItemId: 'wi_1' } }],
   }),
@@ -85,7 +141,7 @@ export const workDetails: readonly AiActionDetail[] = [
     description:
       'The client companies a client-facing work item is limited to. An empty list means every ' +
       'client company the project is shared with.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'Who can see this task', args: { workItemId: 'wi_1' } }],
   }),
@@ -112,8 +168,8 @@ export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_items.checklist.create',
     title: 'Create work item checklist',
-    description: 'Create work item checklist.',
-    input: bodyArgs(['workItemId'], { label: f.shortText().optional() }),
+    description: 'Add a checklist line (label) to a work item.',
+    input: bodyArgs(['workItemId'], { label: f.shortText(300) }),
     redact: 'standard',
     examples: [
       { summary: 'Create work item checklist', args: { workItemId: 'wi_1', label: 'In review' } },
@@ -123,18 +179,21 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.checklist.list',
     title: 'List work item checklist',
     description: 'List work item checklist.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item checklist', args: { workItemId: 'wi_1' } }],
   }),
   det({
     id: 'work_items.checklist.update',
     title: 'Update work item checklist',
-    description: 'Update work item checklist.',
-    input: bodyArgs(['workItemId', 'itemId'], {
-      label: f.shortText().optional(),
-      done: f.bool().optional(),
-    }),
+    description: 'Rename a checklist line or tick it off: send label and/or done.',
+    input: atLeastOne(
+      bodyArgs(['workItemId', 'itemId'], {
+        label: f.shortText(300).optional(),
+        done: f.bool().optional(),
+      }),
+      ['label', 'done'],
+    ),
     redact: 'standard',
     examples: [
       {
@@ -147,7 +206,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.comments.create',
     title: 'Create work item comments',
     description: 'Create work item comments. Notifies the people involved.',
-    input: bodyArgs(['workItemId'], { body: f.text().optional() }),
+    input: bodyArgs(['workItemId'], { body: f.text(5000) }),
     redact: 'standard',
     notifies: true,
     examples: [
@@ -158,7 +217,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.comments.list',
     title: 'List work item comments',
     description: 'List work item comments.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item comments', args: { workItemId: 'wi_1' } }],
   }),
@@ -169,7 +228,7 @@ export const workDetails: readonly AiActionDetail[] = [
     description:
       'People who can see this work item whose name starts with q. Insert the returned mention ' +
       'token in a comment to notify them.',
-    input: listArgs(['workItemId'], { q: f.shortText(100).optional() }),
+    input: listArgs(['workItemId'], { q: f.shortText(100).optional() }, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'Names starting with li', args: { workItemId: 'wi_1', q: 'li' } }],
   }),
@@ -180,14 +239,14 @@ export const workDetails: readonly AiActionDetail[] = [
       'Create work item. Internal by default; a client audience (client_visible or ' +
       'client_action_required) publishes it to the client portal and needs approval in TManage first.',
     input: bodyArgs([], {
-      projectId: f.id().optional(),
-      title: f.shortText().optional(),
+      projectId: f.id(),
+      title: f.shortText(WORK_ITEM_TITLE_MAX),
       description: f.text().optional(),
-      type: f.shortText().optional(),
+      type: f.shortText(32).optional(),
       ownerUserId: f.id().optional(),
-      audience: z.enum(['internal', 'client_visible', 'client_action_required']).optional(),
-      startAt: f.iso().optional(),
-      dueAt: f.iso().optional(),
+      audience: z.enum(AUDIENCES).optional(),
+      startAt: instant.nullable().optional(),
+      dueAt: instant.nullable().optional(),
     }),
     redact: 'standard',
     examples: [
@@ -207,7 +266,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.custom_fields.list',
     title: 'List work item custom fields',
     description: 'List work item custom fields.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'config',
     examples: [{ summary: 'List work item custom fields', args: { workItemId: 'wi_1' } }],
   }),
@@ -235,8 +294,13 @@ export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_items.dependencies.create',
     title: 'Create work item dependencies',
-    description: 'Create work item dependencies.',
-    input: bodyArgs(['workItemId'], { dependsOnWorkItemId: f.id().optional() }),
+    description:
+      'Make this work item depend on another (dependsOnWorkItemId): kind FS (default), SS, FF or SF, with an optional lag in working days.',
+    input: bodyArgs(['workItemId'], {
+      dependsOnWorkItemId: f.id(),
+      kind: z.enum(DEPENDENCY_KINDS).optional().describe('Default FS (finish to start)'),
+      lagWorkingDays: f.int(MIN_DEPENDENCY_LAG, MAX_DEPENDENCY_LAG).optional(),
+    }),
     redact: 'standard',
     examples: [
       {
@@ -263,25 +327,29 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.estimate.list',
     title: 'List work item estimate',
     description: 'List work item estimate.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item estimate', args: { workItemId: 'wi_1' } }],
   }),
   det({
     id: 'work_items.estimate.set',
     title: 'Set work item estimate',
-    description: 'Set work item estimate.',
-    input: bodyArgs(['workItemId'], { minutes: f.int().optional() }),
+    description:
+      'Set the estimate of a work item in minutes, and optionally the remaining minutes (null clears the override).',
+    input: bodyArgs(['workItemId'], {
+      minutes: f.int(1, MAX_ESTIMATE_MINUTES),
+      remainingMinutes: f.int(0, MAX_ESTIMATE_MINUTES).nullable().optional(),
+    }),
     redact: 'standard',
-    examples: [{ summary: 'Set work item estimate', args: { workItemId: 'wi_1' } }],
+    examples: [{ summary: 'Estimate three hours', args: { workItemId: 'wi_1', minutes: 180 } }],
   }),
   det({
     id: 'work_items.files.create',
     title: 'Create work item files',
-    description: 'Create work item files.',
-    input: bodyArgs(['workItemId'], { fileAssetId: f.id().optional() }),
+    description: 'Attach an uploaded file (fileAssetId) to a work item.',
+    input: bodyArgs(['workItemId'], { fileAssetId: f.id() }),
     redact: 'standard',
-    examples: [{ summary: 'Create work item files', args: { workItemId: 'wi_1' } }],
+    examples: [{ summary: 'Attach a file', args: { workItemId: 'wi_1', fileAssetId: 'file_1' } }],
   }),
   det({
     id: 'work_items.files.delete',
@@ -297,7 +365,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.files.list',
     title: 'List work item files',
     description: 'List work item files. Confirm-class: needs your approval before it runs.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item files', args: { workItemId: 'wi_1' } }],
   }),
@@ -331,29 +399,32 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.labels.list',
     title: 'List work item labels',
     description: 'List work item labels.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item labels', args: { workItemId: 'wi_1' } }],
   }),
   det({
     id: 'work_items.labels.set',
     title: 'Set work item labels',
-    description: 'Set work item labels.',
-    input: bodyArgs(['workItemId'], { labelId: f.id().optional() }),
+    description: 'Put a label (labelId) on a work item.',
+    input: bodyArgs(['workItemId'], { labelId: f.id() }),
     redact: 'standard',
-    examples: [{ summary: 'Set work item labels', args: { workItemId: 'wi_1' } }],
+    examples: [{ summary: 'Add a label', args: { workItemId: 'wi_1', labelId: 'lbl_1' } }],
   }),
   det({
     id: 'work_items.links.create',
     title: 'Create work item links',
-    description: 'Create work item links.',
+    description: 'Link this work item to another: it blocks, is blocked by, or relates to it.',
     input: bodyArgs(['workItemId'], {
-      toWorkItemId: f.id().optional(),
-      linkType: f.shortText().optional(),
+      toWorkItemId: f.id(),
+      linkType: z.enum(WORK_ITEM_LINK_TYPES),
     }),
     redact: 'standard',
     examples: [
-      { summary: 'Create work item links', args: { workItemId: 'wi_1', toWorkItemId: 'wi_2' } },
+      {
+        summary: 'Mark one item as blocking another',
+        args: { workItemId: 'wi_1', toWorkItemId: 'wi_2', linkType: 'blocks' },
+      },
     ],
   }),
   det({
@@ -370,7 +441,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.links.list',
     title: 'List work item links',
     description: 'List work item links.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item links', args: { workItemId: 'wi_1' } }],
   }),
@@ -378,7 +449,11 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.list',
     title: 'List work item',
     description: 'List work item.',
-    input: listArgs([], { projectId: f.id().optional(), state: f.shortText(200).optional() }),
+    input: listArgs(
+      [],
+      { projectId: f.id().optional(), state: f.shortText(200).optional() },
+      { cursor: 'after' },
+    ),
     redact: 'standard',
     examples: [{ summary: 'List work item', args: {} }],
   }),
@@ -412,7 +487,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.recurrence.list',
     title: 'List work item recurrence',
     description: 'List work item recurrence.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item recurrence', args: { workItemId: 'wi_1' } }],
   }),
@@ -446,7 +521,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.recurrence.preview.list',
     title: 'Preview work item recurrence dates',
     description: 'List the next dates a repeat rule will create, over the company calendar.',
-    input: listArgs(['workItemId'], { count: f.int(1, 30).optional() }),
+    input: queryArgs(['workItemId'], { count: f.int(1, 30).optional() }),
     redact: 'standard',
     examples: [{ summary: 'Preview the next dates', args: { workItemId: 'wi_1', count: 5 } }],
   }),
@@ -488,7 +563,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.relations.graph.list',
     title: 'List work item relations graph',
     description: 'List work item relations graph.',
-    input: listArgs(['workItemId'], { depth: f.int().optional() }),
+    input: queryArgs(['workItemId'], { depth: f.int().optional() }),
     redact: 'standard',
     examples: [{ summary: 'List work item relations graph', args: { workItemId: 'wi_1' } }],
   }),
@@ -503,24 +578,29 @@ export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_items.reminder.set',
     title: 'Set work item reminder',
-    description: 'Set work item reminder.',
-    input: bodyArgs(['workItemId'], { remindAt: f.iso().optional() }),
+    description: 'Remind me about a work item at an instant (ISO-8601 date-time).',
+    input: bodyArgs(['workItemId'], { remindAt: f.iso() }),
     redact: 'standard',
-    examples: [{ summary: 'Set work item reminder', args: { workItemId: 'wi_1' } }],
+    examples: [
+      {
+        summary: 'Remind me tomorrow morning',
+        args: { workItemId: 'wi_1', remindAt: '2026-11-24T09:00:00Z' },
+      },
+    ],
   }),
   det({
     id: 'work_items.reminders.due.list',
     title: 'List work item reminders due',
     description: 'List work item reminders due.',
-    input: listArgs(),
+    input: listArgs([], {}, { limit: false, cursor: 'before' }),
     redact: 'standard',
     examples: [{ summary: 'List work item reminders due', args: {} }],
   }),
   det({
     id: 'work_items.subtasks.create',
     title: 'Create work item subtasks',
-    description: 'Create work item subtasks.',
-    input: bodyArgs(['workItemId'], { title: f.shortText().optional() }),
+    description: 'Add a subtask (title) to a work item.',
+    input: bodyArgs(['workItemId'], { title: f.shortText(WORK_ITEM_TITLE_MAX) }),
     redact: 'standard',
     examples: [
       {
@@ -543,19 +623,22 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.subtasks.list',
     title: 'List work item subtasks',
     description: 'List work item subtasks.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item subtasks', args: { workItemId: 'wi_1' } }],
   }),
   det({
     id: 'work_items.subtasks.set',
     title: 'Set work item subtasks',
-    description: 'Set work item subtasks.',
-    input: bodyArgs(['workItemId', 'subtaskId'], {
-      title: f.shortText().optional(),
-      done: f.bool().optional(),
-      position: f.int().optional(),
-    }),
+    description: 'Change a subtask: send at least one of title, done or position.',
+    input: atLeastOne(
+      bodyArgs(['workItemId', 'subtaskId'], {
+        title: f.shortText(WORK_ITEM_TITLE_MAX).optional(),
+        done: f.bool().optional(),
+        position: f.int(0, 1_000_000).optional(),
+      }),
+      ['title', 'done', 'position'],
+    ),
     redact: 'standard',
     examples: [
       {
@@ -567,15 +650,22 @@ export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_items.time_logs.create',
     title: 'Create work item time logs',
-    description: 'Create work item time logs.',
+    description:
+      'Log time on a work item: minutes (1-1440) on a calendar day (spentOn), with an optional note, billable flag, and the start/end instants of the span.',
     input: bodyArgs(['workItemId'], {
-      minutes: f.int().optional(),
-      spentOn: f.iso().optional(),
-      note: f.text().optional(),
+      minutes: f.int(1, 24 * 60),
+      spentOn: dateOnly,
+      note: z.string().max(500).nullable().optional(),
+      billable: f.bool().optional().describe('Default true'),
+      startedAt: f.iso().optional().describe('With endedAt: ISO instant with a zone, last 31 days'),
+      endedAt: f.iso().optional(),
     }),
     redact: 'standard',
     examples: [
-      { summary: 'Create work item time logs', args: { workItemId: 'wi_1', note: 'Looks good' } },
+      {
+        summary: 'Log 90 minutes today',
+        args: { workItemId: 'wi_1', minutes: 90, spentOn: '2026-11-23', note: 'Client call' },
+      },
     ],
   }),
   det({
@@ -592,7 +682,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.time_logs.list',
     title: 'List work item time logs',
     description: 'List work item time logs.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item time logs', args: { workItemId: 'wi_1' } }],
   }),
@@ -633,18 +723,27 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.update',
     title: 'Update work item',
     description:
-      'Change a work item. Choosing a client audience (client_visible or client_action_required) ' +
+      'Change a work item. version is the version you read (from work_items.get or the list); a stale one is refused. ' +
+      'Choosing a client audience (client_visible or client_action_required) ' +
       'shows it in the client portal and needs approval in TManage first.',
     input: bodyArgs(['workItemId'], {
-      version: f.int().optional(),
-      title: f.shortText().optional(),
-      description: f.text().optional(),
+      version: f.int(1, Number.MAX_SAFE_INTEGER).describe('The version you read'),
+      title: f.shortText(WORK_ITEM_TITLE_MAX).optional(),
+      description: z.string().max(5000).nullable().optional().describe('null or blank clears it'),
       projectId: f.id().optional(),
-      type: f.shortText().optional(),
-      ownerUserId: f.id().optional(),
-      audience: z.enum(['internal', 'client_visible', 'client_action_required']).optional(),
-      startAt: f.iso().optional(),
-      dueAt: f.iso().optional(),
+      type: f.shortText(32).optional(),
+      ownerUserId: f.id().nullable().optional(),
+      audience: z.enum(AUDIENCES).optional(),
+      startAt: instant.nullable().optional(),
+      dueAt: instant.nullable().optional(),
+      rank: z.number().nullable().optional().describe('Hand-made sort key; null = creation order'),
+      billable: f.bool().nullable().optional(),
+      points: f
+        .int(0, 100)
+        .nullable()
+        .optional()
+        .describe('Story points, when the project uses them'),
+      iterationId: f.id().nullable().optional().describe('An open iteration; null = backlog'),
       // C25: limit a client-facing item to some of the project's client companies.
       clientOrganizationIds: z.array(f.id()).max(100).optional(),
     }),
@@ -654,6 +753,7 @@ export const workDetails: readonly AiActionDetail[] = [
         summary: 'Update work item',
         args: {
           workItemId: 'wi_1',
+          version: 3,
           title: 'Draft the Q4 brief',
           type: 'task',
           audience: 'internal',
@@ -674,7 +774,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.watchers.list',
     title: 'List work item watchers',
     description: 'List work item watchers.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'List work item watchers', args: { workItemId: 'wi_1' } }],
   }),
@@ -691,7 +791,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.people.get',
     title: 'Who is on a work item',
     description: 'The people who do a work item (the lead first) and the people who supervise it.',
-    input: listArgs(['workItemId']),
+    input: queryArgs(['workItemId']),
     redact: 'standard',
     examples: [{ summary: 'Who is doing this task', args: { workItemId: 'wi_1' } }],
   }),
@@ -766,7 +866,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work.board_columns.list',
     title: 'List work board columns',
     description: 'List work board columns.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List work board columns', args: {} }],
   }),
@@ -811,7 +911,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work.checklist_templates.list',
     title: 'List work checklist templates',
     description: 'List work checklist templates.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List work checklist templates', args: {} }],
   }),
@@ -842,7 +942,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work.custom_fields.list',
     title: 'List work custom fields',
     description: 'List work custom fields.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List work custom fields', args: {} }],
   }),
@@ -860,7 +960,7 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work.labels.list',
     title: 'List work labels',
     description: 'List work labels.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List work labels', args: {} }],
   }),

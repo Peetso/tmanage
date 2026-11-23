@@ -7,22 +7,76 @@
  * untrusted. `:orgSlug` is never an argument (architecture B3/T-TEN-01).
  */
 import { z } from 'zod';
-import { det, noArgs, pathOnly, listArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
+import {
+  det,
+  queryArgs,
+  noArgs,
+  pathOnly,
+  listArgs,
+  bodyArgs,
+  f,
+  type AiActionDetail,
+} from './detail.js';
+import { SEARCH_RESULT_KINDS } from '../../search/search.service.js';
+import { SEARCH_PIN_OBJECT_TYPES } from '../../search/search-pins.service.js';
+import {
+  MAX_NAME_LENGTH as MAX_SCOPE_NAME_LENGTH,
+  MAX_OBJECT_TYPES as MAX_SCOPE_OBJECT_TYPES,
+  SCOPE_OBJECT_TYPES,
+} from '../../search/saved-scopes.service.js';
+
+/** = search.controller.ts AUDIENCES and TIME_WINDOWS (not exported). */
+const SEARCH_AUDIENCES = ['internal', 'client_visible', 'client_action_required'] as const;
+const SEARCH_TIME_WINDOWS = ['7d', '30d', 'all'] as const;
+
+/** A comma-separated subset of `allowed`, as search.controller.ts `parseAudiences`/`parseKinds` read it. */
+function commaSubset(allowed: readonly string[], what: string): z.ZodTypeAny {
+  return z
+    .string()
+    .min(1)
+    .max(300)
+    .refine(
+      (raw) => {
+        const values = raw
+          .split(',')
+          .map((v) => v.trim())
+          .filter((v) => v !== '');
+        return values.length > 0 && values.every((v) => allowed.includes(v));
+      },
+      `must be a comma-separated subset of ${allowed.join(', ')}`,
+    )
+    .describe(`${what}: comma-separated, any of ${allowed.join(', ')}`);
+}
+
+/** = saved-searches.controller.ts `parseFilters`: up to 50 `{ field, value }` of short strings. */
+const savedSearchFilters = z
+  .array(z.object({ field: z.string().max(300), value: z.string().max(300) }).strict())
+  .max(50);
+
+/** = saved-scopes.controller.ts `parseFilters`: an object; objectTypes from the scope allowlist. */
+const scopeFilters = z
+  .object({
+    objectTypes: z.array(z.enum(SCOPE_OBJECT_TYPES)).max(MAX_SCOPE_OBJECT_TYPES).optional(),
+    projectId: f.id().optional(),
+    from: f.iso().optional().describe('ISO-8601 date'),
+    to: f.iso().optional().describe('ISO-8601 date'),
+  })
+  .strict();
 
 export const searchDetails: readonly AiActionDetail[] = [
   det({
     id: 'search.commands.list',
     title: 'List search commands',
     description: 'List search commands.',
-    input: listArgs([], { q: f.shortText(200).optional() }),
+    input: listArgs([], { q: f.shortText(200).optional() }, { cursor: null }),
     redact: 'config',
     examples: [{ summary: 'List search commands', args: {} }],
   }),
   det({
     id: 'search.history.create',
-    title: 'Create search history',
-    description: 'Create search history.',
-    input: bodyArgs([], { query: f.text().optional() }),
+    title: 'Record a search in your history',
+    description: 'Add a query to your own recent-search history (up to 300 characters).',
+    input: bodyArgs([], { query: f.shortText(300) }),
     redact: 'config',
     examples: [{ summary: 'Create search history', args: { query: 'overdue tasks' } }],
   }),
@@ -38,22 +92,32 @@ export const searchDetails: readonly AiActionDetail[] = [
     id: 'search.history.list',
     title: 'List search history',
     description: 'List search history.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List search history', args: {} }],
   }),
   det({
     id: 'search.list',
-    title: 'List search',
-    description: 'List search.',
-    input: listArgs([], {
-      q: f.shortText(200).optional(),
-      projectId: f.id().optional(),
-      audience: z.enum(['internal', 'client_visible', 'client_action_required']).optional(),
-      since: f.iso().optional(),
-    }),
+    title: 'Search the workspace',
+    description:
+      'Search everything you may see for q. Narrow with projectId, audience, since (7d, 30d, all) ' +
+      'and kinds (result types, comma-separated).',
+    input: listArgs(
+      [],
+      {
+        q: f.shortText(300),
+        projectId: f.id().optional(),
+        audience: commaSubset(SEARCH_AUDIENCES, 'Audiences').optional(),
+        since: z.enum(SEARCH_TIME_WINDOWS).optional(),
+        kinds: commaSubset(SEARCH_RESULT_KINDS, 'Result kinds').optional(),
+      },
+      { cursor: null },
+    ),
     redact: 'standard',
-    examples: [{ summary: 'List search', args: {} }],
+    examples: [
+      { summary: 'Find a word', args: { q: 'launch' } },
+      { summary: 'Recent invoices', args: { q: 'acme', kinds: 'invoice,quote', since: '30d' } },
+    ],
   }),
   det({
     id: 'search.pins.delete',
@@ -67,38 +131,47 @@ export const searchDetails: readonly AiActionDetail[] = [
     id: 'search.pins.list',
     title: 'List search pins',
     description: 'List search pins.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List search pins', args: {} }],
   }),
   det({
     id: 'search.pins.set',
-    title: 'Set search pins',
-    description: 'Set search pins.',
+    title: 'Pin an item in search',
+    description: 'Pin a work item, document, meeting or project to the top of your own search.',
     input: bodyArgs([], {
-      objectType: f.shortText().optional(),
-      objectId: f.id().optional(),
-      label: f.shortText().optional(),
+      objectType: z.enum(SEARCH_PIN_OBJECT_TYPES),
+      objectId: f.id(36),
+      label: f.shortText(300),
     }),
     redact: 'config',
-    examples: [{ summary: 'Set search pins', args: { label: 'In review' } }],
+    examples: [
+      {
+        summary: 'Pin a task',
+        args: {
+          objectType: 'work_item',
+          objectId: '01a20864-92a3-7a1c-b107-397ebef031dc',
+          label: 'In review',
+        },
+      },
+    ],
   }),
   det({
     id: 'search.recent.list',
     title: 'List search recent',
     description: 'List search recent.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List search recent', args: {} }],
   }),
   det({
     id: 'search.saved.create',
-    title: 'Create search saved',
-    description: 'Create search saved.',
+    title: 'Save a search',
+    description: 'Save a named search (query and optional field/value filters) for yourself.',
     input: bodyArgs([], {
-      name: f.shortText().optional(),
-      query: f.text().optional(),
-      filters: f.config().optional(),
+      name: f.shortText(300),
+      query: f.shortText(300),
+      filters: savedSearchFilters.optional(),
     }),
     redact: 'config',
     examples: [
@@ -117,7 +190,7 @@ export const searchDetails: readonly AiActionDetail[] = [
     id: 'search.saved.list',
     title: 'List search saved',
     description: 'List search saved.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List search saved', args: {} }],
   }),
@@ -139,11 +212,18 @@ export const searchDetails: readonly AiActionDetail[] = [
   }),
   det({
     id: 'search.scopes.create',
-    title: 'Create search scopes',
-    description: 'Create search scopes.',
-    input: bodyArgs([], { name: f.shortText().optional(), filters: f.config().optional() }),
+    title: 'Create a search scope',
+    description:
+      'Save a named search scope: which object types, which project, which date range. ' +
+      'filters is required (send {} for no limits).',
+    input: bodyArgs([], { name: f.shortText(MAX_SCOPE_NAME_LENGTH), filters: scopeFilters }),
     redact: 'config',
-    examples: [{ summary: 'Create search scopes', args: { name: 'Design review' } }],
+    examples: [
+      {
+        summary: 'Documents only',
+        args: { name: 'Design review', filters: { objectTypes: ['document'] } },
+      },
+    ],
   }),
   det({
     id: 'search.scopes.delete',
@@ -157,28 +237,37 @@ export const searchDetails: readonly AiActionDetail[] = [
     id: 'search.scopes.list',
     title: 'List search scopes',
     description: 'List search scopes.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List search scopes', args: {} }],
   }),
   det({
     id: 'search.scopes.set',
-    title: 'Set search scopes',
-    description: 'Set search scopes.',
+    title: 'Replace a search scope',
+    description:
+      'Replace one of your search scopes in full: name and filters are both required (filters {} ' +
+      'for no limits).',
     input: bodyArgs(['scopeId'], {
-      name: f.shortText().optional(),
-      filters: f.config().optional(),
+      name: f.shortText(MAX_SCOPE_NAME_LENGTH),
+      filters: scopeFilters,
     }),
     redact: 'config',
     examples: [
-      { summary: 'Set search scopes', args: { scopeId: 'scope_1', name: 'Design review' } },
+      {
+        summary: 'Rename, keep work items',
+        args: {
+          scopeId: 'scope_1',
+          name: 'Design review',
+          filters: { objectTypes: ['work_item'] },
+        },
+      },
     ],
   }),
   det({
     id: 'search.shared.list',
     title: 'List search shared',
     description: 'List search shared.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List search shared', args: {} }],
   }),
@@ -186,7 +275,7 @@ export const searchDetails: readonly AiActionDetail[] = [
     id: 'search.suggest.list',
     title: 'List search suggest',
     description: 'List search suggest.',
-    input: listArgs([], { q: f.shortText(200).optional() }),
+    input: listArgs([], { q: f.shortText(200).optional() }, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'List search suggest', args: {} }],
   }),

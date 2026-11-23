@@ -18,11 +18,7 @@ import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { OrgFeatureFlagRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { FeatureFlagsRepository } from './feature-flags.repository.js';
-import {
-  DEFAULT_MODULE_ENABLED,
-  OPTIONAL_MODULE_FLAGS,
-  isOptionalModuleFlag,
-} from './feature-flags.service.js';
+import { OPTIONAL_MODULE_FLAGS, isOptionalModuleFlag } from './feature-flags.service.js';
 import type { OptionalModuleFlag } from './feature-flags.service.js';
 import { readResolvedFlags } from './feature-gate.js';
 
@@ -97,7 +93,11 @@ export class AdminFeatureFlagsController {
   @RequireCapability('org.manage')
   async list(@Ctx() context: TenantContext): Promise<FeatureFlagsAdminView> {
     const rows = await this.database.read(context, (runner) => this.flags.list(runner, context));
-    return { flags: foldAdmin(rows) };
+    // Fix lane B 2026-11-23 (AI-ACTIONS-LIVE-TEST fix 12): a key the org never set shows the state
+    // in force (platform default or code default, the 52-24 gate's own chain), not the code default
+    // alone; otherwise this list said "off" for a module the platform had turned on.
+    const resolved = await readResolvedFlags(this.database, context, this.flags);
+    return { flags: foldAdmin(rows, resolved) };
   }
 
   /**
@@ -178,14 +178,17 @@ export class FeatureFlagsController {
 }
 
 /** Fold stored rows into an admin projection over every known flag, in the fixed allowlist order. */
-function foldAdmin(rows: readonly OrgFeatureFlagRow[]): FeatureFlagAdminView[] {
+function foldAdmin(
+  rows: readonly OrgFeatureFlagRow[],
+  resolved: Readonly<Record<OptionalModuleFlag, boolean>>,
+): FeatureFlagAdminView[] {
   const byKey = new Map<string, OrgFeatureFlagRow>();
   for (const row of rows) byKey.set(row.flagKey, row);
   return OPTIONAL_MODULE_FLAGS.map((key) => {
     const row = byKey.get(key);
     return row
       ? toAdminView(key, row)
-      : { key, enabled: DEFAULT_MODULE_ENABLED[key], updatedBy: null, updatedAt: null };
+      : { key, enabled: resolved[key], updatedBy: null, updatedAt: null };
   });
 }
 

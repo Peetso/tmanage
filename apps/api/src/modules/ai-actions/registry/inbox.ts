@@ -8,7 +8,16 @@
  */
 import { z } from 'zod';
 import { INBOX_RULE_CATEGORIES, INBOX_RULE_MATCH_TYPES } from '../../../common/database/schema.js';
-import { det, noArgs, pathOnly, listArgs, bodyArgs, f, type AiActionDetail } from './detail.js';
+import {
+  det,
+  queryArgs,
+  noArgs,
+  pathOnly,
+  listArgs,
+  bodyArgs,
+  f,
+  type AiActionDetail,
+} from './detail.js';
 
 export const inboxDetails: readonly AiActionDetail[] = [
   det({
@@ -31,7 +40,7 @@ export const inboxDetails: readonly AiActionDetail[] = [
     id: 'inbox.flagged.list',
     title: 'List inbox flagged',
     description: 'List inbox flagged.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List inbox flagged', args: {} }],
   }),
@@ -39,7 +48,7 @@ export const inboxDetails: readonly AiActionDetail[] = [
     id: 'inbox.list',
     title: 'List inbox',
     description: 'List inbox.',
-    input: listArgs([], { mode: f.shortText(200).optional() }),
+    input: listArgs([], { mode: f.shortText(200).optional() }, { cursor: 'before' }),
     redact: 'standard',
     examples: [{ summary: 'List inbox', args: {} }],
   }),
@@ -73,17 +82,20 @@ export const inboxDetails: readonly AiActionDetail[] = [
   }),
   det({
     id: 'inbox.rules.delete',
-    title: 'Delete inbox rules',
-    description: 'Delete inbox rules. Confirm-class: needs your approval before it runs.',
-    input: pathOnly('id'),
+    title: 'Delete an inbox rule',
+    description:
+      'Delete one inbox rule by its id. Confirm-class: needs your approval before it runs.',
+    input: bodyArgs([], { id: z.string().uuid() }),
     redact: 'config',
-    examples: [{ summary: 'Delete inbox rules', args: { id: 'x_1' } }],
+    examples: [
+      { summary: 'Delete one rule', args: { id: '01a20864-92a3-7a1c-b107-397ebef031dc' } },
+    ],
   }),
   det({
     id: 'inbox.rules.list',
     title: 'List inbox rules',
     description: 'List inbox rules.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List inbox rules', args: {} }],
   }),
@@ -91,17 +103,23 @@ export const inboxDetails: readonly AiActionDetail[] = [
     id: 'inbox.rules.resolve.list',
     title: 'List inbox rules resolve',
     description: 'List inbox rules resolve.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List inbox rules resolve', args: {} }],
   }),
   det({
     id: 'inbox.saved_filters.create',
-    title: 'Create inbox saved filters',
-    description: 'Create inbox saved filters.',
-    input: bodyArgs([], { name: f.shortText().optional(), filter: f.config().optional() }),
+    title: 'Save an inbox filter',
+    description:
+      'Save the current inbox filter under a name. filter is the inbox screen’s own serialized facet set (a string), saved as given.',
+    input: bodyArgs([], { name: f.shortText(200), filter: z.string().max(4000) }),
     redact: 'config',
-    examples: [{ summary: 'Create inbox saved filters', args: { name: 'Design review' } }],
+    examples: [
+      {
+        summary: 'Unread mentions',
+        args: { name: 'Unread mentions', filter: '{"unread":true,"kind":"mention"}' },
+      },
+    ],
   }),
   det({
     id: 'inbox.saved_filters.delete',
@@ -115,7 +133,7 @@ export const inboxDetails: readonly AiActionDetail[] = [
     id: 'inbox.saved_filters.list',
     title: 'List inbox saved filters',
     description: 'List inbox saved filters.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List inbox saved filters', args: {} }],
   }),
@@ -147,7 +165,7 @@ export const inboxDetails: readonly AiActionDetail[] = [
     id: 'inbox.snoozed.list',
     title: 'List inbox snoozed',
     description: 'List inbox snoozed.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'List inbox snoozed', args: {} }],
   }),
@@ -163,7 +181,7 @@ export const inboxDetails: readonly AiActionDetail[] = [
     id: 'inbox.source_mutes.list',
     title: 'List inbox source mutes',
     description: 'List inbox source mutes.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'config',
     examples: [{ summary: 'List inbox source mutes', args: {} }],
   }),

@@ -147,7 +147,7 @@ describe('52-12 ZATCA signing certificate (R22-a)', () => {
     expect(w.rows[0]!.metaJson).not.toContain('PRIVATE KEY');
     expect(JSON.stringify(w.record.mock.calls)).not.toContain('PRIVATE KEY');
     expect(JSON.stringify(w.record.mock.calls)).toContain(view.fingerprint);
-    expect((await w.service.certificate(context, owner)).fingerprint).toBe(view.fingerprint);
+    expect((await w.service.certificate(context, owner))?.fingerprint).toBe(view.fingerprint);
 
     const signed = await w.service.signDocument({} as never, ORG, '<Invoice/>');
     expect(signed?.fingerprint).toBe(view.fingerprint);
@@ -171,6 +171,7 @@ describe('52-12 ZATCA signing certificate (R22-a)', () => {
     await w.service.revoke(context, owner, stepUp);
     expect(w.rows.map((r) => r.status)).toEqual(['rotated', 'revoked']);
     expect(await w.service.signDocument({} as never, ORG, '<Invoice/>')).toBeNull();
-    await expect(w.service.certificate(context, owner)).rejects.toMatchObject({ status: 404 });
+    // Fix 9 (2026-11-23): no active certificate is the empty state, answered as null.
+    expect(await w.service.certificate(context, owner)).toBeNull();
   });
 });

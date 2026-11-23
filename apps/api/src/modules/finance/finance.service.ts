@@ -55,7 +55,7 @@ const MAX_LIST = 200;
 export interface FinanceProfileView extends FinanceProfileValues {
   /** False until the first save; the values are then the defaults. */
   readonly saved: boolean;
-  /** 52-28: the country's tax-document rule row (regime = the override when set). */
+  /** 52-28: the country's tax-document rule row (regime and defaultLabel as in force). */
   readonly taxDocumentRule: TaxDocumentRule;
   readonly version: number;
   readonly updatedAt: string | null;
@@ -165,10 +165,15 @@ function profileValues(row: OrgFinanceProfileRow): FinanceProfileValues {
   };
 }
 
-function ruleRow(profile: FinanceProfileValues): TaxDocumentRule {
+/** The profile's `taxDocumentRule`: the country row with the regime and label in force. */
+export function profileTaxDocumentRule(profile: FinanceProfileValues): TaxDocumentRule {
   return {
     ...taxDocumentRuleFor(profile.country),
     regime: resolvedRegime(profile.country, profile.einvoiceRegime),
+    // Fix lane B 2026-11-23 (AI-ACTIONS-LIVE-TEST fix 12): the label in force, as
+    // `taxDocumentRulesFor` and a new draft use it; the raw country row says `proforma` for SA/EG
+    // even when the organization is not VAT registered and drafts are labelled `invoice`.
+    defaultLabel: defaultLabelFor(profile.country, profile.vatRegistrationStatus),
   };
 }
 
@@ -446,7 +451,7 @@ export class FinanceService {
       const defaults = await this.defaults(runner, context);
       return {
         ...defaults,
-        taxDocumentRule: ruleRow(defaults),
+        taxDocumentRule: profileTaxDocumentRule(defaults),
         saved: false,
         version: 0,
         updatedAt: null,
@@ -455,7 +460,7 @@ export class FinanceService {
     const values = profileValues(row);
     return {
       ...values,
-      taxDocumentRule: ruleRow(values),
+      taxDocumentRule: profileTaxDocumentRule(values),
       saved: true,
       version: row.version,
       updatedAt: row.updatedAt.toISOString(),

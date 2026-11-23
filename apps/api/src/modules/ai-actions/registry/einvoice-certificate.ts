@@ -14,7 +14,8 @@ export const einvoiceCertificateDetails: readonly AiActionDetail[] = [
     title: 'Show the e-invoice signing certificate status',
     description:
       "The status of the organization's ZATCA signing certificate: active, who issued it, when " +
-      'it is valid, its fingerprint and whether it is a test (sandbox) certificate. Never a key.',
+      'it is valid, its fingerprint and whether it is a test (sandbox) certificate. Never a key. ' +
+      'null when the organization has no active certificate yet.',
     descriptionAr:
       'حالة شهادة توقيع الفواتير الإلكترونية (زاتكا) للمؤسسة: الجهة المُصدِرة وفترة الصلاحية ' +
       'والبصمة وما إذا كانت شهادة اختبار. لا يُعرض أي مفتاح.',

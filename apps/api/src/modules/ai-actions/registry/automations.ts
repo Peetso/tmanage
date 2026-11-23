@@ -6,14 +6,24 @@
  * on many records and may message people). Automation **secrets** — variables, webhooks, app
  * connections and connection health — are in `NEVER` (plan §2), so none appear here.
  */
-import { det, listArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { z } from 'zod';
+import { AUTOMATION_ACTION_KINDS } from '@tmanage/domain';
+import { det, queryArgs, listArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
+import { WORKFLOW_RUN_STATUSES } from '../../automations/history.controller.js';
+import { WORKFLOW_TRIGGER_KINDS } from '../../automations/templates.controller.js';
+import { MAX_TAG_LABEL_LENGTH } from '../../automations/template-tags.service.js';
+
+/** What starts an automation (the templates controller's allowlist). */
+const triggerKind = z.enum(WORKFLOW_TRIGGER_KINDS);
+/** What an automation does (the domain allowlist the templates controller checks). */
+const actionKind = z.enum(AUTOMATION_ACTION_KINDS);
 
 export const automationsDetails: readonly AiActionDetail[] = [
   det({
     id: 'automations.runs.list',
     title: 'List automation runs',
-    description: 'Recent automation runs and their outcomes.',
-    input: listArgs(),
+    description: 'Recent automation runs and their outcomes, optionally only succeeded or failed.',
+    input: listArgs([], { status: z.enum(WORKFLOW_RUN_STATUSES).optional() }, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'Recent', args: { limit: 20 } }],
   }),
@@ -29,7 +39,7 @@ export const automationsDetails: readonly AiActionDetail[] = [
     id: 'automations.schedules.list',
     title: 'List automation schedules',
     description: 'Scheduled automation triggers.',
-    input: listArgs(),
+    input: queryArgs(),
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),
@@ -53,36 +63,43 @@ export const automationsDetails: readonly AiActionDetail[] = [
   }),
   det({
     id: 'automations.template_tags.list',
-    title: 'List template tags',
-    description: 'Tags used across automation templates.',
-    input: listArgs(),
+    title: 'Find automation templates by tag',
+    description: 'The automation templates that carry one tag.',
+    input: queryArgs([], { tag: f.shortText(MAX_TAG_LABEL_LENGTH) }),
     redact: 'standard',
-    examples: [{ summary: 'All', args: {} }],
+    examples: [{ summary: 'Tagged onboarding', args: { tag: 'onboarding' } }],
   }),
   det({
     id: 'automations.templates.list',
     title: 'List automation templates',
     description: 'Automation templates defined in the workspace.',
-    input: listArgs(),
+    input: listArgs([], {}, { cursor: null }),
     redact: 'standard',
     examples: [{ summary: 'All', args: {} }],
   }),
   det({
     id: 'automations.templates.create',
     title: 'Create an automation template',
-    description: 'Define a new automation template (trigger + action).',
+    description:
+      'Define a new automation rule: when triggerKind happens, do actionKind with config (an object, {} when the action needs no settings). On by default; send enabled false to keep it off.',
     input: bodyArgs([], {
-      name: f.shortText(160),
-      triggerKind: f.shortText(60),
-      actionKind: f.shortText(60),
-      config: f.config().optional(),
+      name: f.shortText(300),
+      triggerKind,
+      actionKind,
+      config: f.config(),
       enabled: f.bool().optional(),
     }),
     redact: 'standard',
     examples: [
       {
-        summary: 'New',
-        args: { name: 'Auto-assign', triggerKind: 'item_created', actionKind: 'assign' },
+        summary: 'Tell the owner when a task is created, kept off',
+        args: {
+          name: 'Notify owner on new task',
+          triggerKind: 'work_item_created',
+          actionKind: 'notify_owner',
+          config: {},
+          enabled: false,
+        },
       },
     ],
   }),
@@ -92,8 +109,8 @@ export const automationsDetails: readonly AiActionDetail[] = [
     description: 'Change an automation template.',
     input: bodyArgs(['id'], {
       name: f.shortText(160).optional(),
-      triggerKind: f.shortText(60).optional(),
-      actionKind: f.shortText(60).optional(),
+      triggerKind: triggerKind.optional(),
+      actionKind: actionKind.optional(),
       config: f.config().optional(),
       enabled: f.bool().optional(),
     }),
@@ -120,7 +137,7 @@ export const automationsDetails: readonly AiActionDetail[] = [
     id: 'automations.templates.conditions.list',
     title: 'List template conditions',
     description: 'Conditions on an automation template.',
-    input: listArgs(['templateId']),
+    input: queryArgs(['templateId']),
     redact: 'standard',
     examples: [{ summary: 'By template', args: { templateId: 'tpl_1' } }],
   }),
@@ -154,7 +171,7 @@ export const automationsDetails: readonly AiActionDetail[] = [
     id: 'automations.templates.tags.list',
     title: 'List template tags (one template)',
     description: 'Tags on one automation template.',
-    input: listArgs(['templateId']),
+    input: queryArgs(['templateId']),
     redact: 'standard',
     examples: [{ summary: 'By template', args: { templateId: 'tpl_1' } }],
   }),
