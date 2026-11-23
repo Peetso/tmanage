@@ -111,10 +111,24 @@ export function WorkStageControl({
   useDismiss(open !== null, box, (reason) => (reason === 'escape' ? close() : setOpen(null)));
 
   const current = stages.stage;
-  const label = current ? name(current, stages.set) : t('WorkStages.noStage');
+  // Blocked and archived are not stages: the control says so in place of the stage the work
+  // keeps, so nobody reads "Prototype" on a work that cannot move.
+  const label =
+    item.state === 'blocked'
+      ? t('WorkListScreen.stateBlocked')
+      : item.state === 'archived'
+        ? t('WorkListScreen.stateArchived')
+        : current
+          ? name(current, stages.set)
+          : t('WorkStages.noStage');
 
   return (
-    <span ref={box} className="tm-wk-stagectl" data-variant={variant}>
+    <span
+      ref={box}
+      className="tm-wk-stagectl"
+      data-variant={variant}
+      data-testid={variant === 'header' ? 'work-item-status' : undefined}
+    >
       <button
         ref={trigger}
         type="button"

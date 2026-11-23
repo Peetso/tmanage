@@ -111,6 +111,11 @@ function workUrl(organizationSlug: string, workItemId: string): string {
  */
 const STATUS = 'work-item-status';
 
+/** Work area v2: the state move lives in the properties panel's Status row. */
+async function openMove(page: Page) {
+  await page.getByRole('button', { name: 'Change the status' }).click();
+}
+
 const BLOCKER_REASON = 'The booking provider has not sent the sandbox credentials';
 const BLOCKER_ASK = 'Ahmed at Atlas to forward the sandbox key from the provider';
 const BLOCKER_RESOLUTION = 'Atlas forwarded the sandbox key and it authenticates';
@@ -129,6 +134,7 @@ test.describe.serial('the work-delivery journeys', () => {
 
     // `23-ERD-AND-STATE-MACHINES` §5 requires two facts to enter `blocked`, and the form asks
     // for exactly those two because it asks the machine rather than carrying its own copy.
+    await openMove(maker.page);
     await maker.page.getByLabel('Move to').selectOption({ label: 'Blocked' });
     await expect(maker.page.getByLabel('What is blocking this')).toBeVisible();
     await expect(maker.page.getByLabel('What you need, and from whom')).toBeVisible();
@@ -180,6 +186,7 @@ test.describe.serial('the work-delivery journeys', () => {
 
     // Leaving `blocked` costs the outcome — §5 will not take "unblocked" as an answer, and the
     // form asks for the one fact that move requires and no other.
+    await openMove(maker.page);
     await maker.page.getByLabel('Move to').selectOption({ label: 'In progress' });
     await expect(maker.page.getByLabel('How it was resolved')).toBeVisible();
     await expect(maker.page.getByLabel('What is blocking this')).toHaveCount(0);
@@ -189,6 +196,7 @@ test.describe.serial('the work-delivery journeys', () => {
 
     // Into review. This move requires nothing, and the screen says so rather than showing an
     // empty form a person would search for the missing field in.
+    await openMove(maker.page);
     await maker.page.getByLabel('Move to').selectOption({ label: 'Internal review' });
     await expect(maker.page.getByText('This move needs nothing else from you')).toBeVisible();
     await maker.page.getByRole('button', { name: 'Move to Internal review' }).click();
@@ -227,8 +235,9 @@ test.describe.serial('the work-delivery journeys', () => {
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
     const header = maker.page.getByTestId(STATUS);
     await expect(header).toContainText(/internal review/i);
-    await expect(maker.page.getByText('Completed', { exact: true })).toHaveCount(0);
+    await expect(maker.page.getByText(/^Completed /u)).toHaveCount(0);
 
+    await openMove(maker.page);
     await maker.page.getByLabel('Move to').selectOption({ label: 'Done' });
     // The owner opens filled with the item's current owner — the seed gives it to the
     // designer — and the time with now. Neither has to be typed; the time is corrected here to
@@ -253,7 +262,7 @@ test.describe.serial('the work-delivery journeys', () => {
     await completedField.fill(finishedAt.toISOString().slice(0, 16));
     await maker.page.getByRole('button', { name: 'Move to Done', exact: true }).click();
     await expect(header).toContainText(/done/i);
-    await expect(maker.page.getByText('Completed', { exact: true })).toBeVisible();
+    await expect(maker.page.getByText(/^Completed /u)).toBeVisible();
 
     // The stored fact, read from the API rather than inferred from the screen. The browser is
     // pinned to UTC by playwright.config.ts, so the local time typed above *is* the instant.
@@ -286,42 +295,41 @@ test.describe.serial('the work-delivery journeys', () => {
     await manager.context.close();
   });
 
-  test("E2E-03d: edit a work item's description and due date from the dialog", async ({
-    browser,
-  }) => {
-    // A6 (0219). The Edit work item dialog writes the new description and a due date picked
-    // from the date picker in one PATCH; the item's own Description card and the API both read
-    // the stored values back. Runs after 03c, so the item is done — editing is not a move.
+  test("E2E-03d: edit a work item's description and due date in place", async ({ browser }) => {
+    // A6 (0219), Work area v2: the description is edited where it is read and the due date from
+    // the properties panel's Due row; each writes its own PATCH and the API reads them back.
+    // Runs after 03c, so the item is done — editing is not a move.
     const maker = await openAs(browser, world().northstar.designer.id);
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
     await expect(maker.page.getByTestId(STATUS)).toContainText(/done/i);
 
     const description = 'Write the hero headline and keep it under 12 words.';
-    await maker.page.getByRole('button', { name: 'Edit', exact: true }).click();
-    const dialog = maker.page.getByRole('dialog', { name: 'Edit work item' });
-    await dialog.getByLabel('Description').fill(description);
-    await dialog.getByRole('button', { name: /^Due/u }).click();
-    await maker.page
-      .getByTestId('due-date-picker')
-      .getByRole('button', { name: /^Tomorrow/u })
-      .click();
-    await dialog.getByRole('button', { name: 'Save changes' }).click();
-    await expect(dialog).toHaveCount(0);
-
+    await maker.page.getByRole('button', { name: 'Edit the description' }).click();
+    const box = maker.page.getByRole('textbox', { name: 'Description', exact: true });
+    await box.fill(description);
+    await box.blur();
     await expect(
       maker.page.getByRole('region', { name: 'Description', exact: true }),
     ).toContainText(description);
 
+    await maker.page.getByRole('button', { name: 'Change the due date' }).click();
+    await maker.page
+      .getByTestId('due-date-picker')
+      .getByRole('button', { name: /^Tomorrow/u })
+      .click();
+
     // The browser is pinned to UTC, so "tomorrow" is the UTC day after the run's own clock,
     // stored at noon UTC (`dayToInstant`).
     const tomorrow = new Date(Date.now() + 24 * 60 * 60_000).toISOString().slice(0, 10);
-    const stored = await maker.context.request.get(
-      `${API_URL}/v1/organizations/northstar-studio/work-items/${world().northstar.workItemId}`,
-    );
-    expect(stored.ok()).toBe(true);
-    const body = (await stored.json()) as { description: string | null; dueAt: string | null };
-    expect(body.description).toBe(description);
-    expect(body.dueAt).toBe(`${tomorrow}T12:00:00.000Z`);
+    const read = async () => {
+      const stored = await maker.context.request.get(
+        `${API_URL}/v1/organizations/northstar-studio/work-items/${world().northstar.workItemId}`,
+      );
+      expect(stored.ok()).toBe(true);
+      return (await stored.json()) as { description: string | null; dueAt: string | null };
+    };
+    await expect.poll(async () => (await read()).dueAt).toBe(`${tomorrow}T12:00:00.000Z`);
+    expect((await read()).description).toBe(description);
 
     await maker.context.close();
   });
