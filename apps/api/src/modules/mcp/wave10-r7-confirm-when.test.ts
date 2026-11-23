@@ -58,7 +58,7 @@ describe('N07 — MCP: client-facing writes need approval under read + write con
       { name: 'tmanage_run_action', title: '', description: '', inputSchema: {} } as never,
       {
         action_id: 'work_items.update',
-        args: { workItemId: 'wi_1', audience: 'client_action_required' },
+        args: { workItemId: 'wi_1', audience: 'client_action_required', version: 3 },
       },
     );
     expect(result.isError).toBe(true);

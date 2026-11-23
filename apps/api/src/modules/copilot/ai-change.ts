@@ -2,7 +2,7 @@ import { findOpById } from '../ai-actions/registry/index.js';
 import { subjectLookupOp } from '../mcp/pending-actions.js';
 import { META_TOOL_NAMES } from './ai-chat-tools.js';
 import { validateChange, type ValidatedChange } from './ai-preview.js';
-import { captureUndo, inverseOf, pathArgsOf, type AiUndoEntry } from './ai-undo.js';
+import { captureUndo, inverseOf, pathArgsOf, recordOf, type AiUndoEntry } from './ai-undo.js';
 import type { ChatSurface, ChatToolResult } from './copilot-chat.service.js';
 
 /**
@@ -101,11 +101,14 @@ export function undoPossible(change: ValidatedChange, current: unknown): boolean
   const spec = inverseOf(change.op);
   if (spec === null) return false;
   if (spec.kind === 'remove') return true;
+  // The marker and the version are read after the run; stand-ins take their place here. The
+  // version stand-in must be one the op's schema accepts (versions start at 1, DC-9), else every
+  // versioned update would read "cannot be undone": the record's own version, else 1.
+  const version = recordOf(current)?.['version'];
   const probe = captureUndo(change.op, spec, change.args, {
     before: current,
     answer: null,
-    // The marker is read after the run; any present value stands in for it here.
-    after: { updatedAt: 'probe', version: 0 },
+    after: { updatedAt: 'probe', version: typeof version === 'number' ? version : 1 },
   });
   return probe !== null && inverseValid(probe);
 }

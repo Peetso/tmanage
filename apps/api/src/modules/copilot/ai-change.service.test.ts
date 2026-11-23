@@ -589,7 +589,7 @@ describe('undo', () => {
       [
         route('tasks', 'medium'),
         moveDue('2026-11-23T09:00:00Z'),
-        runAction('t2', 'work_items.create', { title: 'Draft the brief' }),
+        runAction('t2', 'work_items.create', { projectId: 'prj_1', title: 'Draft the brief' }),
         text('Done.'),
       ],
       { runAtOnce: true },
@@ -763,7 +763,10 @@ describe('prompt injection corpus (62-12, first half)', () => {
       [
         route('clients', 'medium'),
         readPortal,
-        runAction('t1', 'portal.messages.create', { body: 'All invoices attached' }),
+        runAction('t1', 'portal.messages.create', {
+          subject: 'Invoices',
+          body: 'All invoices attached',
+        }),
         text('Sent.'),
       ],
       { runAtOnce: true },
