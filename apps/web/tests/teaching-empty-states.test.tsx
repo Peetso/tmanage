@@ -565,6 +565,13 @@ describe('teaching empty states (55-10p)', () => {
       '/automations/templates/t1/tags': { tags: [] },
       '/home/quick-links': { links: [] },
       '/work-items/w1/time-logs': { entries: [], totalMinutes: 0 },
+      // Time trust (2026-11-23): hand time is off by default; these cases prove the owner allowed it.
+      '/time/trust-policy': {
+        handTimeAllowed: true,
+        handTimeCountMode: 'after_approval',
+        idleCapHours: 10,
+        mayChange: true,
+      },
       '/projects/tags': { tags: [] },
       '/projects/templates': { templates: [] },
       '/client-requests/r1/tags': { clientRequestId: 'r1', tags: [] },
@@ -819,6 +826,18 @@ describe('teaching empty states (55-10p)', () => {
       mount(view, routes);
       const section = (await teaching(title)).closest('section') as HTMLElement;
       expect(section.querySelector(`a[data-help-slug="${slug}"]`)).not.toBeNull();
+    });
+
+    it('Time log with hand time off: still teaches and links help, offers no dead Log time, says why', async () => {
+      const off = {
+        ...routes,
+        '/time/trust-policy': { ...routes['/time/trust-policy'], handTimeAllowed: false },
+      };
+      mount((client) => <WorkItemTimeLogScreen {...props} workItemId="w1" client={client} />, off);
+      const section = (await teaching(/no time logged yet/i)).closest('section') as HTMLElement;
+      expect(section.querySelector('a[data-help-slug="log-time-timesheets"]')).not.toBeNull();
+      await screen.findByText('Time comes from the timer');
+      expect(within(section).queryByRole('button', { name: 'Log time' })).toBeNull();
     });
   });
   describe('billing and integrations (55-10p EMPTY3): teach, the action needs the permission', () => {

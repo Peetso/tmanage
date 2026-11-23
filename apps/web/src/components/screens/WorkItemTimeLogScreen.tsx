@@ -249,7 +249,9 @@ export function WorkItemTimeLogScreen({
               title={t('WorkItemTimeLogScreen.emptyTitle')}
               explanation={t('teachEmpty.workItemTimeLogBody')}
               action={
-                canUse('work.update') ? (
+                // The button focuses the hand-time form; with hand time off that form is hidden
+                // and the notice above says why, so the empty state only teaches.
+                canUse('work.update') && handAllowed ? (
                   <Button
                     tone="lime"
                     size="accessible"
