@@ -5,7 +5,12 @@ import type { PointerEvent } from 'react';
 import { Announce, Button, InlineAlert, Switch } from '@tmanage/ui';
 import { useT } from '../../lib/i18n/use-t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
-import { canSpeak, readAloudPreference, saveReadAloudPreference } from '../../lib/voice/speech';
+import {
+  canSpeak,
+  readAloudPreference,
+  saveReadAloudPreference,
+  speakInLanguages,
+} from '../../lib/voice/speech';
 import type { Dictation } from './useDictation';
 import './voice.css';
 
@@ -199,12 +204,8 @@ export function ReadAloudButton({ text, autoRead = false }: { text: string; auto
 
   const read = useCallback(() => {
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = locale;
-    utterance.onend = () => setReading(false);
-    utterance.onerror = () => setReading(false);
     setReading(true);
-    window.speechSynthesis.speak(utterance);
+    speakInLanguages(text, locale, () => setReading(false));
   }, [text, locale]);
 
   useEffect(() => {

@@ -150,3 +150,82 @@ export function saveReadAloudPreference(on: boolean, storage?: Pick<Storage, 'se
     // A private window or blocked storage: the switch still works for this visit.
   }
 }
+
+/** Arabic script: the base block, the supplement, extended-A and the presentation forms. */
+const ARABIC_LETTER = /\p{Script=Arabic}/u;
+/** A letter of any script (digits, spaces and punctuation are neutral and join the run they sit in). */
+const ANY_LETTER = /\p{L}/u;
+
+/** One stretch of text in one language, to be read by a voice of that language. */
+export interface SpeechRun {
+  readonly text: string;
+  readonly lang: string;
+}
+
+/**
+ * The text split into runs by script, each with the language to read it in (2026-11-23 live: an
+ * answer mixing English and Arabic was read by one English voice, which skipped every Arabic word).
+ * Arabic runs read as Arabic (the member's own Arabic locale when they use one); other letters read
+ * in the member's locale, or in English when the member's locale is Arabic.
+ */
+export function speechRuns(text: string, locale: string): SpeechRun[] {
+  const memberIsArabic = locale.toLowerCase().startsWith('ar');
+  const arabicLang = memberIsArabic ? locale : 'ar';
+  const otherLang = memberIsArabic ? 'en-US' : locale;
+  const runs: { text: string; arabic: boolean | null }[] = [];
+  for (const char of text) {
+    const arabic = ARABIC_LETTER.test(char) ? true : ANY_LETTER.test(char) ? false : null;
+    const current = runs[runs.length - 1];
+    if (current && (arabic === null || current.arabic === null || current.arabic === arabic)) {
+      current.text += char;
+      if (current.arabic === null) current.arabic = arabic;
+    } else {
+      runs.push({ text: char, arabic });
+    }
+  }
+  return runs
+    .map((run) => ({ text: run.text.trim(), lang: run.arabic ? arabicLang : otherLang }))
+    .filter((run) => run.text !== '');
+}
+
+/** The browser voice for a language: the exact tag first, then the same base language. */
+export function voiceFor<V extends { readonly lang: string }>(
+  lang: string,
+  voices: readonly V[],
+): V | undefined {
+  const wanted = lang.toLowerCase().replace('_', '-');
+  const base = wanted.split('-')[0];
+  return (
+    voices.find((voice) => voice.lang.toLowerCase().replace('_', '-') === wanted) ??
+    voices.find((voice) => voice.lang.toLowerCase().replace('_', '-').split('-')[0] === base)
+  );
+}
+
+/**
+ * Read the text aloud, run by run, each in its own language and voice. `onDone` runs once, after
+ * the last run ends or at the first error. The caller cancels any speech before calling.
+ */
+export function speakInLanguages(text: string, locale: string, onDone: () => void): void {
+  const synth = window.speechSynthesis;
+  const voices = typeof synth.getVoices === 'function' ? synth.getVoices() : [];
+  const runs = speechRuns(text, locale);
+  if (runs.length === 0) {
+    onDone();
+    return;
+  }
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    onDone();
+  };
+  runs.forEach((run, index) => {
+    const utterance = new SpeechSynthesisUtterance(run.text);
+    utterance.lang = run.lang;
+    const voice = voiceFor(run.lang, voices);
+    if (voice) utterance.voice = voice;
+    utterance.onerror = finish;
+    if (index === runs.length - 1) utterance.onend = finish;
+    synth.speak(utterance);
+  });
+}

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Button } from '@tmanage/ui';
-import { canSpeak } from '../../lib/voice/speech';
+import { canSpeak, speakInLanguages } from '../../lib/voice/speech';
 import { useAiText } from './use-ai-text';
 
 /**
@@ -42,13 +42,10 @@ export function useAnswerReader(): AnswerReader {
   const read = useCallback((id: string, text: string, lang: string) => {
     if (!canSpeak()) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    const done = () => setReadingId((current) => (current === id ? null : current));
-    utterance.onend = done;
-    utterance.onerror = done;
     setReadingId(id);
-    window.speechSynthesis.speak(utterance);
+    speakInLanguages(text, lang, () =>
+      setReadingId((current) => (current === id ? null : current)),
+    );
   }, []);
   return useMemo(() => ({ able, readingId, read, stop }), [able, readingId, read, stop]);
 }

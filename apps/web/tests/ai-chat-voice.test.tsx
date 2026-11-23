@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { speechRuns, voiceFor } from '../src/lib/voice/speech';
 import { ApiClient } from '../src/lib/api/client';
 import { AiChatPanel } from '../src/components/ai-chat/AiChatPanel';
 import type { RecognitionResultEventLike, SpeechRecognitionLike } from '../src/lib/voice/speech';
@@ -195,6 +196,21 @@ describe('TManage AI voice mode (62-16)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(screen.queryByText('Reading the answer aloud')).toBeNull();
     expect(cancel).toHaveBeenCalled();
+  });
+
+  it('reads mixed English and Arabic, each part in its own language (2026-11-23 live)', () => {
+    expect(speechRuns('Your task مهمة التصميم is late, 2 days.', 'en-US')).toEqual([
+      { text: 'Your task', lang: 'en-US' },
+      { text: 'مهمة التصميم', lang: 'ar' },
+      { text: 'is late, 2 days.', lang: 'en-US' },
+    ]);
+    expect(speechRuns('عندك 3 مهام في Website', 'ar-EG')).toEqual([
+      { text: 'عندك 3 مهام في', lang: 'ar-EG' },
+      { text: 'Website', lang: 'en-US' },
+    ]);
+    const voices = [{ lang: 'en-US' }, { lang: 'ar-SA' }];
+    expect(voiceFor('ar-EG', voices)).toEqual({ lang: 'ar-SA' });
+    expect(voiceFor('fr-FR', voices)).toBeUndefined();
   });
 
   it('dictates in the language picked in the composer chip, saved to the member preference (878:976)', async () => {
