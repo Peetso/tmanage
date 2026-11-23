@@ -90,6 +90,8 @@ export interface RetainerEntryView {
   readonly itemTitle: string | null;
   readonly memberUserId: string;
   readonly minutes: number;
+  /** 2026-11-23 time trust: typed in or corrected (approved), not measured by the timer. */
+  readonly addedByHand: boolean;
 }
 
 /** Exactly what a client may see: no person, no money, no internal title. */
@@ -101,7 +103,13 @@ export interface PortalRetainerView {
   readonly usedHours: number;
   readonly remainingHours: number;
   readonly renewsOn: string | null;
-  readonly entries: readonly { date: string; taskTitle: string; hours: number }[];
+  /** `addedByHand`: the client sees which hours were typed in rather than measured (2026-11-23). */
+  readonly entries: readonly {
+    date: string;
+    taskTitle: string;
+    hours: number;
+    addedByHand: boolean;
+  }[];
 }
 
 export type PortalRetainerSummary = Omit<PortalRetainerView, 'entries'> & { readonly id: string };
@@ -300,6 +308,7 @@ export class RetainersService {
           itemTitle: e.title,
           memberUserId: e.loggedBy,
           minutes: e.minutes,
+          addedByHand: e.addedByHand,
         })),
         nextCursor: rows.length > ENTRY_PAGE ? (page.at(-1)?.id ?? null) : null,
       };
@@ -528,6 +537,7 @@ export class RetainersService {
               ? clientTaskTitle(e)
               : INTERNAL_WORK_TITLE,
           hours: Math.round((e.minutes / 60) * 100) / 100,
+          addedByHand: e.addedByHand,
         })),
       };
     });

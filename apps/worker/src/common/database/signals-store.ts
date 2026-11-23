@@ -43,7 +43,8 @@ export const SIGNALS_SQL = {
   workItems: `SELECT x.id, x.project_id, x.state, x.due_at, x.updated_at, x.owner_user_id,
        e.estimate_minutes,
        (SELECT COALESCE(SUM(l.minutes), 0) FROM work_item_time_logs l
-         WHERE l.organization_id = x.organization_id AND l.work_item_id = x.id) AS logged_minutes
+         WHERE l.organization_id = x.organization_id AND l.work_item_id = x.id
+           AND l.counted = 1) AS logged_minutes
   FROM work_items x
   ${LIVE_PROJECT}
   LEFT JOIN work_item_estimates e ON e.organization_id = x.organization_id AND e.work_item_id = x.id
@@ -89,7 +90,7 @@ export const SIGNALS_SQL = {
   JOIN timesheets t ON t.organization_id = x.organization_id AND t.id = x.timesheet_id
   ${LIVE_PROJECT}
  WHERE x.organization_id = ? AND x.billable = 1 AND x.invoice_line_id IS NULL
-   AND t.state = 'approved'
+   AND x.counted = 1 AND t.state = 'approved'
  GROUP BY x.project_id
  ORDER BY x.project_id
  LIMIT ?`,

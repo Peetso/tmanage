@@ -42,6 +42,10 @@ export interface EntryPatch {
   readonly note: string | null;
   /** A split shortens a timed entry: its new end (B2). */
   readonly endedAt?: Date;
+  /** Time trust (0410): an edited hand entry goes back to the approval queue. */
+  readonly approvalState?: 'none' | 'pending' | 'approved' | 'rejected';
+  readonly counted?: boolean;
+  readonly reason?: string | null;
 }
 
 export interface InternalMember {
@@ -303,6 +307,8 @@ export class TimesheetsRepository {
           eq(workItemTimeLogs.loggedBy, membershipId),
           gte(workItemTimeLogs.spentOn, bounds.periodStart),
           lte(workItemTimeLogs.spentOn, bounds.periodEnd),
+          // Time trust (0410): only counted time is a week's total (pending hand time is not).
+          eq(workItemTimeLogs.counted, true),
         ),
       );
     return {

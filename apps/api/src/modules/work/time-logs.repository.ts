@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, lt, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import type { TimeApprovalState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { timeLogPricing, workItemTimeLogs } from '../../common/database/schema.js';
 import type { WorkItemTimeLogRow } from '../../common/database/schema.js';
@@ -36,6 +37,14 @@ export interface CreateTimeLogInput {
   readonly billable?: boolean;
   readonly source?: TimeLogSource;
   readonly needsReview?: boolean;
+  /**
+   * Time trust (0410). Absent = `none` / counted: measured time. Hand time and corrections pass the
+   * state and the stored `entryCounts()` answer the time-trust rules decided.
+   */
+  readonly approvalState?: TimeApprovalState;
+  readonly counted?: boolean;
+  readonly reason?: string | null;
+  readonly correctsEntryId?: string | null;
 }
 
 export class WorkTimeLogsRepository {
@@ -164,6 +173,10 @@ export class WorkTimeLogsRepository {
         billable,
         source: input.source ?? 'manual',
         needsReview: input.needsReview ?? false,
+        approvalState: input.approvalState ?? 'none',
+        counted: input.counted ?? true,
+        reason: input.reason ?? null,
+        correctsEntryId: input.correctsEntryId ?? null,
         note: input.note,
         createdAt: sql`current_timestamp(3)`,
       });

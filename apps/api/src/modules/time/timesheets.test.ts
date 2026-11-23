@@ -35,6 +35,13 @@ const entry = (o: Record<string, unknown>) => ({
   note: 'secret',
   needsReview: false,
   lockedAt: null,
+  source: 'manual',
+  approvalState: 'none',
+  counted: true,
+  reason: null,
+  correctsEntryId: null,
+  supersededBy: null,
+  updatedAt: null,
   ...o,
 });
 
@@ -249,8 +256,10 @@ describe('live check B2: unassigned time on the timesheet', () => {
       [E1],
       'm1',
     ]);
-    const audit = ok.calls.find((c) => c.name === 'audit')!;
-    expect(JSON.stringify(audit.args)).toContain(`"entry_ids":["${E1}"]`);
+    // The week's audit row names the entry; the entry's own row (time trust) holds before/after.
+    const audits = ok.calls.filter((c) => c.name === 'audit');
+    expect(JSON.stringify(audits)).toContain(`"entry_ids":["${E1}"]`);
+    expect(JSON.stringify(audits)).toContain('"action":"time_log.deleted"');
     const filed = sheetHarness({ entries: [{ ...timed, workItemId: W }] });
     await expect(
       filed.service.deleteUnassigned(me, member, SHEET, { entryIds: [E1] }),
@@ -264,5 +273,136 @@ describe('live check B2: unassigned time on the timesheet', () => {
       approved.service.deleteUnassigned(me, member, SHEET, { entryIds: [E1] }),
     ).rejects.toMatchObject({ status: 409 });
     expect([...filed.names(), ...locked.names(), ...approved.names()]).toEqual([]);
+  });
+});
+
+// ---- 2026-11-23 time you can trust: the timesheet write paths ----
+
+describe('time trust on the timesheet', () => {
+  const member = { ...manager, role: 'member' } as unknown as Principal;
+  const policy = (stored: Record<string, string>) => ({
+    findByKey: async (_r: unknown, _c: unknown, key: string) =>
+      key in stored ? { settingValue: stored[key] } : undefined,
+  });
+
+  function trustHarness(o: { entries?: unknown[]; stored?: Record<string, string> } = {}) {
+    const calls: { name: string; args: unknown[] }[] = [];
+    const log =
+      (name: string, result?: unknown) =>
+      async (...args: unknown[]) => {
+        calls.push({ name, args });
+        return result;
+      };
+    const { service } = harness({
+      owner: 'm1',
+      state: 'open',
+      version: 3,
+      ...(o.entries ? { entries: o.entries } : {}),
+    });
+    const options = (service as unknown as { options: Record<string, unknown> }).options;
+    Object.assign(options['repository'] as Record<string, unknown>, {
+      updateEntry: log('updateEntry'),
+      stampTimesheet: log('stampTimesheet'),
+      sumTotals: async () => ({ totalMinutes: 60, billableMinutes: 60 }),
+      update: async () => 1,
+      projectExists: async () => true,
+    });
+    options['timeLogs'] = {
+      create: log('create', { id: 'new', minutes: 30, spentOn: '2026-10-26' }),
+    };
+    options['audit'] = { record: log('audit', {}) };
+    options['workItems'] = { findById: async () => null };
+    (service as unknown as { settings: unknown }).settings = policy(o.stored ?? {});
+    return { service, calls, names: () => calls.map((c) => c.name) };
+  }
+  const line = { projectId: PA, spentOn: '2026-10-26', minutes: 30 };
+
+  it('refuses a typed-in line 403 with the owner’s words while hand time is off', async () => {
+    const h = trustHarness();
+    await expect(
+      h.service.upsertEntries(me, member, SHEET, {
+        version: 3,
+        entries: [{ ...line, reason: 'Call on my phone' }],
+      }),
+    ).rejects.toMatchObject({ status: 403, details: [{ message: 'hand_time_off' }] });
+    expect(h.names()).not.toContain('create');
+  });
+
+  it('files a typed-in line as waiting with its reason when the owner allows it', async () => {
+    const h = trustHarness({ stored: { time_hand_entry: 'true' } });
+    await h.service.upsertEntries(me, member, SHEET, {
+      version: 3,
+      entries: [{ ...line, reason: 'Call on my phone' }],
+    });
+    const created = h.calls.find((c) => c.name === 'create')!;
+    expect(created.args[2]).toMatchObject({
+      source: 'manual',
+      approvalState: 'pending',
+      counted: false,
+      reason: 'Call on my phone',
+    });
+    expect(JSON.stringify(h.calls)).toContain('"action":"time_log.created"');
+  });
+
+  it('never changes timer minutes or day (409 measured_time); its note may change', async () => {
+    const timer = entry({ loggedBy: 'm1', source: 'timer', minutes: 60 });
+    const h = trustHarness({ entries: [timer], stored: { time_hand_entry: 'true' } });
+    await expect(
+      h.service.upsertEntries(me, member, SHEET, {
+        version: 3,
+        entries: [{ id: E1, projectId: PA, spentOn: '2026-10-26', minutes: 90, reason: 'More' }],
+      }),
+    ).rejects.toMatchObject({ status: 409, details: [{ message: 'measured_time' }] });
+    expect(h.names()).not.toContain('updateEntry');
+    const ok = trustHarness({ entries: [timer] });
+    await ok.service.upsertEntries(me, member, SHEET, {
+      version: 3,
+      entries: [{ id: E1, projectId: PA, spentOn: '2026-10-26', minutes: 60, note: 'Kick-off' }],
+    });
+    expect(ok.calls.find((c) => c.name === 'updateEntry')!.args[3]).toEqual({
+      minutes: 60,
+      spentOn: '2026-10-26',
+      billable: true,
+      note: 'Kick-off',
+    });
+  });
+
+  it('sends an edited hand entry back for approval and audits before and after', async () => {
+    const hand = entry({ loggedBy: 'm1', approvalState: 'approved', reason: 'Workshop' });
+    const h = trustHarness({ entries: [hand], stored: { time_hand_entry: 'true' } });
+    await h.service.upsertEntries(me, member, SHEET, {
+      version: 3,
+      entries: [{ id: E1, projectId: PA, spentOn: '2026-10-26', minutes: 45, note: 'secret' }],
+    });
+    expect(h.calls.find((c) => c.name === 'updateEntry')!.args[3]).toMatchObject({
+      minutes: 45,
+      approvalState: 'pending',
+      counted: false,
+      reason: 'Workshop',
+    });
+    const audit = JSON.stringify(h.calls.filter((c) => c.name === 'audit'));
+    expect(audit).toContain('"action":"time_log.updated"');
+    expect(audit).toContain('{"field":"minutes","before":"60","after":"45"}');
+    expect(audit).toContain('{"field":"approval_state","before":"approved","after":"pending"}');
+  });
+
+  it('refuses typed-in time for a day still ahead', async () => {
+    const h = trustHarness({ stored: { time_hand_entry: 'true' } });
+    await expect(
+      h.service.upsertEntries(me, member, SHEET, {
+        version: 3,
+        entries: [{ ...line, spentOn: '2026-10-31', reason: 'Planned' }],
+      }),
+    ).rejects.toMatchObject({ status: 400, details: [{ message: 'future_day' }] });
+  });
+
+  it('does not approve a week while some of its time still waits', async () => {
+    const waiting = entry({ approvalState: 'pending', counted: false });
+    const { service, writes } = harness({ entries: [waiting] });
+    await expect(service.decide(me, manager, SHEET, {}, true)).rejects.toMatchObject({
+      status: 409,
+      details: [{ message: 'time_pending' }],
+    });
+    expect(writes).toEqual([]);
   });
 });

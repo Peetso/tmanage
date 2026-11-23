@@ -136,6 +136,8 @@ export class PersonLoadRepository {
         .where(
           and(
             eq(workItemTimeLogs.organizationId, context.organizationId),
+            // 0410 time trust: only the minutes that count.
+            eq(workItemTimeLogs.counted, true),
             inArray(
               workItemTimeLogs.workItemId,
               rows.map((row) => row.workItemId),

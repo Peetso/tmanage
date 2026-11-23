@@ -52,7 +52,7 @@ const SUM_USED = `SELECT COALESCE(SUM(minutes), 0) AS used
  WHERE organization_id = ?
    AND project_id IN (SELECT project_id FROM retainer_projects
                        WHERE organization_id = ? AND retainer_id = ?)
-   AND spent_on BETWEEN ? AND ?`;
+   AND spent_on BETWEEN ? AND ? AND counted = 1`;
 
 // The caches are frozen here: a closed period is never recomputed (a 52-03 lock included).
 const CLOSE_PERIOD = `UPDATE retainer_periods

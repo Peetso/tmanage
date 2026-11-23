@@ -30,6 +30,7 @@ import { bPlatformOps } from './parity-b3-platform-b.js';
 import { cPlatformOps } from './parity-b3-platform-c.js';
 import { corePlatformOps } from './parity-b3-platform-core.js';
 import { lifecycleOps } from './parity-b4-lifecycle.js';
+import { timeTrustOps } from './parity-b5-time-trust.js';
 
 export * from './types.js';
 export { OP_SENSITIVITY } from './sensitivity.js';
@@ -6412,6 +6413,7 @@ export const OPS: readonly AiActionOp[] = [
   ...cPlatformOps,
   ...corePlatformOps,
   ...lifecycleOps, // fix lane C: lifecycle removals, files, AI settings
+  ...timeTrustOps, // lane T: time you can trust (policy, approvals, corrections)
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',

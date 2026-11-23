@@ -651,7 +651,8 @@ export const workDetails: readonly AiActionDetail[] = [
     id: 'work_items.time_logs.create',
     title: 'Create work item time logs',
     description:
-      'Log time on a work item: minutes (1-1440) on a calendar day (spentOn), with an optional note, billable flag, and the start/end instants of the span.',
+      'Log time on a work item: minutes (1-1440) on a calendar day (spentOn, not ahead), with an optional note, billable flag, and the start/end instants of the span. ' +
+      "Time typed in needs the owner's permission (Admin > Time) and a reason (3-500 characters); it waits for a manager's approval. Refused: the reason is in the answer.",
     input: bodyArgs(['workItemId'], {
       minutes: f.int(1, 24 * 60),
       spentOn: dateOnly,
@@ -659,12 +660,19 @@ export const workDetails: readonly AiActionDetail[] = [
       billable: f.bool().optional().describe('Default true'),
       startedAt: f.iso().optional().describe('With endedAt: ISO instant with a zone, last 31 days'),
       endedAt: f.iso().optional(),
+      reason: z.string().min(3).max(500).optional().describe('Why this time is typed in'),
     }),
     redact: 'standard',
     examples: [
       {
         summary: 'Log 90 minutes today',
-        args: { workItemId: 'wi_1', minutes: 90, spentOn: '2026-11-23', note: 'Client call' },
+        args: {
+          workItemId: 'wi_1',
+          minutes: 90,
+          spentOn: '2026-11-23',
+          note: 'Client call',
+          reason: 'Call on my phone, timer was off',
+        },
       },
     ],
   }),

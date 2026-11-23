@@ -282,7 +282,9 @@ function holdsPlatformAdminGuard(guards: unknown): boolean {
 // Fix lane C (2026-11-23): +11 ops (project rename, archive, unarchive, delete; team, label, form,
 // draft quote and draft invoice delete; workspace file list; inline file upload). The two
 // copilot/settings routes move from NEVER to ops (no route added).
-const EXPECTED_ROUTE_COUNT = 1655;
+// Lane T (2026-11-23): +7 time trust routes (policy get/update; approvals list, approve, reject;
+// an entry's correction and history).
+const EXPECTED_ROUTE_COUNT = 1662;
 // 60-03: +8 NEVER (ai-employees list, get, hire, edit, pause, resume, sponsor, retire).
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.

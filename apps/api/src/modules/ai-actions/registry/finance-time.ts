@@ -364,6 +364,8 @@ const entryLine = z
     minutes: minutes(),
     billable: f.bool().optional(),
     note: note().nullable().optional(),
+    // 2026-11-23 time trust: why the time is typed in (required for a new or changed line).
+    reason: z.string().min(3).max(500).optional(),
   })
   .strict();
 
@@ -482,7 +484,9 @@ export const financeTimeDetails: readonly AiActionDetail[] = [
     title: 'Log time on my timesheet',
     description:
       'Add or change time entries on a timesheet (1..1440 minutes each, dates inside its week). ' +
-      'Pass the `version` you read; one bad line refuses the whole batch.',
+      'Pass the `version` you read; one bad line refuses the whole batch. Time typed in needs the ' +
+      "owner's permission (Admin > Time) and a `reason` on each new or changed line, and waits for " +
+      'a manager; timer time cannot be changed (ask for a correction: time.entries.correction).',
     descriptionAr:
       'إضافة قيود وقت أو تعديلها في جدول زمني (من 1 إلى 1440 دقيقة لكل قيد، والتواريخ داخل أسبوعه). ' +
       'مرّر `version` الذي قرأته؛ أي سطر خاطئ يرفض الدفعة كلها.',

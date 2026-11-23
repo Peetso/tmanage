@@ -1,5 +1,5 @@
-import { authorize, localDateOf } from '@tmanage/domain';
-import type { Principal } from '@tmanage/domain';
+import { authorize, localDateOf, timeTrustOf } from '@tmanage/domain';
+import type { Principal, TimeApprovalState, TimeTrust } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
   TenantContext,
@@ -12,6 +12,12 @@ import { companyTimeZone } from '../tenancy/auto-time-tracking-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { WorkTimeLogsRepository } from './time-logs.repository.js';
+import {
+  handEntryState,
+  readTimeTrustPolicy,
+  requireHandTimeAllowed,
+} from '../time/time-trust-rules.js';
+import type { TimeLogSource } from '../time/time-rules.js';
 
 /**
  * x231's application service — logged effort per work item (Work module 7).
@@ -44,12 +50,21 @@ export interface TimeLogView {
   readonly spentOn: string;
   readonly note: string | null;
   readonly createdAt: string;
+  /** 2026-11-23 time trust: how the minutes came in and whether they count yet. */
+  readonly source: TimeLogSource;
+  readonly trust: TimeTrust;
+  readonly approvalState: TimeApprovalState;
+  readonly counted: boolean;
+  readonly reason: string | null;
 }
 
 /** The list response: the entries and their summed total minutes for this item. */
 export interface TimeLogListView {
   readonly entries: readonly TimeLogView[];
+  /** The minutes that count (measured, approved, or flagged hand time when the owner allows it). */
   readonly totalMinutes: number;
+  /** Hand-added or corrected minutes still waiting for a manager (not in `totalMinutes`). */
+  readonly pendingMinutes: number;
 }
 
 export interface AddTimeLogInput {
@@ -65,6 +80,8 @@ export interface AddTimeLogInput {
   readonly endedAt?: Date | null;
   /** 52-01. Absent = the work item's `billable`, else the project's `billable_default` (52-04). */
   readonly billable?: boolean;
+  /** 2026-11-23: why the time is typed in; required while the owner allows hand time. */
+  readonly reason?: string | null;
 }
 
 export class WorkTimeLogsService {
@@ -91,8 +108,12 @@ export class WorkTimeLogsService {
       await this.readableParent(runner, context, principal, workItemId);
       const rows = await this.timeLogs.listForWorkItem(runner, context, workItemId);
       const entries = rows.map((row) => toView(row, workItemId));
-      const totalMinutes = entries.reduce((sum, entry) => sum + entry.minutes, 0);
-      return { entries, totalMinutes };
+      const totalMinutes = entries.reduce((sum, e) => sum + (e.counted ? e.minutes : 0), 0);
+      const pendingMinutes = entries.reduce(
+        (sum, e) => sum + (!e.counted && e.approvalState === 'pending' ? e.minutes : 0),
+        0,
+      );
+      return { entries, totalMinutes, pendingMinutes };
     });
   }
 
@@ -110,6 +131,11 @@ export class WorkTimeLogsService {
         // 52-01. Time is internal: a client principal with `work.update` still logs nothing.
         throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'time.internal_only');
       }
+      // 2026-11-23 time trust: typed-in minutes only when the owner allows them, with a reason;
+      // they wait for a manager (or count at once, flagged, when the owner chose that).
+      const policy = await readTimeTrustPolicy(tx, context, this.settings);
+      const reason = requireHandTimeAllowed(policy, input.reason ?? null);
+      const state = handEntryState(policy.handTimeCountMode);
       // FIX-2026-11-10 (review L3): the same hour is never counted twice. Automatic filing skips
       // time a timed entry already covers; a manual timed entry over automatic time is refused.
       if (
@@ -130,12 +156,22 @@ export class WorkTimeLogsService {
           [{ field: 'startedAt', message: 'overlaps_automatic_time' }],
         );
       }
+      const spentOn = await this.dayOf(tx, context, input);
+      const today = localDateOf(new Date(), await companyTimeZone(tx, context, this.settings));
+      if (spentOn > today) {
+        throw new ApiError(
+          400,
+          'validation_failed',
+          'Time cannot be added for a day still ahead.',
+          [{ field: 'spentOn', message: 'future_day' }],
+        );
+      }
       const row = await this.timeLogs.create(tx, context, {
         workItemId,
         projectId: parent.projectId,
         loggedBy: principal.membershipId,
         minutes: input.minutes,
-        spentOn: await this.dayOf(tx, context, input),
+        spentOn,
         note: input.note,
         startedAt: input.startedAt ?? null,
         endedAt: input.endedAt ?? null,
@@ -143,6 +179,9 @@ export class WorkTimeLogsService {
         ...(input.billable === undefined ? {} : { billable: input.billable }),
         // The repository fills rate_snapshot_minor / cost_snapshot_minor from the rate cards.
         source: 'manual',
+        approvalState: state.approvalState,
+        counted: state.counted,
+        reason,
       });
       if (this.audit) {
         await this.audit.record(tx, context, {
@@ -150,7 +189,11 @@ export class WorkTimeLogsService {
           result: 'allowed',
           objectId: row.id,
           actorUserId: context.userId,
-          metadata: {},
+          metadata: { source: 'manual', approval_state: state.approvalState },
+          changes: [
+            { field: 'minutes', before: null, after: String(row.minutes) },
+            { field: 'spent_on', before: null, after: row.spentOn },
+          ],
         });
       }
       return toView(row, workItemId);
@@ -185,7 +228,32 @@ export class WorkTimeLogsService {
         ]);
       }
 
+      if (existing.approvalState === 'approved') {
+        // 2026-11-23 time trust: approved time is part of what a manager accepted; only a
+        // manager removes it (from the timesheet), never its author alone.
+        throw new ApiError(
+          403,
+          'forbidden',
+          'Approved time can only be removed by a manager.',
+          [{ field: 'approvalState', message: 'approved_time' }],
+          'time.approved_delete',
+        );
+      }
+
       await this.timeLogs.remove(tx, context, workItemId, entryId);
+      if (this.audit) {
+        await this.audit.record(tx, context, {
+          action: 'time_log.deleted',
+          result: 'allowed',
+          objectId: existing.id,
+          actorUserId: context.userId,
+          metadata: { source: existing.source, approval_state: existing.approvalState },
+          changes: [
+            { field: 'minutes', before: String(existing.minutes), after: null },
+            { field: 'spent_on', before: existing.spentOn, after: null },
+          ],
+        });
+      }
     });
   }
 
@@ -260,5 +328,10 @@ function toView(row: WorkItemTimeLogRow, workItemId: string): TimeLogView {
     spentOn: row.spentOn,
     note: row.note ?? null,
     createdAt: row.createdAt.toISOString(),
+    source: row.source,
+    trust: timeTrustOf(row.source),
+    approvalState: row.approvalState,
+    counted: row.counted,
+    reason: row.reason ?? null,
   };
 }

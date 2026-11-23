@@ -156,6 +156,8 @@ export class ProjectBudgetRepository {
       .where(
         and(
           eq(workItemTimeLogs.organizationId, context.organizationId),
+          // 0410 time trust: only the minutes that count.
+          eq(workItemTimeLogs.counted, true),
           eq(workItems.projectId, projectId),
         ),
       );

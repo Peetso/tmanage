@@ -23,6 +23,9 @@ import { AutoTimeFiler } from './time-auto-filing.js';
 import { TimeAutoRepository } from './time-auto.repository.js';
 import { TimeAutoService } from './time-auto.service.js';
 import { TimeTeamService } from './time-team.service.js';
+import { TIME_TRUST_SERVICE, TimeTrustController } from './time-trust.controller.js';
+import { TimeTrustRepository } from './time-trust.repository.js';
+import { TimeTrustService } from './time-trust.service.js';
 import { TIME_SERVICE, TimeController } from './time.controller.js';
 import { TimeRepository } from './time.repository.js';
 import { TimeService } from './time.service.js';
@@ -121,6 +124,7 @@ export class TimeModule {
           workItems: workItems ?? new WorkItemsRepository(),
           holders: new TimeLocksRepository(),
           notifications: new NotificationsRepository(),
+          settings: new OrgSettingsRepository(),
         }),
     };
     // FIX-2026-11-10: automatic tracking (own) and the team time view.
@@ -165,15 +169,30 @@ export class TimeModule {
           settings: new OrgSettingsRepository(),
         }),
     };
+    // 2026-11-23 time you can trust: the owner's policy, the approval queue, corrections.
+    const trust: Provider = {
+      provide: TIME_TRUST_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new TimeTrustService({
+          database,
+          audit,
+          repository: new TimeTrustRepository(),
+          sheets: new TimesheetsRepository(),
+          timeLogs: new WorkTimeLogsRepository(),
+          settings: new OrgSettingsRepository(),
+        }),
+    };
     return {
       module: TimeModule,
-      providers: [filer, service, locks, sheets, auto, team],
+      providers: [filer, service, locks, sheets, auto, team, trust],
       controllers: [
         TimeController,
         TimeLocksController,
         TimesheetsController,
         TimeAutoController,
         TimeTeamController,
+        TimeTrustController,
       ],
     };
   }

@@ -2,11 +2,16 @@
  * 52-01 (0265): the forgotten-timer auto-stop.
  *
  * A member who starts a timer and walks away should not wake up to a 40-hour entry. Every running
- * timer (`time_timers`) older than its organization's limit — `org_policies.policy_json`
- * `time_autostop_hours`, 4..24, default 12 — is stopped AT the limit (not at "now"), filed as one
- * `work_item_time_logs` entry with `source = 'timer'` and `needs_review = 1` so the person checks
- * it, and recorded as `time_timer.auto_stopped` in the organization's audit log (ids only, no
- * actor: the system did it).
+ * timer (`time_timers`) older than its organization's limit — the owner's idle cap
+ * (`org_settings.time_idle_cap_hours`, Admin > Time, 2026-11-23), else the older
+ * `org_policies.policy_json` `time_autostop_hours`, 4..24, default 10 — is stopped AT the limit
+ * (not at "now"), filed as one `work_item_time_logs` entry with `source = 'timer'` and
+ * `needs_review = 1`, and recorded as `time_timer.auto_stopped` in the organization's audit log
+ * (ids only, no actor: the system did it).
+ *
+ * Time trust (owner rule, 2026-11-23): a capped timer "never silently counts". The entry is filed
+ * `approval_state = 'pending'`, `counted = 0`: it joins the managers' approval queue and counts only
+ * once approved (or the person asks for a correction).
  *
  * Idempotent: each timer is deleted first in its own transaction and only a delete that removed
  * the row files the entry, so a retry, a second worker or a member who stopped it a moment earlier
@@ -29,7 +34,8 @@ export const AUTOSTOP_INTERVAL_MS = 5 * 60_000;
 
 export const AUTOSTOP_MIN_HOURS = 4;
 export const AUTOSTOP_MAX_HOURS = 24;
-export const AUTOSTOP_DEFAULT_HOURS = 12;
+/** `IDLE_CAP_DEFAULT_HOURS` in `@tmanage/domain` (`time/trust.ts`); restated, same value. */
+export const AUTOSTOP_DEFAULT_HOURS = 10;
 const HOUR_MS = 60 * 60_000;
 const ROUNDING_INCREMENTS: readonly number[] = [0, 1, 5, 6, 10, 15, 30];
 const DEFAULT_ROUNDING = 15;
@@ -50,6 +56,8 @@ export interface RunningTimer {
   readonly policy: unknown;
   /** `org_finance_profiles.rounding_minutes`, or null before the first finance save. */
   readonly roundingMinutes: number | null;
+  /** `org_settings.time_idle_cap_hours` (the owner's cap, a string of digits), or null. */
+  readonly idleCapSetting?: string | null;
 }
 
 /** The entry an auto-stop files. */
@@ -60,6 +68,9 @@ export interface AutostopEntry {
   readonly source: 'timer';
   /** Always true: a stopped-for-you entry asks the person to check it. */
   readonly needsReview: true;
+  /** Time trust: waits for a manager, and does not count until approved. */
+  readonly approvalState: 'pending';
+  readonly counted: false;
   /** The limit that applied, for the audit row. */
   readonly autostopHours: number;
 }
@@ -77,8 +88,21 @@ export interface AutostopResult {
   readonly skipped: number;
 }
 
-/** `time_autostop_hours` from a stored policy document; anything off-range is the default. */
-export function autostopHours(policy: unknown): number {
+const inRange = (hours: unknown): hours is number =>
+  typeof hours === 'number' &&
+  Number.isInteger(hours) &&
+  hours >= AUTOSTOP_MIN_HOURS &&
+  hours <= AUTOSTOP_MAX_HOURS;
+
+/**
+ * The limit for one organization: the owner's idle cap when set and in range, else
+ * `time_autostop_hours` from the stored policy document; anything off-range is the default.
+ */
+export function autostopHours(policy: unknown, idleCapSetting: string | null = null): number {
+  if (idleCapSetting !== null && /^\d{1,2}$/.test(idleCapSetting)) {
+    const cap = Number(idleCapSetting);
+    if (inRange(cap)) return cap;
+  }
   let doc: unknown = policy;
   if (typeof policy === 'string') {
     try {
@@ -91,12 +115,7 @@ export function autostopHours(policy: unknown): number {
     typeof doc === 'object' && doc !== null
       ? (doc as Record<string, unknown>)['time_autostop_hours']
       : undefined;
-  return typeof hours === 'number' &&
-    Number.isInteger(hours) &&
-    hours >= AUTOSTOP_MIN_HOURS &&
-    hours <= AUTOSTOP_MAX_HOURS
-    ? hours
-    : AUTOSTOP_DEFAULT_HOURS;
+  return inRange(hours) ? hours : AUTOSTOP_DEFAULT_HOURS;
 }
 
 /** Whole minutes (any started minute, at least one), rounded up to the increment, max a day. */
@@ -109,7 +128,7 @@ export function autostopMinutes(elapsedMs: number, rounding: number | null): num
 
 /** The entry for a timer at `now`, or null when it is still inside its organization's limit. */
 export function autostopEntryFor(timer: RunningTimer, now: Date): AutostopEntry | null {
-  const hours = autostopHours(timer.policy);
+  const hours = autostopHours(timer.policy, timer.idleCapSetting ?? null);
   const endedAt = new Date(timer.startedAt.getTime() + hours * HOUR_MS);
   if (endedAt.getTime() > now.getTime()) return null;
   return {
@@ -118,6 +137,8 @@ export function autostopEntryFor(timer: RunningTimer, now: Date): AutostopEntry 
     spentOn: timer.startedAt.toISOString().slice(0, 10),
     source: 'timer',
     needsReview: true,
+    approvalState: 'pending',
+    counted: false,
     autostopHours: hours,
   };
 }

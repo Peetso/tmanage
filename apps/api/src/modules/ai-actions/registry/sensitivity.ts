@@ -7,6 +7,7 @@ import { bPlatformSensitivity } from './parity-b3-platform-b.js';
 import { cPlatformSensitivity } from './parity-b3-platform-c.js';
 import { corePlatformSensitivity } from './parity-b3-platform-core.js';
 import { lifecycleSensitivity } from './parity-b4-lifecycle.js';
+import { timeTrustSensitivity } from './parity-b5-time-trust.js';
 
 /**
  * 62-11 (plan 62 §4.3) — the sensitivity of every op that changes something (`write` and
@@ -37,6 +38,8 @@ export const OP_SENSITIVITY: Readonly<Record<string, Sensitivity>> = {
   ...corePlatformSensitivity,
   // Fix lane C (batch 4): every removal is destructive; see the batch file.
   ...lifecycleSensitivity,
+  // Lane T (batch 5): time trust decisions and corrections; no money, nothing destructive.
+  ...timeTrustSensitivity,
   // Parity 2026-11-23 batch 1: planning changes; no money, people or outside reach.
   'iterations.complete': 'none',
   'iterations.create': 'none',

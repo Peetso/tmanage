@@ -71,30 +71,33 @@ export interface AgingRow {
 }
 
 // Approved, billable, not yet invoiced time on the client's projects in the period. The timesheet
-// join keeps only entries of an approved week; the first word of the display name is all a line
-// may carry.
+// join keeps only entries of an approved week; `counted = 1` (0410 time trust) drops hand time still
+// waiting, refused time and timer time replaced by an approved correction; `source` labels the
+// hand-added lines. The first word of the display name is all a line may carry.
 const APPROVED_TIME_SQL = `SELECT l.id, l.minutes, DATE_FORMAT(l.spent_on, '%Y-%m-%d') AS spent_on,
-       l.rate_snapshot_minor, l.work_item_id, w.title, l.logged_by,
+       l.rate_snapshot_minor, l.work_item_id, w.title, l.logged_by, l.source,
        SUBSTRING_INDEX(TRIM(u.display_name), ' ', 1) AS first_name
   FROM work_item_time_logs l
   JOIN timesheets t ON t.organization_id = l.organization_id AND t.id = l.timesheet_id
   LEFT JOIN work_items w ON w.organization_id = l.organization_id AND w.id = l.work_item_id
   LEFT JOIN memberships m ON m.organization_id = l.organization_id AND m.id = l.logged_by
   LEFT JOIN users u ON u.id = m.user_id
- WHERE l.organization_id = ? AND t.state = 'approved' AND l.billable = 1
+ WHERE l.organization_id = ? AND t.state = 'approved' AND l.billable = 1 AND l.counted = 1
    AND l.invoice_line_id IS NULL AND l.spent_on BETWEEN ? AND ?
    AND l.project_id IN (SELECT pc.project_id FROM project_clients pc
                          WHERE pc.organization_id = ? AND pc.client_organization_id = ?)
  ORDER BY l.spent_on, l.id
  LIMIT 5000`;
 
-// The same window's billable minutes still waiting on an approval: never pulled, only counted.
+// The same window's billable minutes still waiting on an approval (the week's, or the entry's own
+// under 0410 time trust): never pulled, only counted. Refused and replaced time waits for nothing.
 const WAITING_TIME_SQL = `SELECT COALESCE(SUM(l.minutes), 0) AS minutes
   FROM work_item_time_logs l
   LEFT JOIN timesheets t ON t.organization_id = l.organization_id AND t.id = l.timesheet_id
  WHERE l.organization_id = ? AND l.billable = 1 AND l.invoice_line_id IS NULL
    AND l.spent_on BETWEEN ? AND ?
-   AND (t.id IS NULL OR t.state <> 'approved')
+   AND l.approval_state <> 'rejected' AND l.superseded_by IS NULL
+   AND (t.id IS NULL OR t.state <> 'approved' OR l.counted = 0)
    AND l.project_id IN (SELECT pc.project_id FROM project_clients pc
                          WHERE pc.organization_id = ? AND pc.client_organization_id = ?)`;
 
@@ -490,6 +493,7 @@ export class ClientInvoicesRepository {
         r['first_name'] === null || r['first_name'] === undefined || r['first_name'] === ''
           ? null
           : String(r['first_name']).slice(0, 60),
+      byHand: r['source'] === 'manual' || r['source'] === 'correction',
     }));
   }
 

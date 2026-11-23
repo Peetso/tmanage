@@ -1,4 +1,10 @@
-import { dayNumberOf, weekdayOf } from '@tmanage/domain';
+import {
+  IDLE_CAP_DEFAULT_HOURS,
+  TIME_ENTRY_SOURCES,
+  dayNumberOf,
+  timeTrustOf,
+  weekdayOf,
+} from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 
 /**
@@ -6,8 +12,11 @@ import { ApiError } from '../../common/http/errors.js';
  * the controller, the service and the unit test share one reading of every rule.
  */
 
-/** `automatic` (0341): a session of whole-computer activity (`time-auto-rules.ts`). */
-export const TIME_LOG_SOURCES = ['manual', 'timer', 'automatic'] as const;
+/**
+ * `automatic` (0341): a session of whole-computer activity (`time-auto-rules.ts`); `correction`
+ * (0410): a reviewed correction of measured time. The list lives in `@tmanage/domain` (time trust).
+ */
+export const TIME_LOG_SOURCES = TIME_ENTRY_SOURCES;
 export type TimeLogSource = (typeof TIME_LOG_SOURCES)[number];
 
 /** A manual entry with a start and end may reach back at most this far (spec: 31 days). */
@@ -19,11 +28,12 @@ export const MAX_NOTE_LENGTH = 500;
 
 export const AUTOSTOP_MIN_HOURS = 4;
 export const AUTOSTOP_MAX_HOURS = 24;
-export const AUTOSTOP_DEFAULT_HOURS = 12;
+/** Time trust (2026-11-23): the owner's forgotten-timer cap defaults to 10 hours. */
+export const AUTOSTOP_DEFAULT_HOURS = IDLE_CAP_DEFAULT_HOURS;
 
 /** The time keys an organization may carry in `org_policies.policy_json` (0072). */
 export interface TimePolicy {
-  /** A forgotten timer is stopped by the worker after this many hours (4..24, default 12). */
+  /** A forgotten timer is stopped by the worker after this many hours (4..24, default 10). */
   readonly autostopHours: number;
   /** Whether members may see who is tracking right now (`GET …/time/active`). Default off. */
   readonly presenceVisible: boolean;
@@ -37,7 +47,7 @@ export const DEFAULT_TIME_POLICY: TimePolicy = Object.freeze({
 /**
  * Read the time keys from a stored policy document. The column is JSON; the driver may hand it
  * back parsed or as text. Anything absent, malformed or out of range reads as the default, so a
- * hand-edited row can only ever narrow back to the safe value (presence off, 12 h).
+ * hand-edited row can only ever narrow back to the safe value (presence off, 10 h).
  */
 export function parseTimePolicy(raw: unknown): TimePolicy {
   let doc: unknown = raw;
@@ -228,20 +238,46 @@ function normaliseWeekStart(weekStart: number): number {
   return Number.isInteger(weekStart) && weekStart >= 0 && weekStart <= 6 ? weekStart : 0;
 }
 
-/** The figures a timesheet stores: every minute, and the billable ones. */
+/**
+ * The figures a timesheet shows. `totalMinutes` and `billableMinutes` hold only the minutes that
+ * count (the stored `counted`, 2026-11-23 time trust); the split says how much of that was measured
+ * by the server and how much was typed in or corrected, and how much typed-in time still waits.
+ */
 export interface TimesheetTotals {
   readonly totalMinutes: number;
   readonly billableMinutes: number;
+  readonly measuredMinutes: number;
+  readonly handMinutes: number;
+  readonly pendingMinutes: number;
 }
 
+/** Sum a list of entries; an entry without `counted` (older callers) counts. */
 export function timesheetTotals(
-  entries: readonly { readonly minutes: number; readonly billable: boolean }[],
+  entries: readonly {
+    readonly minutes: number;
+    readonly billable: boolean;
+    readonly counted?: boolean;
+    readonly source?: TimeLogSource;
+    readonly approvalState?: string;
+  }[],
 ): TimesheetTotals {
   let totalMinutes = 0;
   let billableMinutes = 0;
+  let measuredMinutes = 0;
+  let handMinutes = 0;
+  let pendingMinutes = 0;
   for (const entry of entries) {
+    if (entry.counted === false) {
+      if (entry.approvalState === 'pending') pendingMinutes += entry.minutes;
+      continue;
+    }
     totalMinutes += entry.minutes;
     if (entry.billable) billableMinutes += entry.minutes;
+    if (entry.source === undefined || timeTrustOf(entry.source) === 'measured') {
+      measuredMinutes += entry.minutes;
+    } else {
+      handMinutes += entry.minutes;
+    }
   }
-  return { totalMinutes, billableMinutes };
+  return { totalMinutes, billableMinutes, measuredMinutes, handMinutes, pendingMinutes };
 }

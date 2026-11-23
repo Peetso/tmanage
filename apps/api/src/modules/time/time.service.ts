@@ -23,6 +23,7 @@ import type { WorkTimeLogsRepository } from '../work/time-logs.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import { mayTrackOnItem, mayTrackOnProject, requireInternal } from './time-capabilities.js';
 import { optionalBoolean, optionalId, optionalMinutes, optionalNote } from './time-rules.js';
+import { readTimeTrustPolicy } from './time-trust-rules.js';
 import type { TimeRepository } from './time.repository.js';
 import { resolveTimeTarget } from './time-target.js';
 
@@ -464,24 +465,33 @@ export class TimeService {
       timer.workItemId !== null && (await repo.workItemExists(tx, context, timer.workItemId))
         ? timer.workItemId
         : null;
+    // 2026-11-23 time trust: a timer left running past the owner's idle cap stops AT the cap, is
+    // marked "needs review" and waits for a manager; it never silently counts (the worker's sweep
+    // does the same for timers nobody stops).
+    const { idleCapHours } = await readTimeTrustPolicy(tx, context, this.options.settings);
+    const capAt = new Date(timer.startedAt.getTime() + idleCapHours * 3_600_000);
+    const capped = endedAt.getTime() > capAt.getTime();
+    const end = capped ? capAt : endedAt;
+    const span = roundedSpanMinutes(timer.startedAt, end, rounding);
     const entry = await this.options.timeLogs.create(tx, context, {
       workItemId,
       projectId: timer.projectId,
       loggedBy: timer.membershipId,
-      minutes: chosen ?? roundedSpanMinutes(timer.startedAt, endedAt, rounding),
+      minutes: chosen === null ? span : Math.min(chosen, span),
       spentOn: localDateOf(timer.startedAt, zone),
       note,
       startedAt: timer.startedAt,
-      endedAt,
+      endedAt: end,
       billable: timer.billable,
       source: 'timer',
+      ...(capped ? { needsReview: true, approvalState: 'pending' as const, counted: false } : {}),
     });
     await this.options.audit.record(tx, context, {
       action: 'time_log.created',
       result: 'allowed',
       objectId: entry.id,
       actorUserId: context.userId,
-      metadata: {},
+      metadata: { source: 'timer', ...(capped ? { idle_cap_hours: idleCapHours } : {}) },
     });
     return entry;
   }

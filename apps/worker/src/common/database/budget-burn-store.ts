@@ -33,7 +33,7 @@ const SUM_USED = `SELECT COALESCE(SUM(minutes), 0) AS used_minutes,
        COALESCE(FLOOR(SUM(CASE WHEN billable = 1 THEN rate_snapshot_minor * minutes ELSE 0 END) / 60), 0)
          AS used_amount
   FROM work_item_time_logs
- WHERE organization_id = ? AND project_id = ?`;
+ WHERE organization_id = ? AND project_id = ? AND counted = 1`;
 
 const INSERT_EVENT = `INSERT INTO budget_alert_events
    (id, organization_id, project_id, threshold_bp, used_bp, notified_to, created_at)

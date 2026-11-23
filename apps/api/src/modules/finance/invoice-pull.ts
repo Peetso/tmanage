@@ -37,7 +37,17 @@ export interface PullTimeRow {
   readonly membershipId: string;
   /** The first word of the member's display name; never more. */
   readonly firstName: string | null;
+  /**
+   * 2026-11-23 time trust: typed in or corrected (approved), not measured by the timer. Such time
+   * is invoiced on its own line, labelled "added by hand", so the client sees which hours were
+   * measured. Absent = measured.
+   */
+  readonly byHand?: boolean;
 }
+
+/** The label a hand-added time line carries on the invoice (both languages). */
+export const HAND_TIME_LINE_EN = ' (added by hand)';
+export const HAND_TIME_LINE_AR = ' (أُضيف يدويًا)';
 
 export interface PullExpenseRow {
   readonly id: string;
@@ -150,10 +160,11 @@ export function timeLines(
       continue;
     }
     const group = timeGroup(row, options.grouping, options.periodStart, options.periodEnd);
-    const key = `${group.key}|${String(row.rateMinor)}`;
+    const hand = row.byHand === true;
+    const key = `${group.key}${hand ? '#hand' : ''}|${String(row.rateMinor)}`;
     const slot = groups.get(key) ?? {
-      en: group.en,
-      ar: group.ar,
+      en: hand ? `${group.en}${HAND_TIME_LINE_EN}` : group.en,
+      ar: hand ? `${group.ar}${HAND_TIME_LINE_AR}` : group.ar,
       rate: row.rateMinor,
       minutes: 0,
       ids: [],

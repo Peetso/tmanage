@@ -30,7 +30,7 @@ const TIME_FACTS_SQL = `SELECT DATE_FORMAT(l.spent_on, '%Y-%m-%d') AS day,
        COALESCE(FLOOR(SUM(COALESCE(l.cost_snapshot_minor, 0) * l.minutes) / 60), 0) AS cost_minor
   FROM work_item_time_logs l
   LEFT JOIN projects p ON p.organization_id = l.organization_id AND p.id = l.project_id
- WHERE l.organization_id = ? AND l.spent_on BETWEEN ? AND ?
+ WHERE l.organization_id = ? AND l.spent_on BETWEEN ? AND ? AND l.counted = 1
  GROUP BY l.spent_on, l.project_id, l.logged_by`;
 
 const EXPENSE_FACTS_SQL = `SELECT DATE_FORMAT(e.spent_on, '%Y-%m-%d') AS day,

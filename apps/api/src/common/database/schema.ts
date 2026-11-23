@@ -3366,12 +3366,31 @@ export const workItemTimeLogs = mysqlTable(
     startedAt: datetime('started_at', { mode: 'date', fsp: 3 }),
     endedAt: datetime('ended_at', { mode: 'date', fsp: 3 }),
     billable: boolean('billable').notNull().default(true),
-    /** `manual` | `timer` | `automatic` (0341), checked in `modules/time/time-rules.ts`. */
+    /**
+     * `manual` | `timer` | `automatic` (0341) | `correction` (0410), the closed list of
+     * `@tmanage/domain` `TIME_ENTRY_SOURCES`. Immutable (0410 trigger).
+     */
     source: varchar('source', { length: 16 })
-      .$type<'manual' | 'timer' | 'automatic'>()
+      .$type<'manual' | 'timer' | 'automatic' | 'correction'>()
       .notNull()
       .default('manual'),
     needsReview: boolean('needs_review').notNull().default(false),
+    /** 0410: `none` | `pending` | `approved` | `rejected` (`TIME_APPROVAL_STATES`). */
+    approvalState: varchar('approval_state', { length: 16 })
+      .$type<'none' | 'pending' | 'approved' | 'rejected'>()
+      .notNull()
+      .default('none'),
+    /** 0410: the stored `entryCounts()` answer; every report reads only counted rows. */
+    counted: boolean('counted').notNull().default(true),
+    /** 0410: why time was added by hand, or why a correction was asked for. */
+    reason: varchar('reason', { length: 500 }),
+    /** 0410: on a correction, the measured entry it corrects. */
+    correctsEntryId: char('corrects_entry_id', { length: 36 }),
+    /** 0410: on a measured entry, the approved correction that counts instead of it. */
+    supersededBy: char('superseded_by', { length: 36 }),
+    decidedBy: char('decided_by', { length: 36 }),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    decisionNote: varchar('decision_note', { length: 500 }),
     note: varchar('note', { length: 500 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }),
@@ -3398,6 +3417,12 @@ export const workItemTimeLogs = mysqlTable(
     ),
     index('ix_witl_member_day').on(table.organizationId, table.loggedBy, table.spentOn, table.id),
     index('ix_witl_project_day').on(table.organizationId, table.projectId, table.spentOn, table.id),
+    index('ix_witl_approval').on(
+      table.organizationId,
+      table.approvalState,
+      table.spentOn,
+      table.id,
+    ),
   ],
 );
 

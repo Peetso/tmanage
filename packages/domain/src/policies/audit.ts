@@ -1258,6 +1258,36 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'time_log',
     clause: '§12 52-01 — a time entry was logged (manual or a stopped timer)',
   },
+  /**
+   * Time you can trust (2026-11-23). Every change to a time entry leaves who, what, before and
+   * after: `changes` carries minutes/day/billable before and after; metadata holds ids, the
+   * source and the approval state only (never the reason text: it may name a client).
+   */
+  'time_log.updated': {
+    objectType: 'time_log',
+    clause: '§12 time trust — a time entry was changed (before and after)',
+  },
+  'time_log.deleted': {
+    objectType: 'time_log',
+    clause: '§12 time trust — a time entry was deleted',
+  },
+  'time_log.correction_requested': {
+    objectType: 'time_log',
+    clause: '§12 time trust — a correction of timer time was asked for, with a reason',
+  },
+  'time_log.approved': {
+    objectType: 'time_log',
+    clause: '§12 time trust — a manager accepted hand-added or corrected time',
+  },
+  'time_log.rejected': {
+    objectType: 'time_log',
+    clause: '§12 time trust — a manager refused hand-added or corrected time',
+  },
+  /** The owner changed Admin > Time (hand time, how it counts, the timer cap). */
+  'organization.time_trust_policy_changed': {
+    objectType: 'organization',
+    clause: '§12 organization settings — whether members may add time by hand and how it counts',
+  },
   // ---- R13-s4 · 53-02 ----
   'working_calendar.updated': {
     objectType: 'working_calendar',
@@ -2207,6 +2237,12 @@ const AUDIT_ACTION_LABELS = {
   'time_timer.auto_stopped': 'A forgotten timer was stopped',
   'time_timer.discarded': 'Discarded a timer without saving time',
   'time_log.created': 'Logged time',
+  'time_log.updated': 'Changed a time entry',
+  'time_log.deleted': 'Deleted a time entry',
+  'time_log.correction_requested': 'Asked for a correction of timer time',
+  'time_log.approved': 'Approved hand-added time',
+  'time_log.rejected': 'Refused hand-added time',
+  'organization.time_trust_policy_changed': 'Changed the rules for adding time by hand',
   'working_calendar.updated': 'Changed the working calendar',
   'working_calendar.holidays_imported': 'Imported a holiday list',
   'work_signal_settings.updated': 'Changed the alert rules',

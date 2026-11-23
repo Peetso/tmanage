@@ -93,6 +93,9 @@ class FakeTimeLogsRepository {
       minutes: number;
       spentOn: string;
       note: string | null;
+      approvalState?: WorkItemTimeLogRow['approvalState'];
+      counted?: boolean;
+      reason?: string | null;
     },
   ) {
     this.creates += 1;
@@ -115,6 +118,14 @@ class FakeTimeLogsRepository {
       updatedBy: null,
       lockedAt: null,
       timesheetId: null,
+      approvalState: input.approvalState ?? 'none',
+      counted: input.counted ?? true,
+      reason: input.reason ?? null,
+      correctsEntryId: null,
+      supersededBy: null,
+      decidedBy: null,
+      decidedAt: null,
+      decisionNote: null,
     };
     this.rows.push(row);
     return row;
@@ -131,8 +142,20 @@ class FakeTimeLogsRepository {
   }
 }
 
-/** `zone` is the stored `default_timezone`; absent = none written (UTC). */
-function harness(parent: WorkItemRow | null, zone?: string) {
+/**
+ * `zone` is the stored `default_timezone`; absent = none written (UTC). `policy` is the owner's
+ * time-trust settings (2026-11-23); the default allows hand time and counts it at once, flagged,
+ * so the older cases keep their totals. The trust cases pass their own.
+ */
+const HAND_AT_ONCE: Readonly<Record<string, string>> = {
+  time_hand_entry: 'true',
+  time_hand_count: 'at_once_flagged',
+};
+function harness(
+  parent: WorkItemRow | null,
+  zone?: string,
+  policy: Readonly<Record<string, string>> = HAND_AT_ONCE,
+) {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -145,7 +168,11 @@ function harness(parent: WorkItemRow | null, zone?: string) {
     timeLogs as unknown as ConstructorParameters<typeof WorkTimeLogsService>[2],
     null,
     {
-      findByKey: async () => (zone === undefined ? undefined : ({ settingValue: zone } as never)),
+      findByKey: async (_r: unknown, _c: unknown, key: string) => {
+        if (key in policy) return { settingValue: policy[key] } as never;
+        if (key.startsWith('time_')) return undefined;
+        return zone === undefined ? undefined : ({ settingValue: zone } as never);
+      },
     },
   );
   return { controller: new WorkTimeLogsController(service), timeLogs };
@@ -173,11 +200,13 @@ describe('WorkTimeLogsController', () => {
     const related = member([PROJECT]);
 
     const first = await controller.add(context, related, WORK_ID, {
+      reason: 'Client call off the timer',
       minutes: 90,
       spentOn: '2026-09-20',
       note: 'Layout pass',
     });
     await controller.add(context, related, WORK_ID, {
+      reason: 'Client call off the timer',
       minutes: 30,
       spentOn: '2026-09-21',
       note: null,
@@ -202,6 +231,7 @@ describe('WorkTimeLogsController', () => {
     timeLogs.automatic.push({ startedAt: new Date(base), endedAt: new Date(base + hour) });
     await expect(
       controller.add(context, related, WORK_ID, {
+        reason: 'Client call off the timer',
         startedAt: iso(30),
         endedAt: iso(90),
         note: null,
@@ -210,11 +240,13 @@ describe('WorkTimeLogsController', () => {
     expect(timeLogs.creates).toBe(0);
     // Right after the automatic stretch is fine; so is an entry without times.
     await controller.add(context, related, WORK_ID, {
+      reason: 'Client call off the timer',
       startedAt: iso(60),
       endedAt: iso(90),
       note: null,
     });
     await controller.add(context, related, WORK_ID, {
+      reason: 'Client call off the timer',
       minutes: 15,
       spentOn: '2026-09-20',
       note: null,
@@ -227,7 +259,12 @@ describe('WorkTimeLogsController', () => {
     const day = 86_400_000;
     const start = Math.floor(Date.now() / day) * day - 2 * day + 22.5 * 3_600_000;
     const iso = (at: number) => new Date(at).toISOString();
-    const span = { startedAt: iso(start), endedAt: iso(start + 20 * 60_000), note: null };
+    const span = {
+      startedAt: iso(start),
+      endedAt: iso(start + 20 * 60_000),
+      note: null,
+      reason: 'Workshop on site',
+    };
     const cairo = harness(workItem(), 'Africa/Cairo');
     const local = await cairo.controller.add(context, member([PROJECT]), WORK_ID, span);
     expect(local.spentOn).toBe(iso(start + day).slice(0, 10));
@@ -240,7 +277,12 @@ describe('WorkTimeLogsController', () => {
     const related = member([PROJECT]);
     for (const minutes of [0, -5, 12.5, 24 * 60 + 1]) {
       const status = await statusOf(() =>
-        controller.add(context, related, WORK_ID, { minutes, spentOn: '2026-09-20', note: null }),
+        controller.add(context, related, WORK_ID, {
+          reason: 'Client call off the timer',
+          minutes,
+          spentOn: '2026-09-20',
+          note: null,
+        }),
       );
       expect(status).toBe(400);
     }
@@ -251,6 +293,7 @@ describe('WorkTimeLogsController', () => {
     const { controller } = harnessed;
     const status = await statusOf(() =>
       controller.add(context, member([PROJECT]), WORK_ID, {
+        reason: 'Client call off the timer',
         minutes: 15,
         spentOn: 'yesterday',
         note: null,
@@ -263,6 +306,7 @@ describe('WorkTimeLogsController', () => {
     const { controller, timeLogs } = harness(null);
     const status = await statusOf(() =>
       controller.add(context, member([PROJECT]), WORK_ID, {
+        reason: 'Client call off the timer',
         minutes: 15,
         spentOn: '2026-09-20',
         note: null,
@@ -282,6 +326,7 @@ describe('WorkTimeLogsController', () => {
     const { controller, timeLogs } = harness(workItem({ state: 'archived' }));
     const status = await statusOf(() =>
       controller.add(context, member([PROJECT]), WORK_ID, {
+        reason: 'Client call off the timer',
         minutes: 15,
         spentOn: '2026-09-20',
         note: null,
@@ -295,6 +340,7 @@ describe('WorkTimeLogsController', () => {
     const { controller, timeLogs } = harnessed;
     const owner = member([PROJECT], MEMBERSHIP);
     const logged = await controller.add(context, owner, WORK_ID, {
+      reason: 'Client call off the timer',
       minutes: 45,
       spentOn: '2026-09-20',
       note: null,
@@ -305,5 +351,90 @@ describe('WorkTimeLogsController', () => {
     expect(status).toBe(403);
     expect(timeLogs.deletes).toBe(0);
     expect(timeLogs.rows).toHaveLength(1);
+  });
+
+  // ---- 2026-11-23 time you can trust ----
+
+  it('refuses hand time 403 with the owner’s words while the owner has it off (the default)', async () => {
+    const off = harness(workItem(), undefined, {});
+    await expect(
+      off.controller.add(context, member([PROJECT]), WORK_ID, {
+        minutes: 30,
+        spentOn: '2026-09-20',
+        note: null,
+        reason: 'Client call off the timer',
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: expect.stringContaining('turned off adding time by hand'),
+      details: [{ field: 'source', message: 'hand_time_off' }],
+    });
+    expect(off.timeLogs.creates).toBe(0);
+  });
+
+  it('asks for a reason (400) when hand time is on, and never writes without one', async () => {
+    const { controller, timeLogs } = harnessed;
+    await expect(
+      controller.add(context, member([PROJECT]), WORK_ID, {
+        minutes: 30,
+        spentOn: '2026-09-20',
+        note: null,
+      }),
+    ).rejects.toMatchObject({ status: 400, details: [{ field: 'reason' }] });
+    expect(timeLogs.creates).toBe(0);
+  });
+
+  it('files hand time as waiting and out of the total until a manager approves it', async () => {
+    const waiting = harness(workItem(), undefined, { time_hand_entry: 'true' });
+    const entry = await waiting.controller.add(context, member([PROJECT]), WORK_ID, {
+      minutes: 90,
+      spentOn: '2026-09-20',
+      note: null,
+      reason: 'Client call off the timer',
+    });
+    expect(entry).toMatchObject({
+      source: 'manual',
+      trust: 'hand',
+      approvalState: 'pending',
+      counted: false,
+      reason: 'Client call off the timer',
+    });
+    const listed = await waiting.controller.list(context, member([PROJECT]), WORK_ID);
+    expect(listed.totalMinutes).toBe(0);
+    expect(listed.pendingMinutes).toBe(90);
+  });
+
+  it('refuses hand time for a day still ahead (400 future_day)', async () => {
+    const { controller, timeLogs } = harnessed;
+    const ahead = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    await expect(
+      controller.add(context, member([PROJECT]), WORK_ID, {
+        minutes: 30,
+        spentOn: ahead,
+        note: null,
+        reason: 'Client call off the timer',
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      details: [{ field: 'spentOn', message: 'future_day' }],
+    });
+    expect(timeLogs.creates).toBe(0);
+  });
+
+  it('keeps approved time from its author: delete is 403 and nothing is removed', async () => {
+    const { controller, timeLogs } = harnessed;
+    const owner = member([PROJECT], MEMBERSHIP);
+    const logged = await controller.add(context, owner, WORK_ID, {
+      minutes: 45,
+      spentOn: '2026-09-20',
+      note: null,
+      reason: 'Client call off the timer',
+    });
+    timeLogs.rows[0] = { ...timeLogs.rows[0]!, approvalState: 'approved' };
+    await expect(controller.remove(context, owner, WORK_ID, logged.id)).rejects.toMatchObject({
+      status: 403,
+      details: [{ field: 'approvalState', message: 'approved_time' }],
+    });
+    expect(timeLogs.deletes).toBe(0);
   });
 });

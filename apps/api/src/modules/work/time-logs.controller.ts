@@ -17,6 +17,7 @@ import { IdempotencyReplayInterceptor } from '../../common/http/idempotency-repl
 import { WORK_TIME_LOGS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { optionalBoolean, parseManualSpan } from '../time/time-rules.js';
+import { optionalReason } from '../time/time-trust-rules.js';
 import type { TimeLogListView, TimeLogView, WorkTimeLogsService } from './time-logs.service.js';
 
 /**
@@ -49,6 +50,8 @@ interface CreateTimeLogBody {
   readonly startedAt?: unknown;
   readonly endedAt?: unknown;
   readonly billable?: unknown;
+  /** 2026-11-23: why this time is typed in (3..500 characters; required while hand time is on). */
+  readonly reason?: unknown;
 }
 
 @Controller('v1/organizations/:orgSlug/work-items/:workItemId/time-logs')
@@ -88,7 +91,9 @@ export class WorkTimeLogsController {
       span !== null && body?.spentOn === undefined ? null : requiredSpentOn(body?.spentOn);
     const note = optionalNote(body?.note);
     const billable = optionalBoolean(body?.billable, 'billable', true);
+    const reason = optionalReason(body?.reason);
     return this.timeLogs.add(context, principal, workItemId, {
+      reason,
       minutes,
       spentOn,
       note,

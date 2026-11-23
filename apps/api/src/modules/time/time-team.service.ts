@@ -274,7 +274,10 @@ export class TimeTeamService {
         if (!nameOf.has(membershipId)) continue; // not a membership of this company
         const row = rowOf.get(membershipId) ?? null;
         const timer = timerOf.get(membershipId) ?? null;
-        const own = entries.filter((e) => e.loggedBy === membershipId && matches(e.projectId));
+        // 0410 time trust: the team totals hold only the minutes that count.
+        const own = entries.filter(
+          (e) => e.loggedBy === membershipId && e.counted && matches(e.projectId),
+        );
         const sum = (a: string, b: string) =>
           own.filter((e) => inRange(e.spentOn, a, b)).reduce((total, e) => total + e.minutes, 0);
         const piece =
@@ -378,7 +381,7 @@ export class TimeTeamService {
         day,
         timeZone,
         sessions,
-        totalMinutes: entries.reduce((sum, e) => sum + e.minutes, 0),
+        totalMinutes: entries.reduce((sum, e) => sum + (e.counted ? e.minutes : 0), 0),
         inProgressMinutes: piece === null ? 0 : automaticMinutes(piece),
       };
     });

@@ -74,6 +74,8 @@ export class BudgetBurnRepository {
       .where(
         and(
           eq(workItemTimeLogs.organizationId, context.organizationId),
+          // 0410 time trust: only the minutes that count.
+          eq(workItemTimeLogs.counted, true),
           eq(workItemTimeLogs.projectId, projectId),
         ),
       );
@@ -122,6 +124,8 @@ export class BudgetBurnRepository {
         : sql<string>`${workItemTimeLogs.loggedBy}`;
     const predicates = [
       eq(workItemTimeLogs.organizationId, context.organizationId),
+      // 0410 time trust: only the minutes that count.
+      eq(workItemTimeLogs.counted, true),
       eq(workItemTimeLogs.projectId, query.projectId),
       gte(workItemTimeLogs.spentOn, query.from),
       lte(workItemTimeLogs.spentOn, query.to),

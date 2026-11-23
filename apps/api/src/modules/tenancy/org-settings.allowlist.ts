@@ -23,11 +23,17 @@ import {
   ASSIGNABLE_INTERNAL_ROLES,
   DEFAULT_AUTO_TRACKING_POLICY,
   CLIENT_ROLES,
+  DEFAULT_TIME_TRUST_POLICY,
+  HAND_TIME_COUNT_MODES,
+  IDLE_CAP_DEFAULT_HOURS,
+  IDLE_CAP_MAX_HOURS,
+  IDLE_CAP_MIN_HOURS,
   IDLE_THRESHOLD_DEFAULT_MINUTES,
   IDLE_THRESHOLD_MAX_MINUTES,
   IDLE_THRESHOLD_MIN_MINUTES,
   MATRIX_KINDS,
   NOTIFICATION_PROFILES,
+  isIdleCapHours,
   parseForcedEmailKinds,
 } from '@tmanage/domain';
 import { DISPLAY_LOCALES } from '../../common/database/schema.js';
@@ -76,6 +82,11 @@ export const ORG_SETTING_KEYS = [
   // FIX-2026-11-10 review L1: the largest idle threshold anyone in the company may choose
   // (minutes, 1 to 15, default 5). Owner only, through the same audited policy route.
   'auto_time_tracking_max_idle',
+  // Time you can trust (2026-11-23), Admin > Time. The company OWNER's choice alone
+  // (`OWNER_ONLY_SETTING_KEYS`): written through `PATCH …/time/trust-policy`, audited.
+  'time_hand_entry',
+  'time_hand_count',
+  'time_idle_cap_hours',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -118,6 +129,10 @@ export const OWNER_ONLY_SETTING_KEYS: readonly OrgSettingKey[] = [
   // FIX-2026-11-10: its own route is `PATCH …/time/auto/policy` (owner only, audited).
   'auto_time_tracking',
   'auto_time_tracking_max_idle',
+  // 2026-11-23: its own route is `PATCH …/time/trust-policy` (owner only, audited).
+  'time_hand_entry',
+  'time_hand_count',
+  'time_idle_cap_hours',
 ];
 
 /** Whether `key` may only be changed by the owner, through its own route. */
@@ -297,6 +312,27 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
         };
       }
       return { ok: true, value: String(minutes) };
+    },
+  },
+  // 2026-11-23. Adding time by hand is OFF until the owner turns it on; typed time then counts
+  // only after a manager approves it; a forgotten timer stops after 10 hours.
+  time_hand_entry: { default: 'false', validate: booleanValue },
+  time_hand_count: {
+    default: DEFAULT_TIME_TRUST_POLICY.handTimeCountMode,
+    validate: oneOf(HAND_TIME_COUNT_MODES, 'Choose after_approval or at_once_flagged.'),
+  },
+  time_idle_cap_hours: {
+    default: String(IDLE_CAP_DEFAULT_HOURS),
+    validate: (raw) => {
+      const value = raw.trim();
+      const hours = /^\d{1,2}$/.test(value) ? Number(value) : Number.NaN;
+      if (!isIdleCapHours(hours)) {
+        return {
+          ok: false,
+          message: `Choose ${IDLE_CAP_MIN_HOURS} to ${IDLE_CAP_MAX_HOURS} hours.`,
+        };
+      }
+      return { ok: true, value: String(hours) };
     },
   },
   downloads_before_scan: {

@@ -17,6 +17,7 @@ import {
   weekBounds,
 } from './time-rules.js';
 import type { WeekBounds } from './time-rules.js';
+import { optionalReason } from './time-trust-rules.js';
 
 /**
  * 52-02 / 52-03 — the closed lists and request bounds of timesheets. Pure functions, so the service
@@ -129,6 +130,8 @@ export interface EntryInput {
   readonly minutes: number;
   readonly billable: boolean | undefined;
   readonly note: string | null;
+  /** 2026-11-23 time trust: why this time is typed in (required for a new or changed line). */
+  readonly reason: string | null;
 }
 
 /**
@@ -174,6 +177,7 @@ export function parseEntries(raw: unknown, bounds: WeekBounds): readonly EntryIn
           ? undefined
           : optionalBoolean(input['billable'], `${at}.billable`, true),
       note: optionalNote(input['note'], `${at}.note`),
+      reason: optionalReason(input['reason'], `${at}.reason`),
     };
   });
 }

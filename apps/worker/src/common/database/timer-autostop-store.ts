@@ -16,10 +16,13 @@ import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
  */
 
 const SELECT_CANDIDATES = `SELECT t.id, t.organization_id, t.membership_id, t.user_id, t.work_item_id,
-       t.project_id, t.note, t.billable, t.started_at, p.policy_json, f.rounding_minutes
+       t.project_id, t.note, t.billable, t.started_at, p.policy_json, f.rounding_minutes,
+       s.setting_value AS idle_cap
   FROM time_timers t
   LEFT JOIN org_policies p ON p.organization_id = t.organization_id
   LEFT JOIN org_finance_profiles f ON f.organization_id = t.organization_id
+  LEFT JOIN org_settings s ON s.organization_id = t.organization_id
+                          AND s.setting_key = 'time_idle_cap_hours'
  WHERE t.started_at <= ?
  ORDER BY t.started_at, t.id
  LIMIT ?`;
@@ -29,9 +32,9 @@ const DELETE_TIMER = `DELETE FROM time_timers WHERE organization_id = ? AND id =
 // The work item is re-read: a purged item files the entry unsorted instead of failing the FK.
 const INSERT_ENTRY = `INSERT INTO work_item_time_logs
    (id, organization_id, work_item_id, project_id, logged_by, minutes, spent_on, started_at,
-    ended_at, billable, source, needs_review, note, created_at)
+    ended_at, billable, source, needs_review, approval_state, counted, note, created_at)
  VALUES (?, ?, (SELECT w.id FROM work_items w WHERE w.organization_id = ? AND w.id = ?), ?, ?, ?, ?,
-         ?, ?, ?, ?, ?, ?, NOW(3))`;
+         ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`;
 
 const INSERT_AUDIT = `INSERT INTO audit_events
    (id, organization_id, actor_user_id, effective_actor_id, action, object_type, object_id,
@@ -50,6 +53,7 @@ interface CandidateRow {
   readonly started_at: Date;
   readonly policy_json: unknown;
   readonly rounding_minutes: number | null;
+  readonly idle_cap: string | null;
 }
 
 interface WriteResult {
@@ -78,6 +82,8 @@ export async function autostopTimer(
     timer.billable ? 1 : 0,
     entry.source,
     entry.needsReview ? 1 : 0,
+    entry.approvalState,
+    entry.counted ? 1 : 0,
     timer.note,
   ]);
   const metadata = { time_log_id: entryId, autostop_hours: entry.autostopHours };
@@ -112,6 +118,7 @@ export function createTimerAutostopStore(database: WorkerDatabase): TimerAutosto
           startedAt: new Date(row.started_at),
           policy: row.policy_json,
           roundingMinutes: row.rounding_minutes === null ? null : Number(row.rounding_minutes),
+          idleCapSetting: row.idle_cap ?? null,
         }));
       }),
     autostop: (timer, entry) => database.transaction((tx) => autostopTimer(tx, timer, entry)),

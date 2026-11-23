@@ -33,6 +33,8 @@ export interface RetainerEntryRow {
   readonly title: string | null;
   readonly audience: string | null;
   readonly itemDeleted: boolean;
+  /** 2026-11-23 time trust: typed in or corrected, not measured by the timer. */
+  readonly addedByHand: boolean;
 }
 
 export interface LockRow {
@@ -302,6 +304,8 @@ export class RetainersRepository {
           inArray(workItemTimeLogs.projectId, [...projectIds]),
           gte(workItemTimeLogs.spentOn, periodStart),
           lte(workItemTimeLogs.spentOn, periodEnd),
+          // 0410 time trust: only the minutes that count (no waiting, refused or replaced time).
+          eq(workItemTimeLogs.counted, true),
         ),
       );
     return Number(rows[0]?.used ?? 0);
@@ -348,6 +352,7 @@ export class RetainersRepository {
       inArray(workItemTimeLogs.projectId, [...projectIds]),
       gte(workItemTimeLogs.spentOn, periodStart),
       lte(workItemTimeLogs.spentOn, periodEnd),
+      eq(workItemTimeLogs.counted, true),
     ];
     if (cursor !== null) predicates.push(lt(workItemTimeLogs.id, cursor));
     const rows = await tenantDrizzle(runner)
@@ -357,6 +362,7 @@ export class RetainersRepository {
         minutes: workItemTimeLogs.minutes,
         loggedBy: workItemTimeLogs.loggedBy,
         projectId: workItemTimeLogs.projectId,
+        source: workItemTimeLogs.source,
         title: workItems.title,
         audience: workItems.audience,
         deletedAt: workItems.deletedAt,
@@ -381,6 +387,7 @@ export class RetainersRepository {
       title: r.title ?? null,
       audience: r.audience ?? null,
       itemDeleted: r.deletedAt != null,
+      addedByHand: r.source === 'manual' || r.source === 'correction',
     }));
   }
 }

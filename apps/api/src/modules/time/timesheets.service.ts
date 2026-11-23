@@ -1,5 +1,12 @@
-import { authorize, dayNumberOf, principalHoldsCapability, toCsv } from '@tmanage/domain';
-import type { Principal } from '@tmanage/domain';
+import {
+  authorize,
+  dayNumberOf,
+  localDateOf,
+  principalHoldsCapability,
+  timeTrustOf,
+  toCsv,
+} from '@tmanage/domain';
+import type { Principal, TimeApprovalState, TimeTrust, TimeTrustPolicy } from '@tmanage/domain';
 import type { TimesheetRow, WorkItemTimeLogRow } from '../../common/database/schema.js';
 import type {
   TenantContext,
@@ -11,6 +18,15 @@ import type { AuditService } from '../audit/audit.service.js';
 import type { NotificationsRepository } from '../inbox/notifications.repository.js';
 import type { WorkTimeLogsRepository } from '../work/time-logs.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
+import { companyTimeZone } from '../tenancy/auto-time-tracking-policy.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
+import {
+  handEntryState,
+  isMeasured,
+  measuredEditRefused,
+  readTimeTrustPolicy,
+  requireHandTimeAllowed,
+} from './time-trust-rules.js';
 import type { TimeLocksRepository } from './locks.repository.js';
 import type { AutoTimeFiler } from './time-auto-filing.js';
 import {
@@ -92,6 +108,15 @@ export interface TimesheetEntryView {
   readonly locked: boolean;
   /** `automatic` = reported by the person's device (FIX-2026-11-10), not verified. */
   readonly source: TimeLogSource;
+  /** 2026-11-23 time trust: `measured` (timer, automatic) or `hand` (typed in, correction). */
+  readonly trust: TimeTrust;
+  readonly approvalState: TimeApprovalState;
+  /** Counts in the totals (false: waiting, refused, or replaced by an approved correction). */
+  readonly counted: boolean;
+  readonly reason: string | null;
+  /** Changed after it was written: the "Edited" badge; the history is one click away. */
+  readonly edited: boolean;
+  readonly correctsEntryId: string | null;
 }
 
 export interface TimesheetGroupView {
@@ -116,6 +141,10 @@ export interface TimesheetView {
   readonly editedByManager: boolean;
   readonly totalMinutes: number;
   readonly billableMinutes: number;
+  /** 2026-11-23: of `totalMinutes`, measured by the server and added by hand; hand time waiting. */
+  readonly measuredMinutes: number;
+  readonly handMinutes: number;
+  readonly pendingMinutes: number;
   readonly capacityMinutes: number | null;
   readonly locked: boolean;
   readonly needsReview: number;
@@ -130,6 +159,9 @@ export interface TeamMemberWeekView {
   readonly version: number | null;
   readonly totalMinutes: number;
   readonly billableMinutes: number;
+  readonly measuredMinutes: number;
+  readonly handMinutes: number;
+  readonly pendingMinutes: number;
   readonly editedByManager: boolean;
   readonly missingDays: readonly string[];
   readonly longDays: readonly string[];
@@ -181,6 +213,8 @@ export interface TimesheetsServiceOptions {
    * timesheet and Team time show the same filed time. Absent in compositions without tracking.
    */
   readonly autoFiler?: Pick<AutoTimeFiler, 'settleStale'> | null;
+  /** 2026-11-23 time trust: the owner's policy and the company time zone. */
+  readonly settings?: Pick<OrgSettingsRepository, 'findByKey'>;
   readonly now?: () => Date;
 }
 
@@ -212,9 +246,40 @@ const boundsOf = (sheet: TimesheetRow): WeekBounds => ({
 
 export class TimesheetsService {
   private readonly now: () => Date;
+  private readonly settings: Pick<OrgSettingsRepository, 'findByKey'>;
 
   constructor(private readonly options: TimesheetsServiceOptions) {
     this.now = options.now ?? (() => new Date());
+    this.settings = options.settings ?? new OrgSettingsRepository();
+  }
+
+  /** The owner's time-trust policy and the company's today, read in the caller's transaction. */
+  private async trust(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    at: Date,
+  ): Promise<{ readonly policy: TimeTrustPolicy; readonly today: string }> {
+    const policy = await readTimeTrustPolicy(tx, context, this.settings);
+    const today = localDateOf(at, await companyTimeZone(tx, context, this.settings));
+    return { policy, today };
+  }
+
+  /** One audit row per entry changed by hand: who, which entry, before and after (DA-11). */
+  private auditEntry(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    action: 'time_log.created' | 'time_log.updated' | 'time_log.deleted',
+    entry: WorkItemTimeLogRow,
+    changes: readonly { field: string; before: string | null; after: string | null }[],
+  ): Promise<unknown> {
+    return this.options.audit.record(tx, context, {
+      action,
+      result: 'allowed',
+      objectId: entry.id,
+      actorUserId: context.userId,
+      metadata: { source: entry.source, member_membership_id: entry.loggedBy },
+      changes: [...changes],
+    });
   }
 
   /** The caller's week; the open row is written on first read. */
@@ -312,9 +377,14 @@ export class TimesheetsService {
       const before = await repo.entriesInPeriod(tx, context, [sheet.membershipId], bounds, true);
       const byId = new Map(before.map((e) => [e.id, e]));
       const created: string[] = [];
+      const { policy, today } = await this.trust(tx, context, at);
       for (const line of lines) {
         if (isWithinLockedPeriod(line.spentOn, locks)) throw entryLocked();
         if (line.id === null) {
+          // 2026-11-23 time trust: a typed-in line only when the owner allows it, with a reason,
+          // never for a day still ahead; it waits for a manager (or counts at once, flagged).
+          const reason = requireHandTimeAllowed(policy, line.reason, 'entries.reason');
+          if (line.spentOn > today) throw futureDay();
           const target = await this.target(tx, context, principal, actor, line);
           const row = await this.options.timeLogs.create(tx, context, {
             workItemId: target.workItemId,
@@ -325,7 +395,13 @@ export class TimesheetsService {
             note: line.note,
             ...(line.billable === undefined ? {} : { billable: line.billable }),
             source: 'manual',
+            ...handEntryState(policy.handTimeCountMode),
+            reason,
           });
+          await this.auditEntry(tx, context, 'time_log.created', row, [
+            { field: 'minutes', before: null, after: String(row.minutes) },
+            { field: 'spent_on', before: null, after: row.spentOn },
+          ]);
           created.push(row.id);
           continue;
         }
@@ -337,20 +413,46 @@ export class TimesheetsService {
         if (existing.lockedAt !== null || isWithinLockedPeriod(existing.spentOn, locks)) {
           throw entryLocked();
         }
+        const timeChanged = line.minutes !== existing.minutes || line.spentOn !== existing.spentOn;
+        // 2026-11-23 time trust: timer and automatic minutes are the server's; a correction is
+        // changed by asking a new one. Their note and billable flag stay editable.
+        if (timeChanged && (isMeasured(existing) || existing.source === 'correction')) {
+          throw measuredEditRefused();
+        }
+        // Typed-in minutes changed: the owner's rule again, a reason, and back to the manager.
+        let trust: { approvalState?: TimeApprovalState; counted?: boolean; reason?: string } = {};
+        if (timeChanged) {
+          const reason = requireHandTimeAllowed(
+            policy,
+            line.reason ?? existing.reason ?? null,
+            'entries.reason',
+          );
+          if (line.spentOn > today) throw futureDay();
+          trust = { ...handEntryState(policy.handTimeCountMode), reason };
+        }
+        const billable = line.billable ?? existing.billable;
         await repo.updateEntry(
           tx,
           context,
           existing.id,
-          {
-            minutes: line.minutes,
-            spentOn: line.spentOn,
-            billable: line.billable ?? existing.billable,
-            note: line.note,
-          },
+          { minutes: line.minutes, spentOn: line.spentOn, billable, note: line.note, ...trust },
           sheet.id,
           context.membershipId,
           at,
         );
+        const changes: readonly [string, string | null, string | null][] = [
+          ['minutes', String(existing.minutes), String(line.minutes)],
+          ['spent_on', existing.spentOn, line.spentOn],
+          ['billable', String(existing.billable), String(billable)],
+          ['note', existing.note ?? null, line.note],
+          ['approval_state', existing.approvalState, trust.approvalState ?? existing.approvalState],
+        ];
+        const changed = changes
+          .filter(([, b, a]) => b !== a)
+          .map(([field, b, a]) => ({ field, before: b, after: a }));
+        if (changed.length > 0) {
+          await this.auditEntry(tx, context, 'time_log.updated', existing, changed);
+        }
       }
       await repo.stampTimesheet(tx, context, created, sheet.id);
       return this.finishEdit(tx, context, principal, sheet, actor, before, at, {
@@ -482,6 +584,11 @@ export class TimesheetsService {
         endedAt: cut === null ? null : entry.endedAt,
         source: entry.source,
         needsReview: entry.needsReview,
+        // 2026-11-23: the piece is the same time, so it keeps the entry's trust state.
+        approvalState: entry.approvalState,
+        counted: entry.counted,
+        reason: entry.reason ?? null,
+        ...(entry.correctsEntryId === null ? {} : { correctsEntryId: entry.correctsEntryId }),
       });
       await repo.stampTimesheet(tx, context, [piece.id], sheet.id);
       return this.finishEdit(
@@ -521,11 +628,21 @@ export class TimesheetsService {
       const bounds = boundsOf(sheet);
       const before = await repo.entriesInPeriod(tx, context, [sheet.membershipId], bounds, true);
       const locks = await repo.openLocks(tx, context, bounds);
+      const doomed: WorkItemTimeLogRow[] = [];
       for (const entryId of entryIds) {
-        this.unassignedEntry(principal, context, actor, before, entryId, locks);
+        const entry = this.unassignedEntry(principal, context, actor, before, entryId, locks);
+        // 2026-11-23 time trust: approved time is removed by a manager, never by its author alone.
+        if (entry.approvalState === 'approved' && actor !== 'manager') throw approvedDelete();
+        doomed.push(entry);
       }
       const deleted = await repo.deleteUnassigned(tx, context, entryIds, sheet.membershipId);
       if (deleted !== entryIds.length) throw entryLocked();
+      for (const entry of doomed) {
+        await this.auditEntry(tx, context, 'time_log.deleted', entry, [
+          { field: 'minutes', before: String(entry.minutes), after: null },
+          { field: 'spent_on', before: entry.spentOn, after: null },
+        ]);
+      }
       return this.finishEdit(
         tx,
         context,
@@ -572,13 +689,23 @@ export class TimesheetsService {
       const offset = dayNumberOf(bounds.periodStart) - dayNumberOf(source.periodStart);
       const locks = await repo.openLocks(tx, context, bounds);
       const before = await repo.entriesInPeriod(tx, context, [sheet.membershipId], bounds, true);
+      // 2026-11-23 time trust: copied lines are typed-in time (the timer did not measure them).
+      const { policy, today } = await this.trust(tx, context, at);
+      const reason = requireHandTimeAllowed(
+        policy,
+        `Copied from the week of ${source.periodStart}`,
+        'sourceWeek',
+      );
+      const state = handEntryState(policy.handTimeCountMode);
       const created: string[] = [];
       let skipped = 0;
       for (const entry of await repo.entriesInPeriod(tx, context, [context.membershipId], source)) {
+        if (!entry.counted) continue;
         const spentOn = shiftDay(entry.spentOn, offset);
-        const target = isWithinLockedPeriod(spentOn, locks)
-          ? null
-          : await this.copyTarget(tx, context, principal, entry);
+        const target =
+          isWithinLockedPeriod(spentOn, locks) || spentOn > today
+            ? null
+            : await this.copyTarget(tx, context, principal, entry);
         if (target === null) {
           skipped += 1;
           continue;
@@ -591,6 +718,8 @@ export class TimesheetsService {
           note: null,
           billable: entry.billable,
           source: 'manual',
+          ...state,
+          reason,
         });
         created.push(row.id);
       }
@@ -682,6 +811,15 @@ export class TimesheetsService {
           'time.not_your_projects',
         );
       }
+      // 2026-11-23 time trust: a week is approved only once its typed-in time is decided.
+      if (approve && entries.some((e) => e.approvalState === 'pending')) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'Some time in this week still waits for approval. Approve or refuse it first.',
+          [{ field: 'entries', message: 'time_pending' }],
+        );
+      }
       await repo.update(
         tx,
         context,
@@ -747,15 +885,28 @@ export class TimesheetsService {
         e.workItemId === null ? '' : (titles.get(e.workItemId) ?? ''),
         e.minutes,
         e.billable ? 'yes' : 'no',
+        csvKind(e),
+        e.approvalState,
+        e.counted ? 'yes' : 'no',
       ]);
       const other = timesheetTotals(entries.filter((e) => !shown.includes(e))).totalMinutes;
-      if (other > 0) rows.push(['', '', '', 'other projects', other, '']);
+      if (other > 0) rows.push(['', '', '', 'other projects', other, '', '', '', 'yes']);
       await this.record(tx, context, 'timesheet.exported', sheet, { rows: rows.length });
       return {
         filename: `timesheet-${sheet.periodStart}.csv`,
         body: toCsv(
           rows,
-          ['date', 'project_id', 'work_item_id', 'work_item', 'minutes', 'billable'],
+          [
+            'date',
+            'project_id',
+            'work_item_id',
+            'work_item',
+            'minutes',
+            'billable',
+            'kind',
+            'approval',
+            'counted',
+          ],
           {
             bom: true,
           },
@@ -1061,5 +1212,31 @@ function entryView(
     needsReview: row.needsReview,
     locked: row.lockedAt !== null || isWithinLockedPeriod(row.spentOn, locks),
     source: row.source,
+    trust: timeTrustOf(row.source),
+    approvalState: row.approvalState,
+    counted: row.counted,
+    reason: row.reason ?? null,
+    edited: row.updatedAt !== null,
+    correctsEntryId: row.correctsEntryId ?? null,
   };
 }
+
+/** The CSV `kind` column: how the minutes came in (an HR / payroll reader's first question). */
+function csvKind(row: WorkItemTimeLogRow): string {
+  if (row.source === 'correction') return 'correction';
+  return timeTrustOf(row.source) === 'measured' ? 'measured' : 'added_by_hand';
+}
+
+const futureDay = (): ApiError =>
+  new ApiError(400, 'validation_failed', 'Time cannot be added for a day still ahead.', [
+    { field: 'entries.spentOn', message: 'future_day' },
+  ]);
+
+const approvedDelete = (): ApiError =>
+  new ApiError(
+    403,
+    'forbidden',
+    'Approved time can only be removed by a manager.',
+    [{ field: 'approvalState', message: 'approved_time' }],
+    'time.approved_delete',
+  );

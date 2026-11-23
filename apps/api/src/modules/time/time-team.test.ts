@@ -119,6 +119,9 @@ function service(
           endedAt: null,
           source: 'manual',
           needsReview: false,
+          // 2026-11-23 time trust: every fixture entry counts.
+          approvalState: 'none',
+          counted: true,
           ...e,
           id: `e-${e.loggedBy}-${e.minutes}`,
         })),
