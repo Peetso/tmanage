@@ -1929,6 +1929,12 @@ a.tm-chip {
   color: var(--tm-paper-absolute);
 }
 
+/* A capsule with no orb: the rounded end would touch the text, so the text keeps a clear inset
+   from both rounded ends (owner 2026-11-23: text sat 12px from the curve). */
+.tm-focus-capsule.tm-focus-capsule--plain {
+  padding: var(--s4) var(--s8);
+}
+
 .tm-focus-capsule__orb {
   display: grid;
   place-items: center;

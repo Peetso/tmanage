@@ -958,7 +958,7 @@ function FocusCapsule({
 
   const capsule = (orb: boolean, title: ReactNode, why: string | null, end: ReactNode) => (
     <div
-      className="tm-focus-capsule tm-home-focus"
+      className={`tm-focus-capsule tm-home-focus${orb ? '' : ' tm-focus-capsule--plain'}`}
       role="group"
       aria-label={t('MyDayScreen.doThisNext')}
     >

@@ -925,7 +925,7 @@
     display: none;
   }
 
-  .tm-home-focus.tm-focus-capsule {
+  .tm-home-focus.tm-focus-capsule:not(.tm-focus-capsule--plain) {
     padding-inline-end: var(--s3);
   }
 

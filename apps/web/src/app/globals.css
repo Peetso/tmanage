@@ -836,19 +836,9 @@ html[lang^='zh'] body {
   gap: 26px;
   min-inline-size: 0;
   padding-block: var(--s5) var(--s8);
-  padding-inline: var(--s2) var(--s8);
-}
-
-/*
- * Arabic: since C11 the rail sits on the right (inline start), and the 8px start padding left the
- * canvas flush against it. Give the rail side the full gutter while the rail is shown; the phone
- * body (rail hidden, below 56.19rem) keeps its own symmetric padding. `:where` keeps this at the
- * base rule's weight, so full-bleed pages (docs: `:has(.tm-docpage)` padding 0) still win.
- */
-@media (min-width: 56.2rem) {
-  .tm-app__body:where(:dir(rtl)) {
-    padding-inline-start: var(--s8);
-  }
+  /* Owner 2026-11-23: the content sat 8px from the rail. The rail side gets the same 32px gutter
+     as the far side, in both directions (the Arabic rule below did this for RTL only). */
+  padding-inline: var(--s8);
 }
 
 /* ── HOME-01's day capsule ─────────────────────────────────────────────── */
