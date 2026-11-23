@@ -89,6 +89,8 @@ export class WorkItemAssigneesRepository {
     runner: TenantQueryRunner,
     context: TenantContext,
     workItemIds: readonly string[],
+    /** Work area list (WW2): the same read for the supervisors' faces on a row or a card. */
+    role: AssigneeRole = 'doer',
   ): Promise<ReadonlyMap<string, readonly string[]>> {
     if (workItemIds.length === 0) return new Map();
     const rows = await tenantDrizzle(runner)
@@ -105,7 +107,7 @@ export class WorkItemAssigneesRepository {
         and(
           eq(workItemAssignees.organizationId, context.organizationId),
           inArray(workItemAssignees.workItemId, [...workItemIds]),
-          eq(workItemAssignees.role, 'doer'),
+          eq(workItemAssignees.role, role),
         ),
       )
       .orderBy(asc(workItemAssignees.createdAt), asc(workItemAssignees.membershipId));

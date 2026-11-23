@@ -162,6 +162,16 @@ export interface WorkItemView {
    */
   readonly stageId?: string | null;
   readonly stageName?: string | null;
+  /**
+   * Work area list (WW2): the supervisors, by user id — set on the list read for internal readers,
+   * so a row or a card shows the supervisor's face beside the doers. Absent elsewhere.
+   */
+  readonly supervisorUserIds?: readonly string[];
+  /**
+   * Work area list (WW2): the client companies that see a client-facing item — its narrowed list,
+   * else every client of its project; `[]` for an internal item. Internal readers, list read only.
+   */
+  readonly clientOrganizationIds?: readonly string[];
 }
 
 /**
@@ -556,16 +566,32 @@ export class WorkItemsService {
       const rows = collected.slice(0, limit);
       // C27: the doer avatar stack on lists and boards. Internal readers only — a client's list
       // never names who on the studio's side does the work beyond what it already shows.
-      const doers =
-        principal.kind === 'client' || rows.length === 0
-          ? new Map<string, readonly string[]>()
-          : await this.assignees.doersFor(
+      const internal = principal.kind !== 'client' && rows.length > 0;
+      const ids = rows.map((row) => row.id);
+      const none = new Map<string, readonly string[]>();
+      const doers = internal ? await this.assignees.doersFor(runner, context, ids) : none;
+      // Work area list (WW2): the supervisor's face and the client on every row and card, in two
+      // reads per page (never one per row), for internal readers only.
+      const supervisors = internal
+        ? await this.assignees.doersFor(runner, context, ids, 'supervisor')
+        : none;
+      const facing = rows.filter((row) => row.audience !== 'internal');
+      const narrowed =
+        internal && facing.length > 0
+          ? await this.clientAudience.listMany(
               runner,
               context,
-              rows.map((row) => row.id),
-            );
+              facing.map((row) => row.id),
+            )
+          : none;
+      const projectClients =
+        internal && facing.length > 0
+          ? await this.projectClients.clientsOfProjects(runner, context, [
+              ...new Set(facing.map((row) => row.projectId)),
+            ])
+          : none;
       const sets = await this.stages.effectiveForMany(runner, context, rows);
-      return { rows, doers, sets };
+      return { rows, doers, supervisors, narrowed, projectClients, sets };
     });
 
     return readable.rows.map((row) => {
@@ -574,9 +600,17 @@ export class WorkItemsService {
         ...stageOf(row, readable.sets.get(row.id)),
       };
       if (principal.kind === 'client') return view;
+      const narrowed = readable.narrowed.get(row.id) ?? [];
       return {
         ...view,
         doerUserIds: doersWithLead(row.ownerUserId, readable.doers.get(row.id) ?? []),
+        supervisorUserIds: readable.supervisors.get(row.id) ?? [],
+        clientOrganizationIds:
+          row.audience === 'internal'
+            ? []
+            : narrowed.length > 0
+              ? narrowed
+              : (readable.projectClients.get(row.projectId) ?? []),
       };
     });
   }

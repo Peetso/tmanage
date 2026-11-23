@@ -5,18 +5,17 @@ import {
   columnOf,
   dragPath,
   dropTarget,
-  matchesDue,
   WorkBoardView,
 } from '../src/components/screens/WorkBoardView';
 import type { ApiClient } from '../src/lib/api/client';
 import { parseStateParam, workListQuery } from '../src/components/screens/WorkListScreen';
+import { NO_FILTERS } from '../src/components/work/list/work-list-model';
 import type { WorkItemSummary } from '../src/lib/api/work-items';
-import type { MemberSummary } from '../src/lib/api/members';
 import { translate, type MessageKey } from '../src/lib/i18n/t';
 
 /**
- * A6 — the board (Figma fq7-board-view): four columns from the work states with count pills,
- * the "Client review" chip, and the Owner filter narrowing the cards in place.
+ * A6 — the board: without a project stage set, four columns from the stage groups (Figma WV2-10)
+ * with count pills. Filters now live in the Works list filter bar (work-list-model.test.ts).
  */
 const L = (key: string) => translate('en-US', key as MessageKey);
 
@@ -41,11 +40,6 @@ function item(id: string, overrides: Partial<WorkItemSummary>): WorkItemSummary 
   };
 }
 
-const MEMBERS: readonly MemberSummary[] = [
-  { userId: 'u-mona', displayName: 'Mona Saleh', role: 'member', status: 'active' },
-  { userId: 'u-karim', displayName: 'Karim Adel', role: 'member', status: 'active' },
-];
-
 const ITEMS = [
   item('Footer links', { state: 'ready', ownerUserId: 'u-karim', dueAt: '2026-11-03T12:00:00Z' }),
   item('Contact form copy', { state: 'backlog', ownerUserId: 'u-mona' }),
@@ -65,15 +59,7 @@ const ITEMS = [
 ];
 
 function renderBoard() {
-  render(
-    <WorkBoardView
-      organizationSlug="northstar"
-      items={ITEMS}
-      members={MEMBERS}
-      membersPending={false}
-      now={new Date(2026, 9, 23, 9)}
-    />,
-  );
+  render(<WorkBoardView organizationSlug="northstar" nameOf={(id) => id} items={ITEMS} />);
 }
 
 function column(key: string) {
@@ -83,13 +69,14 @@ function column(key: string) {
 describe('A6 board view', () => {
   it('puts each item in the column its state belongs to, with counts', () => {
     renderBoard();
-    const todo = column('WorkBoard.todo');
+    const todo = column('WorkListScreen.groupNotStarted');
     expect(within(todo).getAllByRole('listitem')).toHaveLength(2);
     expect(within(todo).getByText('2')).toBeInTheDocument();
-    expect(within(column('WorkBoard.inProgress')).getAllByRole('listitem')).toHaveLength(2);
-    const review = column('WorkBoard.inReview');
-    expect(within(review).getByText(L('WorkBoard.clientReview'))).toBeInTheDocument();
-    expect(within(column('WorkBoard.done')).getByRole('link')).toHaveTextContent(
+    expect(within(column('WorkListScreen.groupInProgress')).getAllByRole('listitem')).toHaveLength(
+      2,
+    );
+    expect(within(column('WorkListScreen.groupInReview')).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(column('WorkListScreen.groupDone')).getByRole('link')).toHaveTextContent(
       'Brand colour audit',
     );
     expect(screen.queryByText('Old archive')).toBeNull();
@@ -98,24 +85,8 @@ describe('A6 board view', () => {
 
   it('QA-FIX-R L3: a card title takes its direction from its own text, not the page', () => {
     renderBoard();
-    const title = within(column('WorkBoard.done')).getByRole('link');
+    const title = within(column('WorkListScreen.groupDone')).getByRole('link');
     expect(title).toHaveAttribute('dir', 'auto');
-  });
-
-  it('filters the cards by owner', async () => {
-    renderBoard();
-    await userEvent.selectOptions(screen.getByLabelText(L('WorkBoard.ownerFilter')), 'u-mona');
-    expect(screen.getByText('Homepage hero copy')).toBeInTheDocument();
-    expect(screen.queryByText('Footer links')).toBeNull();
-    expect(within(column('WorkBoard.inReview')).queryAllByRole('listitem')).toHaveLength(0);
-  });
-
-  it('reads the Due filter against today', () => {
-    const due = item('x', { dueAt: '2026-10-28T12:00:00Z' });
-    expect(matchesDue(due, 'month', '2026-10-23')).toBe(true);
-    expect(matchesDue(due, 'week', '2026-10-23')).toBe(true);
-    expect(matchesDue(due, 'overdue', '2026-10-23')).toBe(false);
-    expect(matchesDue(item('y', {}), 'month', '2026-10-23')).toBe(false);
   });
 });
 
@@ -143,16 +114,15 @@ describe('board drag and drop (WK-03, 2026-10-31 live test)', () => {
     render(
       <WorkBoardView
         organizationSlug="northstar"
+        nameOf={(id) => id}
         items={[item('Drag me', { state: 'backlog' })]}
-        members={MEMBERS}
-        membersPending={false}
         api={{ request } as unknown as ApiClient}
         onMoved={onMoved}
       />,
     );
     const card = screen.getByRole('link', { name: 'Drag me' }).closest('li') as HTMLElement;
     const target = screen
-      .getByRole('heading', { name: new RegExp(L('WorkBoard.inProgress')) })
+      .getByRole('heading', { name: new RegExp(L('WorkListScreen.groupInProgress')) })
       .closest('section') as HTMLElement;
     const data = new Map<string, string>();
     const dataTransfer = {
@@ -176,9 +146,8 @@ describe('board drag and drop (WK-03, 2026-10-31 live test)', () => {
     const { rerender } = render(
       <WorkBoardView
         organizationSlug="northstar"
+        nameOf={(id) => id}
         items={[item('Hero', { state: 'in_progress' })]}
-        members={MEMBERS}
-        membersPending={false}
         api={{ request } as unknown as ApiClient}
         onMoved={onMoved}
       />,
@@ -191,16 +160,17 @@ describe('board drag and drop (WK-03, 2026-10-31 live test)', () => {
     rerender(
       <WorkBoardView
         organizationSlug="northstar"
+        nameOf={(id) => id}
         items={[item('Hero', { state: 'backlog', version: 2 })]}
-        members={MEMBERS}
-        membersPending={false}
         api={{ request } as unknown as ApiClient}
         onMoved={onMoved}
       />,
     );
     await userEvent.click(screen.getByRole('button', { name: /Move Hero/ }));
     expect(screen.getByRole('button', { name: /Backlog/ })).toBeDisabled();
-    await userEvent.click(screen.getByRole('button', { name: L('WorkBoard.todo') }));
+    await userEvent.click(
+      screen.getByRole('button', { name: L('WorkListScreen.groupNotStarted') }),
+    );
     await waitFor(() => expect(onMoved).toHaveBeenCalledTimes(2));
     expect(request.mock.calls.map(([call]) => call.body.to)).toEqual(['backlog', 'ready']);
   });
@@ -208,10 +178,13 @@ describe('board drag and drop (WK-03, 2026-10-31 live test)', () => {
 
 describe('work list address (2026-10-31 live test)', () => {
   it('keeps the view and the filters in the query string', () => {
-    expect(workListQuery({ view: 'list', projectId: '', states: [] })).toBe('');
-    expect(workListQuery({ view: 'board', projectId: 'p1', states: ['ready'] })).toBe(
-      '?project=p1&state=ready&view=board',
-    );
+    expect(workListQuery({ view: 'list', filters: NO_FILTERS })).toBe('');
+    expect(
+      workListQuery({
+        view: 'board',
+        filters: { ...NO_FILTERS, projectId: 'p1', states: ['ready'] },
+      }),
+    ).toBe('?project=p1&state=ready&view=board');
     expect(parseStateParam('ready,nonsense,done')).toEqual(['ready', 'done']);
     expect(parseStateParam(null)).toEqual([]);
   });

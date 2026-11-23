@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { projectClients } from '../../common/database/schema.js';
@@ -89,6 +89,38 @@ export class ProjectClientsRepository {
       .where(and(...predicates))
       .orderBy(asc(projectClients.id))
       .limit(limit);
+  }
+
+  /**
+   * Work area list (WW2): the client companies of several projects at once, by project id — what
+   * a client-facing work item with no narrowed list means. Bounded by the page's projects.
+   */
+  async clientsOfProjects(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly string[]>> {
+    if (projectIds.length === 0) return new Map();
+    const rows = await tenantDrizzle(runner)
+      .select({
+        projectId: projectClients.projectId,
+        clientOrganizationId: projectClients.clientOrganizationId,
+      })
+      .from(projectClients)
+      .where(
+        and(
+          eq(projectClients.organizationId, context.organizationId),
+          inArray(projectClients.projectId, [...projectIds]),
+        ),
+      )
+      .orderBy(asc(projectClients.id));
+    const byProject = new Map<string, string[]>();
+    for (const row of rows) {
+      const list = byProject.get(row.projectId) ?? [];
+      list.push(row.clientOrganizationId);
+      byProject.set(row.projectId, list);
+    }
+    return byProject;
   }
 
   async findById(

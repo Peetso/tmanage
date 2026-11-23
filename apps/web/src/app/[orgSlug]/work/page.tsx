@@ -2,16 +2,16 @@
 
 import { use } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { parseStateParam, WorkListScreen } from '../../../components/screens/WorkListScreen';
+import { WorkListScreen } from '../../../components/screens/WorkListScreen';
+import { parseWorkListParams } from '../../../components/work/list/work-list-model';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 
 /**
- * **TM-10 Work list.**
+ * **TM-10 Works list and board** (Work area v2, W-WEB-2).
  *
- * The project filter can arrive in the query string, which is how the project overview's
- * "Update work" action hands off: the link carries `?project=`, and the list opens filtered to
- * it. A filter in the URL is a link somebody can send to a colleague, which is the whole
- * reason it lives there rather than in component state alone.
+ * Every filter can arrive in the query string (`?project=`, `?state=`, `?stage=`, `?doer=`,
+ * `?team=`, `?due=`), which is how the project overview's "Update work" action hands off and how
+ * a filtered list becomes a link somebody can send to a colleague (I-1).
  *
  * The organization name is still a fixture: no endpoint returns the current organization's
  * profile by slug. `ID-04` fetches the list of them, and picking one out of that list here
@@ -20,21 +20,16 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 export default function WorkPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
   const search = useSearchParams();
-  const project = search.get('project');
-  // 2026-10-31 live test: the view and the state filter live in the address too, so a reload
-  // reopens the board or the filtered list the person was looking at.
   // R38 G5-views: with no `?view=`, the screen opens the view last chosen on this page.
   const viewParam = search.get('view');
   const view = viewParam === 'board' || viewParam === 'list' ? viewParam : undefined;
-  const states = parseStateParam(search.get('state'));
 
   return (
     <WorkListScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
-      {...(project === null ? {} : { initialProjectId: project })}
+      initialFilters={parseWorkListParams(search)}
       {...(view === undefined ? {} : { initialView: view })}
-      initialStates={states}
     />
   );
 }

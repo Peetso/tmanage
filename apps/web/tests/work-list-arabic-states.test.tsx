@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WorkListScreen } from '../src/components/screens/WorkListScreen';
@@ -94,11 +95,14 @@ describe('work list in Arabic (ACT-11)', () => {
     const row = await screen.findByRole('row', { name: new RegExp(BLOCKED_ITEM.title) });
     expect(within(row).getByText(blocked)).toBeInTheDocument();
     expect(within(row).queryByText('Blocked')).not.toBeInTheDocument();
+    // W-WEB-2: the Blocked filter now sits in the Stage menu (Figma WV2-01 AR).
+    const filters = screen.getByRole('group', { name: ar['WorkListScreen.filters'] });
+    const stage = within(filters).getByRole('button', { name: ar['WorkListScreen.stageLabel'] });
+    await waitFor(() => expect(stage).toBeEnabled());
+    await userEvent.click(stage);
     expect(screen.getByRole('checkbox', { name: blocked })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'Blocked' })).not.toBeInTheDocument();
-    // C1: the type cell reads the Arabic type word, the caption uses the Arabic comma.
-    expect(within(row).getByText(ar['WorkItemType.task'])).toBeInTheDocument();
-    expect(within(row).queryByText('TSK')).not.toBeInTheDocument();
+    // C1: the caption uses the Arabic comma.
     expect(container.querySelector('caption')?.textContent).toMatch(/، 1 /);
 
     await expectNoAxeViolations(container);

@@ -1,202 +1,199 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { WORK_ITEM_STATES } from '@tmanage/domain';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type { WorkItemState } from '@tmanage/domain';
-import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
-import { WorkViewsShell, WORK_STATE_VIEWS, sameStates } from '../work/WorkViewsShell';
+import { Announce, Button, InlineAlert } from '@tmanage/ui';
+import { WorkViewsShell, teamsKey } from '../work/WorkViewsShell';
 import './work-core.css';
+import '../work/list/work-list.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
-import { listWorkItems, MAX_WORK_ITEM_PAGE, updateWorkItem } from '../../lib/api/work-items';
+import { fetchTeam, listTeams } from '../../lib/api/people-teams';
+import { listClientOrganizationOptions } from '../../lib/api/project-client';
+import { readOrganizationMe } from '../../lib/api/permission-matrix';
+import {
+  listWorkItems,
+  MAX_WORK_ITEM_PAGE,
+  transitionWorkItem,
+  updateWorkItem,
+} from '../../lib/api/work-items';
 import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
+import { NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
 import { projectWorkTopic, useWorkLiveRefresh } from '../../lib/use-work-live-refresh';
-import {
-  audienceLabel,
-  formatInstant,
-  isOverdue,
-  stateCapsule,
-  stateLabel,
-} from '../../lib/work-item-presentation';
-import { typeCode, typeName } from '../../lib/work-item-type';
+import { audienceLabel } from '../../lib/work-item-presentation';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
-import type { MessageKey } from '../../lib/i18n/t';
-import { activeIsEnglish, compactUnit } from '../../lib/i18n/compact-time';
 import { withNumerals } from '../../lib/i18n/display-format';
 import { appLocale } from '../../lib/i18n/app-locale';
+import { activeIsEnglish } from '../../lib/i18n/compact-time';
 import { countNoun } from '../../lib/i18n/plural';
 import { useT } from '../../lib/i18n/use-t';
+import { useA6T, todayOf } from '../work/DueDatePicker';
 import { WorkBoardView } from './WorkBoardView';
-import { ApiRequestError } from '../../lib/api/errors';
 import { byRank, rankForDrop, useWorkDragPermissions } from '../../lib/work-drag';
 import { CoachMarkTour } from '../help/CoachMarkTour';
-import { TeachingEmptyState } from '../help/TeachingEmptyState';
-import { useTOr } from '../../lib/i18n/use-t-or';
-import { PhoneWorkOverview } from '../phone/PhoneWorkOverview';
-import { DoerStack } from '../work/WorkPeopleBlock';
 import { useViewPreference } from '../views/use-view-preference';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import { useUndoEntries } from '../../lib/undo/use-undo';
 import { heldKeys, undoKey } from '../../lib/undo/undo-queue';
+import { autoFacts, movesTo } from '../work/stages/stage-model';
+import { useProjectStageSet, useStageSets } from '../work/stages/use-work-stages';
+import { CheckIcon, InfoIcon } from '../work/work-icons';
+import { WorkFilterBar } from '../work/list/WorkFilterBar';
+import { WorkRows, type SortDirection, type SortKey } from '../work/list/WorkRows';
+import {
+  NO_FILTERS,
+  applyLoadedFilters,
+  isFiltered,
+  railCounts,
+  workListQuery,
+  type WorkListFilters,
+  type WorkListView,
+} from '../work/list/work-list-model';
+
+export { parseStateParam, workListQuery } from '../work/list/work-list-model';
 
 /** 53-01: the most project topics one list view follows live. */
 const LIVE_PROJECT_LIMIT = 50;
+/** Rows drawn before "Show more"; more come from the loaded pages, then from the API. */
+const WINDOW = 50;
+/** Teams whose members are read for the rail counts (one small read each). */
+const TEAM_COUNT_LIMIT = 12;
 
 export interface WorkListScreenProps {
   organizationSlug: string;
   organizationName: string;
   /** Preselect a project — how the project overview hands off to the full list. */
   initialProjectId?: string;
-  client?: ApiClient;
-  /** Injected in tests so the overdue rule can be exercised without waiting for a date. */
-  now?: Date;
-  /** A6: open on the board rather than the list. */
-  initialView?: 'list' | 'board';
+  /** The filters the address carried (`?state=`, `?stage=`, `?doer=`, `?team=`, `?due=`). */
+  initialFilters?: Partial<WorkListFilters>;
   /** The state filter to open on (`?state=` in the URL), so a reload keeps it. */
   initialStates?: readonly WorkItemState[];
+  client?: ApiClient;
+  /** Injected in tests and stories so the dates and ages read the same every run. */
+  now?: Date;
+  /** A6: open on the board rather than the list. */
+  initialView?: WorkListView;
 }
 
 /**
- * The list's view, project and state filter as a query string (2026-10-31 live test: a reload
- * dropped the filter and always came back to the list). Defaults are left out, so the plain
- * `/work` address stays plain.
- */
-export function workListQuery(input: {
-  readonly view: 'list' | 'board';
-  readonly projectId: string;
-  readonly states: readonly WorkItemState[];
-}): string {
-  const params = new URLSearchParams();
-  if (input.projectId !== '') params.set('project', input.projectId);
-  if (input.states.length > 0) params.set('state', [...input.states].join(','));
-  if (input.view === 'board') params.set('view', 'board');
-  const text = params.toString();
-  return text === '' ? '' : `?${text}`;
-}
-
-/** The `?state=` value, kept to states the lifecycle defines. */
-export function parseStateParam(value: string | null): readonly WorkItemState[] {
-  if (value === null) return [];
-  return value
-    .split(',')
-    .filter((entry): entry is WorkItemState =>
-      (WORK_ITEM_STATES as readonly string[]).includes(entry),
-    );
-}
-
-type SortKey = 'loaded' | 'title' | 'state' | 'due';
-type SortDirection = 'asc' | 'desc';
-
-/** §5's state order, so sorting by state groups the lifecycle rather than the alphabet. */
-const STATE_ORDER: readonly WorkItemState[] = WORK_ITEM_STATES;
-
-/**
- * **TM-10 Work list.**
+ * **TM-10 Works list and board (Work area v2, W-WEB-2; Figma `WV2-01`, `WV2-09`, `WV2-10`).**
  *
- * `22-SCREEN-BY-SCREEN` §5: "Columns: type, title, state, owner, priority, due, blocker,
- * audience. Saved views and filters. Table supports keyboard row navigation, selection,
- * sorting, bulk actions with policy preview."
- *
- * ## What this renders, and what it cannot
- *
- * Six of the eight columns exist as data: type, title, state, owner, due and audience. Two do
- * not, and are not drawn:
- *
- * - **Priority.** There is no priority column on `work_items` and none in `23-ERD` §5. A
- *   column showing "Normal" for every row would be a fiction that people would then sort by.
- * - **Blocker.** The blocker *reason* is supplied as a transition fact and is not stored as a
- *   field, so there is nothing to put in the cell. The `Blocked` state capsule is shown, which
- *   is the part that is real.
- *
- * ## Paging, sorting, selection — the second half of WEB-002, and where each rule lives
- *
- * - **Paging is the API's `after` cursor.** A full page means there may be more, and "Load
- *   more" appends the next page. The filters stay on the server; only the *pages* accumulate
- *   here.
- * - **Sorting is over the loaded rows, and says so.** The API offers no sort parameter, so a
- *   header sorts what has been loaded; while more pages exist the partial-list notice stays
- *   visible above the table, which keeps "sorted" from silently meaning "sorted some of it".
- *   State sorts in lifecycle order, not alphabetically — `blocked` before `done` is a
- *   judgement §5's state machine already made.
- * - **Bulk audience change is the one bulk action, and widening previews before it sends.**
- *   `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC` makes audience the control that decides what
- *   a client can ever see; a bulk widening is the click that can disclose a dozen items at
- *   once, so the confirmation lists, by title, exactly the items whose audience will change —
- *   §5's "policy preview" as a list of consequences rather than a yes/no. Narrowing applies
- *   without ceremony, for the reason the detail screen gives: nothing new escapes.
- *   Each item is updated with the version this screen read; a `409` is reported by title and
- *   **never retried** — a bulk retry with fresh versions would be the lost update the token
- *   exists to prevent, multiplied.
- *
- * **Saved views are still absent, and now for a stated reason rather than a deadline**: there
- * is no server-side home for them (`28-SPRINT-TICKETS` schedules none), and browser storage
- * is barred from holding authoritative state by the workspace lint rule
- * (15-AI-EXECUTION-HANDBOOK §8). A saved view that lived in one browser would be a view that
- * lies about existing when its owner signs in anywhere else.
+ * - **Filters** live in the address and in {@link WorkListFilters}; project, state and team go
+ *   to the API, doer, due and a named stage filter the loaded rows (`work-list-model.ts`).
+ * - **Paging** is the API's `after` cursor; the window shows {@link WINDOW} rows at a time and
+ *   "Show more" draws the next ones, asking the API for the next page when the loaded ones run
+ *   out (I-4). The footer says "Showing N of M" over what is loaded, with "+" while more exist.
+ * - **Sorting** orders the loaded rows; the hand-made order (drag, or the handle's arrow keys)
+ *   applies when no sort is on (FIX3 item C).
+ * - **The row tick** marks a work done through the lifecycle's own moves, or sends it for review
+ *   when a supervisor other than the reader approves it (C27); anything that needs a reason is
+ *   left to the work page.
+ * - **Bulk "who sees it"** is kept: select rows in the start gutter; widening shows the titles
+ *   that will reach the client before it is sent, each with its own version, never retried.
  */
 export function WorkListScreen({
   organizationSlug,
   organizationName,
   initialProjectId,
+  initialFilters,
+  initialStates,
   client,
   now = new Date(),
   initialView,
-  initialStates = [],
 }: WorkListScreenProps) {
   const describeError = useDescribeApiError();
   const t = useT();
+  const ta = useA6T();
   // R38 G5-views: a `?view=` in the address wins; otherwise the last view chosen on this page.
-  const [view, setView] = useViewPreference<'list' | 'board'>(
+  const [view, setView] = useViewPreference<WorkListView>(
     `work:${organizationSlug}`,
     LOCAL_WORK_VIEWS,
     'list',
     initialView,
   );
   const api = client ?? browserApiClient();
-  const tOr = useTOr();
   const queries = useQueryClient();
 
-  const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
-  const [states, setStates] = useState<readonly WorkItemState[]>(initialStates);
+  const [filters, setFilters] = useState<WorkListFilters>(() => ({
+    ...NO_FILTERS,
+    ...initialFilters,
+    ...(initialProjectId === undefined ? {} : { projectId: initialProjectId }),
+    ...(initialStates === undefined ? {} : { states: initialStates }),
+  }));
   const [sortKey, setSortKey] = useState<SortKey>('loaded');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  // FIX3 item C: a row dragged to a new place shows there at once (its new rank), until the
-  // list is re-read; a refused move is rolled back with `reorderError`.
+  const [shownCount, setShownCount] = useState(WINDOW);
   const [rankOverrides, setRankOverrides] = useState<ReadonlyMap<string, number>>(() => new Map());
   const [reorderError, setReorderError] = useState<{ title: string; reason: string } | null>(null);
+  const [tickError, setTickError] = useState<{ title: string; reason: string } | null>(null);
+  const [ticking, setTicking] = useState<ReadonlySet<string>>(() => new Set());
   const [draggingRow, setDraggingRow] = useState<string | null>(null);
   const [overRow, setOverRow] = useState<string | null>(null);
   const dragRights = useWorkDragPermissions(api, organizationSlug);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [pendingBulk, setPendingBulk] = useState<WorkItemAudience | undefined>(undefined);
   const [bulkReport, setBulkReport] = useState<
-    // Keyed by id when listed: two work items may share a title (live 2026-11-01: two "QA09 …"
-    // rows), and a title key collides as soon as both are refused.
     | { updated: number; failed: readonly { id: string; title: string; reason: string }[] }
     | undefined
   >(undefined);
+  const today = todayOf(now);
+  const { projectId, states, teamId } = filters;
 
   // The address follows the view and the filters, so a reload or a shared link reopens them.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const next = `${window.location.pathname}${workListQuery({ view, projectId, states })}`;
+    const next = `${window.location.pathname}${workListQuery({ view, filters })}`;
     if (next !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(window.history.state, '', next);
     }
-  }, [view, projectId, states]);
+  }, [view, filters]);
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
     queryFn: () => listProjects(api, organizationSlug),
   });
+  const me = useQuery({
+    queryKey: ['organization-me', organizationSlug],
+    queryFn: () => readOrganizationMe(api, organizationSlug),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const viewerUserId = me.data?.userId ?? null;
+  const teams = useQuery({
+    queryKey: teamsKey(organizationSlug),
+    queryFn: () => listTeams(api, organizationSlug),
+  });
+  const teamDetails = useQueries({
+    queries: (teams.data?.teams ?? []).slice(0, TEAM_COUNT_LIMIT).map((team) => ({
+      queryKey: ['people-team', organizationSlug, team.id],
+      queryFn: () => fetchTeam(api, organizationSlug, team.id),
+      staleTime: 60_000,
+    })),
+  });
+  const clientOptions = useQuery({
+    queryKey: ['client-organization-options', organizationSlug],
+    queryFn: () => listClientOrganizationOptions(api, organizationSlug),
+    // A member without the right to list them still sees "Client can follow" (ClientName).
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const stageSets = useStageSets(api, organizationSlug);
+  const projectSet = useProjectStageSet(api, organizationSlug, projectId === '' ? null : projectId);
+  const shownSet = projectSet.data?.stageSet ?? null;
+  const namedProjectSet = shownSet && !shownSet.isBuiltIn ? shownSet : null;
 
   // 53-01: the list and the board refetch when work in the shown project(s) changes elsewhere.
-  // Every project (bounded) when none is picked, so the "all work" view stays live too.
   const liveTopics = useMemo(
     () =>
       projectId !== ''
@@ -214,22 +211,40 @@ export function WorkListScreen({
       void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) }),
   });
 
-  // D16. One directory for every row's owner, resolved through one map rather than a fetch per
-  // row; the same list the detail screen's picker offers, so a name never disagrees with itself.
+  // D16. One directory for every row's faces, resolved through one map rather than a fetch per row.
   const directory = useMembers(api, organizationSlug);
+  const nameOf = (id: string) => memberDisplayName(id, directory.members, directory.isPending);
+  const clientNames = useMemo(
+    () => new Map((clientOptions.data ?? []).map((entry) => [entry.id, entry.name])),
+    [clientOptions.data],
+  );
 
   /*
-   * The filters are part of the key, so changing one is a new query rather than a mutation of
-   * the old one — the previous result stays on screen while the next loads. Pages accumulate
-   * under the same key; the cursor is the last row's id, which is creation order.
+   * The server-side filters are part of the key, so changing one is a new query rather than a
+   * mutation of the old one. Pages accumulate under the same key; the cursor is the last row's id.
    */
   const workItems = useInfiniteQuery({
-    queryKey: workItemKeys.list(organizationSlug, projectId, states),
+    queryKey: workItemKeys.list(organizationSlug, projectId, states, teamId),
     queryFn: ({ pageParam }) =>
       listWorkItems(api, organizationSlug, {
         limit: MAX_WORK_ITEM_PAGE,
         ...(projectId === '' ? {} : { projectId }),
         ...(states.length === 0 ? {} : { states }),
+        ...(teamId === '' ? {} : { teamId }),
+        ...(pageParam === undefined ? {} : { after: pageParam }),
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === MAX_WORK_ITEM_PAGE ? lastPage[lastPage.length - 1]?.id : undefined,
+  });
+
+  // The rail's counts come from the first page of every work: the same cache entry the
+  // unfiltered list uses, so on "All work" there is no second read.
+  const everything = useInfiniteQuery({
+    queryKey: workItemKeys.list(organizationSlug, '', [], ''),
+    queryFn: ({ pageParam }) =>
+      listWorkItems(api, organizationSlug, {
+        limit: MAX_WORK_ITEM_PAGE,
         ...(pageParam === undefined ? {} : { after: pageParam }),
       }),
     initialPageParam: undefined as string | undefined,
@@ -269,12 +284,6 @@ export function WorkListScreen({
     },
   });
 
-  const projectNames = useMemo(() => {
-    const names = new Map<string, string>();
-    for (const project of projects.data ?? []) names.set(project.id, project.name);
-    return names;
-  }, [projects.data]);
-
   // 55-23: an item whose delete is held behind an Undo toast is already gone from the list.
   const heldUndo = useUndoEntries();
   const loadedRows = useMemo(() => {
@@ -286,22 +295,48 @@ export function WorkListScreen({
     setRankOverrides(new Map());
   }, [loadedRows]);
 
+  const filteredRows = useMemo(
+    () => applyLoadedFilters(loadedRows, filters, { today, viewerUserId }),
+    [loadedRows, filters, today, viewerUserId],
+  );
+
   const rows = useMemo(() => {
     if (sortKey === 'loaded') {
       // The hand-made order: what people dragged, else when the item was made.
       return byRank(
-        loadedRows.map((row) => {
+        filteredRows.map((row) => {
           const rank = rankOverrides.get(row.id);
           return rank === undefined ? row : { ...row, rank };
         }),
       );
     }
-    const sorted = [...loadedRows].sort((left, right) => compareBy(sortKey, left, right));
+    const sorted = [...filteredRows].sort((left, right) => compareBy(sortKey, left, right));
     if (sortDirection === 'desc') sorted.reverse();
     return sorted;
-  }, [loadedRows, sortKey, sortDirection, rankOverrides]);
+  }, [filteredRows, sortKey, sortDirection, rankOverrides]);
 
+  const visibleRows = rows.slice(0, shownCount);
   const canReorder = dragRights.canUpdate && sortKey === 'loaded';
+
+  const counts = useMemo(() => {
+    if (!everything.data) return undefined;
+    const teamMembers = new Map<string, readonly string[]>();
+    for (const detail of teamDetails) {
+      const members = detail.data?.members;
+      if (detail.data && members) {
+        teamMembers.set(
+          detail.data.id,
+          members.map((member) => member.userId),
+        );
+      }
+    }
+    return railCounts(everything.data.pages.flat(), {
+      today,
+      viewerUserId,
+      teamMembers,
+      partial: everything.hasNextPage,
+    });
+  }, [everything.data, everything.hasNextPage, teamDetails, today, viewerUserId]);
 
   /** Put `item` just before `beforeId` (or last) in the hand-made order; optimistic. */
   async function reorder(item: WorkItemSummary, beforeId: string | null) {
@@ -317,13 +352,7 @@ export function WorkListScreen({
         next.delete(item.id);
         return next;
       });
-      setReorderError({
-        title: item.title,
-        reason:
-          error instanceof ApiRequestError
-            ? error.message
-            : tOr('WorkBoard.moveFailed', 'Check your connection and try again.'),
-      });
+      setReorderError({ title: item.title, reason: describeError(error) });
     } finally {
       void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
     }
@@ -339,14 +368,59 @@ export function WorkListScreen({
     void reorder(item, beforeId);
   }
 
-  const selectedRows = rows.filter((row) => selected.has(row.id));
-  const allVisibleSelected = rows.length > 0 && rows.every((row) => selected.has(row.id));
+  /**
+   * The row tick. Done, through the lifecycle's own moves; when the work has a supervisor who is
+   * not the reader, it goes to review instead — the supervisor approves it (C27). A move that
+   * needs a reason or an owner is not guessed at: the message sends the reader to the work page.
+   */
+  async function tick(item: WorkItemSummary) {
+    setTickError(null);
+    const supervisors = item.supervisorUserIds ?? [];
+    const target: WorkItemState =
+      supervisors.length > 0 && (viewerUserId === null || !supervisors.includes(viewerUserId))
+        ? 'internal_review'
+        : 'done';
+    if (item.state === target) return;
+    const run = movesTo(item.state, target);
+    const facts = run === null ? null : autoFacts(run.needs, item.ownerUserId, new Date());
+    if (run === null || facts === null || facts.ask.length > 0) {
+      setTickError({
+        title: item.title,
+        reason: ta(
+          facts?.ask.includes('ownerId') ? 'WorkBoard.moveNeedsOwner' : 'WorkBoard.moveNeedsDetail',
+        ),
+      });
+      return;
+    }
+    setTicking((current) => new Set(current).add(item.id));
+    try {
+      let at = item;
+      for (const to of run.before) {
+        at = await transitionWorkItem(api, organizationSlug, item.id, { version: at.version, to });
+      }
+      await transitionWorkItem(api, organizationSlug, item.id, {
+        version: at.version,
+        to: target,
+        facts: facts.facts,
+      });
+    } catch (error) {
+      setTickError({ title: item.title, reason: describeError(error) });
+    } finally {
+      setTicking((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+      void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+    }
+  }
 
-  function toggleState(state: WorkItemState) {
-    setStates((current) =>
-      current.includes(state) ? current.filter((value) => value !== state) : [...current, state],
-    );
+  const selectedRows = rows.filter((row) => selected.has(row.id));
+
+  function chooseFilters(next: WorkListFilters) {
+    setFilters(next);
     setSelected(new Set());
+    setShownCount(WINDOW);
   }
 
   function toggleSort(key: Exclude<SortKey, 'loaded'>) {
@@ -380,57 +454,86 @@ export function WorkListScreen({
     setPendingBulk(audience);
   }
 
+  function showMore() {
+    const next = shownCount + WINDOW;
+    setShownCount(next);
+    if (next > rows.length && workItems.hasNextPage && !workItems.isFetchingNextPage) {
+      void workItems.fetchNextPage();
+    }
+  }
+
   const widening =
     pendingBulk === undefined ? [] : selectedRows.filter((row) => row.audience !== pendingBulk);
 
-  const activeView = STATE_VIEWS.find((view) => sameStates(view.states, states));
-  const blockedCount = loadedRows.filter((row) => row.state === 'blocked').length;
-  const clientWaitingCount = loadedRows.filter(
-    (row) => row.audience === 'client_action_required',
-  ).length;
-  const countLabel = `${localCount(loadedRows.length)}${workItems.hasNextPage ? '+' : ''}`;
-  // CQ-07 (WRK-10): "1 items" reads wrong; a single loaded row with no further page is one item.
+  const blockedCount = filteredRows.filter((row) => row.state === 'blocked').length;
+  const more = workItems.hasNextPage ? '+' : '';
   const itemWord = workItems.hasNextPage
     ? t('WorkListScreen.itemPlural')
     : countNoun(
         appLocale(),
-        loadedRows.length,
+        filteredRows.length,
         t('WorkListScreen.itemSingular'),
         t('WorkListScreen.itemPlural'),
       );
-  // CQ-07 (WRK-10): when the list is filtered to one project, name that project in the heading
-  // rather than the state view's label ("All work"), which described the whole organization.
-  const selectedProjectName = projectId === '' ? undefined : projectNames.get(projectId);
+  // Nothing loaded says no count: "0 items" under "Work did not load" would be false.
+  const titleMeta = workItems.isPending
+    ? ta('WorkListScreen.loadingMeta')
+    : workItems.isError && filteredRows.length === 0
+      ? undefined
+      : `${localCount(filteredRows.length)}${more} ${itemWord}${
+          blockedCount > 0
+            ? ` · ${localCount(blockedCount)} ${t('WorkListScreen.metaBlocked')}`
+            : ''
+        }`;
 
-  /*
-   * WK-02 groups the rows under a heading per milestone. Milestones are not on the list
-   * response; the project is, so loaded order is grouped by project. A sorted list is flat —
-   * a group heading in the middle of an order would cut the order in two.
-   */
-  const groups = useMemo(() => {
-    if (sortKey !== 'loaded') return [{ key: 'all', label: undefined, rows }];
-    const byProject = new Map<string, WorkItemSummary[]>();
-    for (const row of rows) {
-      const bucket = byProject.get(row.projectId);
-      if (bucket) bucket.push(row);
-      else byProject.set(row.projectId, [row]);
-    }
-    return [...byProject.entries()].map(([key, groupRows]) => ({
-      key,
-      label: projectNames.get(key) ?? t('WorkListScreen.anotherProject'),
-      rows: groupRows,
-    }));
-  }, [rows, sortKey, projectNames, t]);
-
-  function chooseStates(next: readonly WorkItemState[]) {
-    setStates(next);
-    setSelected(new Set());
-  }
-
-  function chooseProject(next: string) {
-    setProjectId(next);
-    setSelected(new Set());
-  }
+  const offline = workItems.isError && workItems.error instanceof NetworkError;
+  const stateFrame = workItems.isError ? (
+    <div className="tm-wl-state" data-tone={offline ? 'warning' : 'danger'} role="alert">
+      <span className="tm-wl-state__icon" aria-hidden="true">
+        <InfoIcon />
+      </span>
+      <h2 className="tm-wl-state__title">
+        {ta(offline ? 'WorkListScreen.offlineTitle' : 'WorkListScreen.errorTitle')}
+      </h2>
+      <p>{ta(offline ? 'WorkListScreen.offlineBody' : 'WorkListScreen.errorBody')}</p>
+      <button
+        type="button"
+        className="tm-wl-state__action"
+        onClick={() => void workItems.refetch()}
+      >
+        {ta('WorkListScreen.tryAgain')}
+      </button>
+    </div>
+  ) : !workItems.isPending && rows.length === 0 ? (
+    <div className="tm-wl-state">
+      <span className="tm-wl-state__icon" aria-hidden="true">
+        <CheckIcon />
+      </span>
+      {isFiltered(filters) ? (
+        <>
+          <p>{ta('WorkListScreen.emptyFiltered')}</p>
+          <button
+            type="button"
+            className="tm-wl-state__action"
+            onClick={() => chooseFilters(NO_FILTERS)}
+          >
+            {ta('WorkListScreen.clearFilters')}
+          </button>
+        </>
+      ) : (
+        <>
+          <p>{ta('WorkListScreen.emptyFirst')}</p>
+          <Link
+            className="tm-wl-state__action"
+            data-primary="true"
+            href={`/${organizationSlug}/capture`}
+          >
+            {t('WorkListScreen.newWork')}
+          </Link>
+        </>
+      )}
+    </div>
+  ) : null;
 
   return (
     <WorkViewsShell
@@ -439,163 +542,58 @@ export function WorkListScreen({
       {...(client ? { client } : {})}
       view={view}
       projectId={projectId}
-      onChooseProject={chooseProject}
-      states={states}
-      onChooseStates={chooseStates}
+      onChooseProject={(next) => chooseFilters({ ...filters, projectId: next, stageIds: [] })}
+      filters={filters}
+      onChooseFilters={chooseFilters}
       onLocalViewChange={setView}
-      title={
-        selectedProjectName ??
-        (activeView ? t(activeView.labelKey) : t('WorkListScreen.filteredWork'))
-      }
-      titleMeta={
-        view === 'board' || workItems.isPending
-          ? undefined
-          : `${countLabel} ${itemWord} · ${blockedCount} ${t('WorkListScreen.metaBlocked')} · ${clientWaitingCount} ${t('WorkListScreen.metaClientWaiting')}`
+      {...(counts ? { counts } : {})}
+      titleMeta={titleMeta}
+      toolbar={
+        <WorkFilterBar
+          filters={filters}
+          onChange={chooseFilters}
+          disabled={projects.isPending}
+          projects={(projects.data ?? []).filter((project) => !project.archivedAt)}
+          projectSet={namedProjectSet}
+          members={directory.members}
+          viewerUserId={viewerUserId}
+          teams={teams.data?.teams ?? []}
+        />
       }
     >
+      {(reorderError ?? tickError) ? (
+        <InlineAlert tone="danger" title={ta('WorkBoard.moveNotAllowed')} live>
+          {ta('WorkBoard.moveNotAllowedBody', {
+            title: (reorderError ?? tickError)?.title ?? '',
+            reason: (reorderError ?? tickError)?.reason ?? '',
+          })}
+        </InlineAlert>
+      ) : null}
+
       {view === 'board' ? (
-        <>
-          {workItems.isError ? (
-            <InlineAlert tone="danger" title={t('WorkListScreen.loadListError')} live>
-              {describeError(workItems.error)}
-            </InlineAlert>
-          ) : null}
-          {workItems.isPending ? (
-            <LoadingRegion label={t('WorkListScreen.loadingList')}>
-              <Skeleton height="120px" />
-            </LoadingRegion>
-          ) : (
-            <WorkBoardView
-              organizationSlug={organizationSlug}
-              items={loadedRows}
-              members={directory.members}
-              membersPending={directory.isPending}
-              now={now}
-              api={api}
-              dragRights={dragRights}
-              onMoved={() =>
-                void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) })
-              }
-            />
-          )}
-        </>
+        (stateFrame ??
+        (workItems.isPending ? (
+          <LoadingRows label={t('WorkListScreen.loadingList')} />
+        ) : (
+          <WorkBoardView
+            organizationSlug={organizationSlug}
+            items={filteredRows}
+            nameOf={nameOf}
+            clientNameOf={(id) => clientNames.get(id)}
+            stageSet={namedProjectSet}
+            sets={stageSets.data ?? []}
+            addHref={() =>
+              `/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`
+            }
+            api={api}
+            dragRights={dragRights}
+            onMoved={() =>
+              void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) })
+            }
+          />
+        )))
       ) : (
         <>
-          {/* Phone (<768px) overview — the only list view drawn there (phone/work.css). */}
-          <PhoneWorkOverview
-            api={api}
-            organizationSlug={organizationSlug}
-            organizationName={organizationName}
-            rows={loadedRows}
-            projects={projects.data ?? []}
-            now={now}
-          />
-
-          <section className="tm-wk-toolbar" aria-labelledby="tm-work-filters">
-            <h2 id="tm-work-filters" className="tm-visually-hidden">
-              {t('WorkListScreen.filters')}
-            </h2>
-
-            {/*
-          Inert until the projects query has answered. Every filter here is a controlled input
-          shipped in the server HTML, so a choice made before React hydrated was held only by
-          the DOM: hydration re-applied `''` and an empty state list, the list below silently
-          stayed unfiltered, and nothing said why. The gate is the projects query rather than
-          `workItems`, which re-pends on every filter change and would lock the filters the
-          moment one was used. `isError` means `isPending === false`, so a failed project list
-          still leaves the state filters usable.
-        */}
-            <fieldset className="tm-wk-filters" disabled={projects.isPending}>
-              <legend>{t('WorkListScreen.filters')}</legend>
-              <span className="tm-wk-select">
-                <label htmlFor="tm-work-project">{t('WorkListScreen.projectLabel')}</label>
-                <select
-                  id="tm-work-project"
-                  value={projectId}
-                  onChange={(event) => chooseProject(event.target.value)}
-                >
-                  <option value="">{t('WorkListScreen.allProjects')}</option>
-                  {(projects.data ?? []).map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </span>
-
-              <fieldset className="tm-wk-filters" aria-describedby="tm-work-state-hint">
-                <legend>{t('WorkListScreen.stateLegend')}</legend>
-                {WORK_ITEM_STATES.map((state) => (
-                  <label
-                    key={state}
-                    className="tm-wk-filter"
-                    {...(state === 'blocked' ? { 'data-tone': 'warning' } : {})}
-                  >
-                    <input
-                      type="checkbox"
-                      name="state"
-                      value={state}
-                      checked={states.includes(state)}
-                      onChange={() => toggleState(state)}
-                    />
-                    {t(STATE_FILTER_LABEL[state])}
-                  </label>
-                ))}
-              </fieldset>
-            </fieldset>
-            <span id="tm-work-state-hint" className="tm-visually-hidden">
-              {t('WorkListScreen.stateHint')}
-            </span>
-          </section>
-
-          {workItems.isError ? (
-            <InlineAlert tone="danger" title={t('WorkListScreen.loadListError')} live>
-              {describeError(workItems.error)}
-            </InlineAlert>
-          ) : null}
-
-          {workItems.isPending ? (
-            <LoadingRegion label={t('WorkListScreen.loadingList')}>
-              <Skeleton height="38px" />
-              <Skeleton height="38px" />
-              <Skeleton height="38px" />
-            </LoadingRegion>
-          ) : null}
-
-          {!workItems.isPending && !workItems.isError && rows.length === 0 ? (
-            projectId === '' && states.length === 0 ? (
-              <TeachingEmptyState
-                title={t('WorkListScreen.emptyTitle')}
-                explanation={t('WorkListScreen.emptyNoneOrg')}
-                action={
-                  <Link
-                    className="tm-button tm-button--lime tm-button--compact"
-                    href={`/${organizationSlug}/capture`}
-                  >
-                    {tOr('EmptyStates.newTask', 'New task')}
-                  </Link>
-                }
-                helpSlug="create-and-assign-tasks"
-                helpLabel={tOr('EmptyStates.howTasksWork', 'How tasks work')}
-              />
-            ) : (
-              <InlineAlert tone="neutral" title={t('WorkListScreen.emptyTitle')}>
-                {t('WorkListScreen.emptyNoMatch')}
-              </InlineAlert>
-            )
-          ) : null}
-
-          {reorderError ? (
-            <InlineAlert
-              tone="danger"
-              title={tOr('WorkBoard.moveNotAllowed', 'Move not allowed')}
-              live
-            >
-              {tOr('WorkBoard.moveNotAllowedBody', '“{title}” was not moved. {reason}')
-                .replace('{title}', reorderError.title)
-                .replace('{reason}', reorderError.reason)}
-            </InlineAlert>
-          ) : null}
           {bulkReport !== undefined ? (
             <InlineAlert
               tone={bulkReport.failed.length === 0 ? 'neutral' : 'warning'}
@@ -734,290 +732,89 @@ export function WorkListScreen({
             </section>
           ) : null}
 
-          {rows.length > 0 ? (
-            <div className="tm-wk-table-frame">
-              <div
-                className="tm-table-scroll"
-                // A scrollable region must be focusable or a keyboard cannot reach its overflow
-                // columns (WCAG 2.2 2.1.1); the .tm-table-scroll CSS comment states the same.
-                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-                tabIndex={0}
-                role="region"
-                aria-label={t('WorkListScreen.tableRegion')}
-              >
-                <table className="tm-wk-table">
-                  <caption className="tm-visually-hidden">
-                    {t('WorkListScreen.colCaption')}
-                    {projectId === '' ? '' : ` ${t('WorkListScreen.colCaptionInProject')}`}
-                    {listComma()} {localCount(rows.length)} {t('WorkListScreen.shown')}
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col" className="tm-wk-cell--check">
-                        <input
-                          className="tm-checkbox"
-                          type="checkbox"
-                          aria-label={t('WorkListScreen.selectAll')}
-                          checked={allVisibleSelected}
-                          onChange={() =>
-                            setSelected(
-                              allVisibleSelected ? new Set() : new Set(rows.map((row) => row.id)),
-                            )
-                          }
-                        />
-                      </th>
-                      <th scope="col" className="tm-wk-cell--type">
-                        <span className="tm-visually-hidden">{t('WorkListScreen.typeHidden')}</span>
-                      </th>
-                      <SortableHeader
-                        label={t('WorkListScreen.colWorkItem')}
-                        active={sortKey === 'title'}
-                        direction={sortDirection}
-                        onToggle={() => toggleSort('title')}
-                      />
-                      <th scope="col" className="tm-wk-cell--owner">
-                        {t('WorkListScreen.colOwner')}
-                      </th>
-                      <SortableHeader
-                        label={t('WorkListScreen.colState')}
-                        className="tm-wk-cell--state"
-                        active={sortKey === 'state'}
-                        direction={sortDirection}
-                        onToggle={() => toggleSort('state')}
-                      />
-                      <SortableHeader
-                        label={t('WorkListScreen.colDue')}
-                        className="tm-wk-cell--date"
-                        active={sortKey === 'due'}
-                        direction={sortDirection}
-                        onToggle={() => toggleSort('due')}
-                      />
-                      <th scope="col" className="tm-wk-cell--audience">
-                        {t('WorkListScreen.colAudience')}
-                      </th>
-                      <th scope="col" className="tm-wk-cell--fresh">
-                        {t('WorkListScreen.colFresh')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groups.map((group) => (
-                      <Fragment key={group.key}>
-                        {group.label !== undefined ? (
-                          <tr className="tm-wk-table__group">
-                            <td colSpan={8}>
-                              {t('WorkListScreen.groupProjectPrefix')} {group.label}
-                              <span className="tm-wk-table__group-count">
-                                {localCount(group.rows.length)}{' '}
-                                {group.rows.length === 1
-                                  ? t('WorkListScreen.itemSingular')
-                                  : t('WorkListScreen.itemPlural')}
-                              </span>
-                            </td>
-                          </tr>
-                        ) : null}
-                        {group.rows.map((item) => {
-                          const owner = memberDisplayName(
-                            item.ownerUserId,
-                            directory.members,
-                            directory.isPending,
-                          );
-                          const overdue = isOverdue(item, now);
-                          const fresh = freshness(item.updatedAt, now);
-                          return (
-                            <tr
-                              key={item.id}
-                              data-selected={selected.has(item.id)}
-                              data-dragging={draggingRow === item.id || undefined}
-                              data-drop-before={
-                                (overRow === item.id &&
-                                  draggingRow !== null &&
-                                  draggingRow !== item.id) ||
-                                undefined
-                              }
-                              {...(canReorder
-                                ? {
-                                    draggable: true,
-                                    onDragStart: (event: DragEvent<HTMLTableRowElement>) => {
-                                      event.dataTransfer.setData('text/plain', item.id);
-                                      event.dataTransfer.effectAllowed = 'move';
-                                      setDraggingRow(item.id);
-                                      setReorderError(null);
-                                    },
-                                    onDragOver: (event: DragEvent<HTMLTableRowElement>) => {
-                                      if (draggingRow === null) return;
-                                      event.preventDefault();
-                                      event.dataTransfer.dropEffect = 'move';
-                                      if (overRow !== item.id) setOverRow(item.id);
-                                    },
-                                    onDrop: (event: DragEvent<HTMLTableRowElement>) => {
-                                      event.preventDefault();
-                                      const id =
-                                        event.dataTransfer.getData('text/plain') || draggingRow;
-                                      setDraggingRow(null);
-                                      setOverRow(null);
-                                      const moving = rows.find((row) => row.id === id);
-                                      if (moving && moving.id !== item.id) {
-                                        void reorder(moving, item.id);
-                                      }
-                                    },
-                                    onDragEnd: () => {
-                                      setDraggingRow(null);
-                                      setOverRow(null);
-                                    },
-                                  }
-                                : {})}
-                            >
-                              <td>
-                                <input
-                                  className="tm-checkbox"
-                                  type="checkbox"
-                                  aria-label={`${t('WorkListScreen.selectRowPrefix')} ${item.title}`}
-                                  checked={selected.has(item.id)}
-                                  onChange={() => toggleRow(item.id)}
-                                />
-                                {canReorder ? (
-                                  <button
-                                    type="button"
-                                    className="tm-wk-row-handle"
-                                    aria-label={tOr(
-                                      'WorkListScreen.reorderHandle',
-                                      'Move {title}: up and down arrow keys',
-                                    ).replace('{title}', item.title)}
-                                    title={tOr(
-                                      'WorkListScreen.reorderHint',
-                                      'Drag to reorder, or use the up and down arrow keys',
-                                    )}
-                                    onKeyDown={(event) => {
-                                      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-                                        event.preventDefault();
-                                        nudgeRow(item, event.key === 'ArrowUp' ? -1 : 1);
-                                      }
-                                    }}
-                                  >
-                                    <span aria-hidden="true">⠿</span>
-                                  </button>
-                                ) : null}
-                              </td>
-                              <td className="tm-wk-cell--type">
-                                <abbr className="tm-wk-table__type" title={typeName(item.type)}>
-                                  {typeCode(item.type)}
-                                </abbr>
-                              </td>
-                              <th scope="row" className="tm-table__title" title={item.title}>
-                                <Link dir="auto" href={`/${organizationSlug}/work/${item.id}`}>
-                                  {item.title}
-                                </Link>
-                              </th>
-                              {/*
-                            D16: who this is waiting on, by name. Resolved through the one
-                            directory loaded above — no fetch per row. The orb shows initials;
-                            the name is in the accessible text and the tooltip.
-                          */}
-                              <td className="tm-wk-cell--owner" title={owner}>
-                                {/* C27: every doer, lead first — three avatars, then "+N". */}
-                                {item.ownerUserId === null &&
-                                (item.doerUserIds?.length ?? 0) === 0 ? (
-                                  <>
-                                    <span className="tm-wk-avatar" aria-hidden="true" data-empty>
-                                      ?
-                                    </span>
-                                    <span className="tm-visually-hidden">{owner}</span>
-                                  </>
-                                ) : (
-                                  <DoerStack
-                                    doerUserIds={item.doerUserIds}
-                                    ownerUserId={item.ownerUserId}
-                                    nameOf={(id) =>
-                                      memberDisplayName(id, directory.members, directory.isPending)
-                                    }
-                                  />
-                                )}
-                              </td>
-                              <td>
-                                <StateCapsule state={stateCapsule(item.state)}>
-                                  {stateLabel(item.state)}
-                                </StateCapsule>
-                              </td>
-                              <td>
-                                <span
-                                  className="tm-wk-mono"
-                                  {...(item.dueAt === null
-                                    ? { 'data-tone': 'muted' }
-                                    : overdue
-                                      ? { 'data-tone': 'warning' }
-                                      : {})}
-                                >
-                                  {item.dueAt === null
-                                    ? t('WorkListScreen.dueNotSet')
-                                    : shortDay(item.dueAt)}
-                                </span>
-                                {overdue ? (
-                                  <>
-                                    {' '}
-                                    <StateCapsule state="blocked">
-                                      {t('WorkListScreen.overdue')}
-                                    </StateCapsule>
-                                  </>
-                                ) : null}
-                              </td>
-                              <td className="tm-wk-cell--audience">
-                                <span className="tm-wk-halo" data-audience={item.audience}>
-                                  <span className="tm-wk-halo__ring" aria-hidden="true">
-                                    {AUDIENCE_GLYPH[item.audience]}
-                                  </span>
-                                  {audienceLabel(item.audience)}
-                                </span>
-                              </td>
-                              <td className="tm-wk-cell--fresh">
-                                <time
-                                  className="tm-wk-mono"
-                                  data-tone={fresh.stale ? 'warning' : 'muted'}
-                                  dateTime={item.updatedAt}
-                                  // Minutes since the change differ between the server render and
-                                  // hydration by however long the page took to arrive.
-                                  suppressHydrationWarning
-                                  title={`${t('WorkListScreen.lastChangedPrefix')} ${formatInstant(item.updatedAt)}`}
-                                >
-                                  {fresh.label}
-                                </time>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="tm-wk-table__foot">
-                {t('WorkListScreen.footRowsPrefix')}
-                {localCount(rows.length)}
-                {workItems.hasNextPage ? (
-                  <>
-                    {' · '}
-                    <span>{t('WorkListScreen.footNotAll')}</span> {t('WorkListScreen.footSortNote')}
-                    <Button
-                      tone="outline"
-                      size="accessible"
-                      loading={workItems.isFetchingNextPage}
-                      loadingLabel={t('WorkListScreen.loadingMore')}
-                      onClick={() => void workItems.fetchNextPage()}
+          {stateFrame ??
+            (workItems.isPending ? (
+              <LoadingRows label={t('WorkListScreen.loadingList')} />
+            ) : (
+              <>
+                <WorkRows
+                  organizationSlug={organizationSlug}
+                  rows={visibleRows}
+                  now={now}
+                  sets={stageSets.data ?? []}
+                  nameOf={nameOf}
+                  clientNameOf={(id) => clientNames.get(id)}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={toggleSort}
+                  selected={selected}
+                  onToggleRow={toggleRow}
+                  onToggleAll={() =>
+                    setSelected(
+                      visibleRows.every((row) => selected.has(row.id))
+                        ? new Set()
+                        : new Set(visibleRows.map((row) => row.id)),
+                    )
+                  }
+                  onTick={(item) => void tick(item)}
+                  ticking={ticking}
+                  caption={`${t('WorkListScreen.colCaption')}${
+                    projectId === '' ? '' : ` ${t('WorkListScreen.colCaptionInProject')}`
+                  }${listComma()} ${localCount(visibleRows.length)} ${t('WorkListScreen.shown')}`}
+                  {...(canReorder
+                    ? {
+                        reorder: {
+                          dragging: draggingRow,
+                          over: overRow,
+                          onDragStart: (id: string) => {
+                            setDraggingRow(id);
+                            setReorderError(null);
+                          },
+                          onDragOver: (id: string) => {
+                            if (overRow !== id) setOverRow(id);
+                          },
+                          onDrop: (id: string, onto: string) => {
+                            setDraggingRow(null);
+                            setOverRow(null);
+                            const moving = rows.find((row) => row.id === id);
+                            if (moving && moving.id !== onto) void reorder(moving, onto);
+                          },
+                          onDragEnd: () => {
+                            setDraggingRow(null);
+                            setOverRow(null);
+                          },
+                          onNudge: nudgeRow,
+                        },
+                      }
+                    : {})}
+                />
+                <p className="tm-wl-foot">
+                  <span>
+                    {ta('WorkListScreen.showing', {
+                      shown: localCount(visibleRows.length),
+                      total: `${localCount(rows.length)}${more}`,
+                    })}
+                  </span>
+                  {visibleRows.length < rows.length || workItems.hasNextPage ? (
+                    <button
+                      type="button"
+                      className="tm-wl-ghost"
+                      disabled={workItems.isFetchingNextPage}
+                      onClick={showMore}
                     >
-                      {t('WorkListScreen.loadMore')}
-                    </Button>
-                  </>
-                ) : (
-                  ` · ${t('WorkListScreen.footAllLoaded')}`
-                )}
-              </p>
-            </div>
-          ) : null}
+                      {workItems.isFetchingNextPage
+                        ? t('WorkListScreen.loadingMore')
+                        : ta('WorkListScreen.showMore')}
+                    </button>
+                  ) : null}
+                </p>
+              </>
+            ))}
         </>
       )}
 
       {/*
-        WCAG 2.2 4.1.3: "Load more" appends rows to a table that is in no live region, so a
+        WCAG 2.2 4.1.3: "Show more" appends rows to a table that is in no live region, so a
         screen-reader user hears nothing when a page arrives. Announcing the running total into
         the shell's live region tells them the press landed.
       */}
@@ -1039,100 +836,61 @@ export function WorkListScreen({
   );
 }
 
-/** The state filter's words, in the active language (the chips sit in the screen's own catalog). */
-const STATE_FILTER_LABEL: Record<WorkItemState, MessageKey> = {
-  backlog: 'WorkListScreen.stateBacklog',
-  ready: 'WorkListScreen.stateReady',
-  in_progress: 'WorkListScreen.stateInProgress',
-  blocked: 'WorkListScreen.stateBlocked',
-  internal_review: 'WorkListScreen.stateInternalReview',
-  done: 'WorkListScreen.stateDone',
-  archived: 'WorkListScreen.stateArchived',
-};
+/** Figma `WV2-09` loading: the real header and toolbar, skeleton rows under the table head. */
+function LoadingRows({ label }: { label: string }) {
+  return (
+    <div className="tm-wl-frame" role="status" aria-busy="true" aria-label={label}>
+      <table className="tm-wl-table" aria-hidden="true">
+        <tbody>
+          {Array.from({ length: 10 }, (_, index) => (
+            <tr key={index}>
+              <td className="tm-wl-cell--tick">
+                <span className="tm-wl-skeleton" />
+              </td>
+              <td className="tm-wl-cell--title">
+                <span className="tm-wl-skeleton" />
+              </td>
+              <td>
+                <span className="tm-wl-skeleton" />
+              </td>
+              <td>
+                <span className="tm-wl-skeleton" />
+              </td>
+              <td>
+                <span className="tm-wl-skeleton" />
+              </td>
+              <td>
+                <span className="tm-wl-skeleton" />
+              </td>
+              <td>
+                <span className="tm-wl-skeleton" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 /** The views the Work list draws in place; Timeline, Calendar and Workload are their own pages. */
 const LOCAL_WORK_VIEWS = ['list', 'board'] as const;
 
-const STATE_VIEWS = WORK_STATE_VIEWS;
+/** Lifecycle order, so sorting by stage groups the lifecycle rather than the alphabet. */
+const STATE_ORDER: readonly WorkItemState[] = [
+  'backlog',
+  'ready',
+  'in_progress',
+  'blocked',
+  'internal_review',
+  'done',
+  'archived',
+];
 
-const AUDIENCE_GLYPH: Record<WorkItemAudience, string> = {
-  internal: '■',
-  client_visible: '◎',
-  client_action_required: '!',
-};
-
-/** "18 Aug" — WK-02's committed/forecast cells. A bare date is a calendar day, read in UTC. */
-function shortDay(value: string): string {
-  const bare = value.length === 10;
-  const parsed = new Date(bare ? `${value}T00:00:00.000Z` : value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  // The active locale's month names and digits, so a row never mixes digit systems (C1).
-  const tag = activeIsEnglish() ? 'en-GB' : appLocale();
-  return new Intl.DateTimeFormat(withNumerals(tag), {
-    day: 'numeric',
-    month: 'short',
-    ...(bare ? { timeZone: 'UTC' } : {}),
-  }).format(parsed);
-}
-
-/** A count in the active locale's digits, matching the age and date cells beside it (C1). */
+/** A count in the active locale's digits, matching the date cells beside it (C1). */
 function localCount(value: number): string {
   // FIX5 item 6b (B-N7): the saved digit shapes ("8 مهام" with Latin digits when saved so).
   return new Intl.NumberFormat(withNumerals(appLocale())).format(value);
-}
-
-/** The list separator before a count: the Arabic comma outside English (C1). */
-function listComma(): string {
-  return activeIsEnglish() ? ',' : '،';
-}
-
-/** WK-02's "Fresh" column: how long since the item last changed; a fortnight reads as stale. */
-function freshness(updatedAt: string, now: Date): { label: string; stale: boolean } {
-  const then = new Date(updatedAt).getTime();
-  if (Number.isNaN(then)) return { label: '—', stale: false };
-  const minutes = Math.max(0, Math.round((now.getTime() - then) / 60_000));
-  const days = Math.floor(minutes / 1440);
-  const label =
-    minutes < 60
-      ? compactUnit(minutes, 'minute')
-      : minutes < 1440
-        ? compactUnit(Math.floor(minutes / 60), 'hour')
-        : days < 60
-          ? compactUnit(days, 'day')
-          : compactUnit(Math.floor(days / 30), 'month');
-  return { label, stale: days >= 14 };
-}
-
-/**
- * A sortable column header. The `<th>` carries `aria-sort` — the state the arrow communicates
- * by shape must also be communicated as a word — and the control inside is a real button, so
- * it is focusable and announces itself.
- */
-function SortableHeader({
-  label,
-  className,
-  active,
-  direction,
-  onToggle,
-}: {
-  label: string;
-  className?: string;
-  active: boolean;
-  direction: SortDirection;
-  onToggle: () => void;
-}) {
-  return (
-    <th
-      scope="col"
-      {...(className === undefined ? {} : { className })}
-      aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : undefined}
-    >
-      <button type="button" className="tm-table__sort" onClick={onToggle}>
-        {label}
-        {active ? <span aria-hidden="true">{direction === 'asc' ? ' ↑' : ' ↓'}</span> : null}
-      </button>
-    </th>
-  );
 }
 
 function compareBy(
@@ -1141,10 +899,17 @@ function compareBy(
   right: WorkItemSummary,
 ): number {
   if (key === 'title') return left.title.localeCompare(right.title);
-  if (key === 'state') return STATE_ORDER.indexOf(left.state) - STATE_ORDER.indexOf(right.state);
+  if (key === 'stage') return STATE_ORDER.indexOf(left.state) - STATE_ORDER.indexOf(right.state);
+  // Updated: the most recent first when ascending, like every inbox.
+  if (key === 'updated') return right.updatedAt.localeCompare(left.updatedAt);
   // Due: items without a date sort last, which is where "no promise made" belongs.
   if (left.dueAt === null && right.dueAt === null) return 0;
   if (left.dueAt === null) return 1;
   if (right.dueAt === null) return -1;
   return left.dueAt.localeCompare(right.dueAt);
+}
+
+/** The list separator before a count: the Arabic comma outside English (C1). */
+function listComma(): string {
+  return activeIsEnglish() ? ',' : '،';
 }

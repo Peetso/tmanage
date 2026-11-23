@@ -47,6 +47,13 @@ export interface WorkItemSummary {
    */
   readonly stageId?: string | null;
   readonly stageName?: string | null;
+  /** Work area list (WW2): the supervisors by user id — on the list read, internal readers. */
+  readonly supervisorUserIds?: readonly string[];
+  /**
+   * Work area list (WW2): the client companies that see the item (its narrowed list, else its
+   * project's clients); `[]` when internal. On the list read, internal readers.
+   */
+  readonly clientOrganizationIds?: readonly string[];
 }
 
 /**
@@ -65,6 +72,8 @@ export interface ListWorkItemsQuery {
   readonly states?: readonly WorkItemState[];
   readonly after?: string;
   readonly limit?: number;
+  /** Work area (D4): only work with a doer in this team. */
+  readonly teamId?: string;
 }
 
 export async function listWorkItems(
@@ -77,6 +86,7 @@ export async function listWorkItems(
   if (query.states && query.states.length > 0) parameters.set('state', query.states.join(','));
   if (query.after) parameters.set('after', query.after);
   if (query.limit !== undefined) parameters.set('limit', String(query.limit));
+  if (query.teamId) parameters.set('teamId', query.teamId);
 
   const suffix = parameters.size === 0 ? '' : `?${parameters.toString()}`;
   const { data } = await client.request<{ workItems: readonly WorkItemSummary[] }>({

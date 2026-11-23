@@ -1,4 +1,4 @@
-import { and, eq, exists, notExists, or, sql } from 'drizzle-orm';
+import { and, eq, exists, inArray, notExists, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -64,6 +64,37 @@ export class WorkItemClientAudienceRepository {
         ),
       );
     return rows.map((row) => row.clientOrganizationId);
+  }
+
+  /**
+   * Work area list (WW2): the stored lists of several items at once (a list page), by item id.
+   * An item with no rows is absent, which means every client of its project.
+   */
+  async listMany(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly string[]>> {
+    if (workItemIds.length === 0) return new Map();
+    const rows = await tenantDrizzle(runner)
+      .select({
+        workItemId: workItemClientAudience.workItemId,
+        clientOrganizationId: workItemClientAudience.clientOrganizationId,
+      })
+      .from(workItemClientAudience)
+      .where(
+        and(
+          eq(workItemClientAudience.organizationId, context.organizationId),
+          inArray(workItemClientAudience.workItemId, [...workItemIds]),
+        ),
+      );
+    const byItem = new Map<string, string[]>();
+    for (const row of rows) {
+      const list = byItem.get(row.workItemId) ?? [];
+      list.push(row.clientOrganizationId);
+      byItem.set(row.workItemId, list);
+    }
+    return byItem;
   }
 
   /** Replace the item's list as a set. `[]` clears it, which means every project client. */

@@ -36,8 +36,20 @@ export const workItemKeys = {
   all: (organizationSlug: string) => ['work-items', organizationSlug] as const,
 
   /** The paged list — an infinite query, so its cache entry is `{ pages, pageParams }`. */
-  list: (organizationSlug: string, projectId: string, states: readonly WorkItemState[]) =>
-    ['work-items', organizationSlug, 'list', projectId, [...states].sort().join(',')] as const,
+  list: (
+    organizationSlug: string,
+    projectId: string,
+    states: readonly WorkItemState[],
+    teamId = '',
+  ) =>
+    [
+      'work-items',
+      organizationSlug,
+      'list',
+      projectId,
+      [...states].sort().join(','),
+      teamId,
+    ] as const,
 
   /** One project's work, as a single array. Used by the overview and by triage. */
   project: (organizationSlug: string, projectId: string) =>

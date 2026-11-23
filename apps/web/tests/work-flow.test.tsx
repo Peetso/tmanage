@@ -159,10 +159,13 @@ describe('TM-10 the work list', () => {
       ),
     );
 
-    const project = screen.getByLabelText('Project');
-    const inProgress = screen.getByRole('checkbox', { name: 'In progress' });
-    await expectInertUntilAnswered([project, inProgress], held.answer);
+    // W-WEB-2: the filters are one row of menus (Figma WV2-01); the whole row waits.
+    const project = screen.getByRole('button', { name: 'Project' });
+    const stage = screen.getByRole('button', { name: 'Stage' });
+    await expectInertUntilAnswered([project, stage], held.answer);
 
+    await userEvent.click(stage);
+    const inProgress = screen.getByRole('checkbox', { name: 'In progress' });
     await userEvent.click(inProgress);
     expect(inProgress).toBeChecked();
   });
@@ -207,7 +210,9 @@ describe('TM-10 the work list', () => {
       ),
     );
 
-    await screen.findByRole('group', { name: 'State' });
+    const stage = await screen.findByRole('button', { name: 'Stage' });
+    await waitFor(() => expect(stage).toBeEnabled());
+    await userEvent.click(stage);
     await userEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }));
 
     await waitFor(() => {
@@ -231,8 +236,10 @@ describe('TM-10 the work list', () => {
       ),
     );
 
-    await screen.findByRole('option', { name: 'Atlas Website Relaunch' });
-    await userEvent.selectOptions(screen.getByLabelText('Project'), 'proj-1');
+    const project = await screen.findByRole('button', { name: 'Project' });
+    await waitFor(() => expect(project).toBeEnabled());
+    await userEvent.click(project);
+    await userEvent.click(screen.getByRole('radio', { name: 'Atlas Website Relaunch' }));
 
     await waitFor(() => {
       expect(calls.some((call) => call.url.includes('projectId=proj-1'))).toBe(true);
@@ -292,7 +299,8 @@ describe('TM-10 the work list', () => {
       ),
     );
 
-    expect(await screen.findByText('Client action needed')).toBeInTheDocument();
+    // No client named on the row: the Client cell still says, in words, what the client does.
+    expect(await screen.findByText('Client needs to act')).toBeInTheDocument();
   });
 
   it('says nothing is here rather than showing an empty table', async () => {
@@ -311,7 +319,7 @@ describe('TM-10 the work list', () => {
       ),
     );
 
-    expect(await screen.findByText(/No work items exist in this organization/)).toBeInTheDocument();
+    expect(await screen.findByText('No work here yet. Add the first one.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
@@ -355,7 +363,8 @@ describe('TM-10 the work list', () => {
       ),
     );
 
-    expect(await screen.findByText(/This is not all of it/)).toBeInTheDocument();
+    // A "+" on the total says there is more on the server than the loaded rows.
+    expect(await screen.findByText('Showing 50 of 200+')).toBeInTheDocument();
   });
 
   it('says nothing about paging when the page was not full', async () => {
@@ -375,7 +384,8 @@ describe('TM-10 the work list', () => {
     );
 
     await screen.findByRole('table');
-    expect(screen.queryByText(/This is not all of it/)).not.toBeInTheDocument();
+    expect(screen.getByText('Showing 1 of 1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
   });
 
   it('has no axe violations', async () => {
@@ -427,14 +437,17 @@ describe('TM-10 second half — paging, sorting, selection, bulk audience', () =
       return json({ workItems: firstPage });
     });
 
-    expect(await screen.findByText(/This is not all of it/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('Showing 50 of 200+')).toBeInTheDocument();
+    // The list shows 50 rows at a time; past the loaded 200 it asks the API for the next page.
+    for (let shown = 50; shown < 250; shown += 50) {
+      await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    }
 
     expect(await screen.findByText('The 201st item')).toBeInTheDocument();
     expect(calls.some((call) => call.url.includes('after=wi-199'))).toBe(true);
-    // The second page was short, so there is no more to load and no more to warn about.
-    expect(screen.queryByText(/This is not all of it/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+    // The second page was short, so there is no more to load and no "+" on the total.
+    expect(screen.getByText('Showing 201 of 201')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument();
   });
 
   it('sorts the loaded rows from a header, announces the direction, and can return to loaded order', async () => {
@@ -455,7 +468,7 @@ describe('TM-10 second half — paging, sorting, selection, bulk audience', () =
 
     expect(titles()).toEqual(['Beta task', 'Alpha task']);
 
-    const header = screen.getByRole('button', { name: /^Work item/ });
+    const header = screen.getByRole('button', { name: /^Title/ });
     await userEvent.click(header);
     expect(titles()).toEqual(['Alpha task', 'Beta task']);
     expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');

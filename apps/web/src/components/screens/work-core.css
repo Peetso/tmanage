@@ -8,22 +8,26 @@
 /* ── Context rail: saved views and projects, flat (WK-02 "flat, never card stack") ── */
 
 .tm-context-rail:has(.tm-wk-rail) {
-  padding: 0 var(--s1);
+  /* Work area v2 (Figma WV2-01): a filled panel; the rows sit 12px in, their text 24px. */
+  padding: var(--inset-card) var(--inset-control);
   border: 0;
-  background: transparent;
+  border-inline-end: var(--b-quiet) solid var(--line-300);
+  border-radius: 0;
+  background: var(--paper-50);
   inline-size: var(--context-rail-min);
+  align-self: stretch;
 }
 
 .tm-wk-rail {
   display: flex;
   flex-direction: column;
-  gap: var(--s5);
+  gap: var(--s4);
 }
 
 .tm-wk-rail__group {
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -31,6 +35,7 @@
 
 .tm-wk-rail__heading {
   margin: 0;
+  padding-inline: var(--inset-control);
   font-family: var(--font-mono);
   font-size: 10px;
   line-height: 14px;
@@ -45,15 +50,16 @@
   align-items: center;
   gap: var(--s2);
   inline-size: 100%;
-  padding: var(--s2) 14px;
+  min-block-size: var(--app-row);
+  padding: 0 var(--inset-control);
   border: var(--b-quiet) solid transparent;
-  border-radius: var(--r-capsule);
+  border-radius: var(--r-micro);
   background: transparent;
   color: var(--ink-650);
   font: inherit;
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
-  font-weight: 500;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  font-weight: var(--t-app-ui-weight);
   text-align: start;
   text-decoration: none;
   cursor: pointer;
@@ -67,9 +73,8 @@
 }
 
 .tm-wk-rail__item[aria-pressed='true'][data-kind='view'] {
-  background: var(--ink-950);
-  border-color: var(--ink-950);
-  color: var(--paper-50);
+  background: var(--paper-150);
+  color: var(--ink-950);
 }
 
 .tm-wk-rail__item[aria-pressed='true'][data-kind='project'] {

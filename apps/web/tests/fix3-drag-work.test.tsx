@@ -115,9 +115,8 @@ describe('Board: reorder inside a column', () => {
     render(
       <WorkBoardView
         organizationSlug="northstar"
+        nameOf={(id) => id}
         items={cards}
-        members={[]}
-        membersPending={false}
         api={{ request } as unknown as ApiClient}
       />,
     );
@@ -143,9 +142,8 @@ describe('Board: reorder inside a column', () => {
     render(
       <WorkBoardView
         organizationSlug="northstar"
+        nameOf={(id) => id}
         items={cards}
-        members={[]}
-        membersPending={false}
         api={{ request } as unknown as ApiClient}
       />,
     );
@@ -163,9 +161,8 @@ describe('Board: reorder inside a column', () => {
     render(
       <WorkBoardView
         organizationSlug="northstar"
+        nameOf={(id) => id}
         items={cards}
-        members={[]}
-        membersPending={false}
         api={{ request: vi.fn() } as unknown as ApiClient}
         dragRights={{ canUpdate: false, canTransition: false }}
       />,
@@ -182,9 +179,8 @@ describe('Board: reorder inside a column', () => {
     render(
       <WorkBoardView
         organizationSlug="northstar"
+        nameOf={(id) => id}
         items={cards}
-        members={[]}
-        membersPending={false}
         api={{ request } as unknown as ApiClient}
       />,
     );
