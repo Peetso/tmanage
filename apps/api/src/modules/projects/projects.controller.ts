@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
   Optional,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -45,6 +47,12 @@ interface CreateProjectBody {
    * `projects.forecast_at`, never in `committed_at`.
    */
   readonly targetDate?: unknown;
+}
+
+/** Fix lane C. `PATCH …/projects/:projectId`. */
+interface RenameProjectBody {
+  readonly name?: unknown;
+  readonly expectedUpdatedAt?: unknown;
 }
 
 /** `organizations.name`'s width is 190; `projects.name` is the same, shared with the web (QA-FIX-R M6). */
@@ -156,6 +164,75 @@ export class ProjectsController {
       ...(ownerUserId === undefined ? {} : { ownerUserId }),
       ...(forecastAt === undefined ? {} : { forecastAt }),
     });
+  }
+
+  /**
+   * Fix lane C (2026-11-23). Rename a project. `project.manage` here and again on the project in
+   * the service; `expectedUpdatedAt` is the `updatedAt` last read (a stale one is 409).
+   */
+  @Patch(':projectId')
+  @RequireCapability('project.manage')
+  async rename(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Body() body: RenameProjectBody,
+  ): Promise<ProjectView> {
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    const expectedUpdatedAt =
+      typeof body?.expectedUpdatedAt === 'string' ? body.expectedUpdatedAt : '';
+    const details = [
+      ...(name === '' ? [{ field: 'name', message: 'must be a non-empty string' }] : []),
+      ...(name.length > MAX_PROJECT_NAME_LENGTH
+        ? [{ field: 'name', message: `must be ${MAX_PROJECT_NAME_LENGTH} characters or fewer` }]
+        : []),
+      ...(expectedUpdatedAt !== '' && !Number.isNaN(Date.parse(expectedUpdatedAt))
+        ? []
+        : [{ field: 'expectedUpdatedAt', message: 'must be an ISO-8601 instant' }]),
+    ];
+    if (details.length > 0) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+    return this.projects.rename(context, principal, projectId, { name, expectedUpdatedAt });
+  }
+
+  /** Fix lane C. Archive a project: out of every list, nothing erased. `project.manage`. */
+  @Post(':projectId/archive')
+  @RequireCapability('project.manage')
+  @HttpCode(200)
+  async archive(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<ProjectView> {
+    return this.projects.setArchived(context, principal, projectId, true);
+  }
+
+  /** Fix lane C. Bring an archived project back. `project.manage`. */
+  @Post(':projectId/unarchive')
+  @RequireCapability('project.manage')
+  @HttpCode(200)
+  async unarchive(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<ProjectView> {
+    return this.projects.setArchived(context, principal, projectId, false);
+  }
+
+  /**
+   * Fix lane C. Delete an EMPTY project. `project.delete`. A project that still holds anything is
+   * 409 `project_not_empty` (archive it instead); nothing is written.
+   */
+  @Delete(':projectId')
+  @RequireCapability('project.delete')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<void> {
+    await this.projects.deleteEmpty(context, principal, projectId);
   }
 }
 

@@ -218,6 +218,33 @@ export class PeopleTeamsRepository {
     });
   }
 
+  /**
+   * Fix lane C (2026-11-23). Delete a team: its assignment rows first (they point at the definition
+   * through `fk_member_teams_team`), then the definition. Returns how many members it had.
+   */
+  async deleteTeam(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    teamId: string,
+  ): Promise<number> {
+    const db = tenantDrizzle(runner);
+    const members = await db
+      .delete(memberTeams)
+      .where(
+        and(eq(memberTeams.organizationId, context.organizationId), eq(memberTeams.teamId, teamId)),
+      );
+    await db
+      .delete(memberTeams)
+      .where(
+        and(
+          eq(memberTeams.organizationId, context.organizationId),
+          eq(memberTeams.id, teamId),
+          isNotNull(memberTeams.name),
+        ),
+      );
+    return members[0].affectedRows;
+  }
+
   /** Remove an assignment row. Returns true when a row was deleted (false when it was not assigned). */
   async deleteAssignment(
     runner: TenantQueryRunner,

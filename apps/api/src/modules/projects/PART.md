@@ -136,10 +136,16 @@ impact/likelihood/status and custom-field types are closed enums exported from
 `apps/api/src/common/database/schema.ts` (`PROJECT_STATUS_BANDS`, `PROJECT_INTERNAL_RISK_*`,
 `PROJECT_CUSTOM_FIELD_TYPES`).
 
-**Lifecycle.** `active` → `archived` (`archived_at` set). The repository has `archive` and
-`update` (`projects.repository.ts:224,268`), but **no route calls either** (grep of
-`projects.(update|archive)(` across `apps/api/src` finds no caller): a project can be created,
-never renamed or archived through the API (PRJ-4).
+**Lifecycle.** `active` ⇄ `archived` (`archived_at` set or cleared), then removed when empty
+(fix lane C, 2026-11-23, closes PRJ-4). `PATCH /projects/:projectId` renames (`project.manage`,
+`expectedUpdatedAt` optimistic check, 409 when stale or archived); `POST …/archive` and
+`POST …/unarchive` move it (`project.manage`, a repeat is a no-op without an audit row);
+`DELETE /projects/:projectId` (`project.delete`) deletes a project that holds nothing — its
+favourites and memberships go with it, anything else (work, files, documents, money) makes the
+foreign key refuse and the answer is 409 `project_not_empty` (archive instead). Each writes its
+audit row (`project.renamed|archived|unarchived|deleted`) in the same transaction (DA-11); a
+project the caller cannot read stays 404 (I-4). The AI reaches them as `projects.update|archive|
+unarchive|delete` (`ai-actions/registry/parity-b4-lifecycle.ts`), all confirm-class.
 
 **Invariants (checkable)**
 
@@ -152,7 +158,8 @@ never renamed or archived through the API (PRJ-4).
 | I-5 | Every repository statement binds `organization_id` from `TenantContext`, never from the payload. | `projects.repository.ts:19-23,132,160` | `proj-001-repositories.db.test.ts` |
 | I-6 | A workspace from another tenant is refused by the composite FK `fk_projects_workspace_tenant`. | `apps/api/migrations/0001_tenancy.sql:151` | `proj-001-project-creation.db.test.ts` |
 | I-7 | A member cannot grant a project role above their own, nor change their own role. | `project-members.controller.ts:64-69,188-190` | `project-members.controller.test.ts` |
-| I-8 | Archiving twice is not an error (idempotent). | `projects.repository.ts:286-289` | — (dead code, PRJ-4) |
+| I-8 | Archiving twice is not an error (idempotent), and writes no second audit row. | `projects.service.ts` `setArchived` | `project-lifecycle.service.test.ts` |
+| I-9 | Only an empty project can be deleted; one that holds anything answers 409 `project_not_empty`. | FK refusal (errno 1451/1217) in `projects.service.ts` `deleteEmpty` | `project-lifecycle.service.test.ts` |
 
 ## Public API and contracts
 
@@ -317,7 +324,7 @@ n/a — API module; its screens are owned by `web/org/projects`
 | PRJ-1 | AR-5/AR-7 | 69 non-test files outside the module import `ProjectsRepository`; the module reads 9 foreign tables and deletes `conversation_memberships` (`project-memberships.repository.ts:401`) | P1 | read service + `project.member_removed.v1` consumed by collaboration |
 | PRJ-2 | HT-3 / DA-1 | `list` filters after a single page (`projects.service.ts:146-170`, page 50 `projects.repository.ts:102`); web reads one page only (`apps/web/src/lib/api/projects.ts:81-89`), so >50 projects or a non-org-scoped reader silently loses projects; `ensureProjectForNewContent` may then create a duplicate (`apps/web/src/lib/api/projects.ts:126-138`) | P1 | bounded walk as in `work-items.service.ts:400-430`, or `projectIds` filter in SQL, plus web paging |
 | PRJ-3 | DA-12 / SE | `ownerUserId` on POST is not checked for membership; FK is to `users` only (`0001_tenancy.sql:153`, comment `projects.controller.ts:125-134`) — another tenant's user can be named owner | P1 | reuse `requireOwnerIsMember` (`work-items.service.ts:1394`) |
-| PRJ-4 | gap | no route renames or archives a project; `ProjectsRepository.update/archive` are dead (`projects.repository.ts:224,268`) | P2 | add routes (§9) or delete the code |
+| PRJ-4 | closed 2026-11-23 | rename, archive, restore and delete-when-empty routes added (fix lane C) | — | — |
 | PRJ-5 | HT-4 | POST `/projects` and POST template instantiate have no idempotency replay | P2 | `IdempotencyReplayInterceptor` |
 | PRJ-6 | AS-1 / doc | no `project.created.v1` event; stale comment `projects.service.ts:210` | P2 | emit the event; fix comment |
 | PRJ-7 | DA-11 | `audit?`/`outbox?` optional: a wiring slip writes no audit row with no error (`projects.service.ts:91-95`) | P2 | required constructor args; module test asserts wiring |

@@ -11,6 +11,7 @@ import type {
   WorkItemCloudImportView,
 } from './cloud-import.service.js';
 import type { ImportedFileView } from './files.service.js';
+import { inlineFile } from './inline-file.js';
 
 /**
  * FIX6 C1 — adding a picked Google Drive or OneDrive file as a checked TManage copy.
@@ -59,6 +60,28 @@ export class WorkItemCloudImportController {
     @Body() body: { readonly fileId?: unknown },
   ): Promise<WorkItemCloudImportView> {
     return this.imports.importToWorkItem(context, principal, workItemId, driveSource(body));
+  }
+
+  /**
+   * Fix lane C (2026-11-23, G5). Add a small file sent inline: `{name, mimeType, contentBase64}`,
+   * at most {@link INLINE_FILE_MAX_BYTES} decoded, a type from {@link INLINE_FILE_TYPES}. Goes
+   * through the upload's own checks and is attached to the work item (`work.update`).
+   */
+  @Post('inline-files')
+  @HttpCode(201)
+  @RequireCapability('work.update')
+  async fromInline(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Body()
+    body: {
+      readonly name?: unknown;
+      readonly mimeType?: unknown;
+      readonly contentBase64?: unknown;
+    },
+  ): Promise<WorkItemCloudImportView> {
+    return this.imports.importInlineToWorkItem(context, principal, workItemId, inlineFile(body));
   }
 
   @Post('onedrive-files')

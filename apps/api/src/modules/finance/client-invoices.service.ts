@@ -1489,6 +1489,32 @@ export class ClientInvoicesService {
     });
   }
 
+  /**
+   * Fix lane C (2026-11-23). Delete a DRAFT invoice: its pulled time, expenses and retainer period
+   * are released (as a void releases them), then the draft, its lines and its events go. A draft
+   * has no number, snapshot, hash or chain link, so it is not yet a fiscal record. Any other state
+   * is 409 `not_draft`: an issued invoice is only ever voided or credited.
+   */
+  async deleteDraft(context: TenantContext, principal: Principal, id: string): Promise<void> {
+    this.requireManage(principal, context);
+    const org = context.organizationId;
+    await this.options.database.transaction(context, async (tx) => {
+      const row = await this.draft(tx, org, id);
+      const lines = await this.repo.lines(tx, org, id);
+      await this.repo.releaseLinks(
+        tx,
+        org,
+        id,
+        lines.map((l) => l.id),
+      );
+      await this.audited(tx, context, 'client_invoice.deleted', id, {
+        client_organization_id: row.clientOrganizationId,
+        line_count: lines.length,
+      });
+      if (!(await this.repo.deleteDraft(tx, org, id))) throw conflict('not_draft');
+    });
+  }
+
   /** Draft only; whatever its lines hold is released. */
   async voidInvoice(
     context: TenantContext,

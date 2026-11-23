@@ -1,7 +1,7 @@
 import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { workForms } from '../../common/database/schema.js';
+import { formSubmissions, workForms } from '../../common/database/schema.js';
 import type { WorkFormFieldDef, WorkFormRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -137,5 +137,31 @@ export class WorkFormsRepository {
     });
 
     return this.requireById(runner, context, id);
+  }
+
+  /** Fix lane C (2026-11-23). Whether any public submission names this form (it then stays). */
+  async hasSubmissions(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    formId: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: formSubmissions.id })
+      .from(formSubmissions)
+      .where(
+        and(
+          eq(formSubmissions.organizationId, context.organizationId),
+          eq(formSubmissions.formId, formId),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  /** Fix lane C. Delete one form row of this tenant (the caller has checked it may go). */
+  async delete(runner: TenantQueryRunner, context: TenantContext, formId: string): Promise<void> {
+    await tenantDrizzle(runner)
+      .delete(workForms)
+      .where(and(eq(workForms.organizationId, context.organizationId), eq(workForms.id, formId)));
   }
 }

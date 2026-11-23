@@ -200,4 +200,35 @@ export class WorkLabelsRepository {
       );
     return true;
   }
+
+  /**
+   * Fix lane C (2026-11-23). Delete a label definition and every assignment of it (the assignments
+   * point at it through `fk_work_item_labels_label`, so they go first). Returns how many work items
+   * lost the tag.
+   */
+  async deleteDefinition(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    labelId: string,
+  ): Promise<number> {
+    const db = tenantDrizzle(runner);
+    const assignments = await db
+      .delete(workItemLabels)
+      .where(
+        and(
+          eq(workItemLabels.organizationId, context.organizationId),
+          eq(workItemLabels.labelId, labelId),
+        ),
+      );
+    await db
+      .delete(workItemLabels)
+      .where(
+        and(
+          eq(workItemLabels.organizationId, context.organizationId),
+          eq(workItemLabels.id, labelId),
+          isNull(workItemLabels.workItemId),
+        ),
+      );
+    return assignments[0].affectedRows;
+  }
 }

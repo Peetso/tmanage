@@ -10,6 +10,7 @@ import type { WorkItemLabelRow, WorkItemRow } from '../../common/database/schema
 import { WORK_LABEL_COLORS } from '../../common/database/schema.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { WorkLabelsRepository } from './work-labels.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * x233's application service — work item labels / tags (Work module 7).
@@ -61,6 +62,8 @@ export class WorkLabelsService {
     private readonly database: TenantDatabase,
     private readonly workItems: WorkItemsRepository,
     private readonly labels: WorkLabelsRepository = new WorkLabelsRepository(),
+    /** Fix lane C. Optional so a unit test can build the service without one. */
+    private readonly audit?: Pick<AuditService, 'record'>,
   ) {}
 
   /** The tenant's label definitions, name-ascending. Behind `work.read`. */
@@ -82,6 +85,25 @@ export class WorkLabelsService {
       }
       const row = await this.labels.createDefinition(tx, context, { name, color });
       return toLabelView(row);
+    });
+  }
+
+  /**
+   * Fix lane C (2026-11-23). Delete a label definition: the tag comes off every work item that
+   * carries it, then the label goes. Behind `work.delete` (it changes items across projects). An
+   * unknown or another tenant's label is 404, before any write.
+   */
+  async deleteDefinition(context: TenantContext, labelId: string): Promise<void> {
+    await this.database.transaction(context, async (tx) => {
+      const definition = await this.labels.findDefinition(tx, context, labelId);
+      if (!definition) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      const untagged = await this.labels.deleteDefinition(tx, context, definition.id);
+      await this.audit?.record(tx, context, {
+        action: 'work_label.deleted',
+        objectId: definition.id,
+        result: 'allowed',
+        metadata: { untagged_items: untagged },
+      });
     });
   }
 

@@ -15,7 +15,8 @@ import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { PeopleTeamsRepository } from './teams.repository.js';
 import { PeopleTeamsService } from './teams.service.js';
@@ -153,6 +154,19 @@ export class PeopleTeamsController {
     await this.service.assignMember(context, teamId, membershipId);
   }
 
+  /** Fix lane C (2026-11-23). Delete a team (its members stay in the workspace). `org.manage`. */
+  @Delete(':id')
+  @RequireCapability('org.manage')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') teamId: string,
+  ): Promise<void> {
+    this.requireOrgManage(principal, context);
+    await this.service.deleteTeam(context, teamId);
+  }
+
   @Delete(':id/members/:membershipId')
   @RequireCapability('org.manage')
   @HttpCode(204)
@@ -240,8 +254,9 @@ export class PeopleTeamsModule {
             database: TenantDatabase,
             teams: PeopleTeamsRepository,
             memberships: MembershipsRepository,
-          ) => new PeopleTeamsService(database, teams, memberships),
-          inject: [TENANT_DATABASE, PeopleTeamsRepository, MembershipsRepository],
+            audit: AuditService,
+          ) => new PeopleTeamsService(database, teams, memberships, audit),
+          inject: [TENANT_DATABASE, PeopleTeamsRepository, MembershipsRepository, AUDIT_SERVICE],
         },
       ],
       controllers: [PeopleTeamsController],

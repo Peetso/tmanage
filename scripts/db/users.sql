@@ -908,6 +908,9 @@ GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'
 -- 0258: publish/unpublish moves `public_slug`, `public_enabled`, `published_at`, `updated_at`
 -- (UPDATE; the 0052 trigger still pins organization_id/created_by). Still no DELETE.
 GRANT UPDATE                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- Fix lane C (2026-11-23): an unpublished form with no submissions may be deleted by the people who
+-- may create forms (the service refuses a published form and one with submissions).
+GRANT DELETE                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
 -- 0258 `form_submissions` (tenant): the public door appends (INSERT), triage moves `state`
 -- (spam, converting, converted — UPDATE); DELETE only for the company erasure and the later
 -- retention purge. SELECT rides the database-wide read.
@@ -2322,6 +2325,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `tmanage`.`client_invoice_lines`    TO '
 GRANT SELECT, INSERT ON `tmanage`.`client_invoice_payments`                 TO 'tmanage_app'@'%';
 GRANT SELECT, INSERT ON `tmanage`.`client_credit_note_lines`                TO 'tmanage_app'@'%';
 GRANT SELECT, INSERT ON `tmanage`.`client_invoice_events`                   TO 'tmanage_app'@'%';
+-- Fix lane C (2026-11-23): a DRAFT invoice may be deleted (`DELETE …/client-invoices/:id`). A draft
+-- has no number, no snapshot, no hash and no chain link: it is not yet a fiscal record. The service
+-- refuses every other state under the row lock, and an issued invoice stays void/credit-only. The
+-- draft's own lines and events go with it (its events are the draft's history, nothing issued).
+GRANT DELETE ON `tmanage`.`client_invoices`                                 TO 'tmanage_app'@'%';
+GRANT DELETE ON `tmanage`.`client_invoice_events`                           TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`work_item_time_logs`                             TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`expenses`                                        TO 'tmanage_app'@'%';
 GRANT UPDATE ON `tmanage`.`retainer_periods`                                TO 'tmanage_app'@'%';

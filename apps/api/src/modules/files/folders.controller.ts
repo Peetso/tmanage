@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { FILE_FOLDERS_SERVICE } from '../../common/http/tokens.js';
@@ -53,6 +64,26 @@ export class FileFoldersController {
     @Param('projectId') projectId: string,
   ): Promise<{ readonly files: readonly ProjectFileView[] }> {
     return { files: await this.folders.listProjectFiles(context, principal, projectId) };
+  }
+
+  /**
+   * Fix lane C (2026-11-23, G5). Every ready file across the projects this member may read,
+   * newest change first. `?limit=` 1–200 (default 50).
+   */
+  @Get('files')
+  @RequireCapability('file.download')
+  async workspaceFiles(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Query('limit') limit?: string,
+  ): Promise<{ readonly files: readonly ProjectFileView[] }> {
+    const parsed = limit === undefined ? undefined : Number(limit);
+    if (parsed !== undefined && (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 200)) {
+      throw new ApiError(400, 'validation_failed', 'limit must be a whole number from 1 to 200', [
+        { field: 'limit', message: 'must be a whole number from 1 to 200' },
+      ]);
+    }
+    return { files: await this.folders.listWorkspaceFiles(context, principal, parsed) };
   }
 
   @Get('projects/:projectId/folders/:folderId/files')

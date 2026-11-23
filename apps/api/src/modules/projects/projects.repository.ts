@@ -1,7 +1,12 @@
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { projects, workspaces } from '../../common/database/schema.js';
+import {
+  projectFavorites,
+  projectMemberships,
+  projects,
+  workspaces,
+} from '../../common/database/schema.js';
 import type { ProjectRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -289,6 +294,75 @@ export class ProjectsRepository {
     }
 
     return this.requireById(runner, context, projectId);
+  }
+
+  /**
+   * Fix lane C (2026-11-23). Bring an archived project back into the lists. Unarchiving an active
+   * project is not an error; it returns the row unchanged.
+   */
+  async unarchive(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<ProjectRow> {
+    const db = tenantDrizzle(runner);
+    const result = await db
+      .update(projects)
+      .set({ archivedAt: null, updatedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(projects.organizationId, context.organizationId),
+          eq(projects.id, projectId),
+          isNotNull(projects.archivedAt),
+        ),
+      );
+
+    if (result[0].affectedRows === 0) {
+      const current = await this.findById(runner, context, projectId);
+      if (!current) throw new ProjectNotFoundError(projectId);
+      return current;
+    }
+
+    return this.requireById(runner, context, projectId);
+  }
+
+  /**
+   * Fix lane C (2026-11-23). Delete an EMPTY project, inside the caller's transaction.
+   *
+   * "There is no hard delete" (see {@link archive}) still holds for a project that holds anything:
+   * the 47 composite foreign keys onto `projects (organization_id, id)` carry no `ON DELETE`, so
+   * MariaDB refuses the final statement (errno 1451) while any work item, document, file, meeting,
+   * conversation, expense or link still names the project, and the caller rolls the whole unit of
+   * work back. Only the rows a project is born with and that mean nothing without it go first: the
+   * people on it (`project_memberships`) and the members' own favourites (`project_favorites`).
+   * The database, not a hand-kept list, decides "empty", so a table added later cannot be orphaned.
+   */
+  async deleteEmpty(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<void> {
+    const db = tenantDrizzle(runner);
+    await db
+      .delete(projectFavorites)
+      .where(
+        and(
+          eq(projectFavorites.organizationId, context.organizationId),
+          eq(projectFavorites.projectId, projectId),
+        ),
+      );
+    await db
+      .delete(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.organizationId, context.organizationId),
+          eq(projectMemberships.projectId, projectId),
+        ),
+      );
+    const result = await db
+      .delete(projects)
+      .where(and(eq(projects.organizationId, context.organizationId), eq(projects.id, projectId)));
+    if (result[0].affectedRows === 0) throw new ProjectNotFoundError(projectId);
   }
 
   /**

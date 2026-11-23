@@ -263,9 +263,9 @@ export class WorkModule {
     // Work item labels / tags (x233). Definitions are org-scoped; assignments hang off a work item.
     const labelsService: Provider = {
       provide: WORK_LABELS_SERVICE,
-      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
-      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
-        new WorkLabelsService(database, workItems, new WorkLabelsRepository()),
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository, audit: AuditService) =>
+        new WorkLabelsService(database, workItems, new WorkLabelsRepository(), audit),
     };
 
     // Work item recurrence (x257). A tenant-scoped sub-resource behind work.read/work.update; the

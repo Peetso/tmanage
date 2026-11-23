@@ -77,6 +77,9 @@ export interface ProjectFileView {
 
 /** FIX3 item 11: the hub shows the newest files; more than this is a search, not a list. */
 export const PROJECT_FILES_LIMIT = 200;
+/** Fix lane C. The workspace list's default page, and how many project pages it walks at most. */
+export const WORKSPACE_FILES_DEFAULT = 50;
+const WORKSPACE_PROJECT_PAGES = 25;
 
 export class FileFoldersService {
   constructor(
@@ -116,43 +119,103 @@ export class FileFoldersService {
     if (principal.kind !== 'internal') throw new ApiError(404, 'not_found', MESSAGES.notFound);
     return this.database.read(context, async (runner) => {
       const project = await this.readableProject(runner, context, principal, projectId);
-      const archived = project.archivedAt !== null;
       const rows = await this.assets.listReadyForProject(
         runner,
         context,
         projectId,
         PROJECT_FILES_LIMIT,
       );
-      const bound = await this.assets.reviewBoundIds(
-        runner,
-        context,
-        rows.map(({ asset }) => asset.id),
-      );
-      const effective = await effectiveDownloadScanPolicyOn(
-        runner,
-        context,
-        this.scanner,
-        this.settings,
-      );
-      return rows
-        .flatMap(({ asset, version }) => {
-          const scanStatus = usableScanStatus(asset.status, version, effective);
-          return scanStatus === null ? [] : [{ asset, version, scanStatus }];
-        })
-        .map(({ asset, version, scanStatus }) => ({
-          id: asset.id,
-          projectId: asset.projectId,
-          name: asset.name,
-          mimeType: version?.detectedMimeType ?? null,
-          sizeBytes: version?.sizeBytes ?? null,
-          audience: asset.audience,
-          purpose: asset.purpose,
-          versionNo: version?.versionNo ?? null,
-          updatedAt: asset.updatedAt.toISOString(),
-          scanStatus,
-          canDelete: mayDeleteFile(principal, asset, archived, bound.has(asset.id)),
-        }));
+      return this.toFileViews(runner, context, principal, rows, new Map([[project.id, project]]));
     });
+  }
+
+  /**
+   * Fix lane C (2026-11-23, G5 "show me all files"). Every ready file in every project this
+   * internal member may read (`file.download` per project, as {@link listProjectFiles}), newest
+   * change first, at most `limit` (1–{@link PROJECT_FILES_LIMIT}, default 50). The readable
+   * projects are decided first and the files are read for those projects only, so a member with
+   * a few projects still gets a full page. A client principal is 404 (the portal is their door).
+   */
+  async listWorkspaceFiles(
+    context: TenantContext,
+    principal: Principal,
+    limit: number = WORKSPACE_FILES_DEFAULT,
+  ): Promise<readonly ProjectFileView[]> {
+    if (principal.kind !== 'internal') throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const bounded = Math.min(Math.max(1, Math.trunc(limit)), PROJECT_FILES_LIMIT);
+    return this.database.read(context, async (runner) => {
+      const readable = new Map<string, ProjectRow>();
+      let after: string | undefined;
+      for (let page = 0; page < WORKSPACE_PROJECT_PAGES; page += 1) {
+        const rows = await this.projects.list(runner, context, {
+          includeArchived: true,
+          limit: PROJECT_FILES_LIMIT,
+          ...(after === undefined ? {} : { after }),
+        });
+        for (const project of rows) {
+          const verdict = authorize({
+            principal,
+            capability: READ_CAPABILITY,
+            resource: this.projectResource(project),
+          });
+          if (verdict.allowed) readable.set(project.id, project);
+        }
+        if (rows.length < PROJECT_FILES_LIMIT) break;
+        after = rows[rows.length - 1]?.id;
+      }
+      if (readable.size === 0) return [];
+      const rows = await this.assets.listReadyForProjects(
+        runner,
+        context,
+        [...readable.keys()],
+        bounded,
+      );
+      return this.toFileViews(runner, context, principal, rows, readable);
+    });
+  }
+
+  /** The list projection shared by the project and workspace lists. */
+  private async toFileViews(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    rows: Awaited<ReturnType<FileAssetsRepository['listReadyForProject']>>,
+    projects: ReadonlyMap<string, ProjectRow>,
+  ): Promise<readonly ProjectFileView[]> {
+    const bound = await this.assets.reviewBoundIds(
+      runner,
+      context,
+      rows.map(({ asset }) => asset.id),
+    );
+    const effective = await effectiveDownloadScanPolicyOn(
+      runner,
+      context,
+      this.scanner,
+      this.settings,
+    );
+    return rows
+      .flatMap(({ asset, version }) => {
+        const scanStatus = usableScanStatus(asset.status, version, effective);
+        return scanStatus === null ? [] : [{ asset, version, scanStatus }];
+      })
+      .map(({ asset, version, scanStatus }) => ({
+        id: asset.id,
+        projectId: asset.projectId,
+        name: asset.name,
+        mimeType: version?.detectedMimeType ?? null,
+        sizeBytes: version?.sizeBytes ?? null,
+        audience: asset.audience,
+        purpose: asset.purpose,
+        versionNo: version?.versionNo ?? null,
+        updatedAt: asset.updatedAt.toISOString(),
+        scanStatus,
+        canDelete: mayDeleteFile(
+          principal,
+          asset,
+          (projects.get(asset.projectId)?.archivedAt ?? null) !== null,
+          bound.has(asset.id),
+        ),
+      }));
   }
 
   /** A folder's contents (the files filed into it). Behind `file.download`. */

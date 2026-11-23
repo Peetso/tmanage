@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
@@ -78,6 +79,18 @@ export class QuotesController {
     @Body() body: unknown,
   ): Promise<QuoteDetail> {
     return this.service.updateDraft(context, principal, quoteId, body);
+  }
+
+  /** Fix lane C (2026-11-23). Delete a draft quote (a sent one is 409). `project.manage`. */
+  @Delete(':quoteId')
+  @RequireCapability('project.manage')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('quoteId') quoteId: string,
+  ): Promise<void> {
+    await this.service.deleteDraft(context, principal, quoteId);
   }
 
   @Post(':quoteId/send')

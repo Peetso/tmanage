@@ -2,6 +2,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { PeopleTeamsRepository, TeamMember, TeamWithCount } from './teams.repository.js';
 import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * x262's orchestration — people teams (People module 14, planning PEO-03 "Team detail").
@@ -35,6 +36,8 @@ export class PeopleTeamsService {
     private readonly database: TenantDatabase,
     private readonly teams: PeopleTeamsRepository,
     private readonly memberships: MembershipsRepository,
+    /** Fix lane C. Optional so a unit test can build the service without one. */
+    private readonly audit?: Pick<AuditService, 'record'>,
   ) {}
 
   /** Validate and normalise a team name, or throw a 400 with no write. */
@@ -159,5 +162,26 @@ export class PeopleTeamsService {
     await this.database.transaction(context, (tx) =>
       this.teams.deleteAssignment(tx, context, team.id, membershipId),
     );
+  }
+
+  /**
+   * Fix lane C (2026-11-23). Delete a team. The people stay in the workspace; only the grouping
+   * goes. Resolve the team tenant-scoped first (unknown or another tenant's is 404); the delete and
+   * its audit row are one unit of work.
+   */
+  async deleteTeam(context: TenantContext, teamId: string): Promise<void> {
+    await this.database.transaction(context, async (tx) => {
+      const team = await this.teams.findTeamById(tx, context, teamId);
+      if (team === null) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'team_not_found');
+      }
+      const memberCount = await this.teams.deleteTeam(tx, context, team.id);
+      await this.audit?.record(tx, context, {
+        action: 'team.deleted',
+        objectId: team.id,
+        result: 'allowed',
+        metadata: { member_count: memberCount },
+      });
+    });
   }
 }

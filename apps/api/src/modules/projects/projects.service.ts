@@ -1,12 +1,16 @@
 import { authorize, PROJECT_CREATOR_ROLE } from '@tmanage/domain';
-import type { Principal } from '@tmanage/domain';
+import type { Capability, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
   TenantContext,
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import { ProjectsRepository } from './projects.repository.js';
+import {
+  ProjectNotFoundError,
+  ProjectVersionConflictError,
+  ProjectsRepository,
+} from './projects.repository.js';
 import { ProjectMembershipsRepository } from './project-memberships.repository.js';
 import type { CreateProjectInput, ListProjectsOptions } from './projects.repository.js';
 import type { ProjectRow } from '../../common/database/schema.js';
@@ -238,6 +242,174 @@ export class ProjectsService {
   }
 
   /**
+   * Fix lane C (2026-11-23, owner rule "anything the account can do by hand, the AI can do"). Rename
+   * a project. `project.manage` on this project (a manager only on a project they manage, the
+   * evaluator's narrowing); a project the caller cannot read is 404. Optimistic on
+   * `expectedUpdatedAt` (the `updatedAt` last read): a stale value is 409 with the current one.
+   */
+  async rename(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    input: { readonly name: string; readonly expectedUpdatedAt: string },
+  ): Promise<ProjectView> {
+    const expected = new Date(input.expectedUpdatedAt);
+    const row = await this.database.transaction(context, async (tx) => {
+      const current = await this.requireActionable(
+        tx,
+        context,
+        principal,
+        projectId,
+        'project.manage',
+      );
+      if (current.archivedAt !== null) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'An archived project cannot be renamed. Restore it first.',
+          [{ field: 'projectId', message: 'is archived' }],
+        );
+      }
+      let updated: ProjectRow;
+      try {
+        updated = await this.projects.update(tx, context, projectId, expected, {
+          name: input.name,
+        });
+      } catch (error) {
+        if (error instanceof ProjectVersionConflictError) {
+          throw new ApiError(409, 'conflict', MESSAGES.conflict, [
+            {
+              field: 'expectedUpdatedAt',
+              message: `stale; current is ${current.updatedAt.toISOString()}`,
+            },
+          ]);
+        }
+        throw error;
+      }
+      await this.audit?.record(tx, context, {
+        action: 'project.renamed',
+        objectId: projectId,
+        result: 'allowed',
+        metadata: {},
+      });
+      return updated;
+    });
+    return toView(row);
+  }
+
+  /**
+   * Fix lane C. Archive (`archived: true`) or restore (`false`) a project: out of every list and
+   * back, nothing erased. `project.manage` on this project. Archiving an archived project (or
+   * restoring an active one) is not an error and writes no audit row.
+   */
+  async setArchived(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    archived: boolean,
+  ): Promise<ProjectView> {
+    const row = await this.database.transaction(context, async (tx) => {
+      const current = await this.requireActionable(
+        tx,
+        context,
+        principal,
+        projectId,
+        'project.manage',
+      );
+      if ((current.archivedAt !== null) === archived) return current;
+      const next = archived
+        ? await this.projects.archive(tx, context, projectId)
+        : await this.projects.unarchive(tx, context, projectId);
+      await this.audit?.record(tx, context, {
+        action: archived ? 'project.archived' : 'project.unarchived',
+        objectId: projectId,
+        result: 'allowed',
+        metadata: {},
+      });
+      return next;
+    });
+    return toView(row);
+  }
+
+  /**
+   * Fix lane C. Delete an EMPTY project (`project.delete` on this project). A project that still
+   * holds anything (a work item, document, file, meeting, conversation, client link, …) is refused
+   * with 409 `project_not_empty`, and nothing is written: archive it instead. The database decides
+   * "empty" through its foreign keys (see `ProjectsRepository.deleteEmpty`).
+   */
+  async deleteEmpty(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<void> {
+    try {
+      await this.database.transaction(context, async (tx) => {
+        await this.requireActionable(tx, context, principal, projectId, 'project.delete');
+        // The audit row is written first, in the same unit of work: if the delete is refused the
+        // whole transaction rolls back and no row claims a deletion that did not happen.
+        await this.audit?.record(tx, context, {
+          action: 'project.deleted',
+          objectId: projectId,
+          result: 'allowed',
+          metadata: {},
+        });
+        await this.projects.deleteEmpty(tx, context, projectId);
+      });
+    } catch (error) {
+      if (isRowReferenced(error)) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'This project still holds work, files or links, so it cannot be deleted. Archive it instead.',
+          [{ field: 'projectId', message: 'project_not_empty' }],
+          'project_not_empty',
+        );
+      }
+      if (error instanceof ProjectNotFoundError) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Read the project inside the unit of work and decide `capability` on it. Not readable is 404
+   * (as {@link get}); readable but not permitted is 403.
+   */
+  private async requireActionable(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    capability: Capability,
+  ): Promise<ProjectRow> {
+    const row = await this.projects.findById(tx, context, projectId);
+    const resource = (r: ProjectRow) => ({
+      organizationId: r.organizationId,
+      projectId: r.id,
+      audience: 'internal' as const,
+      lifecycle: r.archivedAt ? ('archived' as const) : ('active' as const),
+    });
+    if (
+      row === null ||
+      !authorize({ principal, capability: 'work.read', resource: resource(row) }).allowed
+    ) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+    // The lifecycle itself is what archive, restore and delete act on, so the capability is
+    // decided as on an active project; rename refuses an archived one on its own.
+    const verdict = authorize({
+      principal,
+      capability,
+      resource: { ...resource(row), lifecycle: 'active' },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
+    }
+    return row;
+  }
+
+  /**
    * 52-08. The body of {@link create} inside a caller's transaction, for a command that writes more
    * than the project in one unit of work ("Convert to project" on a quote). The caller MUST have run
    * {@link requireMayCreate} first; this writes the project, the creator's manager row and both audit
@@ -286,6 +458,17 @@ export class ProjectsService {
 
     return created;
   }
+}
+
+/** MariaDB's "a row elsewhere still points at it" (ER_ROW_IS_REFERENCED_2 / ER_ROW_IS_REFERENCED). */
+function isRowReferenced(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && typeof current === 'object' && current !== null; depth += 1) {
+    const errno = (current as { errno?: unknown }).errno;
+    if (errno === 1451 || errno === 1217) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 export { toView as toProjectView };

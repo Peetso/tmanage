@@ -122,6 +122,33 @@ export class QuotesRepository {
       .where(and(eq(quotes.organizationId, context.organizationId), eq(quotes.id, quoteId)));
   }
 
+  /**
+   * Fix lane C (2026-11-23). Delete a draft quote and its lines. The caller holds the row lock and
+   * has checked the status; `status = 'draft'` here is the backstop. `false` when nothing went.
+   */
+  async deleteDraft(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    quoteId: string,
+  ): Promise<boolean> {
+    const db = tenantDrizzle(runner);
+    await db
+      .delete(quoteLines)
+      .where(
+        and(eq(quoteLines.organizationId, context.organizationId), eq(quoteLines.quoteId, quoteId)),
+      );
+    const result = await db
+      .delete(quotes)
+      .where(
+        and(
+          eq(quotes.organizationId, context.organizationId),
+          eq(quotes.id, quoteId),
+          eq(quotes.status, 'draft'),
+        ),
+      );
+    return result[0].affectedRows > 0;
+  }
+
   /** Replace a draft's lines as a set. */
   async replaceLines(
     runner: TenantQueryRunner,

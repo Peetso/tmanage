@@ -1927,6 +1927,57 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'client_invoice',
     clause: '§12 52-12 — an issued document could not be signed and was left unsigned',
   },
+  // ---- fix lane C 2026-11-23 · lifecycle: what a member made can be renamed, archived or removed ----
+  /** A project was renamed. Metadata: none (the name is content, not an identifier). */
+  'project.renamed': {
+    objectType: 'project',
+    clause: '§12 organization settings — a project was renamed',
+  },
+  /** A project was archived: out of every list, nothing erased. */
+  'project.archived': {
+    objectType: 'project',
+    clause: '§12 organization settings — a project was archived',
+  },
+  /** An archived project was brought back. */
+  'project.unarchived': {
+    objectType: 'project',
+    clause: '§12 organization settings — an archived project was restored',
+  },
+  /** An empty project was deleted (a project that holds anything is archived instead). */
+  'project.deleted': {
+    objectType: 'project',
+    clause: '§12 organization settings — an empty project was deleted',
+  },
+  /** A team was deleted. Metadata: how many members it had. */
+  'team.deleted': {
+    objectType: 'team',
+    clause: '§12 organization settings — a team was deleted',
+  },
+  /** A work label was deleted. Metadata: how many work items lost the tag. */
+  'work_label.deleted': {
+    objectType: 'work_label',
+    clause: '§12 organization settings — a work label definition was deleted',
+  },
+  /** An unpublished work form with no submissions was deleted. */
+  'work_form.deleted': {
+    objectType: 'work_form',
+    clause: '§12 organization settings — a work form was deleted',
+  },
+  /** A draft quote was deleted (a sent quote is never deleted). */
+  'quote.deleted': {
+    objectType: 'quote',
+    clause: '§12 52-08 — a draft quote was deleted',
+  },
+  /** A draft client invoice was deleted (an issued invoice is only ever voided or credited). */
+  'client_invoice.deleted': {
+    objectType: 'client_invoice',
+    clause: '§12 52-09 — a draft client invoice was deleted',
+  },
+  /** A small file sent inline (base64) was added to a work item. Metadata: size, type. */
+  'work_item.inline_file_uploaded': {
+    objectType: 'file_asset',
+    clause: '§12 files — a file was added to a work item from inline content',
+  },
   // ---- R23-e · 54-24 import undo ----
   /** A committed import was undone inside its 7-day window. Metadata: job id, source kind, count. */
   'import.undo': {
@@ -1973,6 +2024,16 @@ const AUDIT_ACTION_LABELS = {
   'organization.renamed': 'Renamed the organization',
   'organization.logo_changed': 'Changed the organization logo',
   'project.created': 'Created a project',
+  'project.renamed': 'Renamed a project',
+  'project.archived': 'Archived a project',
+  'project.unarchived': 'Restored an archived project',
+  'project.deleted': 'Deleted an empty project',
+  'team.deleted': 'Deleted a team',
+  'work_label.deleted': 'Deleted a work label',
+  'work_form.deleted': 'Deleted a work form',
+  'quote.deleted': 'Deleted a draft quote',
+  'client_invoice.deleted': 'Deleted a client invoice draft',
+  'work_item.inline_file_uploaded': 'Added a file to a work item',
   'work_item.created': 'Created a work item',
   'work_item.transitioned': 'Moved a work item to a new stage',
   'work_item.audience_changed': 'Changed who can see a work item',

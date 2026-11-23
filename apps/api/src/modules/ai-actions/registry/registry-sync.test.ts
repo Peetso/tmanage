@@ -279,7 +279,10 @@ function holdsPlatformAdminGuard(guards: unknown): boolean {
 // ADR-0015 part 2 (AI platform admin): no route added. 236 platform routes (and keys/status,
 // keys/rotate) move from NEVER to `platform.*` ops; step-up (K1) and the content file download
 // (K4) stay NEVER, and org support-session GET becomes an op.
-const EXPECTED_ROUTE_COUNT = 1644;
+// Fix lane C (2026-11-23): +11 ops (project rename, archive, unarchive, delete; team, label, form,
+// draft quote and draft invoice delete; workspace file list; inline file upload). The two
+// copilot/settings routes move from NEVER to ops (no route added).
+const EXPECTED_ROUTE_COUNT = 1655;
 // 60-03: +8 NEVER (ai-employees list, get, hire, edit, pause, resume, sponsor, retire).
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.

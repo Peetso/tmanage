@@ -467,9 +467,8 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/copilot/conversation-retention',
     reason: 'ai_chat',
   },
-  // 62-17. Settings > AI is the owner's: the AI never reads or changes its own settings.
-  { method: 'GET', path: '/v1/organizations/:orgSlug/copilot/settings/', reason: 'ai_chat' },
-  { method: 'PATCH', path: '/v1/organizations/:orgSlug/copilot/settings/', reason: 'ai_chat' },
+  // 62-17. Settings > AI (GET, PATCH) became ops in parity batch 4 (owner G4, 2026-11-23): the
+  // change is confirm-class on a card the owner confirms in person (`parity-b4-lifecycle.ts`).
   // 62-26. Business Memory decisions are a person's, never the AI's.
   {
     method: 'PATCH',

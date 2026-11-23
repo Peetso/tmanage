@@ -74,6 +74,58 @@ export class CloudImportService {
   }
 
   /**
+   * Fix lane C (2026-11-23, G5). A small file whose bytes came inline (base64, decoded and capped by
+   * the controller) becomes a checked TManage copy by the very same path as a picked drive file —
+   * the work item's `work.update`, then `file.upload` on its project and the company's own size cap
+   * (`preflightImport`), then file safety, quota, the verifier, the scanner and the previews
+   * (`importFetched`) — and is attached to the work item. No URL is ever fetched.
+   */
+  async importInlineToWorkItem(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    file: { readonly name: string; readonly mimeType: string; readonly bytes: Buffer },
+  ): Promise<WorkItemCloudImportView> {
+    const { projectId } = await this.deps.workItemFiles.requireWritable(
+      context,
+      principal,
+      workItemId,
+    );
+    const { maxBytes } = await this.deps.files.preflightImport(context, principal, projectId);
+    if (file.bytes.length > maxBytes) {
+      throw new ApiError(400, 'validation_failed', 'The file is larger than this company allows.', [
+        { field: 'contentBase64', message: `must decode to ${String(maxBytes)} bytes or fewer` },
+      ]);
+    }
+    const imported = await this.deps.files.importFetched(context, principal, {
+      projectId,
+      fileName: file.name,
+      mimeType: file.mimeType,
+      bytes: file.bytes,
+      objectId: null,
+    });
+    const attachment = await this.deps.workItemFiles.attach(context, principal, workItemId, {
+      fileAssetId: imported.file.id,
+    });
+    if (this.deps.audit) {
+      const audit = this.deps.audit;
+      await this.deps.database.transaction(context, (tx) =>
+        audit.record(tx, context, {
+          action: 'work_item.inline_file_uploaded',
+          objectId: imported.file.id,
+          result: 'allowed',
+          metadata: {
+            work_item_id: workItemId,
+            size_bytes: file.bytes.length,
+            mime_type: file.mimeType,
+          },
+        }),
+      );
+    }
+    return { ...imported, attachment };
+  }
+
+  /**
    * Import the picked file for the deliverable's next version. The copy is bound to the
    * deliverable; the browser adds the version once the checks have passed, exactly as it does for
    * an uploaded file (a version may only name a usable file).

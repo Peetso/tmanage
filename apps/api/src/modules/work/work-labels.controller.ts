@@ -51,6 +51,20 @@ export class WorkLabelsController {
     });
   }
 
+  /**
+   * Fix lane C (2026-11-23). Delete a label definition; the tag comes off every item. `work.delete`
+   * (it changes work items across projects).
+   */
+  @Delete('work/labels/:labelId')
+  @RequireCapability('work.delete')
+  @HttpCode(204)
+  async removeDefinition(
+    @Ctx() context: TenantContext,
+    @Param('labelId') labelId: string,
+  ): Promise<void> {
+    await this.labels.deleteDefinition(context, labelId);
+  }
+
   @Get('work-items/:workItemId/labels')
   @RequireCapability('work.read')
   async listForItem(

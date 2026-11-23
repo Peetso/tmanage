@@ -246,6 +246,29 @@ export class QuotesService {
   }
 
   /**
+   * Fix lane C (2026-11-23). Delete a DRAFT quote. A sent, accepted, declined or converted quote is
+   * a 409 and stays: it is what the client saw. The number of a deleted draft is not reused unless
+   * it was the newest one.
+   */
+  async deleteDraft(context: TenantContext, principal: Principal, quoteId: string): Promise<void> {
+    this.require(principal, context);
+    await this.options.database.transaction(context, async (tx) => {
+      const quote = await this.load(tx, context, quoteId, true);
+      if (quote.status !== 'draft') {
+        throw new ApiError(409, 'conflict', 'Only a draft quote can be deleted.', [
+          { field: 'quoteId', message: 'not_draft' },
+        ]);
+      }
+      await this.audited(tx, context, 'quote.deleted', quote.id);
+      if (!(await this.options.repository.deleteDraft(tx, context, quote.id))) {
+        throw new ApiError(409, 'conflict', 'Only a draft quote can be deleted.', [
+          { field: 'quoteId', message: 'not_draft' },
+        ]);
+      }
+    });
+  }
+
+  /**
    * Freeze a draft (status `sent`, `content_hash`) and issue its 56-07 `quote` link to `to`, in
    * one transaction. The link always requires the e-mail code for `accept` and never outlives the
    * quote's validity (capped at 30 days).

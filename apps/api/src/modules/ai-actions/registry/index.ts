@@ -29,6 +29,7 @@ import { aPlatformOps } from './parity-b3-platform-a.js';
 import { bPlatformOps } from './parity-b3-platform-b.js';
 import { cPlatformOps } from './parity-b3-platform-c.js';
 import { corePlatformOps } from './parity-b3-platform-core.js';
+import { lifecycleOps } from './parity-b4-lifecycle.js';
 
 export * from './types.js';
 export { OP_SENSITIVITY } from './sensitivity.js';
@@ -6410,6 +6411,7 @@ export const OPS: readonly AiActionOp[] = [
   ...bPlatformOps,
   ...cPlatformOps,
   ...corePlatformOps,
+  ...lifecycleOps, // fix lane C: lifecycle removals, files, AI settings
   // ---- R18-c · 55-25 quick-add resolve (read: title + chips, visible names only) ----
   {
     id: 'work.quick_add.resolve',

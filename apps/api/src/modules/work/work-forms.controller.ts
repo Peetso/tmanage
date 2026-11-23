@@ -1,13 +1,26 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Optional,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import {
+  AUDIT_SERVICE,
   TENANT_DATABASE,
   WORK_FORMS_REPOSITORY,
   WORK_ITEMS_SERVICE,
 } from '../../common/http/tokens.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkFormFieldDef, WorkFormRow } from '../../common/database/schema.js';
 import type { WorkFormsRepository } from './work-forms.repository.js';
@@ -92,6 +105,8 @@ export class WorkFormsController {
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Inject(WORK_FORMS_REPOSITORY) private readonly forms: WorkFormsRepository,
     @Inject(WORK_ITEMS_SERVICE) private readonly workItems: WorkItemsService,
+    // Fix lane C: optional so a unit test can build the controller without an audit writer.
+    @Optional() @Inject(AUDIT_SERVICE) private readonly audit?: Pick<AuditService, 'record'>,
   ) {}
 
   /**
@@ -204,6 +219,70 @@ export class WorkFormsController {
   }
 
   /** Org-scoped deny-by-default decision the route guard cannot make (membership status, etc.). */
+  /**
+   * Fix lane C (2026-11-23). Delete a form. `work.create` (as create, publish and unpublish), and
+   * only the person who made it or an owner/admin (`org.manage`). A published form is 409
+   * `form_published` (unpublish it first) and a form with submissions is 409
+   * `form_has_submissions` (the requests keep their source); an unknown id is 404.
+   */
+  @Delete(':formId')
+  @RequireCapability('work.create')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('formId') formId: string,
+  ): Promise<void> {
+    await this.database.transaction(context, async (tx) => {
+      const form = await this.forms.findById(tx, context, formId);
+      if (!form || !this.mayActOrg(principal, context, 'work.read')) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'work_form_not_found');
+      }
+      const isAdmin = authorize({
+        principal,
+        capability: 'org.manage',
+        resource: {
+          organizationId: context.organizationId,
+          projectId: null,
+          audience: 'internal',
+          lifecycle: 'active',
+        },
+      }).allowed;
+      if (
+        !this.mayActOrg(principal, context, 'work.create') ||
+        (form.createdBy !== context.userId && !isAdmin)
+      ) {
+        throw new ApiError(
+          403,
+          'forbidden',
+          MESSAGES.forbidden,
+          undefined,
+          'work_form_write_denied',
+        );
+      }
+      if (form.publicEnabled) {
+        throw new ApiError(409, 'conflict', 'Unpublish this form before you delete it.', [
+          { field: 'formId', message: 'form_published' },
+        ]);
+      }
+      if (await this.forms.hasSubmissions(tx, context, form.id)) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'This form has submissions, so it is kept. Unpublish it to stop new ones.',
+          [{ field: 'formId', message: 'form_has_submissions' }],
+        );
+      }
+      await this.audit?.record(tx, context, {
+        action: 'work_form.deleted',
+        objectId: form.id,
+        result: 'allowed',
+        metadata: {},
+      });
+      await this.forms.delete(tx, context, form.id);
+    });
+  }
+
   private mayActOrg(
     principal: Principal,
     context: TenantContext,

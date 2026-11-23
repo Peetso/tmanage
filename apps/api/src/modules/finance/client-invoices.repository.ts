@@ -756,6 +756,46 @@ export class ClientInvoicesRepository {
       );
   }
 
+  /**
+   * Fix lane C (2026-11-23). Delete a DRAFT invoice with its lines and its events, after the caller
+   * released the sources ({@link releaseLinks}) under the row lock. `state = 'draft'` on the last
+   * statement is the backstop: an issued invoice is never deleted (`false`). A draft holds no
+   * payment, credit note or chain link, so nothing else names it.
+   */
+  async deleteDraft(
+    runner: TenantQueryRunner,
+    organizationId: string,
+    invoiceId: string,
+  ): Promise<boolean> {
+    const db = tenantDrizzle(runner);
+    await db
+      .delete(clientInvoiceLines)
+      .where(
+        and(
+          eq(clientInvoiceLines.organizationId, organizationId),
+          eq(clientInvoiceLines.invoiceId, invoiceId),
+        ),
+      );
+    await db
+      .delete(clientInvoiceEvents)
+      .where(
+        and(
+          eq(clientInvoiceEvents.organizationId, organizationId),
+          eq(clientInvoiceEvents.invoiceId, invoiceId),
+        ),
+      );
+    const result = await db
+      .delete(clientInvoices)
+      .where(
+        and(
+          eq(clientInvoices.organizationId, organizationId),
+          eq(clientInvoices.id, invoiceId),
+          eq(clientInvoices.state, 'draft'),
+        ),
+      );
+    return result[0].affectedRows > 0;
+  }
+
   // ---- 52-12 (0311) hash chain ----
 
   /**

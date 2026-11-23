@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -232,6 +233,21 @@ export class ClientInvoicesController {
       ip: ip ?? null,
       userAgent: userAgent ?? null,
     });
+  }
+
+  /**
+   * Fix lane C (2026-11-23). Delete a draft invoice (an issued one is 409 and stays void/credit
+   * only). `finance.manage`.
+   */
+  @Delete('client-invoices/:invoiceId')
+  @HttpCode(204)
+  @RequireCapability('finance.manage')
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('invoiceId') invoiceId: string,
+  ): Promise<void> {
+    await this.service.deleteDraft(context, principal, invoiceId);
   }
 
   @Post('client-invoices/:invoiceId/void')
