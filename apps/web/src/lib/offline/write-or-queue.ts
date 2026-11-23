@@ -7,6 +7,7 @@ import {
   type NewOfflineWrite,
   type OfflineQueue,
   type OfflineWrite,
+  type TimeLogPayload,
 } from './queue';
 import { apiTransport, type OfflineTransport, type SentResult } from './transport';
 import { isOnline, offlineQueue } from './offline-runtime';
@@ -81,7 +82,7 @@ export async function addTimeLogOrQueue(
   client: ApiClient,
   workspaceSlug: string,
   workItemId: string,
-  payload: { readonly minutes: number; readonly spentOn: string; readonly note: string | null },
+  payload: TimeLogPayload,
   deps: OfflineDeps = defaults(client),
 ): Promise<TimeLog | Queued> {
   return sendOrQueue({ kind: 'time-log', workspaceSlug, workItemId, payload }, deps) as Promise<

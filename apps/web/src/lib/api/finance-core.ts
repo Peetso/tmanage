@@ -144,7 +144,15 @@ export interface TimesheetEntry {
   /** Marked for review: a long day or session of automatic time, or late time from a closed week. */
   readonly needsReview: boolean;
   /** `automatic` = reported by the person's own computer, not verified. */
-  readonly source: 'manual' | 'timer' | 'automatic';
+  readonly source: 'manual' | 'timer' | 'automatic' | 'correction';
+  /** 2026-11-23 time trust: measured by the server, or typed in / corrected. */
+  readonly trust: 'measured' | 'hand';
+  readonly approvalState: 'none' | 'pending' | 'approved' | 'rejected';
+  /** Counts in the totals (false: waiting, refused, or replaced by an approved correction). */
+  readonly counted: boolean;
+  readonly reason: string | null;
+  /** Changed after it was written: the "Edited" badge. */
+  readonly edited: boolean;
 }
 
 export interface TimesheetGroup {
@@ -166,6 +174,10 @@ export interface Timesheet {
   readonly decisionNote: string | null;
   readonly totalMinutes: number;
   readonly billableMinutes: number;
+  /** Of the total: measured by the timer, added by hand; hand time still waiting (not counted). */
+  readonly measuredMinutes: number;
+  readonly handMinutes: number;
+  readonly pendingMinutes: number;
   readonly locked: boolean;
   readonly groups: readonly TimesheetGroup[];
 }
@@ -176,6 +188,9 @@ export interface TeamMemberWeek {
   readonly state: TimesheetState;
   readonly totalMinutes: number;
   readonly billableMinutes: number;
+  readonly measuredMinutes: number;
+  readonly handMinutes: number;
+  readonly pendingMinutes: number;
 }
 
 export interface TeamWeek {

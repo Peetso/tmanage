@@ -10,13 +10,15 @@ import { listPeople } from '../../../lib/api/people';
 import { useTOr } from '../../../lib/i18n/use-t-or';
 import { FeatureOn } from '../../shell/FeatureOn';
 
-export type FinanceCoreTab = 'profile' | 'rates' | 'timesheets' | 'team-time' | 'expenses';
+export type FinanceCoreTab =
+  'profile' | 'rates' | 'timesheets' | 'time-approvals' | 'team-time' | 'expenses';
 
 /** Each tab, and (52-24) the rollout flag that gates its routes on the server, if any. */
 const TABS: readonly (readonly [FinanceCoreTab, string, string, OptionalModuleFlag | null])[] = [
   ['profile', 'FinanceCore.tabProfile', 'Profile', null],
   ['rates', 'FinanceCore.tabRates', 'Rate cards', 'finance_rates_budgets'],
   ['timesheets', 'FinanceCore.tabTimesheets', 'Timesheets', 'time_tracking'],
+  ['time-approvals', 'FinanceCore.tabTimeApprovals', 'Time to approve', 'time_tracking'],
   ['team-time', 'FinanceCore.tabTeamTime', 'Team time', 'time_tracking'],
   ['expenses', 'FinanceCore.tabExpenses', 'Expenses', 'expenses'],
 ];
@@ -39,28 +41,31 @@ export function FinanceCoreNav({
     queryFn: skipToken,
   }).data;
   const mayViewTeamTime = me?.capabilities.includes('time.view_team') ?? false;
+  // 2026-11-23 time trust: the approval queue is for project leads and admins.
+  const mayApprove = me?.capabilities.includes('project.manage') ?? false;
   return (
     <nav className="tm-segmented" aria-label={tOr('FinanceCore.subnav', 'Finance sections')}>
-      {TABS.filter(([id]) => id !== 'team-time' || mayViewTeamTime).map(
-        ([id, key, english, flag]) => {
-          const link = (
-            <Link
-              key={id}
-              href={`/${organizationSlug}/finance/${id}`}
-              aria-current={id === active ? 'page' : undefined}
-            >
-              {tOr(key, english)}
-            </Link>
-          );
-          return flag ? (
-            <FeatureOn key={id} organizationSlug={organizationSlug} flag={flag}>
-              {link}
-            </FeatureOn>
-          ) : (
-            link
-          );
-        },
-      )}
+      {TABS.filter(
+        ([id]) =>
+          (id !== 'team-time' || mayViewTeamTime) && (id !== 'time-approvals' || mayApprove),
+      ).map(([id, key, english, flag]) => {
+        const link = (
+          <Link
+            key={id}
+            href={`/${organizationSlug}/finance/${id}`}
+            aria-current={id === active ? 'page' : undefined}
+          >
+            {tOr(key, english)}
+          </Link>
+        );
+        return flag ? (
+          <FeatureOn key={id} organizationSlug={organizationSlug} flag={flag}>
+            {link}
+          </FeatureOn>
+        ) : (
+          link
+        );
+      })}
     </nav>
   );
 }

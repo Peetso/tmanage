@@ -81,7 +81,8 @@ export interface TeamTime {
   readonly serverNow: string;
 }
 
-export type TeamSessionSource = 'manual' | 'timer' | 'automatic';
+/** `correction` (2026-11-23 time trust): an approved fix of timer time, typed in. */
+export type TeamSessionSource = 'manual' | 'timer' | 'automatic' | 'correction';
 
 export interface TeamSession {
   readonly id: string | null;

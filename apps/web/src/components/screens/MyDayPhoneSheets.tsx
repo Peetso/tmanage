@@ -8,6 +8,12 @@ import type { ApiClient } from '../../lib/api/client';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import { addTimeLogOrQueue, isQueued } from '../../lib/offline/write-or-queue';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import {
+  HandTimeOffNotice,
+  HandTimeReasonField,
+  reasonValid,
+  useTimeTrustPolicy,
+} from '../time/TimeTrustParts';
 import { fill } from '../../lib/privacy-presentation';
 import '../../styles/screens/my-day-phone.css';
 
@@ -296,6 +302,10 @@ export function LogTimeSheet({
   const [minutes, setMinutes] = useState('');
   const [spentOn, setSpentOn] = useState(() => localDay(today ?? new Date()));
   const [note, setNote] = useState('');
+  const [reason, setReason] = useState('');
+  // 2026-11-23 time trust: hand time only when the owner allows it, with a reason.
+  const policy = useTimeTrustPolicy(api, organizationSlug);
+  const handAllowed = policy.data?.handTimeAllowed === true;
 
   const parsed = Number(minutes);
   const minutesValid =
@@ -308,6 +318,7 @@ export function LogTimeSheet({
         minutes: parsed,
         spentOn,
         note: note.trim() === '' ? null : note.trim(),
+        reason: reason.trim(),
       }),
     onSuccess: async (result) => {
       if (isQueued(result)) {
@@ -322,7 +333,7 @@ export function LogTimeSheet({
     },
   });
 
-  const canLog = minutesValid && dayValid && !add.isPending;
+  const canLog = handAllowed && minutesValid && dayValid && reasonValid(reason) && !add.isPending;
 
   return (
     <BottomSheet
@@ -359,9 +370,11 @@ export function LogTimeSheet({
       <p className="tm-sheet__lead">
         {workTitle} · {projectName}
       </p>
+      {policy.isSuccess && !handAllowed ? <HandTimeOffNotice /> : null}
       <form
         id={formId}
         className="tm-sheet__form"
+        hidden={!handAllowed}
         noValidate
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
@@ -417,6 +430,11 @@ export function LogTimeSheet({
           value={note}
           onChange={(event) => setNote(event.target.value)}
           hint={tOr('PhoneHome.noteHint', 'Optional. What was the time for?')}
+        />
+        <HandTimeReasonField
+          value={reason}
+          onChange={setReason}
+          afterApproval={policy.data?.handTimeCountMode !== 'at_once_flagged'}
         />
         {add.isError ? (
           <InlineAlert

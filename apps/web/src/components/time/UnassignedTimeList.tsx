@@ -110,6 +110,18 @@ export function UnassignedTimeList({
                 <td>{formatDuration(entry.minutes, locale)}</td>
                 <td>
                   <SourceMark source={entry.source} tr={tr} />
+                  {entry.approvalState === 'pending' ? (
+                    <>
+                      {' '}
+                      <Badge>{tr('TimeTrust.waiting', 'Waiting for approval')}</Badge>
+                    </>
+                  ) : null}
+                  {entry.edited ? (
+                    <>
+                      {' '}
+                      <Badge>{tr('TimeTrust.edited', 'Edited')}</Badge>
+                    </>
+                  ) : null}
                 </td>
                 {editable ? (
                   <td>
@@ -178,7 +190,10 @@ export function UnassignedTimeList({
 
 /** Item 8: automatic entries are marked as such, with what that means in the hover help. */
 export function SourceMark({ source, tr }: { source: TimesheetEntry['source']; tr: TOr }) {
-  if (source !== 'automatic') return <>{tr('UnassignedTime.manual', 'Manual')}</>;
+  // 2026-11-23 time trust: say how the minutes came in, measured or typed in.
+  if (source === 'timer') return <>{tr('TimeTrust.timer', 'Timer')}</>;
+  if (source === 'correction') return <Badge>{tr('TimeTrust.correction', 'Correction')}</Badge>;
+  if (source === 'manual') return <Badge>{tr('TimeTrust.byHand', 'Added by hand')}</Badge>;
   // A badge is not a control, so its meaning is written beside it, not in a hover bubble.
   return (
     <>

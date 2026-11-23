@@ -19,6 +19,15 @@ import { useShellCapability } from '../shell/use-shell-capability';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { formatDuration } from '../../lib/i18n/duration';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { readOrganizationMe } from '../../lib/api/permission-matrix';
+import {
+  CorrectionForm,
+  HandTimeOffNotice,
+  HandTimeReasonField,
+  TimeTrustBadges,
+  reasonValid,
+  useTimeTrustPolicy,
+} from '../time/TimeTrustParts';
 
 export interface WorkItemTimeLogScreenProps {
   organizationSlug: string;
@@ -63,6 +72,15 @@ export function WorkItemTimeLogScreen({
   const [minutes, setMinutes] = useState('');
   const [spentOn, setSpentOn] = useState('');
   const [note, setNote] = useState('');
+  const [reason, setReason] = useState('');
+  const [correcting, setCorrecting] = useState<string | null>(null);
+  // 2026-11-23 time trust: hand time only when the owner allows it, with a reason.
+  const policy = useTimeTrustPolicy(api, organizationSlug);
+  const handAllowed = policy.data?.handTimeAllowed === true;
+  const me = useQuery({
+    queryKey: ['organization-me', organizationSlug],
+    queryFn: () => readOrganizationMe(api, organizationSlug),
+  });
 
   const parsedMinutes = Number(minutes);
   const minutesValid =
@@ -79,11 +97,13 @@ export function WorkItemTimeLogScreen({
         minutes: parsedMinutes,
         spentOn,
         note: note.trim() === '' ? null : note.trim(),
+        reason: reason.trim(),
       }),
     onSuccess: async () => {
       setMinutes('');
       setSpentOn('');
       setNote('');
+      setReason('');
       await queryClient.invalidateQueries({
         queryKey: ['work-item-time-logs', organizationSlug, workItemId],
       });
@@ -102,7 +122,12 @@ export function WorkItemTimeLogScreen({
   const entries = logs.data?.entries ?? [];
   const pendingEntries = usePendingWrites(organizationSlug, workItemId, 'time-log');
   const totalMinutes = logs.data?.totalMinutes ?? 0;
-  const canAdd = minutesValid && spentOnValid && !add.isPending;
+  const canAdd = minutesValid && spentOnValid && reasonValid(reason) && !add.isPending;
+  const pendingMinutes = logs.data?.pendingMinutes ?? 0;
+  const refresh = () =>
+    queryClient.invalidateQueries({
+      queryKey: ['work-item-time-logs', organizationSlug, workItemId],
+    });
 
   return (
     <AppShell
@@ -135,9 +160,11 @@ export function WorkItemTimeLogScreen({
           <h2 id="tm-time-new-heading" className="tm-eyebrow">
             {t('WorkItemTimeLogScreen.logTimeHeading')}
           </h2>
+          {policy.isSuccess && !handAllowed ? <HandTimeOffNotice /> : null}
           <form
             ref={firstStep}
             className="tm-stack"
+            hidden={!handAllowed}
             noValidate
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
@@ -171,6 +198,11 @@ export function WorkItemTimeLogScreen({
               onChange={(event) => setNote(event.target.value)}
               hint={t('WorkItemTimeLogScreen.noteHint')}
             />
+            <HandTimeReasonField
+              value={reason}
+              onChange={setReason}
+              afterApproval={policy.data?.handTimeCountMode !== 'at_once_flagged'}
+            />
             {add.isError ? (
               <InlineAlert tone="danger" title={t('WorkItemTimeLogScreen.logError')} live>
                 {describeError(add.error)}
@@ -192,6 +224,11 @@ export function WorkItemTimeLogScreen({
             <span className="tm-badge" aria-label={t('WorkItemTimeLogScreen.totalAria')}>
               {formatMinutes(totalMinutes)} {t('WorkItemTimeLogScreen.total')}
             </span>
+            {pendingMinutes > 0 ? (
+              <span className="tm-badge">
+                {formatMinutes(pendingMinutes)} {tr('TimeTrust.waitingShort', 'waiting')}
+              </span>
+            ) : null}
           </div>
 
           {logs.isError ? (
@@ -230,20 +267,51 @@ export function WorkItemTimeLogScreen({
           {!logs.isPending && !logs.isError && entries.length > 0 ? (
             <ul className="tm-stack tm-list">
               {entries.map((entry: TimeLog) => (
-                <li key={entry.id} className="tm-row tm-row--between tm-list__item">
-                  <span>
-                    <strong>{formatMinutes(entry.minutes)}</strong> {t('WorkItemTimeLogScreen.on')}{' '}
-                    {entry.spentOn}
-                    {entry.note ? ` — ${entry.note}` : ''}
-                  </span>
-                  <Button
-                    tone="destructive"
-                    onClick={() => remove.mutate(entry.id)}
-                    disabled={remove.isPending}
-                    aria-label={`${t('WorkItemTimeLogScreen.deletePrefix')} ${formatMinutes(entry.minutes)} ${t('WorkItemTimeLogScreen.entryOn')} ${entry.spentOn}`}
-                  >
-                    {t('WorkItemTimeLogScreen.delete')}
-                  </Button>
+                <li key={entry.id} className="tm-stack tm-list__item">
+                  <div className="tm-row tm-row--between tm-row--wrap">
+                    <span>
+                      <strong>{formatMinutes(entry.minutes)}</strong>{' '}
+                      {t('WorkItemTimeLogScreen.on')} {entry.spentOn}
+                      {entry.note ? ` — ${entry.note}` : ''}
+                      <TimeTrustBadges entry={entry} />
+                      {entry.reason ? (
+                        <span className="tm-field__hint"> {entry.reason}</span>
+                      ) : null}
+                    </span>
+                    <span className="tm-row">
+                      {entry.trust === 'measured' &&
+                      entry.counted &&
+                      entry.loggedBy === me.data?.membershipId &&
+                      correcting !== entry.id ? (
+                        <Button tone="outline" onClick={() => setCorrecting(entry.id)}>
+                          {tr('TimeTrust.correctOpen', 'Ask for a correction')}
+                        </Button>
+                      ) : null}
+                      {entry.approvalState === 'approved' ? null : (
+                        <Button
+                          tone="destructive"
+                          onClick={() => remove.mutate(entry.id)}
+                          disabled={remove.isPending}
+                          aria-label={`${t('WorkItemTimeLogScreen.deletePrefix')} ${formatMinutes(entry.minutes)} ${t('WorkItemTimeLogScreen.entryOn')} ${entry.spentOn}`}
+                        >
+                          {t('WorkItemTimeLogScreen.delete')}
+                        </Button>
+                      )}
+                    </span>
+                  </div>
+                  {correcting === entry.id ? (
+                    <CorrectionForm
+                      api={api}
+                      organizationSlug={organizationSlug}
+                      entryId={entry.id}
+                      measuredMinutes={entry.minutes}
+                      onCancel={() => setCorrecting(null)}
+                      onDone={() => {
+                        setCorrecting(null);
+                        void refresh();
+                      }}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>

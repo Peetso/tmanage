@@ -45,6 +45,7 @@ import {
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { AutoTimePolicyCard } from './AutoTimePolicyCard';
 import { TimeRoundingCard } from './TimeRoundingCard';
+import { TimeTrustPolicyCard } from './TimeTrustPolicyCard';
 import { ClientFilePolicyCard } from './ClientFilePolicyCard';
 import { DownloadScanPolicyCard } from './DownloadScanPolicyCard';
 import { DataLocationCard } from './DataLocationCard';
@@ -611,6 +612,14 @@ export function OrgSettingsScreen({
 
       {mayManage === true ? (
         <TimeRoundingCard
+          organizationSlug={organizationSlug}
+          client={api}
+          isOwner={role === 'owner'}
+        />
+      ) : null}
+
+      {mayManage === true ? (
+        <TimeTrustPolicyCard
           organizationSlug={organizationSlug}
           client={api}
           isOwner={role === 'owner'}

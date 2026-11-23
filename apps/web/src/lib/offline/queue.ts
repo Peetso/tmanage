@@ -35,6 +35,8 @@ export interface TimeLogPayload {
   readonly minutes: number;
   readonly spentOn: string;
   readonly note: string | null;
+  /** 2026-11-23 time trust: why the time is typed in (absent in writes queued before it). */
+  readonly reason?: string;
 }
 
 interface PayloadOf {

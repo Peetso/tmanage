@@ -97,7 +97,10 @@ export function FinanceTimesheetsScreen({
   const dayTotal = (day: string): number =>
     (sheet?.groups ?? []).reduce(
       (sum, group) =>
-        sum + group.entries.filter((e) => e.spentOn === day).reduce((s, e) => s + e.minutes, 0),
+        sum +
+        group.entries
+          .filter((e) => e.spentOn === day && e.counted)
+          .reduce((s, e) => s + e.minutes, 0),
       0,
     );
   const stateLabel = (state: string) => tOr(`FinanceTimesheets.state.${state}`, state);
@@ -230,10 +233,29 @@ export function FinanceTimesheetsScreen({
                             <Badge>{tOr('UnassignedTime.automatic', 'Automatic')}</Badge>
                           </>
                         ) : null}
+                        {/* 2026-11-23 time trust: how the minutes came in, and if they count yet. */}
+                        {group.entries.some((entry) => entry.trust === 'hand') ? (
+                          <>
+                            {' '}
+                            <Badge>{tOr('TimeTrust.byHand', 'Added by hand')}</Badge>
+                          </>
+                        ) : null}
+                        {group.entries.some((entry) => entry.approvalState === 'pending') ? (
+                          <>
+                            {' '}
+                            <Badge>{tOr('TimeTrust.waiting', 'Waiting for approval')}</Badge>
+                          </>
+                        ) : null}
+                        {group.entries.some((entry) => entry.edited) ? (
+                          <>
+                            {' '}
+                            <Badge>{tOr('TimeTrust.edited', 'Edited')}</Badge>
+                          </>
+                        ) : null}
                       </th>
                       {sheet.days.map((day) => {
                         const minutes = group.entries
-                          .filter((entry) => entry.spentOn === day)
+                          .filter((entry) => entry.spentOn === day && entry.counted)
                           .reduce((sum, entry) => sum + entry.minutes, 0);
                         return <td key={day}>{minutes > 0 ? formatMinutes(minutes) : '—'}</td>;
                       })}
@@ -301,6 +323,18 @@ export function FinanceTimesheetsScreen({
                 {formatMinutes(sheet.billableMinutes)}{' '}
                 {tOr('FinanceTimesheets.billable', 'billable')}
               </span>
+              <span className="tm-field__hint">
+                {formatMinutes(sheet.measuredMinutes)}{' '}
+                {tOr('TimeTrust.measuredTotal', 'measured by the timer')} ·{' '}
+                {formatMinutes(sheet.handMinutes)} {tOr('TimeTrust.handTotal', 'added by hand')}
+                {sheet.pendingMinutes > 0 ? (
+                  <>
+                    {' '}
+                    · {formatMinutes(sheet.pendingMinutes)}{' '}
+                    {tOr('TimeTrust.pendingTotal', 'waiting for approval (not counted yet)')}
+                  </>
+                ) : null}
+              </span>
             </div>
           ) : null}
         </section>
@@ -341,6 +375,8 @@ export function FinanceTimesheetsScreen({
                       <th scope="col">{tOr('FinanceTimesheets.person', 'Person')}</th>
                       <th scope="col">{tOr('FinanceTimesheets.total', 'Total')}</th>
                       <th scope="col">{tOr('FinanceTimesheets.billableHeading', 'Billable')}</th>
+                      <th scope="col">{tOr('TimeTrust.measuredHeading', 'Measured')}</th>
+                      <th scope="col">{tOr('TimeTrust.handHeading', 'By hand')}</th>
                       <th scope="col">{tOr('FinanceTimesheets.stateHeading', 'State')}</th>
                       <th scope="col">
                         <span className="tm-visually-hidden">
@@ -361,6 +397,19 @@ export function FinanceTimesheetsScreen({
                           <th scope="row">{nameOf(member.membershipId)}</th>
                           <td>{formatMinutes(member.totalMinutes)}</td>
                           <td>{formatMinutes(member.billableMinutes)}</td>
+                          <td>{formatMinutes(member.measuredMinutes)}</td>
+                          <td>
+                            {formatMinutes(member.handMinutes)}
+                            {member.pendingMinutes > 0 ? (
+                              <>
+                                {' '}
+                                <Badge>
+                                  {formatMinutes(member.pendingMinutes)}{' '}
+                                  {tOr('TimeTrust.waitingShort', 'waiting')}
+                                </Badge>
+                              </>
+                            ) : null}
+                          </td>
                           <td>
                             <StateCapsule state={stateCapsule(member.state)}>
                               {stateLabel(member.state)}

@@ -599,12 +599,20 @@ export interface TimeLog {
   readonly spentOn: string;
   readonly note: string | null;
   readonly createdAt: string;
+  /** How the minutes came in (2026-11-23 time trust): measured by the timer, or typed in. */
+  readonly source: 'manual' | 'timer' | 'automatic' | 'correction';
+  readonly trust: 'measured' | 'hand';
+  readonly approvalState: 'none' | 'pending' | 'approved' | 'rejected';
+  /** Counts in the totals (false: waiting for a manager, refused, or replaced by a correction). */
+  readonly counted: boolean;
+  readonly reason: string | null;
 }
 
-/** The list response: the entries plus their summed total minutes for one work item. */
+/** The list response: the entries, the minutes that count, and hand time still waiting. */
 export interface TimeLogList {
   readonly entries: readonly TimeLog[];
   readonly totalMinutes: number;
+  readonly pendingMinutes: number;
 }
 
 export async function listTimeLogs(
@@ -622,7 +630,13 @@ export async function addTimeLog(
   client: ApiClient,
   organizationSlug: string,
   workItemId: string,
-  input: { readonly minutes: number; readonly spentOn: string; readonly note?: string | null },
+  input: {
+    readonly minutes: number;
+    readonly spentOn: string;
+    readonly note?: string | null;
+    /** Why the time is typed in; required while the owner allows hand time. */
+    readonly reason?: string;
+  },
 ): Promise<TimeLog> {
   const { data } = await client.request<TimeLog>({
     method: 'POST',

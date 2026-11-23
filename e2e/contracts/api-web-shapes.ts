@@ -5345,3 +5345,25 @@ type _secNetworkAccess = Assert<Exact<Wire<ApiNetworkAccessView>, WebNetworkAcce
 type _secAllowlistEntry = Assert<Exact<Wire<ApiAllowlistEntry>, WebAllowlistEntry>>;
 type _secBlockEntry = Assert<Exact<Wire<ApiBlockEntry>, WebBlockEntry>>;
 type _secBlockListStatus = Assert<Exact<Wire<ApiBlockListStatus>, WebBlockListStatus>>;
+
+// ---- 2026-11-23 · time you can trust (lane T) ----
+import type {
+  TimeApprovalQueueView as ApiTimeApprovalQueueView,
+  TimeEntryHistoryView as ApiTimeEntryHistoryView,
+  TimeTrustEntryView as ApiTimeTrustEntryView,
+  TimeTrustPolicyView as ApiTimeTrustPolicyView,
+} from '../../apps/api/src/modules/time/time-trust.service.js';
+import type {
+  TimeApprovalQueue as WebTimeApprovalQueue,
+  TimeEntryHistory as WebTimeEntryHistory,
+  TimeTrustEntry as WebTimeTrustEntry,
+  TimeTrustPolicy as WebTimeTrustPolicy,
+} from '../../apps/web/src/lib/api/time-trust';
+/** `GET|PATCH …/time/trust-policy` — the owner's rules for time added by hand (Admin > Time). */
+type _timeTrustPolicy = Assert<Exact<ApiTimeTrustPolicyView, WebTimeTrustPolicy>>;
+/** `POST …/time/approvals/:id/approve|reject`, `POST …/time/entries/:id/correction` — one entry. */
+type _timeTrustEntry = Assert<Exact<ApiTimeTrustEntryView, WebTimeTrustEntry>>;
+/** `GET …/time/approvals` — the managers' queue. */
+type _timeApprovalQueue = Assert<Exact<ApiTimeApprovalQueueView, WebTimeApprovalQueue>>;
+/** `GET …/time/entries/:id/history` — an entry, what it corrects, its corrections. */
+type _timeEntryHistory = Assert<Exact<ApiTimeEntryHistoryView, WebTimeEntryHistory>>;
