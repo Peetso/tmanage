@@ -1107,6 +1107,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // C6 (0229). Tenant-owned: one studio's company logo, keyed `(organization_id, id)` with a
   // `(organization_id)` upsert key. An unscoped read would be every studio's logo.
   organization_logos: 'organization_id',
+  // 0411. Tenant-owned: a company owner or admin removed a member's photo in THEIR company only,
+  // keyed `(organization_id, id)` with a `(organization_id, user_id)` upsert key.
+  member_photo_removals: 'organization_id',
   // ---- platform-admin v2 · PA-02 ----
   // 0241. Tenant-owned: the before/after values of one org audit event, one row per field,
   // keyed `(organization_id, id)` with a composite FK to `audit_events (organization_id, id)`.
@@ -1639,6 +1642,9 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // 0384. The leader lease of the single Hostinger app. GLOBAL: about the process, never a tenant.
   // Written only on the worker credential; `/healthz/deep` reads it through `identityRead`.
   'runtime_leases',
+  // 0411. A person's own profile photo: it belongs to the person, like `users`, and shows in every
+  // company they belong to (a company's removal of it is the tenant table `member_photo_removals`).
+  'user_avatars',
   // ---- LANE-Q ----
   // 0388. "Book a walkthrough" requests from the public site. GLOBAL: a visitor belongs to no
   // company (no organization_id); the address is a FieldCipher envelope. Reached only through

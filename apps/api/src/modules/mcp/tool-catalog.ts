@@ -46,6 +46,7 @@ import { cPlatformDetails } from '../ai-actions/registry/parity-b3-platform-c.js
 import { corePlatformDetails } from '../ai-actions/registry/parity-b3-platform-core.js';
 import { lifecycleDetails } from '../ai-actions/registry/parity-b4-lifecycle.js';
 import { timeTrustDetails } from '../ai-actions/registry/parity-b5-time-trust.js';
+import { profilePhotoDetails } from '../ai-actions/registry/parity-b6-profile-photo.js';
 
 /** Every op detail across the three registry waves, the 52-22 read gaps and the parity batches. */
 export const allDetailsList: readonly AiActionDetail[] = [
@@ -63,6 +64,7 @@ export const allDetailsList: readonly AiActionDetail[] = [
   ...corePlatformDetails,
   ...lifecycleDetails,
   ...timeTrustDetails,
+  ...profilePhotoDetails,
 ];
 
 /** The same details indexed by op id (`tool-catalog.test.ts` proves no id appears twice). */

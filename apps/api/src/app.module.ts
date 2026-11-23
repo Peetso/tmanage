@@ -109,6 +109,7 @@ import { ProjectObjectivesModule } from './modules/projects/project-objectives.m
 import { ProjectTagsModule } from './modules/projects/project-tags.module.js';
 import { ProjectFavoritesModule } from './modules/projects/project-favorites.controller.js';
 import { PeopleModule } from './modules/people/people.module.js';
+import { ProfilePhotoModule } from './modules/people/profile-photo.module.js';
 import { ProjectRiskRegisterModule } from './modules/projects/risk-register.module.js';
 import { ProjectTemplatesModule } from './modules/projects/templates.module.js';
 import { ProjectStatusUpdatesModule } from './modules/projects/status-updates.module.js';
@@ -721,6 +722,7 @@ export class AppModule {
         // allocation names a project (and a membership) in its path/body, and the composite foreign
         // keys mean a caller who names one that is not theirs gets a 404 rather than a foreign-key 500.
         PeopleModule.register(),
+        ProfilePhotoModule.register(),
         // PROJ / module 8 (x209). A project's internal risk register (log/list/update) — a formal
         // likelihood×impact matrix with a computed severity and a mitigation plan. After
         // `ProjectsModule` for the same reason as the objectives register: a risk names a project in

@@ -22,6 +22,7 @@ import {
   userMfaEmailCodes,
   userPasswords,
   userRecoveryCodes,
+  userAvatars,
   users,
 } from '../../common/database/schema.js';
 import { TENANT_TABLES } from '../../common/database/tenant-guard.js';
@@ -464,6 +465,8 @@ const ACCOUNT_GLOBAL_PRIVILEGES = {
   marketing_leads: ['SELECT', 'DELETE'],
   platform_owner_notices: ['SELECT', 'DELETE'],
   platform_admins: ['SELECT'],
+  // 0411: the person's own profile photo goes with the account.
+  user_avatars: ['SELECT', 'DELETE'],
 } as const satisfies Record<string, readonly ErasurePrivilege[]>;
 
 /**
@@ -710,6 +713,7 @@ export class AccountErasure {
     await db.delete(userRecoveryCodes).where(eq(userRecoveryCodes.userId, userId));
     await db.delete(userMfaEmailCodes).where(eq(userMfaEmailCodes.userId, userId));
     await db.delete(userPasskeys).where(eq(userPasskeys.userId, userId));
+    await db.delete(userAvatars).where(eq(userAvatars.userId, userId));
     await db.delete(userIdentities).where(eq(userIdentities.userId, userId));
     await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
     await db.delete(credentialChangeNotices).where(eq(credentialChangeNotices.userId, userId));

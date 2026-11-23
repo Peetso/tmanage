@@ -329,6 +329,12 @@ export {
 export { effectiveCapabilitySet, principalHoldsCapability } from './policies/authorize.js';
 export type { PermissionOverrides } from './policies/authorize.js';
 export {
+  isPhotoRemovedHere,
+  mayListProfilePhoto,
+  maySeeProfilePhoto,
+} from './policies/profile-photo.js';
+export type { PhotoSubject, PhotoViewer } from './policies/profile-photo.js';
+export {
   MATRIX,
   MATRIX_ACTIONS,
   MATRIX_AREAS,

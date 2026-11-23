@@ -8204,6 +8204,43 @@ export const organizationLogos = mysqlTable(
 );
 
 /**
+ * 0411 — a person's own profile photo. GLOBAL (NON_TENANT_TABLES): the photo belongs to the person,
+ * like `users`, and shows in every company they belong to. Only the route's re-encoded WebP squares
+ * are stored, never the bytes that were sent. `sha256` is the 256 px image's digest; its first 16
+ * hex characters are the cache key in the image URL. No foreign key: the account erasure deletes it.
+ */
+export const userAvatars = mysqlTable('user_avatars', {
+  userId: char('user_id', { length: 36 }).primaryKey(),
+  sha256: char('sha256', { length: 64 }).notNull(),
+  image256Base64: mediumtext('image_256_base64').notNull(),
+  image64Base64: mediumtext('image_64_base64').notNull(),
+  createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+});
+
+/**
+ * 0411 — a company owner or admin removed a member's photo in their own company (tenant-owned: one
+ * company never changes how a person looks in another). It names the photo by digest, so it holds
+ * until the person uploads a different photo.
+ */
+export const memberPhotoRemovals = mysqlTable(
+  'member_photo_removals',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    photoSha256: char('photo_sha256', { length: 64 }).notNull(),
+    removedBy: char('removed_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_member_photo_removals_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_member_photo_removals_org_user').on(table.organizationId, table.userId),
+  ],
+);
+
+/**
  * Conversation read-state (x250, migration 0122, module CHAT / conversations).
  *
  * One row per `(organization_id, conversation_id, membership_id)`: the last message the acting member
@@ -10400,6 +10437,8 @@ export const TABLES = {
   org_branding: orgBranding,
   // C6 (0229): the company logo, organization-scoped.
   organization_logos: organizationLogos,
+  user_avatars: userAvatars,
+  member_photo_removals: memberPhotoRemovals,
   storage_connections: storageConnections,
   google_drive_folders: googleDriveFolders,
   google_drive_attachments: googleDriveAttachments,

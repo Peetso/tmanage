@@ -2008,6 +2008,20 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'file_asset',
     clause: '§12 files — a file was added to a work item from inline content',
   },
+  // ---- profile photo 2026-11-23 · a person's own photo, and a company's removal of it ----
+  /** A member set, replaced or removed their own profile photo. Metadata: `change` set | removed. */
+  'member.photo_changed': {
+    objectType: 'membership',
+    clause: '§12 — a change to how a person is shown to the whole studio is worth a trail',
+  },
+  /**
+   * An owner or admin removed a member's photo in this company only (an offensive picture). The
+   * object is the person's user id; metadata says whether they are a client contact.
+   */
+  'member.photo_removed': {
+    objectType: 'user',
+    clause: '§12 security — removing what another person shows of themselves is a sensitive action',
+  },
   // ---- R23-e · 54-24 import undo ----
   /** A committed import was undone inside its 7-day window. Metadata: job id, source kind, count. */
   'import.undo': {
@@ -2371,6 +2385,8 @@ const AUDIT_ACTION_LABELS = {
   'ai_employee.key_revoked': "Revoked an AI employee's agent key",
   'ai_employee.project_excluded': 'Kept a project away from AI employees',
   'ai_employee.project_included': 'Let AI employees read a project again',
+  'member.photo_changed': 'Changed their own profile photo',
+  'member.photo_removed': "Removed a member's profile photo in this company",
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

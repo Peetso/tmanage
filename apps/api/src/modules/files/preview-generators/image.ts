@@ -21,7 +21,10 @@ const PNG = 'image/png';
 const WEBP = 'image/webp';
 const GIF = 'image/gif';
 
-function header(bytes: Uint8Array): { width: number; height: number; orientation?: number } | null {
+/** The header's pixel size and JPEG EXIF orientation, or null when unreadable. Nothing is decoded. */
+export function readRasterHeader(
+  bytes: Uint8Array,
+): { width: number; height: number; orientation?: number } | null {
   try {
     const size = imageSize(bytes);
     if (!size.width || !size.height) return null;
@@ -42,7 +45,15 @@ function decodeGif(bytes: Uint8Array): RgbaImage {
   return { width: reader.width, height: reader.height, data: pixels };
 }
 
-async function decode(source: PreviewSource, limits: PreviewLimits): Promise<RgbaImage> {
+/**
+ * Decode a JPEG, PNG, WebP or GIF (first frame) to RGBA pixels. Exported for the profile photo
+ * (`people/profile-photo-image.ts`), which re-encodes from these pixels so nothing but the picture
+ * survives. The caller has already checked the header's pixel count against `limits.maxPixels`.
+ */
+export async function decodeRaster(
+  source: PreviewSource,
+  limits: PreviewLimits,
+): Promise<RgbaImage> {
   const { bytes, mimeType } = source;
   if (mimeType === JPEG) {
     return jpegCodec().decode(bytes, {
@@ -64,14 +75,14 @@ export const imageGenerator: PreviewGenerator = {
     return mimeType === GIF ? [{ kind: 'thumb' }] : [{ kind: 'preview' }, { kind: 'thumb' }];
   },
   async generate(source, requests, limits) {
-    const size = header(source.bytes);
+    const size = readRasterHeader(source.bytes);
     const decodePage = async (pageNo: number): Promise<DecodedPage> => {
       if (pageNo !== 1) return unsupported('no_such_page');
       if (!size) return failed('decode_failed');
       if (size.width * size.height > limits.maxPixels) return unsupported('unsupported_too_large');
       let image: RgbaImage;
       try {
-        image = await decode(source, limits);
+        image = await decodeRaster(source, limits);
       } catch {
         return failed('decode_failed');
       }

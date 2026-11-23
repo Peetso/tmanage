@@ -1552,6 +1552,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`org_branding` TO 'tmanage_app'@'%';
 -- absent row is "no logo" and there is nothing to keep. The 0229 trigger pins `id`,
 -- `organization_id` and `created_at`. Reading is the database-wide SELECT (line 60).
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`organization_logos` TO 'tmanage_app'@'%';
+-- 0411 profile photos. `user_avatars` (GLOBAL, the person's own photo): INSERT/UPDATE for the one
+-- upsert on `user_id`, DELETE for Remove (an absent row is "initials"). `member_photo_removals` (a
+-- company's removal of a member's photo): INSERT/UPDATE for the upsert on `(organization_id,
+-- user_id)`; no DELETE (a new photo un-hides by digest; the company erasure empties it).
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`user_avatars` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`member_photo_removals` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it
@@ -3019,6 +3025,7 @@ GRANT SELECT, DELETE ON `tmanage`.`meetings` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`member_admin_notes` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`member_availability` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`member_cost_rates` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`member_photo_removals` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`member_profiles` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`member_reporting_lines` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`member_teams` TO 'tmanage_erasure'@'%';
@@ -3153,6 +3160,7 @@ GRANT SELECT, DELETE ON `tmanage`.`timesheets` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`upload_sessions` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`usage_counters` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`usage_ledger_entries` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`user_avatars` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`user_display_preferences` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`user_identities` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`user_mfa_email_codes` TO 'tmanage_erasure'@'%';

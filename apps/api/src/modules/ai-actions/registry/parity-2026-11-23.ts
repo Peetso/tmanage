@@ -23,6 +23,7 @@ import { filesDetails } from './parity-b2-files.js';
 import { workDetails } from './parity-b2-work.js';
 import { lifecycleDetails } from './parity-b4-lifecycle.js';
 import { timeTrustDetails } from './parity-b5-time-trust.js';
+import { profilePhotoDetails } from './parity-b6-profile-photo.js';
 
 const day = () => z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const itemIds = () => z.array(f.id()).max(MAX_ITERATION_ITEMS_PER_CALL).optional();
@@ -117,5 +118,6 @@ export const PARITY_DETAIL_IDS: ReadonlySet<string> = new Set(
     ...lifecycleDetails,
     // Batch 5 (lane T): time you can trust.
     ...timeTrustDetails,
+    ...profilePhotoDetails,
   ].map((d) => d.id),
 );
