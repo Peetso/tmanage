@@ -43,6 +43,7 @@ function clientOver(verified: boolean): { client: ApiClient; calls: Call[] } {
           loopback: false,
         },
         requestedScopes: ['tmanage:read', 'tmanage:write'],
+        platform: { offered: false, ready: false },
         ticket: '1000.ticket',
       };
     }
