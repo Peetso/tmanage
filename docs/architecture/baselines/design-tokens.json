@@ -1,12 +1,12 @@
 {
   "$comment": "Hard-coded sizes per CSS file (scripts/lint/design-tokens.mjs). May only shrink; raising one needs an ADR (docs/architecture/README.md §4, ADR-0016).",
-  "total": 1275,
+  "total": 1253,
   "files": {
-    "apps/web/src/app/globals.css": 50,
+    "apps/web/src/app/globals.css": 49,
     "apps/web/src/components/ai-admin/ai-admin.css": 4,
-    "apps/web/src/components/ai-chat/ai-chat.css": 12,
+    "apps/web/src/components/ai-chat/ai-chat.css": 11,
     "apps/web/src/components/ai-panel/ai-panel.css": 5,
-    "apps/web/src/components/ai-panel/your-ai.css": 7,
+    "apps/web/src/components/ai-panel/your-ai.css": 6,
     "apps/web/src/components/brand/brand-colour.css": 3,
     "apps/web/src/components/chat/chat-shell.css": 32,
     "apps/web/src/components/chat/groups.css": 5,
@@ -66,7 +66,7 @@
     "apps/web/src/styles/phone/work-item.css": 6,
     "apps/web/src/styles/phone/work.css": 1,
     "apps/web/src/styles/screens/access-security.css": 4,
-    "apps/web/src/styles/screens/activity.css": 2,
+    "apps/web/src/styles/screens/activity.css": 1,
     "apps/web/src/styles/screens/admin.css": 6,
     "apps/web/src/styles/screens/ai-approve.css": 4,
     "apps/web/src/styles/screens/ai-assistant.css": 1,
@@ -101,13 +101,13 @@
     "apps/web/src/styles/screens/permission-matrix.css": 1,
     "apps/web/src/styles/screens/plan-usage.css": 1,
     "apps/web/src/styles/screens/portal-money.css": 6,
-    "apps/web/src/styles/screens/portal.css": 93,
+    "apps/web/src/styles/screens/portal.css": 82,
     "apps/web/src/styles/screens/portfolio-planning.css": 11,
     "apps/web/src/styles/screens/portfolio.css": 8,
     "apps/web/src/styles/screens/preferences.css": 15,
     "apps/web/src/styles/screens/projects.css": 13,
     "apps/web/src/styles/screens/public-links.css": 4,
-    "apps/web/src/styles/screens/public.css": 104,
+    "apps/web/src/styles/screens/public.css": 98,
     "apps/web/src/styles/screens/r44-security-growth.css": 2,
     "apps/web/src/styles/screens/r46-repeat-contacts.css": 1,
     "apps/web/src/styles/screens/r48-iterations-calendar.css": 6,
@@ -120,6 +120,6 @@
     "apps/web/src/styles/screens/work-planning.css": 169,
     "apps/web/src/styles/screens/work-timeline-edit.css": 27,
     "packages/ui/src/styles/base.css": 9,
-    "packages/ui/src/styles/components.css": 28
+    "packages/ui/src/styles/components.css": 27
   }
 }
