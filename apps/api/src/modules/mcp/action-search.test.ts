@@ -67,7 +67,8 @@ describe('the main action ranks first on a plain query', () => {
   });
 
   it('a sub-resource still wins when the query names it', () => {
-    expect(top('create a subtask', 1)).toEqual(['work_items.subtasks.create']);
+    // Work area D3: steps are the one model; a sub-task is a step (work_items.checklist.*).
+    expect(top('create a subtask', 1)).toEqual(['work_items.checklist.create']);
   });
 });
 

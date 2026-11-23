@@ -3186,9 +3186,19 @@ export const workItemChecklistItems = mysqlTable(
     done: boolean('done').notNull().default(false),
     position: int('position', { unsigned: true }).notNull().default(0),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 0414 (work area D3): who does the step (a membership), `NULL` = nobody. */
+    assigneeMembershipId: char('assignee_membership_id', { length: 36 }),
+    /** 0414: the day the step is due, `NULL` = none. */
+    dueOn: date('due_on', { mode: 'string' }),
+    /** 0414: the `work_item_subtasks.id` this step was copied from; `NULL` for a step made as one. */
+    sourceSubtaskId: char('source_subtask_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_work_item_checklist_items_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_checklist_items_source').on(
+      table.organizationId,
+      table.sourceSubtaskId,
+    ),
     index('ix_work_item_checklist_items_item').on(
       table.organizationId,
       table.workItemId,
@@ -10571,7 +10581,18 @@ export type WorkItemRow = Omit<
   stageId?: string | null;
 };
 export type NewWorkItemRow = typeof workItems.$inferInsert;
-export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;
+/**
+ * 0414's three columns are optional in the row type only, so hand-built test rows that predate
+ * them keep compiling; a row read from the database always carries them.
+ */
+export type WorkItemChecklistItemRow = Omit<
+  typeof workItemChecklistItems.$inferSelect,
+  'assigneeMembershipId' | 'dueOn' | 'sourceSubtaskId'
+> & {
+  assigneeMembershipId?: string | null;
+  dueOn?: string | null;
+  sourceSubtaskId?: string | null;
+};
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
 export type WorkItemSubtaskRow = typeof workItemSubtasks.$inferSelect;
 export type NewWorkItemSubtaskRow = typeof workItemSubtasks.$inferInsert;

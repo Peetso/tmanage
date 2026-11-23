@@ -14,6 +14,11 @@
  *   to a stage (`work_items.stage.set`, write scope like a transition, with the same confirm
  *   card when the work is visible to a client).
  *
+ * - Steps (D3, 0414): delete a step, reorder the steps, turn a step into a work of its own
+ *   (`work_items.checklist.*`; add and change gain the person and the day in `work.ts`). The old
+ *   `work_items.subtasks.*` ops are gone with their routes: the checklist is the one steps model.
+ * - Portal (D5): one work as the client sees it (`portal.work_items.get`).
+ *
  * Risk follows the registry's convention: reads run at once, everyday edits are `write`, deletes
  * are `confirm` and `destructive`.
  */
@@ -68,6 +73,28 @@ export const workAreaOps: readonly AiActionOp[] = [
   op('projects.stage_set.get', 'GET', '/projects/:projectId/stage-set', 'work.read', M),
   op('projects.stage_set.set', 'PUT', '/projects/:projectId/stage-set', 'project.manage', M),
   op('work_items.stage_set.set', 'PUT', '/work-items/:workItemId/stage-set', 'work.update', W),
+  op(
+    'work_items.checklist.delete',
+    'DELETE',
+    '/work-items/:workItemId/checklist/:itemId',
+    'work.update',
+    W,
+  ),
+  op(
+    'work_items.checklist.reorder',
+    'PUT',
+    '/work-items/:workItemId/checklist/order',
+    'work.update',
+    W,
+  ),
+  op(
+    'work_items.checklist.convert',
+    'POST',
+    '/work-items/:workItemId/checklist/:itemId/convert',
+    'work.create',
+    W,
+  ),
+  op('portal.work_items.get', 'GET', '/portal/work-items/:workItemId', 'client_projection.read', W),
   {
     ...op('work_items.stage.set', 'PUT', '/work-items/:workItemId/stage', 'work.update', W),
     // Like work_items.transitions.create: the client sees the work's progress.
@@ -93,6 +120,9 @@ export const workAreaSensitivity: Readonly<Record<string, Sensitivity>> = {
   'projects.stage_set.set': 'none',
   'work_items.stage_set.set': 'none',
   'work_items.stage.set': 'none',
+  'work_items.checklist.delete': 'destructive',
+  'work_items.checklist.reorder': 'none',
+  'work_items.checklist.convert': 'none',
 };
 
 const STATE = z.enum(['backlog', 'ready', 'in_progress', 'internal_review', 'done']);
@@ -284,7 +314,7 @@ export const workAreaDetails: readonly AiActionDetail[] = [
     id: 'work_items.stage_set.set',
     title: 'Use different stages for one work',
     description:
-      'Give one work item its own stage set, or null for its project’s. version is the item’s ' +
+      'Use a different stage set for one work item, or null for its project’s. version is the item’s ' +
       'version from work_items.get.',
     input: bodyArgs(['workItemId'], { stageSetId: f.id().nullable(), version: f.int() }),
     redact: 'standard',
@@ -307,5 +337,42 @@ export const workAreaDetails: readonly AiActionDetail[] = [
     }),
     redact: 'standard',
     examples: [{ summary: 'Move', args: { workItemId: 'wi_1', stageId: 'stg_3', version: 4 } }],
+  }),
+  det({
+    id: 'work_items.checklist.delete',
+    title: 'Delete a step',
+    description: 'Delete one step (checklist line) of a work item.',
+    input: pathOnly('workItemId', 'itemId'),
+    redact: 'standard',
+    examples: [{ summary: 'Delete', args: { workItemId: 'wi_1', itemId: 'ck_1' } }],
+  }),
+  det({
+    id: 'work_items.checklist.reorder',
+    title: 'Reorder steps',
+    description:
+      'Put the steps of a work item in a new order. itemIds lists every step of the item once ' +
+      '(ids from work_items.checklist.list).',
+    input: bodyArgs(['workItemId'], { itemIds: z.array(f.id()).max(500) }),
+    redact: 'standard',
+    examples: [{ summary: 'Reorder', args: { workItemId: 'wi_1', itemIds: ['ck_2', 'ck_1'] } }],
+  }),
+  det({
+    id: 'work_items.checklist.convert',
+    title: 'Turn a step into a work item',
+    description:
+      'Make a step a work item of its own in the same project: its text becomes the title, its ' +
+      'person the owner, its day the due date; the step is removed.',
+    input: pathOnly('workItemId', 'itemId'),
+    redact: 'standard',
+    examples: [{ summary: 'Convert', args: { workItemId: 'wi_1', itemId: 'ck_1' } }],
+  }),
+  det({
+    id: 'portal.work_items.get',
+    title: 'Portal work item',
+    description:
+      'One work item as the client sees it: progress, stage name and group, step counts, due date.',
+    input: pathOnly('workItemId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'One', args: { workItemId: 'wi_1' } }],
   }),
 ];

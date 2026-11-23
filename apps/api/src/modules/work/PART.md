@@ -20,12 +20,12 @@ provides_api:
   [
     '/v1/organizations/:orgSlug/work-items',
     '/v1/organizations/:orgSlug/work-items/:workItemId',
-    '/v1/organizations/:orgSlug/work-items/:workItemId/{transitions,dependencies,blockers,health,client-audience,activity,estimate,files,links,relations,subtasks,time-logs,watchers,checklist,comments,people,reminder,schedule}',
+    '/v1/organizations/:orgSlug/work-items/:workItemId/{transitions,dependencies,blockers,health,client-audience,activity,estimate,files,links,relations,time-logs,stage,stage-set,watchers,checklist,comments,people,reminder,schedule}',
     '/v1/organizations/:orgSlug/work-items/{bulk-transition,reminders/due,project-health/:projectId}',
     '/v1/organizations/:orgSlug/work/quick-add/resolve',
     '/v1/organizations/:orgSlug/work-forms/*',
     '/v1/organizations/:orgSlug/projects/:projectId/schedule/*',
-    '/v1/organizations/:orgSlug/{work-labels,board-columns,checklist-templates,custom-fields,work-keys,recurrence}/* (org-prefixed controllers)',
+    '/v1/organizations/:orgSlug/{work-stage-sets,work-labels,board-columns,checklist-templates,custom-fields,work-keys,recurrence}/* (org-prefixed controllers)',
   ]
 consumes_api: []
 tables_owned:
@@ -49,6 +49,9 @@ tables_owned:
     work_item_custom_fields,
     work_item_subtasks,
     work_board_columns,
+    work_stage_sets,
+    work_stages,
+    work_stage_set_projects,
     work_item_code_links,
     work_item_schedule_stats,
     work_item_client_audience,
@@ -102,7 +105,8 @@ checked at `3b7e4fa7`. Paths are relative to this folder unless they start with 
 
 **What it is for.** Work items (tasks, deliverable work, client actions) and everything attached
 to one item: state machine transitions, dependencies and blockers, assignees (doers,
-supervisors), checklist and subtasks, comments with @mentions, links, files, time logs,
+supervisors), steps (the checklist; the one steps model since `0414`, with a person, a day,
+reorder, delete and convert-to-work), renamable stages in stage sets (`stages/`, `0413`), comments with @mentions, links, files, time logs,
 estimates, watchers, labels, reminders, recurrence (rules + a spawner), custom fields, board
 columns, checklist templates, work keys (`TM-482`), intake forms, quick-add resolution, schedule
 cascade and schedule statistics, the client audience of an item, and the per-item activity log.
@@ -180,7 +184,7 @@ Prefix `/v1/organizations/:orgSlug`. 200 read/transition, 201 create, 204 delete
 | GET `/work-items/:id/health`, `/project-health/:projectId`, `/client-audience` | `work.read` | 200 | `work-items.controller.ts:280,412,428` |
 | POST `/work-items/bulk-transition` | `work.transition` | 200 | `bulk-transition.controller.ts:35` |
 | `/:id/schedule/cascade-preview` · `cascade-apply`, PATCH dependency lag | `work.update` | 200 | `schedule-cascade.controller.ts:94,112,124` |
-| `/:id/{subtasks,checklist,comments,links,files,time-logs,estimate,people}` | `work.read` / `work.update` | 200/201 | controllers `@Controller` lines in §1 file list |
+| `/:id/{checklist,comments,links,files,time-logs,estimate,people}` | `work.read` / `work.update` | 200/201 | controllers `@Controller` lines in §1 file list |
 | PUT/DELETE `/work-items/:id/reminder`, PUT/DELETE `/:id/watchers` | `work.read` (personal, acts on the caller only) | 200/204 | `item-reminders.controller.ts:56-57,74-75`, `watchers.controller.ts:36-47` |
 | GET `/work/quick-add/resolve` | `work.read` | 200 | `quick-add.controller.ts:37-38` |
 | GET/POST `/work-forms`, POST `/work-forms/:formId/submissions` | `work.read` / `work.create` | 200/201 | `work-forms.controller.ts:101,129,158` |
@@ -188,7 +192,7 @@ Prefix `/v1/organizations/:orgSlug`. 200 read/transition, 201 create, 204 delete
 | GET `/projects/:projectId/schedule/*` | `work.read` / `project.manage` | 200 | `schedule-stats.controller.ts:19` |
 
 **Contracts (AR-10).** `e2e/contracts/api-web-shapes.ts` pairs `WorkItemView` ↔
-`WorkItemSummary` (`:2020`), checklist (`:2034`), subtasks (`:2043-2044`), comment (`:2052`),
+`WorkItemSummary` (`:2020`), checklist (`:2034`), stage views (`work-stages.ts`), comment (`:2052`),
 link (`:2062`), relations graph (`:2072`), estimate (`:2097`), reminder (`:2114`), activity entry
 (`:2124`), label (`:2133`), custom fields (`:2144-2147`), recurrence (`:2156`).
 
@@ -217,10 +221,11 @@ link (`:2062`), relations graph (`:2072`), estimate (`:2097`), reminder (`:2114`
 | `work_item_links`, `work_item_files` | `0085`, `0086` | files reference `file_assets` | item lifetime |
 | `work_item_time_logs`, `work_item_watchers`, `work_item_labels` | `0103`, `0104`, `0105` | **time logs also written/read by `api/time`, `finance`, `people`** | money record |
 | `work_item_reminders`, `work_item_recurrence`, `work_item_estimates` | `0126`, `0127`, `0128` | | item lifetime |
-| `work_checklist_templates`, `work_item_custom_fields`, `work_item_subtasks`, `work_board_columns` | `0159`, `0174`, `0175`, `0176` | | org lifetime |
+| `work_checklist_templates`, `work_item_custom_fields`, `work_item_subtasks`, `work_board_columns` | `0159`, `0174`, `0175`, `0176` | subtasks retired: rows copied into steps by `0414`, table kept until a contract migration; board columns copied into the default stage set by `0413` | org lifetime |
 | `work_item_code_links`, `work_item_schedule_stats` | `0294`, `0297` | | item lifetime |
 | `work_item_recurrence_instances` | `0300_recurrence_v2.sql` | `uq_wiri_occurrence` (`:89`) is the idempotency key | grows per occurrence (ST-6) |
-| `work_item_client_audience`, `work_item_assignees` | `0317`, `0318` | | item lifetime |
+| `work_item_client_audience`, `work_item_assignees` | `0317`, `0318` | assignees is the single source of doers and supervisors since `0412` | item lifetime |
+| `work_stage_sets`, `work_stages`, `work_stage_set_projects` | `0413_work_stage_sets.sql` | one default set per org (`default_marker`); work items carry `stage_set_id`, `stage_id` | org lifetime |
 
 **Read but not owned:** `projects`, `project_memberships` (projects), `memberships`,
 `custom_roles`, `organizations`, `client_memberships` (tenancy), `users`, `file_assets` (files),

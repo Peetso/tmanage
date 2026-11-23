@@ -6,9 +6,13 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import type { WorkItemChecklistItemRow, WorkItemRow } from '../../common/database/schema.js';
+import type { WorkItemRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { WorkChecklistRepository } from './work-checklist.repository.js';
+import type { ChecklistItemWithAssignee } from './work-checklist.repository.js';
+import { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
+import type { WorkItemView, WorkItemsService } from './work-items.service.js';
 
 /**
  * x145's application service — the checklist / sub-items behind a work item (Work module 7).
@@ -31,6 +35,13 @@ import { WorkChecklistRepository } from './work-checklist.repository.js';
  * is `work.read` on that item; the write gate is `work.update`. A caller who may read the item
  * but not update it gets a 403 (their access to the item is not a secret); a caller with no
  * relation to the item at all gets a 404 (its existence is).
+ *
+ * ## Steps are the one model (work area D3, 0414)
+ *
+ * The checklist is the single model for the steps inside a work: `work_item_subtasks` was copied
+ * in by 0414 and its routes are retired. A step may name who does it (an active member, else 422)
+ * and the day it is due; it can be deleted, the steps reordered, and a step turned into a work of
+ * its own in the same project. Delete, reorder and convert are audited in their transaction.
  */
 
 /** The client-facing projection of one checklist item. Paired in `e2e/contracts`. */
@@ -41,15 +52,23 @@ export interface WorkChecklistItemView {
   readonly done: boolean;
   readonly position: number;
   readonly createdAt: string;
+  /** Work area D3: who does the step (a user id), `null` = nobody. */
+  readonly assigneeUserId?: string | null;
+  /** Work area D3: the day the step is due (`YYYY-MM-DD`), `null` = none. */
+  readonly dueOn?: string | null;
 }
 
 export interface AddChecklistItemInput {
   readonly label: string;
+  readonly assigneeUserId?: string | null;
+  readonly dueOn?: string | null;
 }
 
 export interface UpdateChecklistItemInput {
   readonly label?: string;
   readonly done?: boolean;
+  readonly assigneeUserId?: string | null;
+  readonly dueOn?: string | null;
 }
 
 export class WorkChecklistService {
@@ -57,6 +76,10 @@ export class WorkChecklistService {
     private readonly database: TenantDatabase,
     private readonly workItems: WorkItemsRepository,
     private readonly checklist: WorkChecklistRepository = new WorkChecklistRepository(),
+    /** Work area D3: turning a step into a work goes through the one work-item writer. */
+    private readonly workItemsService?: Pick<WorkItemsService, 'create'>,
+    private readonly audit?: AuditService,
+    private readonly assignees: WorkItemAssigneesRepository = new WorkItemAssigneesRepository(),
   ) {}
 
   /** The work item's checklist, position ascending. Behind `work.read` on the parent item. */
@@ -82,7 +105,13 @@ export class WorkChecklistService {
     return this.database.transaction(context, async (tx) => {
       const parent = await this.readableParent(tx, context, principal, workItemId);
       this.requireWrite(principal, parent);
-      const row = await this.checklist.create(tx, context, { workItemId, label: input.label });
+      const assigneeMembershipId = await this.membershipOf(tx, context, input.assigneeUserId);
+      const row = await this.checklist.create(tx, context, {
+        workItemId,
+        label: input.label,
+        ...(assigneeMembershipId === undefined ? {} : { assigneeMembershipId }),
+        ...(input.dueOn === undefined ? {} : { dueOn: input.dueOn }),
+      });
       return toView(row);
     });
   }
@@ -105,10 +134,136 @@ export class WorkChecklistService {
       const existing = await this.checklist.findItem(tx, context, workItemId, itemId);
       if (!existing) throw new ApiError(404, 'not_found', MESSAGES.notFound);
 
-      const row = await this.checklist.update(tx, context, workItemId, itemId, input);
+      const assigneeMembershipId = await this.membershipOf(tx, context, input.assigneeUserId);
+      const row = await this.checklist.update(tx, context, workItemId, itemId, {
+        ...(input.label === undefined ? {} : { label: input.label }),
+        ...(input.done === undefined ? {} : { done: input.done }),
+        ...(assigneeMembershipId === undefined ? {} : { assigneeMembershipId }),
+        ...(input.dueOn === undefined ? {} : { dueOn: input.dueOn }),
+      });
       if (!row) throw new ApiError(404, 'not_found', MESSAGES.notFound);
       return toView(row);
     });
+  }
+
+  /** Work area D3: delete a step. Behind `work.update`; audited as `work_item.step_deleted`. */
+  async remove(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    itemId: string,
+  ): Promise<void> {
+    await this.database.transaction(context, async (tx) => {
+      const parent = await this.readableParent(tx, context, principal, workItemId);
+      this.requireWrite(principal, parent);
+      const existing = await this.checklist.findItem(tx, context, workItemId, itemId);
+      if (!existing) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      await this.checklist.delete(tx, context, workItemId, itemId);
+      await this.audit?.record(tx, context, {
+        action: 'work_item.step_deleted',
+        objectId: workItemId,
+        result: 'allowed',
+        metadata: { step_id: itemId, was_done: existing.done },
+      });
+    });
+  }
+
+  /**
+   * Work area D3: put the steps in a new order. `itemIds` must name every step of the work once
+   * (400 otherwise). Behind `work.update`; audited as `work_item.steps_reordered`.
+   */
+  async reorder(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    itemIds: readonly string[],
+  ): Promise<readonly WorkChecklistItemView[]> {
+    return this.database.transaction(context, async (tx) => {
+      const parent = await this.readableParent(tx, context, principal, workItemId);
+      this.requireWrite(principal, parent);
+      const current = await this.checklist.listForWorkItem(tx, context, workItemId);
+      const known = new Set(current.map((row) => row.id));
+      if (
+        itemIds.length !== current.length ||
+        new Set(itemIds).size !== itemIds.length ||
+        itemIds.some((id) => !known.has(id))
+      ) {
+        throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+          { field: 'itemIds', message: 'must list every step of this work exactly once' },
+        ]);
+      }
+      await this.checklist.setPositions(tx, context, workItemId, itemIds);
+      await this.audit?.record(tx, context, {
+        action: 'work_item.steps_reordered',
+        objectId: workItemId,
+        result: 'allowed',
+        metadata: { steps: itemIds.length },
+      });
+      return (await this.checklist.listForWorkItem(tx, context, workItemId)).map(toView);
+    });
+  }
+
+  /**
+   * Work area D3: turn a step into a work of its own in the same project — its label becomes the
+   * title, its assignee the owner, its day the due date. The new work is made by
+   * `WorkItemsService.create` (its capability, audit and outbox); then the step goes, audited as
+   * `work_item.step_converted` naming the new work. Two units of work: if the second fails, the
+   * step is still there beside the new work, so nothing is lost.
+   */
+  async convert(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    itemId: string,
+  ): Promise<WorkItemView> {
+    if (!this.workItemsService)
+      throw new Error('WorkChecklistService: convert needs the work-items service');
+    const { parent, step } = await this.database.read(context, async (runner) => {
+      const parent = await this.readableParent(runner, context, principal, workItemId);
+      this.requireWrite(principal, parent);
+      const step = await this.checklist.findItem(runner, context, workItemId, itemId);
+      if (!step) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      return { parent, step };
+    });
+    const created = await this.workItemsService.create(context, principal, {
+      projectId: parent.projectId,
+      title: step.label,
+      ...(step.assigneeUserId ? { ownerUserId: step.assigneeUserId } : {}),
+      ...(step.dueOn ? { dueAt: new Date(`${step.dueOn}T00:00:00.000Z`) } : {}),
+    });
+    await this.database.transaction(context, async (tx) => {
+      await this.checklist.delete(tx, context, workItemId, itemId);
+      await this.audit?.record(tx, context, {
+        action: 'work_item.step_converted',
+        objectId: workItemId,
+        result: 'allowed',
+        metadata: { step_id: itemId, new_work_item_id: created.id },
+      });
+    });
+    return created;
+  }
+
+  /**
+   * The membership an assignee user id names: `undefined` when not given, `null` to clear, else
+   * the active member's membership id — anyone else is a 422, never a dangling assignee.
+   */
+  private async membershipOf(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string | null | undefined,
+  ): Promise<string | null | undefined> {
+    if (userId === undefined || userId === null) return userId;
+    const found = await this.assignees.activeMemberships(runner, context, [userId]);
+    const membershipId = found.get(userId);
+    if (!membershipId) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'That person is not a member of this workspace',
+        [{ field: 'assigneeUserId', message: 'must be an active member' }],
+      );
+    }
+    return membershipId;
   }
 
   /**
@@ -161,7 +316,7 @@ function resourceOf(row: WorkItemRow) {
   };
 }
 
-function toView(row: WorkItemChecklistItemRow): WorkChecklistItemView {
+function toView(row: ChecklistItemWithAssignee): WorkChecklistItemView {
   return {
     id: row.id,
     workItemId: row.workItemId,
@@ -169,5 +324,7 @@ function toView(row: WorkItemChecklistItemRow): WorkChecklistItemView {
     done: row.done,
     position: row.position,
     createdAt: row.createdAt.toISOString(),
+    assigneeUserId: row.assigneeUserId ?? null,
+    dueOn: row.dueOn ?? null,
   };
 }

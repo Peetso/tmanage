@@ -46,7 +46,7 @@ import { AuditEventsRepository } from '../audit/audit-events.repository.js';
 import { commitBoardBatch } from './board-commit.js';
 import type { BoardCommitDeps, BoardCommitSummary, BoardRowResult } from './board-commit.js';
 import { PmImportRepository } from './pm-import.repository.js';
-import { WorkSubtasksRepository } from '../work/subtasks.repository.js';
+import { WorkChecklistRepository } from '../work/work-checklist.repository.js';
 import { WorkCommentsRepository } from '../work/work-comments.repository.js';
 
 /**
@@ -249,7 +249,7 @@ export class ImportService {
     private readonly audit: Pick<AuditEventsRepository, 'append'> = new AuditEventsRepository(),
     private readonly boardDeps: BoardCommitDeps = {
       ...importDeps,
-      subtasks: new WorkSubtasksRepository(),
+      steps: new WorkChecklistRepository(),
       comments: new WorkCommentsRepository(),
       emails: new PmImportRepository(),
     },

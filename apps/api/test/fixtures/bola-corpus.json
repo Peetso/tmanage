@@ -144,7 +144,6 @@
     "work_item_files",
     "work_item_labels",
     "work_item_links",
-    "work_item_subtasks",
     "work_item_time_logs",
     "work_items",
     "work_stage_sets",
@@ -1922,6 +1921,22 @@
       "bodyIdFields": []
     },
     {
+      "key": "DELETE /v1/organizations/:orgSlug/work-items/:workItemId/checklist/:itemId",
+      "class": "org",
+      "handler": "apps/api/src/modules/work/work-checklist.controller.ts#remove",
+      "params": [
+        {
+          "name": "workItemId",
+          "table": "work_items"
+        },
+        {
+          "name": "itemId",
+          "table": null
+        }
+      ],
+      "bodyIdFields": []
+    },
+    {
       "key": "DELETE /v1/organizations/:orgSlug/work-items/:workItemId/cloud-folders/:cloudFolderId",
       "class": "org",
       "handler": "apps/api/src/modules/cloud-folders/cloud-folders.controller.ts#remove",
@@ -2085,22 +2100,6 @@
         {
           "name": "workItemId",
           "table": "work_items"
-        }
-      ],
-      "bodyIdFields": []
-    },
-    {
-      "key": "DELETE /v1/organizations/:orgSlug/work-items/:workItemId/subtasks/:subtaskId",
-      "class": "org",
-      "handler": "apps/api/src/modules/work/subtasks.controller.ts#remove",
-      "params": [
-        {
-          "name": "workItemId",
-          "table": "work_items"
-        },
-        {
-          "name": "subtaskId",
-          "table": "work_item_subtasks"
         }
       ],
       "bodyIdFields": []
@@ -6762,6 +6761,18 @@
       "notDriven": "no object id in path or body"
     },
     {
+      "key": "GET /v1/organizations/:orgSlug/portal/work-items/:workItemId",
+      "class": "org",
+      "handler": "apps/api/src/modules/clients/portal.controller.ts#workItem",
+      "params": [
+        {
+          "name": "workItemId",
+          "table": "work_items"
+        }
+      ],
+      "bodyIdFields": []
+    },
+    {
       "key": "GET /v1/organizations/:orgSlug/portal/work-items/:workItemId/cloud-folders/",
       "class": "org",
       "handler": "apps/api/src/modules/cloud-folders/cloud-folders.controller.ts#list",
@@ -8129,18 +8140,6 @@
       "key": "GET /v1/organizations/:orgSlug/work-items/:workItemId/relations/graph",
       "class": "org",
       "handler": "apps/api/src/modules/work/relations-graph.controller.ts#graph",
-      "params": [
-        {
-          "name": "workItemId",
-          "table": "work_items"
-        }
-      ],
-      "bodyIdFields": []
-    },
-    {
-      "key": "GET /v1/organizations/:orgSlug/work-items/:workItemId/subtasks/",
-      "class": "org",
-      "handler": "apps/api/src/modules/work/subtasks.controller.ts#list",
       "params": [
         {
           "name": "workItemId",
@@ -10051,7 +10050,12 @@
           "table": null
         }
       ],
-      "bodyIdFields": []
+      "bodyIdFields": [
+        {
+          "name": "assigneeUserId",
+          "table": "users"
+        }
+      ]
     },
     {
       "key": "PATCH /v1/organizations/:orgSlug/work-items/:workItemId/dependencies/:dependencyId",
@@ -14552,6 +14556,27 @@
           "table": "work_items"
         }
       ],
+      "bodyIdFields": [
+        {
+          "name": "assigneeUserId",
+          "table": "users"
+        }
+      ]
+    },
+    {
+      "key": "POST /v1/organizations/:orgSlug/work-items/:workItemId/checklist/:itemId/convert",
+      "class": "org",
+      "handler": "apps/api/src/modules/work/work-checklist.controller.ts#convert",
+      "params": [
+        {
+          "name": "workItemId",
+          "table": "work_items"
+        },
+        {
+          "name": "itemId",
+          "table": null
+        }
+      ],
       "bodyIdFields": []
     },
     {
@@ -14804,18 +14829,6 @@
       "key": "POST /v1/organizations/:orgSlug/work-items/:workItemId/schedule/cascade-preview",
       "class": "org",
       "handler": "apps/api/src/modules/work/schedule-cascade.controller.ts#preview",
-      "params": [
-        {
-          "name": "workItemId",
-          "table": "work_items"
-        }
-      ],
-      "bodyIdFields": []
-    },
-    {
-      "key": "POST /v1/organizations/:orgSlug/work-items/:workItemId/subtasks/",
-      "class": "org",
-      "handler": "apps/api/src/modules/work/subtasks.controller.ts#add",
       "params": [
         {
           "name": "workItemId",
@@ -17337,6 +17350,18 @@
       "bodyIdFields": []
     },
     {
+      "key": "PUT /v1/organizations/:orgSlug/work-items/:workItemId/checklist/order",
+      "class": "org",
+      "handler": "apps/api/src/modules/work/work-checklist.controller.ts#reorder",
+      "params": [
+        {
+          "name": "workItemId",
+          "table": "work_items"
+        }
+      ],
+      "bodyIdFields": []
+    },
+    {
       "key": "PUT /v1/organizations/:orgSlug/work-items/:workItemId/custom-fields/:key",
       "class": "org",
       "handler": "apps/api/src/modules/work/custom-fields.controller.ts#setValue",
@@ -17449,22 +17474,6 @@
         {
           "name": "workItemId",
           "table": "work_items"
-        }
-      ],
-      "bodyIdFields": []
-    },
-    {
-      "key": "PUT /v1/organizations/:orgSlug/work-items/:workItemId/subtasks/:subtaskId",
-      "class": "org",
-      "handler": "apps/api/src/modules/work/subtasks.controller.ts#update",
-      "params": [
-        {
-          "name": "workItemId",
-          "table": "work_items"
-        },
-        {
-          "name": "subtaskId",
-          "table": "work_item_subtasks"
         }
       ],
       "bodyIdFields": []

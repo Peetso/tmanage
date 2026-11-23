@@ -165,6 +165,16 @@ describe('PortalService.workItemsFor (R07)', () => {
       fakeDatabase(),
       {} as unknown as ProjectsRepository,
       workItemsRepo,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      // Work area D5: no stage set and no steps stored.
+      { effectiveForMany: async () => new Map() },
+      { countsFor: async () => new Map() },
     );
 
     const result = await service.workItemsFor(context, clientPrincipal(readableProjectId));

@@ -9,7 +9,7 @@
  *   Trello / Asana rule) or, for a display name, by the caller's `userMap` then a **unique**
  *   active member of that name; anything else imports unassigned and is counted;
  * - groups and tags become work labels (found by name or created);
- * - a sub-item / subtask becomes a `work_item_subtasks` row of its root item (done when its status
+ * - a sub-item / subtask becomes a step (`work_item_checklist_items`, 0414) of its root item (done when its status
  *   maps to done); its receipt row is typed `subtask`, which the undo leaves to the parent's
  *   soft delete;
  * - comments are written as the importing member, each headed by the source author and date.
@@ -21,7 +21,7 @@ import { WORK_LABEL_COLORS } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { WorkCommentsRepository } from '../work/work-comments.repository.js';
-import type { WorkSubtasksRepository } from '../work/subtasks.repository.js';
+import type { WorkChecklistRepository } from '../work/work-checklist.repository.js';
 import type { PmImportRepository } from './pm-import.repository.js';
 import type { SourceMapping, SourceRow } from './import-validation.js';
 import { boardCommitPlan } from './board-export.js';
@@ -29,7 +29,8 @@ import { resolvePeople, resolveProject, walkTo } from './basecamp-commit.js';
 import type { ImportCommitDeps, ImportRowResult, ImportTargetOptions } from './basecamp-commit.js';
 
 export interface BoardCommitDeps extends ImportCommitDeps {
-  readonly subtasks: Pick<WorkSubtasksRepository, 'create' | 'update'>;
+  /** Work area D3 (0414): a sub-item becomes a step of its root item (the one steps model). */
+  readonly steps: Pick<WorkChecklistRepository, 'create' | 'update'>;
   readonly comments: Pick<WorkCommentsRepository, 'create'>;
   readonly emails: Pick<PmImportRepository, 'activeUserIdsByEmail'>;
 }
@@ -172,12 +173,11 @@ export async function commitBoardBatch(
       });
       continue;
     }
-    const created = await deps.subtasks.create(tx, context, {
-      parentWorkItemId: parentId,
-      title: sub.title,
-      createdBy: context.userId,
+    const created = await deps.steps.create(tx, context, {
+      workItemId: parentId,
+      label: sub.title,
     });
-    if (sub.done) await deps.subtasks.update(tx, context, parentId, created.id, { isDone: true });
+    if (sub.done) await deps.steps.update(tx, context, parentId, created.id, { done: true });
     results.set(sub.rowIndex, {
       index: sub.rowIndex,
       createdEntityId: created.id,

@@ -553,8 +553,10 @@ export function rankActions<T extends SearchableAction>(
     // The area's main action for the noun the member used ("a task" → work_items.*).
     if (primary) score += 6;
     // A sub-resource the query does not name (`work_items.subtasks.create` for "create a task").
+    // A verb inside the sub-resource's name ("set" in `stage_set`) does not name it: "assign a task"
+    // reaches "set" through the verb's synonyms, and must not excuse `work_items.stage_set.*`.
     for (const sub of idParts.slice(1, -1)) {
-      const words = sub.split('_');
+      const words = sub.split('_').filter((w) => !VERBS.has(w));
       if (!words.some((w) => named.has(w) || named.has(singular(w)))) score -= 4;
     }
     const onlyWhenNamed = NAMED_ONLY_AREAS[area];

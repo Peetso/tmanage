@@ -1,7 +1,11 @@
 import { authorize } from '@tmanage/domain';
 import type { Audience, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import {
   ProjectsRepository,
   effectivePageSize as projectPageSize,
@@ -10,6 +14,12 @@ import {
   WorkItemsRepository,
   effectivePageSize as workItemPageSize,
 } from '../work/work-items.repository.js';
+import { WorkStagesRepository } from '../work/stages/stages.repository.js';
+import type { EffectiveSet } from '../work/stages/stages.repository.js';
+import { groupOfState, stageForWork } from '../work/stages/stage-rules.js';
+import type { StageGroup } from '../work/stages/stage-rules.js';
+import { WorkChecklistRepository } from '../work/work-checklist.repository.js';
+import type { StepCounts } from '../work/work-checklist.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import { ApprovalsRepository } from '../approvals/approvals.repository.js';
 import { clientReviewOf } from '../approvals/client-review.js';
@@ -113,6 +123,16 @@ export interface PortalWorkItemView {
   readonly progress: 'waiting_on_you' | 'in_progress' | 'done';
   readonly dueAt: string | null;
   readonly updatedAt: string;
+  /**
+   * Work area D5: where the work stands, in the studio's own stage words — the stage name from
+   * the stage set it uses (`null` on the built-in stages; show `progress` then) and its group
+   * (`null` for blocked/archived). Steps as counts only: never a step's text, person or day.
+   * Optional in the type so older projections keep compiling; this service always sets them.
+   */
+  readonly stageName?: string | null;
+  readonly stageGroup?: StageGroup | null;
+  readonly stepsDone?: number;
+  readonly stepsTotal?: number;
 }
 
 /**
@@ -404,7 +424,14 @@ export function progressOf(row: WorkItemRow): PortalWorkItemView['progress'] {
   return 'in_progress';
 }
 
-function toWorkItemView(row: WorkItemRow): PortalWorkItemView {
+function toWorkItemView(
+  row: WorkItemRow,
+  effective: EffectiveSet | undefined,
+  steps: StepCounts | undefined,
+): PortalWorkItemView {
+  const stage = effective?.set
+    ? stageForWork(effective.set.stages, row.state, row.stageId ?? null)
+    : null;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -412,6 +439,10 @@ function toWorkItemView(row: WorkItemRow): PortalWorkItemView {
     progress: progressOf(row),
     dueAt: row.dueAt ? row.dueAt.toISOString() : null,
     updatedAt: row.updatedAt.toISOString(),
+    stageName: stage?.name ?? null,
+    stageGroup: groupOfState(row.state),
+    stepsDone: steps?.done ?? 0,
+    stepsTotal: steps?.total ?? 0,
   };
 }
 
@@ -445,6 +476,15 @@ export class PortalService {
       ApprovalsRepository,
       'latestByVersions'
     > = new ApprovalsRepository(),
+    /** Work area D5: the stage each work is in, and its step counts. Stateless, appended last. */
+    private readonly stages: Pick<
+      WorkStagesRepository,
+      'effectiveForMany'
+    > = new WorkStagesRepository(),
+    private readonly steps: Pick<
+      WorkChecklistRepository,
+      'countsFor'
+    > = new WorkChecklistRepository(),
   ) {}
 
   /** A10 — the linked-milestone check and the unpublish dialog's "already opened" read. */
@@ -619,10 +659,59 @@ export class PortalService {
         if (page.length < limit || collected.length >= limit || last === undefined) break;
         after = last.id;
       }
-      return collected.slice(0, limit);
+      const rows = collected.slice(0, limit);
+      return { rows, ...(await this.progressDetails(runner, context, rows)) };
     });
 
-    return readable.map(toWorkItemView);
+    return readable.rows.map((row) =>
+      toWorkItemView(row, readable.sets.get(row.id), readable.counts.get(row.id)),
+    );
+  }
+
+  /**
+   * Work area D5 — one work as the client may see it: the same allowlisted fields as the list,
+   * read by id. Absent, deleted, internal, narrowed away from this client company (C25, in the
+   * repository's predicate), or in a project the client may not read: the same 404 — the client
+   * cannot learn that an internal work exists. No comment, file or person travels here: none of
+   * them carries a client-visible marker today, so none is shown.
+   */
+  async workItemFor(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+  ): Promise<PortalWorkItemView> {
+    const found = await this.database.read(context, async (runner) => {
+      const row = await this.workItems.findById(runner, context, workItemId);
+      if (
+        !row ||
+        row.deletedAt !== null ||
+        !CLIENT_AUDIENCES.includes(row.audience as Audience) ||
+        !this.mayRead(principal, row.projectId)
+      ) {
+        return null;
+      }
+      return { row, ...(await this.progressDetails(runner, context, [row])) };
+    });
+    if (!found) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return toWorkItemView(found.row, found.sets.get(found.row.id), found.counts.get(found.row.id));
+  }
+
+  private async progressDetails(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    rows: readonly WorkItemRow[],
+  ): Promise<{
+    readonly sets: ReadonlyMap<string, EffectiveSet>;
+    readonly counts: ReadonlyMap<string, StepCounts>;
+  }> {
+    if (rows.length === 0) return { sets: new Map(), counts: new Map() };
+    const sets = await this.stages.effectiveForMany(runner, context, rows);
+    const counts = await this.steps.countsFor(
+      runner,
+      context,
+      rows.map((row) => row.id),
+    );
+    return { sets, counts };
   }
 
   /**

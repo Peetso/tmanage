@@ -168,8 +168,18 @@ export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_items.checklist.create',
     title: 'Create work item checklist',
-    description: 'Add a checklist line (label) to a work item.',
-    input: bodyArgs(['workItemId'], { label: f.shortText(300) }),
+    description:
+      'Add a step (a checklist line, a to-do or subtask inside the work) to a work item: label, ' +
+      'optionally who does it (assigneeUserId, a member) and the day it is due (dueOn, YYYY-MM-DD).',
+    input: bodyArgs(['workItemId'], {
+      label: f.shortText(300),
+      assigneeUserId: f.id().nullable().optional(),
+      dueOn: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .nullable()
+        .optional(),
+    }),
     redact: 'standard',
     examples: [
       { summary: 'Create work item checklist', args: { workItemId: 'wi_1', label: 'In review' } },
@@ -186,13 +196,21 @@ export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_items.checklist.update',
     title: 'Update work item checklist',
-    description: 'Rename a checklist line or tick it off: send label and/or done.',
+    description:
+      'Change a step: rename it (label), tick it off (done), give it a person (assigneeUserId, ' +
+      'null for nobody) or a day (dueOn YYYY-MM-DD, null for none). Send at least one.',
     input: atLeastOne(
       bodyArgs(['workItemId', 'itemId'], {
         label: f.shortText(300).optional(),
         done: f.bool().optional(),
+        assigneeUserId: f.id().nullable().optional(),
+        dueOn: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .nullable()
+          .optional(),
       }),
-      ['label', 'done'],
+      ['label', 'done', 'assigneeUserId', 'dueOn'],
     ),
     redact: 'standard',
     examples: [
@@ -629,57 +647,6 @@ export const workDetails: readonly AiActionDetail[] = [
     input: listArgs([], {}, { limit: false, cursor: 'before' }),
     redact: 'standard',
     examples: [{ summary: 'List work item reminders due', args: {} }],
-  }),
-  det({
-    id: 'work_items.subtasks.create',
-    title: 'Create work item subtasks',
-    description: 'Add a subtask (title) to a work item.',
-    input: bodyArgs(['workItemId'], { title: f.shortText(WORK_ITEM_TITLE_MAX) }),
-    redact: 'standard',
-    examples: [
-      {
-        summary: 'Create work item subtasks',
-        args: { workItemId: 'wi_1', title: 'Draft the Q4 brief' },
-      },
-    ],
-  }),
-  det({
-    id: 'work_items.subtasks.delete',
-    title: 'Delete work item subtasks',
-    description: 'Delete work item subtasks. Confirm-class: needs your approval before it runs.',
-    input: pathOnly('workItemId', 'subtaskId'),
-    redact: 'standard',
-    examples: [
-      { summary: 'Delete work item subtasks', args: { workItemId: 'wi_1', subtaskId: 'st_1' } },
-    ],
-  }),
-  det({
-    id: 'work_items.subtasks.list',
-    title: 'List work item subtasks',
-    description: 'List work item subtasks.',
-    input: queryArgs(['workItemId']),
-    redact: 'standard',
-    examples: [{ summary: 'List work item subtasks', args: { workItemId: 'wi_1' } }],
-  }),
-  det({
-    id: 'work_items.subtasks.set',
-    title: 'Set work item subtasks',
-    description: 'Change a subtask: send at least one of title, done or position.',
-    input: atLeastOne(
-      bodyArgs(['workItemId', 'subtaskId'], {
-        title: f.shortText(WORK_ITEM_TITLE_MAX).optional(),
-        done: f.bool().optional(),
-        position: f.int(0, 1_000_000).optional(),
-      }),
-      ['title', 'done', 'position'],
-    ),
-    redact: 'standard',
-    examples: [
-      {
-        summary: 'Set work item subtasks',
-        args: { workItemId: 'wi_1', subtaskId: 'st_1', title: 'Draft the Q4 brief' },
-      },
-    ],
   }),
   det({
     id: 'work_items.time_logs.create',

@@ -41,6 +41,14 @@ export interface PortalWorkItem {
   readonly progress: PortalProgress;
   readonly dueAt: string | null;
   readonly updatedAt: string;
+  /**
+   * Work area D5: the studio's stage name (`null` on the built-in stages — show `progress`), its
+   * group, and the steps as counts only ("2/5").
+   */
+  readonly stageName?: string | null;
+  readonly stageGroup?: 'not_started' | 'in_progress' | 'in_review' | 'done' | null;
+  readonly stepsDone?: number;
+  readonly stepsTotal?: number;
 }
 
 /**
@@ -713,6 +721,18 @@ export async function listPortalProjects(
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects`,
   });
   return data.projects;
+}
+
+/** Work area D5: one work as the client may see it. An internal or unknown id is a 404. */
+export async function fetchPortalWorkItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<PortalWorkItem> {
+  const { data } = await client.request<PortalWorkItem>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/work-items/${encodeURIComponent(workItemId)}`,
+  });
+  return data;
 }
 
 export async function listPortalWorkItems(

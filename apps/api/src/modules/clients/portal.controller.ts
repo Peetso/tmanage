@@ -87,6 +87,20 @@ export class PortalController {
   }
 
   /**
+   * Work area D5 — one work as the client may see it (stage, step counts, due date). An internal,
+   * deleted, other-company or unknown id is the same 404.
+   */
+  @Get('work-items/:workItemId')
+  @RequireCapability('client_projection.read')
+  async workItem(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+  ): Promise<PortalWorkItemView> {
+    return this.portal.workItemFor(context, principal, workItemId);
+  }
+
+  /**
    * The published deliverables the client may see in one project — x114, `CL-03`.
    *
    * `projectId` is in the path and resolved **tenant + client-membership scoped before** the
