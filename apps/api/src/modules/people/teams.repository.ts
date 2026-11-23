@@ -1,8 +1,14 @@
-import { and, asc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
 import { PLATFORM_SUPPORT_ROLE, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { memberships, memberTeams, users } from '../../common/database/schema.js';
+import {
+  memberships,
+  memberTeams,
+  users,
+  workItemAssignees,
+  workItems,
+} from '../../common/database/schema.js';
 import type { MemberTeamRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -199,6 +205,61 @@ export class PeopleTeamsRepository {
       )
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /** Work area (2026-11-23): rename a team definition. Returns whether a row was changed. */
+  async renameTeam(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    teamId: string,
+    name: string,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(memberTeams)
+      .set({ name })
+      .where(
+        and(
+          eq(memberTeams.organizationId, context.organizationId),
+          eq(memberTeams.id, teamId),
+          isNotNull(memberTeams.name),
+        ),
+      );
+    return result[0].affectedRows > 0;
+  }
+
+  /**
+   * Work area: how many open work items (not done, not archived, not deleted) each member does,
+   * for the team page's "Open work" column. The doer rows are the single source since 0412, so a
+   * lead is counted through its own row. Members with none are absent from the map.
+   */
+  async openWorkCounts(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>> {
+    if (membershipIds.length === 0) return new Map();
+    const a = workItemAssignees;
+    const rows = await tenantDrizzle(runner)
+      .select({
+        membershipId: a.membershipId,
+        open: sql<number>`count(distinct ${workItems.id})`,
+      })
+      .from(a)
+      .innerJoin(
+        workItems,
+        and(eq(workItems.organizationId, a.organizationId), eq(workItems.id, a.workItemId)),
+      )
+      .where(
+        and(
+          eq(a.organizationId, context.organizationId),
+          eq(a.role, 'doer'),
+          inArray(a.membershipId, [...membershipIds]),
+          isNull(workItems.deletedAt),
+          notInArray(workItems.state, ['done', 'archived']),
+        ),
+      )
+      .groupBy(a.membershipId);
+    return new Map(rows.map((row) => [row.membershipId, Number(row.open)]));
   }
 
   /** Insert an assignment row (team_id + membership_id set; name NULL). */

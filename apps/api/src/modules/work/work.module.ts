@@ -64,6 +64,7 @@ import { WorkItemEstimateRepository } from './item-estimate.repository.js';
 import { WorkItemEstimateService } from './item-estimate.service.js';
 import { WorkItemEstimateController } from './item-estimate.controller.js';
 import { WorkWatchersRepository } from './watchers.repository.js';
+import { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
 import { WorkWatchersService } from './watchers.service.js';
 import { WorkWatchersController } from './watchers.controller.js';
 import { WorkLabelsRepository } from './work-labels.repository.js';
@@ -405,12 +406,21 @@ export class WorkModule {
         },
         {
           provide: WORK_ITEM_PEOPLE_SERVICE,
-          inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, OUTBOX_EVENTS_REPOSITORY],
+          inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, OUTBOX_EVENTS_REPOSITORY, AUDIT_SERVICE],
           useFactory: (
             database: TenantDatabase,
             workItems: WorkItemsRepository,
             outbox: OutboxEventsRepository,
-          ) => new WorkItemPeopleService(database, workItems, outbox),
+            audit: AuditService,
+          ) =>
+            new WorkItemPeopleService(
+              database,
+              workItems,
+              outbox,
+              new WorkItemAssigneesRepository(),
+              new WorkWatchersRepository(),
+              audit,
+            ),
         },
       ],
       exports: [service, recurrenceSpawner],

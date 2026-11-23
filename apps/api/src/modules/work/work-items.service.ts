@@ -42,10 +42,17 @@ import { resolveClientAudience } from './work-item-client-audience.js';
 import { WorkItemClientAudienceRepository } from './work-item-client-audience.repository.js';
 import { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
 import {
+  applyPeopleChange,
   doersWithLead,
+  hasPeopleChange,
   mayCompleteSupervised,
+  normalisePeople,
+  readPeople,
   SUPERVISOR_APPROVAL_REQUIRED,
 } from './work-item-people.service.js';
+import type { PeopleChange, PeopleWritePorts } from './work-item-people.service.js';
+import { WorkWatchersRepository } from './watchers.repository.js';
+import { WorkChecklistRepository } from './work-checklist.repository.js';
 import {
   applyWorkItemPlanning,
   type WorkItemPlanningChange,
@@ -88,6 +95,21 @@ import {
  * `ProjectsService` gives and with more force: 403 confirms the row exists, and a client of an
  * agency must not be able to enumerate the agency's internal work by trying ids.
  */
+
+/** Work area (2026-11-23): at most this many steps may be written with a new item. */
+export const MAX_STEPS_AT_CREATE = 50;
+
+/**
+ * Work area (2026-11-23) — what a new item may carry besides its own fields, so the create dialog
+ * sets everything in one request and one transaction: several doers (lead first), supervisors,
+ * watchers, the client companies that may follow it, and its first steps.
+ */
+export interface CreateWorkItemExtras extends PeopleChange {
+  /** C25: the project's client companies that may see it; needs a client `audience` with it. */
+  readonly clientOrganizationIds?: readonly string[];
+  /** Step labels, in order (the checklist, the one steps model). */
+  readonly steps?: readonly string[];
+}
 
 /** What a caller is allowed to see of a work item. */
 export interface WorkItemView {
@@ -376,7 +398,77 @@ export class WorkItemsService {
     private readonly clientAudience: WorkItemClientAudienceRepository = new WorkItemClientAudienceRepository(),
     /** C26 (0318): the doers and supervisors; the owner stays the lead doer. Stateless. */
     private readonly assignees: WorkItemAssigneesRepository = new WorkItemAssigneesRepository(),
+    /** Work area: watchers set with the item or on the update. Stateless. */
+    private readonly watchers: WorkWatchersRepository = new WorkWatchersRepository(),
+    /** Work area: the first steps written with the item. Stateless. */
+    private readonly checklist: WorkChecklistRepository = new WorkChecklistRepository(),
   ) {}
+
+  /** The people writer's ports: the same repositories and sinks this service writes with. */
+  private peoplePorts(): PeopleWritePorts {
+    return {
+      assignees: this.assignees,
+      watchers: this.watchers,
+      ...(this.outbox === undefined ? {} : { outbox: this.outbox }),
+      ...(this.audit === undefined ? {} : { audit: this.audit }),
+    };
+  }
+
+  /**
+   * Work area: a request may name the lead both as `ownerUserId` and as the first of
+   * `doerUserIds`. The doers win; an owner that is not among them is put first, so the two can
+   * never disagree.
+   */
+  private doersOf(
+    ownerUserId: string | null | undefined,
+    doerUserIds: readonly string[] | undefined,
+  ): readonly string[] | undefined {
+    if (doerUserIds === undefined) return undefined;
+    return normalisePeople(
+      typeof ownerUserId === 'string' ? [ownerUserId, ...doerUserIds] : doerUserIds,
+    );
+  }
+
+  /**
+   * C25 / work area: check a client list against the project's client companies and return what
+   * to store (`[]` = every client). Needs `deliverable.publish` on the project, like widening.
+   */
+  private async resolveClients(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    clientIds: readonly string[],
+  ): Promise<readonly string[]> {
+    this.requirePublish(principal, context, projectId);
+    const shares = await this.database.read(context, (runner) =>
+      this.projectClients.list(runner, context, { projectId, limit: 200 }),
+    );
+    const resolved = resolveClientAudience(
+      clientIds,
+      shares.map((share) => share.clientOrganizationId),
+    );
+    if (!resolved.ok) {
+      throw new ApiError(422, 'validation_failed', 'The client list is invalid', [
+        { field: 'clientOrganizationIds', message: resolved.message },
+      ]);
+    }
+    return resolved.stored;
+  }
+
+  /** CQ-07 (WRK-14): a client cannot be asked to act on work of a project with no client. */
+  private async requireLinkedClient(context: TenantContext, projectId: string): Promise<void> {
+    const linked = await this.database.read(context, (runner) =>
+      this.projectClients.list(runner, context, { projectId, limit: 1 }),
+    );
+    if (linked.length === 0) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'This project has no client linked, so a client cannot be asked to act on its work',
+        [{ field: 'audience', message: 'link a client to this project first' }],
+      );
+    }
+  }
 
   /**
    * List the work this principal may read.
@@ -514,8 +606,39 @@ export class WorkItemsService {
   async create(
     context: TenantContext,
     principal: Principal,
-    input: CreateWorkItemInput,
+    requested: CreateWorkItemInput & CreateWorkItemExtras,
   ): Promise<WorkItemView> {
+    // Work area: the doers decide the lead. Client companies need a client audience named in the
+    // same request (never inferred), so the publish decision stays explicit and the AI's
+    // confirm-when-audience rule sees it.
+    const doers = this.doersOf(requested.ownerUserId, requested.doerUserIds);
+    const clientIds = requested.clientOrganizationIds;
+    const audience = requested.audience;
+    const input: CreateWorkItemInput = {
+      projectId: requested.projectId,
+      title: requested.title,
+      ...(requested.type === undefined ? {} : { type: requested.type }),
+      ...(requested.description === undefined ? {} : { description: requested.description }),
+      ...(requested.startAt === undefined ? {} : { startAt: requested.startAt }),
+      ...(requested.dueAt === undefined ? {} : { dueAt: requested.dueAt }),
+      ...(audience === undefined ? {} : { audience }),
+      ...(doers !== undefined
+        ? { ownerUserId: doers[0] ?? null }
+        : requested.ownerUserId === undefined
+          ? {}
+          : { ownerUserId: requested.ownerUserId }),
+    };
+    const people: PeopleChange = {
+      ...(doers === undefined ? {} : { doerUserIds: doers }),
+      ...(requested.supervisorUserIds === undefined
+        ? {}
+        : { supervisorUserIds: requested.supervisorUserIds }),
+      ...(requested.watcherUserIds === undefined
+        ? {}
+        : { watcherUserIds: requested.watcherUserIds }),
+    };
+    const steps = (requested.steps ?? []).slice(0, MAX_STEPS_AT_CREATE);
+
     // Two checks, and they answer different questions. The first: does this project exist in
     // this tenant at all? The second: may this principal act on it? Both refuse with 404,
     // because distinguishing them would tell a caller which project ids are real.
@@ -532,11 +655,37 @@ export class WorkItemsService {
       this.requirePublish(principal, context, input.projectId);
     }
     if (input.ownerUserId) await this.requireOwnerIsMember(context, input.ownerUserId);
+    if (clientIds !== undefined && (input.audience ?? 'internal') === 'internal') {
+      throw new ApiError(422, 'validation_failed', 'An internal item has no client audience', [
+        {
+          field: 'clientOrganizationIds',
+          message: 'send audience client_visible or client_action_required with the clients',
+        },
+      ]);
+    }
+    if (input.audience === 'client_action_required') {
+      await this.requireLinkedClient(context, input.projectId);
+    }
+    const storedClients =
+      clientIds === undefined
+        ? []
+        : await this.resolveClients(context, principal, input.projectId, clientIds);
 
     const row = await this.database.transaction(context, async (tx) => {
       const created = await this.workItems.create(tx, context, input);
       // R16-e (54-10): the item's work key (`TM-482`) when its project has a prefix; no-op otherwise.
       await ensureWorkKey(tx, context, created.id);
+
+      // Work area: people, client companies and the first steps, in the create's own unit of work.
+      const team = hasPeopleChange(people)
+        ? await applyPeopleChange(tx, context, this.peoplePorts(), created, people)
+        : await readPeople(tx, context, { assignees: this.assignees }, created);
+      if (storedClients.length > 0) {
+        await this.clientAudience.replace(tx, context, created.id, storedClients);
+      }
+      for (const label of steps) {
+        await this.checklist.create(tx, context, { workItemId: created.id, label });
+      }
 
       await this.audit?.record(tx, context, {
         action: 'work_item.created',
@@ -547,6 +696,11 @@ export class WorkItemsService {
           work_item_type: created.type,
           audience: created.audience,
           state: created.state,
+          doers: team.doerUserIds.length,
+          supervisors: team.supervisorUserIds.length,
+          watchers: team.watcherUserIds.length,
+          steps: steps.length,
+          clients_listed: storedClients.length,
         },
       });
 
@@ -557,7 +711,10 @@ export class WorkItemsService {
         payload: { workItemId: created.id, projectId: created.projectId, state: created.state },
       });
 
-      return created;
+      // Read back when people were written: the writer may have moved the lead (and the version).
+      return hasPeopleChange(people)
+        ? await this.workItems.requireById(tx, context, created.id)
+        : created;
     });
 
     return toView(row, context.correlationId);
@@ -584,11 +741,27 @@ export class WorkItemsService {
       readonly billable?: boolean | null;
       /** C25: the client companies that may see a client-facing item (all ticked = all). */
       readonly clientOrganizationIds?: readonly string[];
-    } & WorkItemPlanningChange, // 53-21: points, iterationId
+    } & WorkItemPlanningChange & // 53-21: points, iterationId
+      PeopleChange, // work area: doers (lead first), supervisors, watchers
   ): Promise<WorkItemView & { readonly billable?: boolean | null } & WorkItemPlanningChange> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.update');
-    if (requested.ownerUserId) await this.requireOwnerIsMember(context, requested.ownerUserId);
-    const input = await this.resolveMove(context, principal, before, requested);
+    // Work area: the doers decide the lead, so the owner and the doer rows cannot disagree.
+    const doers = this.doersOf(requested.ownerUserId, requested.doerUserIds);
+    const lead = doers === undefined ? requested.ownerUserId : (doers[0] ?? null);
+    if (lead) await this.requireOwnerIsMember(context, lead);
+    const people: PeopleChange = {
+      ...(doers === undefined ? {} : { doerUserIds: doers }),
+      ...(requested.supervisorUserIds === undefined
+        ? {}
+        : { supervisorUserIds: requested.supervisorUserIds }),
+      ...(requested.watcherUserIds === undefined
+        ? {}
+        : { watcherUserIds: requested.watcherUserIds }),
+    };
+    const input = await this.resolveMove(context, principal, before, {
+      ...requested,
+      ...(lead === undefined ? {} : { ownerUserId: lead }),
+    });
     const targetProjectId = input.projectId ?? before.projectId;
     const moving = input.projectId !== undefined && input.projectId !== before.projectId;
 
@@ -606,17 +779,7 @@ export class WorkItemsService {
     // nobody, so refuse the move rather than set an audience that promises a reader who cannot
     // exist. Checked before the transaction opens; `client_visible` and `internal` are unaffected.
     if (input.audience === 'client_action_required') {
-      const linked = await this.database.read(context, (runner) =>
-        this.projectClients.list(runner, context, { projectId: targetProjectId, limit: 1 }),
-      );
-      if (linked.length === 0) {
-        throw new ApiError(
-          422,
-          'validation_failed',
-          'This project has no client linked, so a client cannot be asked to act on its work',
-          [{ field: 'audience', message: 'link a client to this project first' }],
-        );
-      }
+      await this.requireLinkedClient(context, targetProjectId);
     }
 
     const widening =
@@ -635,20 +798,12 @@ export class WorkItemsService {
           { field: 'clientOrganizationIds', message: 'only a client-facing item can be narrowed' },
         ]);
       }
-      this.requirePublish(principal, context, targetProjectId);
-      const shares = await this.database.read(context, (runner) =>
-        this.projectClients.list(runner, context, { projectId: targetProjectId, limit: 200 }),
-      );
-      const resolved = resolveClientAudience(
+      nextClientAudience = await this.resolveClients(
+        context,
+        principal,
+        targetProjectId,
         clientIds,
-        shares.map((share) => share.clientOrganizationId),
       );
-      if (!resolved.ok) {
-        throw new ApiError(422, 'validation_failed', 'The client list is invalid', [
-          { field: 'clientOrganizationIds', message: resolved.message },
-        ]);
-      }
-      nextClientAudience = resolved.stored;
     } else if ((audienceAfter === 'internal' && before.audience !== 'internal') || moving) {
       nextClientAudience = [];
     }
@@ -656,6 +811,10 @@ export class WorkItemsService {
     let planning: WorkItemPlanningResult | null = null; // 53-21
     const row = await this.writing(() =>
       this.database.transaction(context, async (tx) => {
+        // The people as they were, before the owner change below moves the lead row.
+        const peopleBefore = hasPeopleChange(people)
+          ? await readPeople(tx, context, { assignees: this.assignees }, before)
+          : undefined;
         const updated = await this.workItems.update(
           tx,
           context,
@@ -664,17 +823,16 @@ export class WorkItemsService {
           input,
         );
         planning = await applyWorkItemPlanning(tx, context, updated, requested);
+        if (peopleBefore !== undefined) {
+          await applyPeopleChange(tx, context, this.peoplePorts(), updated, people, {
+            before: peopleBefore,
+          });
+        }
 
-        // C26: the owner is the lead doer. A changed owner keeps the doer rows in step and the
-        // new lead is told, the way `PUT …/people/doers` tells a newly added doer.
-        if (updated.ownerUserId !== before.ownerUserId) {
-          await this.assignees.syncLead(
-            tx,
-            context,
-            workItemId,
-            updated.ownerUserId,
-            before.ownerUserId,
-          );
+        // C26: the owner is the lead doer. The repository moved the doer rows with it (0412);
+        // the new lead is told, the way `PUT …/people/doers` tells a newly added doer.
+        // (With a doer list the people writer above has told every newly added doer.)
+        if (updated.ownerUserId !== before.ownerUserId && people.doerUserIds === undefined) {
           if (updated.ownerUserId !== null && updated.ownerUserId !== context.userId) {
             await this.outbox?.append(tx, context, {
               type: 'work_item.people_assigned.v1',
@@ -785,7 +943,10 @@ export class WorkItemsService {
           },
         });
 
-        return updated;
+        // A people change can move the lead after the field write; read the row as it now is.
+        return peopleBefore === undefined
+          ? updated
+          : await this.workItems.requireById(tx, context, workItemId);
       }),
     );
 

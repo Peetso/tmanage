@@ -157,7 +157,11 @@ function harness() {
       replace: async () => undefined,
     } as unknown as WorkItemClientAudienceRepository,
     // C26: an owner change keeps the doer rows in step; nothing is stored here.
-    { syncLead: async () => undefined } as unknown as WorkItemAssigneesRepository,
+    {
+      syncLead: async () => undefined,
+      list: async () => [],
+      watcherUserIds: async () => [],
+    } as unknown as WorkItemAssigneesRepository,
   );
   return {
     controller: new WorkItemsController(service),

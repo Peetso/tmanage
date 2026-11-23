@@ -23,12 +23,28 @@ const MAX_NAME_LENGTH = 120;
 /** A team plus its member count, as the service hands it up. */
 export type { TeamWithCount, TeamMember };
 
+/** One member of a team with how much open work they do (work area: the "Open work" column). */
+export interface TeamMemberWithLoad extends TeamMember {
+  readonly openWorkCount: number;
+}
+
 /** One team with its full member roster — the team-detail read. */
 export interface TeamDetail {
   readonly id: string;
   readonly name: string;
   readonly createdAt: Date;
-  readonly members: readonly TeamMember[];
+  readonly members: readonly TeamMemberWithLoad[];
+}
+
+/** The 409 a second team of the same name earns; one sentence for create and rename. */
+function duplicateName(): ApiError {
+  return new ApiError(
+    409,
+    'conflict',
+    'A team with this name already exists',
+    [{ field: 'name', message: 'must be unique within the organization' }],
+    'duplicate_team_name',
+  );
 }
 
 export class PeopleTeamsService {
@@ -70,7 +86,18 @@ export class PeopleTeamsService {
       const team = await this.teams.findTeamById(runner, context, teamId);
       if (team === null) return null;
       const members = await this.teams.listMembers(runner, context, team.id);
-      return { team, members };
+      const open = await this.teams.openWorkCounts(
+        runner,
+        context,
+        members.map((member) => member.membershipId),
+      );
+      return {
+        team,
+        members: members.map((member) => ({
+          ...member,
+          openWorkCount: open.get(member.membershipId) ?? 0,
+        })),
+      };
     });
     if (detail === null) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'team_not_found');
@@ -92,19 +119,53 @@ export class PeopleTeamsService {
     const existing = await this.database.read(context, (runner) =>
       this.teams.findTeamByName(runner, context, name),
     );
-    if (existing !== null) {
-      throw new ApiError(
-        409,
-        'conflict',
-        'A team with this name already exists',
-        [{ field: 'name', message: 'must be unique within the organization' }],
-        'duplicate_team_name',
-      );
-    }
-    const definition = await this.database.transaction(context, (tx) =>
-      this.teams.createTeam(tx, context, name),
-    );
+    if (existing !== null) throw duplicateName();
+    const definition = await this.database.transaction(context, async (tx) => {
+      const created = await this.teams.createTeam(tx, context, name);
+      // Work area: every team change leaves an audit row in its own unit of work (DA-11).
+      await this.audit?.record(tx, context, {
+        action: 'team.created',
+        objectId: created.id,
+        result: 'allowed',
+        metadata: {},
+      });
+      return created;
+    });
     return { definition, memberCount: 0 };
+  }
+
+  /**
+   * Work area (2026-11-23): rename a team. Resolve it tenant-scoped first (404), refuse a name
+   * another team of this tenant has (409, the unique index guards the race), audit the change.
+   * Renaming to its own name is a no-op that still answers the team.
+   */
+  async renameTeam(
+    context: TenantContext,
+    teamId: string,
+    rawName: unknown,
+  ): Promise<TeamWithCount> {
+    const name = this.normaliseName(rawName);
+    return this.database.transaction(context, async (tx) => {
+      const team = await this.teams.findTeamById(tx, context, teamId);
+      if (team === null) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'team_not_found');
+      }
+      const count = (await this.teams.listTeams(tx, context)).find(
+        (row) => row.definition.id === team.id,
+      )?.memberCount;
+      if (team.name !== name) {
+        const clash = await this.teams.findTeamByName(tx, context, name);
+        if (clash !== null && clash.id !== team.id) throw duplicateName();
+        await this.teams.renameTeam(tx, context, team.id, name);
+        await this.audit?.record(tx, context, {
+          action: 'team.renamed',
+          objectId: team.id,
+          result: 'allowed',
+          metadata: {},
+        });
+      }
+      return { definition: { ...team, name }, memberCount: count ?? 0 };
+    });
   }
 
   /**
@@ -143,9 +204,15 @@ export class PeopleTeamsService {
     }
     // Idempotent: already assigned is success with no second row.
     if (resolved.assignment) return;
-    await this.database.transaction(context, (tx) =>
-      this.teams.createAssignment(tx, context, resolved.team.id, membershipId),
-    );
+    await this.database.transaction(context, async (tx) => {
+      await this.teams.createAssignment(tx, context, resolved.team.id, membershipId);
+      await this.audit?.record(tx, context, {
+        action: 'team.member_added',
+        objectId: resolved.team.id,
+        result: 'allowed',
+        metadata: { membership_id: membershipId },
+      });
+    });
   }
 
   /**
@@ -159,9 +226,16 @@ export class PeopleTeamsService {
     if (team === null) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'team_not_found');
     }
-    await this.database.transaction(context, (tx) =>
-      this.teams.deleteAssignment(tx, context, team.id, membershipId),
-    );
+    await this.database.transaction(context, async (tx) => {
+      const removed = await this.teams.deleteAssignment(tx, context, team.id, membershipId);
+      if (!removed) return;
+      await this.audit?.record(tx, context, {
+        action: 'team.member_removed',
+        objectId: team.id,
+        result: 'allowed',
+        metadata: { membership_id: membershipId },
+      });
+    });
   }
 
   /**

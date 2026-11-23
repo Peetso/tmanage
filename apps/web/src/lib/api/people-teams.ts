@@ -28,6 +28,8 @@ export interface TeamMemberView {
   readonly displayName: string;
   readonly role: string;
   readonly status: string;
+  /** Work area: how many open work items (not done or archived) this member does. */
+  readonly openWorkCount: number;
 }
 
 /** One team with its full member roster — the team-detail read. */
@@ -119,4 +121,19 @@ export async function deleteTeam(
     method: 'DELETE',
     path: `${base(organizationSlug)}/${encodeURIComponent(teamId)}`,
   });
+}
+
+/** Work area: rename a team. A taken name is a 409, an unknown id a 404. */
+export async function renameTeam(
+  client: ApiClient,
+  organizationSlug: string,
+  teamId: string,
+  name: string,
+): Promise<TeamView> {
+  const { data } = await client.request<TeamView>({
+    method: 'PATCH',
+    path: `${base(organizationSlug)}/${encodeURIComponent(teamId)}`,
+    body: { name },
+  });
+  return data;
 }

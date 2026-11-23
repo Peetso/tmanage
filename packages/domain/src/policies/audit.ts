@@ -1983,6 +1983,74 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'team',
     clause: '§12 organization settings — a team was deleted',
   },
+  /** Work area (2026-11-23): a team was created. */
+  'team.created': {
+    objectType: 'team',
+    clause: '§12 organization settings — a team was created',
+  },
+  /** Work area: a team was renamed. */
+  'team.renamed': {
+    objectType: 'team',
+    clause: '§12 organization settings — a team was renamed',
+  },
+  /** Work area: a member was added to a team. Metadata: the membership id. */
+  'team.member_added': {
+    objectType: 'team',
+    clause: '§12 organization settings — a team gained a member',
+  },
+  /** Work area: a member was taken off a team. Metadata: the membership id. */
+  'team.member_removed': {
+    objectType: 'team',
+    clause: '§12 organization settings — a team lost a member',
+  },
+  /**
+   * Work area: the doers, supervisors or watchers of a work item changed. Metadata: counts
+   * before and after per role (never names). A supervisor decides who may mark the work done.
+   */
+  'work_item.people_changed': {
+    objectType: 'work_item',
+    clause: '§12 approval decision — who supervises, and so who approves, a work item',
+  },
+  /** Work area: a stage set (named stages over the fixed work states) was created. */
+  'work_stage_set.created': {
+    objectType: 'work_stage_set',
+    clause: '§12 organization settings — a stage set was created',
+  },
+  /** Work area: a stage set was renamed, or its stages were added, renamed, moved or deleted. */
+  'work_stage_set.changed': {
+    objectType: 'work_stage_set',
+    clause: '§12 organization settings — a stage set changed',
+  },
+  /** Work area: a stage set was deleted. Metadata: how many projects and items fell back. */
+  'work_stage_set.deleted': {
+    objectType: 'work_stage_set',
+    clause: '§12 organization settings — a stage set was deleted',
+  },
+  /** Work area: a project was given its own stage set, or back to the workspace's. */
+  'project.stage_set_changed': {
+    objectType: 'project',
+    clause: '§12 organization settings — the stages a project uses changed',
+  },
+  /** Work area: a work item was given a different stage set, or back to its project's. */
+  'work_item.stage_set_changed': {
+    objectType: 'work_item',
+    clause: '§12 organization settings — the stages a work item uses changed',
+  },
+  /** Work area: a step (checklist line) was deleted from a work item. */
+  'work_item.step_deleted': {
+    objectType: 'work_item',
+    clause: '§12 work record — a step was deleted',
+  },
+  /** Work area: a step was turned into a work item of its own. Metadata: the new item's id. */
+  'work_item.step_converted': {
+    objectType: 'work_item',
+    clause: '§12 work record — a step became a work item',
+  },
+  /** Work area: the steps of a work item were put in a new order. Metadata: how many. */
+  'work_item.steps_reordered': {
+    objectType: 'work_item',
+    clause: '§12 work record — the steps were reordered',
+  },
   /** A work label was deleted. Metadata: how many work items lost the tag. */
   'work_label.deleted': {
     objectType: 'work_label',
@@ -2073,6 +2141,19 @@ const AUDIT_ACTION_LABELS = {
   'project.unarchived': 'Restored an archived project',
   'project.deleted': 'Deleted an empty project',
   'team.deleted': 'Deleted a team',
+  'team.created': 'Created a team',
+  'team.renamed': 'Renamed a team',
+  'team.member_added': 'Added a member to a team',
+  'team.member_removed': 'Took a member off a team',
+  'work_item.people_changed': 'Changed who does, supervises or watches a work item',
+  'work_stage_set.created': 'Created a set of stages',
+  'work_stage_set.changed': 'Changed a set of stages',
+  'work_stage_set.deleted': 'Deleted a set of stages',
+  'project.stage_set_changed': 'Changed the stages a project uses',
+  'work_item.stage_set_changed': 'Changed the stages a work item uses',
+  'work_item.step_deleted': 'Deleted a step of a work item',
+  'work_item.step_converted': 'Turned a step into a work item',
+  'work_item.steps_reordered': 'Reordered the steps of a work item',
   'work_label.deleted': 'Deleted a work label',
   'work_form.deleted': 'Deleted a work form',
   'quote.deleted': 'Deleted a draft quote',

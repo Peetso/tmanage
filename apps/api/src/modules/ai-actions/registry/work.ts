@@ -237,7 +237,10 @@ export const workDetails: readonly AiActionDetail[] = [
     title: 'Create work item',
     description:
       'Create work item. Internal by default; a client audience (client_visible or ' +
-      'client_action_required) publishes it to the client portal and needs approval in TManage first.',
+      'client_action_required) publishes it to the client portal and needs approval in TManage first. ' +
+      'Everything the New work dialog sets can be sent at once: several doers (the first leads), ' +
+      'supervisors (who approve it as done), watchers, the client companies of the project that ' +
+      'may follow it (send a client audience with them) and the first steps.',
     input: bodyArgs([], {
       projectId: f.id(),
       title: f.shortText(WORK_ITEM_TITLE_MAX),
@@ -247,6 +250,19 @@ export const workDetails: readonly AiActionDetail[] = [
       audience: z.enum(AUDIENCES).optional(),
       startAt: instant.nullable().optional(),
       dueAt: instant.nullable().optional(),
+      doerUserIds: z.array(f.id()).max(50).optional().describe('Who does it, lead first'),
+      supervisorUserIds: z.array(f.id()).max(50).optional().describe('Who approves it as done'),
+      watcherUserIds: z.array(f.id()).max(50).optional(),
+      clientOrganizationIds: z
+        .array(f.id())
+        .max(100)
+        .optional()
+        .describe('Client companies of the project that may follow it; needs a client audience'),
+      steps: z
+        .array(z.object({ label: f.shortText(300) }).strict())
+        .max(50)
+        .optional()
+        .describe('The first steps, in order'),
     }),
     redact: 'standard',
     examples: [
@@ -258,6 +274,16 @@ export const workDetails: readonly AiActionDetail[] = [
           type: 'task',
           audience: 'internal',
           dueAt: '2026-10-20T14:00:00Z',
+        },
+      },
+      {
+        summary: 'Create work with two doers, a supervisor and steps',
+        args: {
+          projectId: 'proj_1',
+          title: 'Design the landing page',
+          doerUserIds: ['usr_1', 'usr_2'],
+          supervisorUserIds: ['usr_3'],
+          steps: [{ label: 'Research' }, { label: 'Wireframe' }],
         },
       },
     ],
@@ -451,11 +477,19 @@ export const workDetails: readonly AiActionDetail[] = [
     description: 'List work item.',
     input: listArgs(
       [],
-      { projectId: f.id().optional(), state: f.shortText(200).optional() },
+      {
+        projectId: f.id().optional(),
+        state: f.shortText(200).optional(),
+        // Work area (D4): only work a member of this team does (people.teams.list gives ids).
+        teamId: f.id().optional(),
+      },
       { cursor: 'after' },
     ),
     redact: 'standard',
-    examples: [{ summary: 'List work item', args: {} }],
+    examples: [
+      { summary: 'List work item', args: {} },
+      { summary: "The design team's work", args: { teamId: 'team_1' } },
+    ],
   }),
   det({
     id: 'work_items.project_health.get',
@@ -754,6 +788,10 @@ export const workDetails: readonly AiActionDetail[] = [
       iterationId: f.id().nullable().optional().describe('An open iteration; null = backlog'),
       // C25: limit a client-facing item to some of the project's client companies.
       clientOrganizationIds: z.array(f.id()).max(100).optional(),
+      // Work area: replace the people as sets (lead first for doers; [] clears).
+      doerUserIds: z.array(f.id()).max(50).optional().describe('Who does it, lead first'),
+      supervisorUserIds: z.array(f.id()).max(50).optional().describe('Who approves it as done'),
+      watcherUserIds: z.array(f.id()).max(50).optional(),
     }),
     redact: 'standard',
     examples: [

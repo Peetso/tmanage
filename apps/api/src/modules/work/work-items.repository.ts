@@ -1,12 +1,21 @@
-import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7, workItemStateMachine } from '@tmanage/domain';
 import type { Audience, WorkItemState } from '@tmanage/domain';
 import { softDeleteValues } from '../../common/database/content-retention.js';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { workItems } from '../../common/database/schema.js';
+import { memberTeams, workItemAssignees, workItems } from '../../common/database/schema.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { clientAudienceVisible } from './work-item-client-audience.repository.js';
+import { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
+
+/**
+ * 0412: the doer rows are the single source of who does an item, and the owner is their lead.
+ * Every write below that names an owner keeps the rows in step in the same unit of work, so no
+ * caller — the work service, imports, templates, chat, requests, the recurrence spawner — can
+ * leave them apart. Stateless.
+ */
+const assignees = new WorkItemAssigneesRepository();
 
 /**
  * Work items — WORK-001's storage half, and the child-of-a-tenant-parent ADR-0001 uses as
@@ -147,6 +156,11 @@ export interface ListWorkItemsOptions {
   readonly audiences?: readonly Audience[];
   /** Soft-deleted items are excluded unless asked for. */
   readonly includeDeleted?: boolean;
+  /**
+   * Work area (D4): only items with a doer in this team (`member_teams`). A team of another
+   * tenant matches nothing, because both tables are bound to the acting tenant.
+   */
+  readonly teamId?: string;
 }
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -204,6 +218,21 @@ export class WorkItemsRepository {
     }
     if (!options.includeDeleted) predicates.push(isNull(workItems.deletedAt));
     if (options.after) predicates.push(gt(workItems.id, options.after));
+    if (options.teamId) {
+      const a = workItemAssignees;
+      const t = memberTeams;
+      predicates.push(
+        exists(
+          sql`(select 1 from ${a} inner join ${t}
+            on ${t.organizationId} = ${a.organizationId} and ${t.membershipId} = ${a.membershipId}
+            where ${a.organizationId} = ${context.organizationId}
+            and ${a.organizationId} = ${workItems.organizationId}
+            and ${a.workItemId} = ${workItems.id}
+            and ${a.role} = 'doer'
+            and ${t.teamId} = ${options.teamId})`,
+        ),
+      );
+    }
     // C25: a client principal reads only items not narrowed away from their client company.
     const visible = clientAudienceVisible(context);
     if (visible) predicates.push(visible);
@@ -270,6 +299,11 @@ export class WorkItemsRepository {
     context: TenantContext,
     ownerUserId: string,
   ): Promise<number> {
+    // 0412: an item this person led with other doers passes to the next one rather than to
+    // nobody, and their doer and supervisor rows go (a supervisor who left can never approve).
+    // What is still owned by them afterwards — items with no other doer — is cleared below, so
+    // the count is the preview's number, as before.
+    const promoted = await assignees.removeMember(runner, context, ownerUserId, { liveOnly: true });
     const result = await tenantDrizzle(runner)
       .update(workItems)
       .set({
@@ -285,7 +319,7 @@ export class WorkItemsRepository {
         ),
       );
 
-    return result[0].affectedRows;
+    return promoted + result[0].affectedRows;
   }
 
   /**
@@ -392,6 +426,8 @@ export class WorkItemsRepository {
         createdAt: sql`current_timestamp(3)`,
         updatedAt: sql`current_timestamp(3)`,
       });
+    // 0412: the owner's doer row, in the same unit of work.
+    await assignees.writeOnCreate(runner, context, id, input.ownerUserId ?? null);
 
     // Read back rather than reconstruct: the row now carries server-generated timestamps, and
     // returning a hand-assembled object would let the two disagree.
@@ -419,6 +455,11 @@ export class WorkItemsRepository {
     if (input.startAt !== undefined) changes['startAt'] = input.startAt;
     if (input.dueAt !== undefined) changes['dueAt'] = input.dueAt;
     if (input.boardRank !== undefined) changes['boardRank'] = input.boardRank;
+    // 0412: an owner change moves the lead doer row with it, so the owner before is needed.
+    const ownerBefore =
+      input.ownerUserId === undefined
+        ? undefined
+        : ((await this.findById(runner, context, workItemId))?.ownerUserId ?? null);
 
     const result = await tenantDrizzle(runner)
       .update(workItems)
@@ -438,6 +479,9 @@ export class WorkItemsRepository {
       const current = await this.findById(runner, context, workItemId);
       if (!current) throw new WorkItemNotFoundError(workItemId);
       throw new WorkItemVersionConflictError(workItemId, current.version);
+    }
+    if (ownerBefore !== undefined && input.ownerUserId !== ownerBefore) {
+      await assignees.syncLead(runner, context, workItemId, input.ownerUserId ?? null, ownerBefore);
     }
 
     return this.requireById(runner, context, workItemId);
@@ -518,6 +562,16 @@ export class WorkItemsRepository {
       const live = await this.findById(runner, context, workItemId);
       if (!live) throw new WorkItemNotFoundError(workItemId);
       throw new WorkItemVersionConflictError(workItemId, live.version);
+    }
+    // 0412: "who owned it to completion" becomes the lead doer when it names someone else.
+    if (to === 'done' && completion && completion.ownerUserId !== current.ownerUserId) {
+      await assignees.syncLead(
+        runner,
+        context,
+        workItemId,
+        completion.ownerUserId,
+        current.ownerUserId,
+      );
     }
 
     return this.requireById(runner, context, workItemId);

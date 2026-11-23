@@ -8,6 +8,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
 import type { AssigneeRole } from './work-item-assignees.repository.js';
@@ -73,6 +74,199 @@ export function doersWithLead(
   return [ownerUserId, ...doerRowUserIds.filter((id) => id !== ownerUserId)];
 }
 
+/**
+ * Work area (2026-11-23) — a change to the people on an item, as the create, the update and the
+ * people routes all send it. A role left out is left alone; `[]` clears it. Doers are lead first.
+ */
+export interface PeopleChange {
+  readonly doerUserIds?: readonly string[];
+  readonly supervisorUserIds?: readonly string[];
+  readonly watcherUserIds?: readonly string[];
+}
+
+/** What {@link applyPeopleChange} writes through. Stateless repositories plus the two sinks. */
+export interface PeopleWritePorts {
+  readonly assignees: WorkItemAssigneesRepository;
+  readonly watchers: WorkWatchersRepository;
+  readonly outbox?: OutboxEventsRepository;
+  readonly audit?: Pick<AuditService, 'record'>;
+}
+
+/** Every person a change names, once, for one membership read. */
+function namedIn(change: PeopleChange): readonly string[] {
+  return [
+    ...new Set([
+      ...(change.doerUserIds ?? []),
+      ...(change.supervisorUserIds ?? []),
+      ...(change.watcherUserIds ?? []),
+    ]),
+  ];
+}
+
+/** Whether a change names any role at all. */
+export function hasPeopleChange(change: PeopleChange): boolean {
+  return (
+    change.doerUserIds !== undefined ||
+    change.supervisorUserIds !== undefined ||
+    change.watcherUserIds !== undefined
+  );
+}
+
+/** Dedupe and cap each role a change names; a role left out stays out. */
+export function normalisePeopleChange(requested: PeopleChange): PeopleChange {
+  return {
+    ...(requested.doerUserIds === undefined
+      ? {}
+      : { doerUserIds: normalisePeople(requested.doerUserIds) }),
+    ...(requested.supervisorUserIds === undefined
+      ? {}
+      : { supervisorUserIds: normalisePeople(requested.supervisorUserIds) }),
+    ...(requested.watcherUserIds === undefined
+      ? {}
+      : { watcherUserIds: normalisePeople(requested.watcherUserIds) }),
+  };
+}
+
+/**
+ * Write a people change inside the caller's transaction: the one implementation behind
+ * `POST /work-items` (people from the start), `PATCH /work-items/:id` and `PUT …/people/*`, so the
+ * three cannot drift (AR-11). Every person must be an active member (422, nothing written). The
+ * doer rows are the single source (0412); the lead (first doer) is written to the owner only when
+ * the caller has not already done so (`row.ownerUserId` is the owner after the caller's write).
+ * People newly given a doer or supervisor role are told through the outbox (AS-1), and one audit
+ * row records the counts per role before and after (DA-11; never names).
+ */
+export async function applyPeopleChange(
+  runner: TenantQueryRunner,
+  context: TenantContext,
+  ports: PeopleWritePorts,
+  row: WorkItemRow,
+  requested: PeopleChange,
+  options: {
+    /**
+     * The people as they were before the caller's own write in this transaction (an owner change
+     * moves the lead row first), so the audit row and the notices compare with the real before.
+     */
+    readonly before?: WorkItemPeopleView;
+  } = {},
+): Promise<WorkItemPeopleView> {
+  const change = normalisePeopleChange(requested);
+  const people = namedIn(change);
+  const members = await ports.assignees.activeMemberships(runner, context, people);
+  if (people.some((id) => !members.has(id))) {
+    throw new ApiError(422, 'validation_failed', 'Someone is not a member', [
+      { field: 'userIds', message: 'must be active members of this organization' },
+    ]);
+  }
+  const before = options.before ?? (await readPeople(runner, context, ports, row));
+  let ownerUserId = row.ownerUserId;
+
+  if (change.doerUserIds !== undefined) {
+    const ids = change.doerUserIds;
+    await ports.assignees.replaceRole(
+      runner,
+      context,
+      row.id,
+      'doer',
+      ids.map((id) => members.get(id) as string),
+    );
+    const lead = ids[0] ?? null;
+    if (lead !== row.ownerUserId) await ports.assignees.setLead(runner, context, row.id, lead);
+    ownerUserId = lead;
+  }
+  if (change.supervisorUserIds !== undefined) {
+    await ports.assignees.replaceRole(
+      runner,
+      context,
+      row.id,
+      'supervisor',
+      change.supervisorUserIds.map((id) => members.get(id) as string),
+    );
+  }
+  if (change.watcherUserIds !== undefined) {
+    const wanted = new Set(change.watcherUserIds);
+    const stale = before.watcherUserIds.filter((id) => !wanted.has(id));
+    const staleMembers = await ports.assignees.activeMemberships(runner, context, stale);
+    for (const userId of stale) {
+      const memberId = staleMembers.get(userId);
+      if (memberId !== undefined) {
+        await ports.watchers.deleteForMember(runner, context, row.id, memberId);
+      }
+    }
+    for (const userId of change.watcherUserIds) {
+      if (before.watcherUserIds.includes(userId)) continue;
+      await ports.watchers.create(runner, context, {
+        workItemId: row.id,
+        memberId: members.get(userId) as string,
+      });
+    }
+  }
+
+  const after = await readPeople(runner, context, ports, { ...row, ownerUserId });
+  for (const role of ['doer', 'supervisor'] as const) {
+    const was = role === 'doer' ? before.doerUserIds : before.supervisorUserIds;
+    const now = role === 'doer' ? after.doerUserIds : after.supervisorUserIds;
+    const added = now.filter((id) => !was.includes(id) && id !== context.userId);
+    if (added.length === 0) continue;
+    await ports.outbox?.append(runner, context, {
+      type: 'work_item.people_assigned.v1',
+      aggregateId: row.id,
+      payload: {
+        workItemId: row.id,
+        projectId: row.projectId,
+        role,
+        userIds: added,
+        assignedByUserId: context.userId,
+      },
+    });
+  }
+  const changed =
+    !sameList(before.doerUserIds, after.doerUserIds) ||
+    !sameList(before.supervisorUserIds, after.supervisorUserIds) ||
+    !sameList(before.watcherUserIds, after.watcherUserIds);
+  if (changed) {
+    await ports.audit?.record(runner, context, {
+      action: 'work_item.people_changed',
+      objectId: row.id,
+      result: 'allowed',
+      metadata: {
+        project_id: row.projectId,
+        doers_before: before.doerUserIds.length,
+        doers_after: after.doerUserIds.length,
+        supervisors_before: before.supervisorUserIds.length,
+        supervisors_after: after.supervisorUserIds.length,
+        watchers_before: before.watcherUserIds.length,
+        watchers_after: after.watcherUserIds.length,
+        lead_changed: before.doerUserIds[0] !== after.doerUserIds[0],
+      },
+    });
+  }
+  return after;
+}
+
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, index) => b[index] === id);
+}
+
+/** The people on an item as the screen reads them (lead first). */
+export async function readPeople(
+  runner: TenantQueryRunner,
+  context: TenantContext,
+  ports: Pick<PeopleWritePorts, 'assignees'>,
+  row: WorkItemRow,
+): Promise<WorkItemPeopleView> {
+  const rows = await ports.assignees.list(runner, context, row.id);
+  return {
+    doerUserIds: doersWithLead(
+      row.ownerUserId,
+      rows.filter((r) => r.role === 'doer').map((r) => r.userId),
+    ),
+    supervisorUserIds: rows.filter((r) => r.role === 'supervisor').map((r) => r.userId),
+    watcherUserIds: await ports.assignees.watcherUserIds(runner, context, row.id),
+    viewerUserId: context.userId,
+  };
+}
+
 export class WorkItemPeopleService {
   constructor(
     private readonly database: TenantDatabase,
@@ -80,7 +274,18 @@ export class WorkItemPeopleService {
     private readonly outbox?: OutboxEventsRepository,
     private readonly assignees: WorkItemAssigneesRepository = new WorkItemAssigneesRepository(),
     private readonly watchers: WorkWatchersRepository = new WorkWatchersRepository(),
+    /** Work area: every people change is audited (`work_item.people_changed`). */
+    private readonly audit?: Pick<AuditService, 'record'>,
   ) {}
+
+  private ports(): PeopleWritePorts {
+    return {
+      assignees: this.assignees,
+      watchers: this.watchers,
+      ...(this.outbox === undefined ? {} : { outbox: this.outbox }),
+      ...(this.audit === undefined ? {} : { audit: this.audit }),
+    };
+  }
 
   async read(
     context: TenantContext,
@@ -101,34 +306,15 @@ export class WorkItemPeopleService {
     role: AssigneeRole,
     requested: readonly string[],
   ): Promise<WorkItemPeopleView> {
-    const userIds = normalisePeople(requested);
     return this.database.transaction(context, async (tx) => {
       const row = await this.parent(tx, context, principal, workItemId, 'work.update');
-      const members = await this.requireMembers(tx, context, userIds);
-      const before = await this.viewOf(tx, context, row);
-      await this.assignees.replaceRole(
+      return applyPeopleChange(
         tx,
         context,
-        workItemId,
-        role,
-        userIds.map((id) => members.get(id) as string),
-      );
-      if (role === 'doer') {
-        const lead = userIds[0] ?? null;
-        if (lead !== row.ownerUserId) await this.assignees.setLead(tx, context, workItemId, lead);
-      }
-      const was = role === 'doer' ? before.doerUserIds : before.supervisorUserIds;
-      await this.tell(
-        tx,
-        context,
+        this.ports(),
         row,
-        role,
-        userIds.filter((id) => !was.includes(id)),
+        role === 'doer' ? { doerUserIds: requested } : { supervisorUserIds: requested },
       );
-      return this.viewOf(tx, context, {
-        ...row,
-        ownerUserId: role === 'doer' ? (userIds[0] ?? null) : row.ownerUserId,
-      });
     });
   }
 
@@ -174,21 +360,12 @@ export class WorkItemPeopleService {
     });
   }
 
-  private async viewOf(
+  private viewOf(
     runner: TenantQueryRunner,
     context: TenantContext,
     row: WorkItemRow,
   ): Promise<WorkItemPeopleView> {
-    const rows = await this.assignees.list(runner, context, row.id);
-    return {
-      doerUserIds: doersWithLead(
-        row.ownerUserId,
-        rows.filter((r) => r.role === 'doer').map((r) => r.userId),
-      ),
-      supervisorUserIds: rows.filter((r) => r.role === 'supervisor').map((r) => r.userId),
-      watcherUserIds: await this.assignees.watcherUserIds(runner, context, row.id),
-      viewerUserId: context.userId,
-    };
+    return readPeople(runner, context, { assignees: this.assignees }, row);
   }
 
   private async requireMembers(
@@ -203,28 +380,6 @@ export class WorkItemPeopleService {
       ]);
     }
     return members;
-  }
-
-  private async tell(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    row: WorkItemRow,
-    role: AssigneeRole,
-    added: readonly string[],
-  ): Promise<void> {
-    const userIds = added.filter((id) => id !== context.userId);
-    if (userIds.length === 0) return;
-    await this.outbox?.append(runner, context, {
-      type: 'work_item.people_assigned.v1',
-      aggregateId: row.id,
-      payload: {
-        workItemId: row.id,
-        projectId: row.projectId,
-        role,
-        userIds,
-        assignedByUserId: context.userId,
-      },
-    });
   }
 
   /** Resolve the item tenant-scoped, then authorize: unreadable is 404, read-only is 403. */

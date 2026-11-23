@@ -25,6 +25,8 @@ import {
   dependencySourceOf,
   parseTypedDependency,
 } from './schedule-cascade.controller.js';
+import { MAX_STEPS_AT_CREATE } from './work-items.service.js';
+import { MAX_PEOPLE_PER_ROLE } from './work-item-people.service.js';
 import type {
   ProjectHealthView,
   WorkBlockerView,
@@ -67,6 +69,14 @@ interface CreateWorkItemBody {
   readonly audience?: unknown;
   readonly startAt?: unknown;
   readonly dueAt?: unknown;
+  /** Work area: several doers (lead first), supervisors and watchers from the start. */
+  readonly doerUserIds?: unknown;
+  readonly supervisorUserIds?: unknown;
+  readonly watcherUserIds?: unknown;
+  /** Work area: the project's client companies that may follow it (client tag from the start). */
+  readonly clientOrganizationIds?: unknown;
+  /** Work area: the first steps, `[{ label }]` in order. */
+  readonly steps?: unknown;
 }
 
 interface UpdateWorkItemBody {
@@ -89,6 +99,10 @@ interface UpdateWorkItemBody {
   readonly clientOrganizationIds?: unknown;
   /** 0340 (FIX3 item C): the hand-made Board/List order; a finite number, or `null`. */
   readonly rank?: unknown;
+  /** Work area: replace the doers (lead first), supervisors or watchers as sets. */
+  readonly doerUserIds?: unknown;
+  readonly supervisorUserIds?: unknown;
+  readonly watcherUserIds?: unknown;
 }
 
 interface TransitionBody {
@@ -106,6 +120,8 @@ const MAX_TYPE_LENGTH = 32;
 const MAX_DESCRIPTION_LENGTH = 5000;
 
 const AUDIENCES: readonly Audience[] = ['internal', 'client_visible', 'client_action_required'];
+/** `work_item_checklist_items.label` is `VARCHAR(300)`. */
+const MAX_STEP_LABEL_LENGTH = 300;
 
 @Controller('v1/organizations/:orgSlug/work-items')
 export class WorkItemsController {
@@ -120,8 +136,13 @@ export class WorkItemsController {
     @Query('state') state?: string,
     @Query('after') after?: string,
     @Query('limit') limit?: string,
+    @Query('teamId') teamId?: string,
   ): Promise<{ readonly workItems: readonly WorkItemView[] }> {
     const details: { field: string; message: string }[] = [];
+    // Work area (D4): items with a doer in this team. An id, not a name.
+    if (teamId !== undefined && (teamId.length === 0 || teamId.length > 64)) {
+      details.push({ field: 'teamId', message: 'must be a team id' });
+    }
 
     const parsedLimit = limit === undefined ? undefined : Number(limit);
     if (parsedLimit !== undefined && (!Number.isSafeInteger(parsedLimit) || parsedLimit < 1)) {
@@ -150,6 +171,7 @@ export class WorkItemsController {
         ...(states ? { states: states as WorkItemState[] } : {}),
         ...(after ? { after } : {}),
         ...(parsedLimit === undefined ? {} : { limit: parsedLimit }),
+        ...(teamId ? { teamId } : {}),
       }),
     };
   }
@@ -192,6 +214,13 @@ export class WorkItemsController {
       typeof body?.ownerUserId === 'string' && body.ownerUserId !== ''
         ? body.ownerUserId
         : undefined;
+    const people = peopleLists(body, details);
+    const clientOrganizationIds = optionalIdList(
+      body?.clientOrganizationIds,
+      'clientOrganizationIds',
+      details,
+    );
+    const steps = optionalSteps(body?.steps, details);
 
     if (details.length > 0 || !projectId) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -206,6 +235,9 @@ export class WorkItemsController {
       ...(ownerUserId === undefined ? {} : { ownerUserId }),
       ...(startAt === undefined ? {} : { startAt }),
       ...(dueAt === undefined ? {} : { dueAt }),
+      ...people,
+      ...(clientOrganizationIds === undefined ? {} : { clientOrganizationIds }),
+      ...(steps === undefined ? {} : { steps }),
     });
   }
 
@@ -253,6 +285,7 @@ export class WorkItemsController {
       'clientOrganizationIds',
       details,
     );
+    const people = peopleLists(body, details);
     if (details.length > 0 || version === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
@@ -270,6 +303,7 @@ export class WorkItemsController {
       ...(dueAt === undefined ? {} : { dueAt }),
       ...(rank === undefined ? {} : { boardRank: rank }),
       ...(clientOrganizationIds === undefined ? {} : { clientOrganizationIds }),
+      ...people,
     });
   }
 
@@ -519,6 +553,74 @@ function optionalIdList(
     return undefined;
   }
   return raw as string[];
+}
+
+/** Work area: the three people lists a create or an update may carry (each ≤ 50 ids). */
+function peopleLists(
+  body:
+    | {
+        readonly doerUserIds?: unknown;
+        readonly supervisorUserIds?: unknown;
+        readonly watcherUserIds?: unknown;
+      }
+    | undefined,
+  details: { field: string; message: string }[],
+): {
+  doerUserIds?: readonly string[];
+  supervisorUserIds?: readonly string[];
+  watcherUserIds?: readonly string[];
+} {
+  const out: {
+    doerUserIds?: readonly string[];
+    supervisorUserIds?: readonly string[];
+    watcherUserIds?: readonly string[];
+  } = {};
+  for (const field of ['doerUserIds', 'supervisorUserIds', 'watcherUserIds'] as const) {
+    const raw = body?.[field];
+    if (raw === undefined) continue;
+    if (
+      !Array.isArray(raw) ||
+      raw.length > MAX_PEOPLE_PER_ROLE ||
+      raw.some((id) => typeof id !== 'string' || id.length === 0 || id.length > 64)
+    ) {
+      details.push({
+        field,
+        message: `must be a list of at most ${MAX_PEOPLE_PER_ROLE} user ids`,
+      });
+      continue;
+    }
+    out[field] = raw as string[];
+  }
+  return out;
+}
+
+/** Work area: `steps` is `[{ label }]`, at most {@link MAX_STEPS_AT_CREATE}, labels 1–300. */
+function optionalSteps(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): readonly string[] | undefined {
+  if (raw === undefined) return undefined;
+  const labels = Array.isArray(raw)
+    ? raw.map((step: unknown) =>
+        typeof step === 'object' &&
+        step !== null &&
+        typeof (step as { label?: unknown }).label === 'string'
+          ? (step as { label: string }).label.trim()
+          : null,
+      )
+    : null;
+  if (
+    labels === null ||
+    labels.length > MAX_STEPS_AT_CREATE ||
+    labels.some((label) => label === null || label === '' || label.length > MAX_STEP_LABEL_LENGTH)
+  ) {
+    details.push({
+      field: 'steps',
+      message: `must be a list of at most ${MAX_STEPS_AT_CREATE} steps, each { label } of 1–${MAX_STEP_LABEL_LENGTH} characters`,
+    });
+    return undefined;
+  }
+  return labels as string[];
 }
 
 function optionalAudience(

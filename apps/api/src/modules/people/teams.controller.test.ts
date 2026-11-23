@@ -52,6 +52,7 @@ function build(
 ): {
   controller: PeopleTeamsController;
   store: MemberTeamRow[];
+  audits: { action: string; objectId: string; metadata: Record<string, unknown> }[];
 } {
   const store: MemberTeamRow[] = [];
   let seq = 0;
@@ -116,6 +117,13 @@ function build(
         createdAt: now(),
       } as MemberTeamRow);
     },
+    renameTeam: async (_r: unknown, ctx: TenantContext, id: string, name: string) => {
+      const row = scoped(ctx.organizationId).find((r) => r.id === id && r.name !== null);
+      if (row) row.name = name;
+      return row !== undefined;
+    },
+    openWorkCounts: async (_r: unknown, _c: unknown, ids: readonly string[]) =>
+      new Map(ids.map((id) => [id, 3])),
     deleteAssignment: async (_r: unknown, ctx: TenantContext, teamId: string, mid: string) => {
       const before = store.length;
       const kept = store.filter(
@@ -140,8 +148,16 @@ function build(
         : null,
   } as unknown as MembershipsRepository;
 
-  const service = new PeopleTeamsService(database, teams, memberships);
-  return { controller: new PeopleTeamsController(service), store };
+  const audits: { action: string; objectId: string; metadata: Record<string, unknown> }[] = [];
+  const audit = {
+    record: async (
+      _r: unknown,
+      _c: unknown,
+      entry: { action: string; objectId: string; metadata: Record<string, unknown> },
+    ) => void audits.push(entry),
+  };
+  const service = new PeopleTeamsService(database, teams, memberships, audit as never);
+  return { controller: new PeopleTeamsController(service), store, audits };
 }
 
 describe('PeopleTeamsController create → assign → read', () => {
@@ -248,5 +264,54 @@ describe('the route ceilings the CapabilityGuard enforces', () => {
     expect(cap(PeopleTeamsController.prototype.unassign)).toBe('org.manage');
     expect(cap(PeopleTeamsController.prototype.list)).toBe('work.read');
     expect(cap(PeopleTeamsController.prototype.detail)).toBe('work.read');
+  });
+});
+
+describe('work area (2026-11-23): rename, open work and an audit row for every team change', () => {
+  it('renames a team, refuses a taken name (409) and an unknown team (404)', async () => {
+    const { controller, store } = build();
+    const design = await controller.create(context, admin, { name: 'Design' });
+    await controller.create(context, admin, { name: 'Copy' });
+    const renamed = await controller.rename(context, admin, design.id, { name: ' Brand design ' });
+    expect(renamed.name).toBe('Brand design');
+    expect(store.find((r) => r.id === design.id)?.name).toBe('Brand design');
+    await expect(controller.rename(context, admin, design.id, { name: 'Copy' })).rejects.toEqual(
+      expect.objectContaining({ status: 409 }),
+    );
+    await expect(controller.rename(context, admin, 'team-missing', { name: 'X' })).rejects.toEqual(
+      expect.objectContaining({ status: 404 }),
+    );
+    await expect(controller.rename(context, member, design.id, { name: 'X' })).rejects.toEqual(
+      expect.objectContaining({ status: 403 }),
+    );
+    expect(store.find((r) => r.id === design.id)?.name).toBe('Brand design');
+  });
+
+  it('records team.created, team.renamed, team.member_added and team.member_removed once each', async () => {
+    const { controller, audits } = build();
+    const team = await controller.create(context, admin, { name: 'Design' });
+    await controller.rename(context, admin, team.id, { name: 'Design' }); // no change, no row
+    await controller.rename(context, admin, team.id, { name: 'Brand' });
+    await controller.assign(context, admin, team.id, MEMBERSHIP);
+    await controller.assign(context, admin, team.id, MEMBERSHIP); // idempotent, no row
+    await controller.unassign(context, admin, team.id, MEMBERSHIP);
+    await controller.unassign(context, admin, team.id, MEMBERSHIP); // not on it, no row
+    expect(audits.map((a) => a.action)).toEqual([
+      'team.created',
+      'team.renamed',
+      'team.member_added',
+      'team.member_removed',
+    ]);
+    expect(audits[2]?.metadata).toEqual({ membership_id: MEMBERSHIP });
+  });
+
+  it('shows each member with the open work they do', async () => {
+    const { controller } = build();
+    const team = await controller.create(context, admin, { name: 'Design' });
+    await controller.assign(context, admin, team.id, MEMBERSHIP);
+    const detail = await controller.detail(context, admin, team.id);
+    expect(detail.members[0]?.openWorkCount).toBe(3);
+    const cap = (m: unknown) => Reflect.getMetadata(REQUIRED_CAPABILITY, m as object);
+    expect(cap(PeopleTeamsController.prototype.rename)).toBe('org.manage');
   });
 });

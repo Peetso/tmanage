@@ -286,7 +286,8 @@ function holdsPlatformAdminGuard(guards: unknown): boolean {
 // photo list and image; an owner or admin's removal in this company).
 // Lane T (2026-11-23): +7 time trust routes (policy get/update; approvals list, approve, reject;
 // an entry's correction and history).
-const EXPECTED_ROUTE_COUNT = 1669;
+// Lane WA (2026-11-23): +1 team rename (PATCH people/teams/:id).
+const EXPECTED_ROUTE_COUNT = 1670;
 // 60-03: +8 NEVER (ai-employees list, get, hire, edit, pause, resume, sponsor, retire).
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.

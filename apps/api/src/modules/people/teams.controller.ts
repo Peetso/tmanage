@@ -7,6 +7,7 @@ import {
   Inject,
   Module,
   Param,
+  Patch,
   Post,
   Put,
 } from '@nestjs/common';
@@ -60,6 +61,8 @@ export interface TeamMemberView {
   readonly displayName: string;
   readonly role: string;
   readonly status: string;
+  /** Work area: how many open work items (not done or archived) this member does. */
+  readonly openWorkCount: number;
 }
 
 /** One team with its full member roster — the team-detail read. */
@@ -117,6 +120,7 @@ export class PeopleTeamsController {
         displayName: member.displayName,
         role: member.role,
         status: member.status,
+        openWorkCount: member.openWorkCount,
       })),
     };
   }
@@ -133,6 +137,25 @@ export class PeopleTeamsController {
     // here, exactly as the guard refuses a role without org.manage).
     this.requireOrgManage(principal, context);
     const row = await this.service.createTeam(context, body?.name);
+    return {
+      id: row.definition.id,
+      name: row.definition.name,
+      memberCount: row.memberCount,
+      createdAt: row.definition.createdAt.toISOString(),
+    };
+  }
+
+  /** Work area (2026-11-23): rename a team. `org.manage`, audited; a taken name is a 409. */
+  @Patch(':id')
+  @RequireCapability('org.manage')
+  async rename(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') teamId: string,
+    @Body() body: CreateTeamBody,
+  ): Promise<TeamView> {
+    this.requireOrgManage(principal, context);
+    const row = await this.service.renameTeam(context, teamId, body?.name);
     return {
       id: row.definition.id,
       name: row.definition.name,
