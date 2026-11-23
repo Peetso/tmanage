@@ -234,8 +234,12 @@ describe('M01 (ii) — accepting a client request needs approval, REST and MCP',
 
   it('MCP acceptance under read + write consent is refused before any inner request', async () => {
     const { runtime, fetch, tool } = mcpSurface({});
+    // The route's full body (DC-9, 2026-11-23): an incomplete one is refused as invalid first.
     const result = await runtime.runTool(tool('client_requests.acceptance.create'), {
       clientRequestId: 'creq_1',
+      version: 2,
+      clientSafeScopeSummary: 'Homepage hero refresh',
+      commitment: 'unscheduled',
     });
     expect(result.isError).toBe(true);
     expect(String(result.data)).toContain('needs your approval');
@@ -319,6 +323,7 @@ describe('M01 (iii) — editing an item the client already sees needs approval',
     const { runtime, fetch, tool } = mcpSurface({ wi_client: 'client_visible' });
     const result = await runtime.runTool(tool('work_items.update'), {
       workItemId: 'wi_client',
+      version: 3,
       title: 'Renamed',
     });
     expect(result.isError).toBe(true);
@@ -331,6 +336,7 @@ describe('M01 (iii) — editing an item the client already sees needs approval',
     const { runtime, fetch, tool } = mcpSurface({ wi_internal: 'internal' });
     const result = await runtime.runTool(tool('work_items.update'), {
       workItemId: 'wi_internal',
+      version: 3,
       title: 'Renamed',
     });
     expect(result.isError).toBeUndefined();
