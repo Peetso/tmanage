@@ -65,6 +65,7 @@ describe('MCP runtime — confirm-class calls wait for approval (S10)', () => {
       approval_id: 'appr-1',
       approval_url: 'https://app.example/acme/ai/approve/appr-1',
       expires_at: '2026-11-18T12:10:00.000Z',
+      expires_in_words: expect.any(String),
     });
     expect(result.summary).toContain('needs your approval');
     expect(service.request).toHaveBeenCalledWith(
