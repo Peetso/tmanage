@@ -428,7 +428,7 @@ export function WorkItemTimerButton({
 export interface RunningTimerPillProps {
   organizationSlug: string;
   client?: ApiClient;
-  /** `capsule`: My Day's title-row capsule, "● Timer 00:42", which opens the timed item. */
+  /** `capsule`: My Day's header pill after New project, "● 00:42", which opens the timed item. */
   variant?: 'pill' | 'capsule';
 }
 
@@ -456,17 +456,18 @@ export function RunningTimerPill({
   const elapsed = formatElapsed(elapsedSeconds);
   const label = tr('Timer.running', 'Timer running');
   if (variant === 'capsule') {
-    // My Day v3.1 W0: a neutral outline capsule with the red dot, never a lime fill (C2, F10).
-    // It opens the timed item; Stop is in the Timer widget below.
+    // My Day v4 (Fable review ruling 6): the dot and the time only, 36 high, level with New
+    // project; a neutral outline capsule, never a lime fill. It opens the timed item; the task
+    // name and Stop are in the Timer rows of the side column.
     const face = elapsed.slice(0, 5);
     const text = tr('MyDay.timerCapsule', 'Timer {time}').replace('{time}', face);
     const href = timer.workItemId
       ? `/${organizationSlug}/work/${encodeURIComponent(timer.workItemId)}`
       : `/${organizationSlug}/finance/timesheets`;
     return (
-      <Link className="tm-timer-capsule" href={href}>
+      <Link className="tm-timer-capsule" href={href} aria-label={text}>
         <span className="tm-timer-dot" aria-hidden="true" />
-        {text}
+        <bdi dir="ltr">{face}</bdi>
       </Link>
     );
   }

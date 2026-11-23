@@ -40,7 +40,6 @@ import { BetaTag } from './BetaTag';
 import { ThemeSync } from './ThemeSync';
 import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
 import { NewMenu } from './NewMenu';
-import { TitleRowControls } from './TitleRowControls';
 import { appDateLocale } from '../../lib/i18n/app-locale';
 
 export interface AppShellProps {
@@ -86,12 +85,13 @@ export interface AppShellProps {
   /** The black day capsule above the header (HOME-01 only). Pass a `<DayPulseBar />`. */
   topBar?: ReactNode;
   /**
-   * `standard` (default) is every screen's header. `titleRow` is the dashboard title row of My Day
-   * v3.1 (Figma `Shell/Title row` 795:931): the title, the summary line under it, and at the end
-   * Search, Help and AI as icon buttons, the running-timer capsule only while a timer runs, and
-   * "+ New" as the one text button. The organization line stays for screen readers only.
+   * `standard` (default) is every screen's header: the screen's actions, then the shell's own
+   * controls ("+ New", the timer pill, Getting started, Help, AI). `page` draws the screen's
+   * actions alone: My Day v4 (spec MYDAY-V4 §3.1 E6) places those controls itself — Help and AI
+   * as orbs at the end of the day bar, the timer pill after New project, Getting started and the
+   * Auto timer as rows of its side column.
    */
-  header?: 'standard' | 'titleRow';
+  header?: 'standard' | 'page';
   /** The contextual sidebar — saved views, channels, admin sections. */
   contextRail?: ReactNode;
   children: ReactNode;
@@ -234,7 +234,7 @@ export function AppShell({
   const displayedOrganizationName = useOrganizationName(organizationSlug, organizationName);
   const queryClient = useContext(QueryClientContext);
   const t = useT();
-  const titleRow = header === 'titleRow';
+  const pageControls = header === 'page';
   const shell = (
     <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
       <div className="tm-app">
@@ -315,10 +315,9 @@ export function AppShell({
               className="tm-canvas-header"
               data-title-variant={titleVariant}
               data-actions={actionsPlacement}
-              data-header={titleRow ? 'title-row' : undefined}
             >
               <div className="tm-canvas-header__titles">
-                <p className={`tm-canvas-header__context${titleRow ? ' tm-visually-hidden' : ''}`}>
+                <p className="tm-canvas-header__context">
                   <BetaTag placement="phone" />
                   <span className="tm-canvas-header__org">{displayedOrganizationName}</span>
                   {eyebrow ? (
@@ -331,11 +330,10 @@ export function AppShell({
                 <div className="tm-canvas-header__title-row">
                   <h1 className="tm-canvas-header__title">{title}</h1>
                   {titleMeta ? <span className="tm-canvas-header__meta">{titleMeta}</span> : null}
-                  {titleRow ? (
-                    <div className="tm-canvas-header__actions">
-                      {actions}
-                      <TitleRowControls organizationSlug={organizationSlug} live={!!queryClient} />
-                    </div>
+                  {pageControls ? (
+                    actions ? (
+                      <div className="tm-canvas-header__actions">{actions}</div>
+                    ) : null
                   ) : actions || queryClient ? (
                     <div className="tm-canvas-header__actions">
                       {actions}
@@ -366,9 +364,7 @@ export function AppShell({
                     </div>
                   ) : null}
                 </div>
-                {description && titleRow ? (
-                  <div className="tm-canvas-header__description">{description}</div>
-                ) : description ? (
+                {description ? (
                   <p className="tm-canvas-header__description">{description}</p>
                 ) : null}
               </div>
@@ -443,6 +439,11 @@ export interface DayPulseBarProps {
   nowLabel?: ReactNode;
   /** Test seam: a fixed clock. */
   now?: Date;
+  /**
+   * Orbs drawn before the search orb at the end of the bar: My Day v4 puts Help and AI there
+   * (spec MYDAY-V4 §3.1 E6), one utility group in the top trailing corner with Search outermost.
+   */
+  orbs?: ReactNode;
 }
 
 function useClock(fixed: Date | undefined): Date | null {
@@ -467,6 +468,7 @@ export function DayPulseBar({
   items = [],
   nowLabel,
   now: fixed,
+  orbs,
 }: DayPulseBarProps) {
   const t = useT();
   const locale = useActiveLocale();
@@ -526,6 +528,7 @@ export function DayPulseBar({
           <span aria-hidden="true">↗</span>
         </Link>
       </div>
+      {orbs}
       <button
         type="button"
         className="tm-day-pulse__search"

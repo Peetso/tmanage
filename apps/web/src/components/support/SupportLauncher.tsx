@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useState } from 'react';
 import { Button, Tooltip, MOTION_DELAY_TOOLTIP_MS } from '@tmanage/ui';
-import { NavIcon } from '../icons/phone';
 import { useHelpContextArticle } from '../help/HelpContextLink';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import './support.css';
@@ -28,8 +27,8 @@ export function SupportLauncher({
 }: {
   readonly organizationSlug: string;
   readonly pathname?: string;
-  /** `icon`: the "?" icon button of the dashboard title row (Figma 795:931), named in a tooltip. */
-  readonly variant?: 'button' | 'icon';
+  /** `orb`: My Day's "?" orb at the end of the day bar (spec MYDAY-V4 §4.1), named in a tooltip. */
+  readonly variant?: 'button' | 'orb';
 }) {
   const tOr = useTOr();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -50,7 +49,7 @@ export function SupportLauncher({
 
   return (
     <div className="tm-support-launcher">
-      {variant === 'icon' ? (
+      {variant === 'orb' ? (
         <Tooltip
           content={tOr('MyDay.info.help', 'Help, shortcuts and the tour.')}
           delayMs={MOTION_DELAY_TOOLTIP_MS}
@@ -58,14 +57,14 @@ export function SupportLauncher({
         >
           <button
             type="button"
-            className="tm-title-icon tm-support-launcher__trigger"
+            className="tm-day-pulse__search tm-day-pulse__orb tm-support-launcher__trigger"
             aria-label={tOr('Support.menuLabel', 'Help')}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             aria-controls={menuId}
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <NavIcon name="help" size={20} />
+            <span aria-hidden="true">?</span>
           </button>
         </Tooltip>
       ) : (

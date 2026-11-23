@@ -117,6 +117,7 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/platform/settings': { en: 'Platform settings', key: 'RouteTitle.platformSettings' },
   '/[orgSlug]': { en: 'Home', key: 'RouteTitle.home' },
   '/[orgSlug]/home': { en: 'Home', key: 'RouteTitle.home' },
+  '/[orgSlug]/home/widgets': { en: 'Customise Home', key: 'HomeWidgetPrefsScreen.title' },
   '/[orgSlug]/admin': { en: 'Admin', key: 'RouteTitle.admin' },
   '/[orgSlug]/admin/audit': { en: 'Audit log', key: 'RouteTitle.adminAudit' },
   '/[orgSlug]/admin/audit/export': { en: 'Export audit log', key: 'RouteTitle.adminAuditExport' },

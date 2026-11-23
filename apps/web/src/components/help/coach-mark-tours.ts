@@ -22,13 +22,13 @@ export const COACH_MARK_STEPS: Readonly<Record<CoachMarkTour, readonly CoachMark
       key: 'CoachMarks.myDay.ranked',
       title: 'Your day, ranked',
       body: 'Work that needs you today is at the top. Overdue items come first.',
-      target: ['.tm-myday-w--next', '.tm-myday-w--due'],
+      target: ['.tm-home-cards', 'section[aria-labelledby="tm-my-day-personal"]'],
     },
     {
       key: 'CoachMarks.myDay.waiting',
       title: 'Waiting on you',
       body: 'Approvals and replies other people need from you collect here.',
-      target: '.tm-myday-w--waiting',
+      target: 'section[aria-labelledby="tm-my-day-waiting"]',
     },
     {
       // FIX3 item 10: "?" and "Help" are one button now; the step points at the Help menu.

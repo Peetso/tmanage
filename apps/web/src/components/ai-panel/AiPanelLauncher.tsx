@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Tooltip, MOTION_DELAY_TOOLTIP_MS } from '@tmanage/ui';
-import { NavIcon } from '../icons/phone';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getConnectedApps } from '../../lib/api/connected-apps';
 import { connectorAddress, deploymentAddress } from '../../lib/ai-connector-address';
@@ -90,8 +89,8 @@ export function AiPanelLauncher({
   variant = 'button',
 }: {
   readonly organizationSlug: string;
-  /** `icon`: the AI icon button of the dashboard title row (Figma 795:931), named in a tooltip. */
-  readonly variant?: 'button' | 'icon';
+  /** `orb`: My Day's AI orb at the end of the day bar (spec MYDAY-V4 §4.1), named in a tooltip. */
+  readonly variant?: 'button' | 'orb';
 }) {
   const t = useAiPanelT();
   const locale = useActiveLocale();
@@ -260,18 +259,18 @@ export function AiPanelLauncher({
 
   return (
     <div className="tm-ai-launcher" ref={anchor}>
-      {variant === 'icon' ? (
+      {variant === 'orb' ? (
         <Tooltip content={t('AiPanel.launch')} delayMs={MOTION_DELAY_TOOLTIP_MS} placement="bottom">
           <button
             type="button"
-            className="tm-title-icon"
+            className="tm-day-pulse__search tm-day-pulse__orb"
             aria-label={t('AiPanel.launch')}
             aria-haspopup="dialog"
             aria-expanded={expanded}
             aria-busy={pending || undefined}
             onClick={press}
           >
-            <NavIcon name="waveform" size={20} />
+            <span aria-hidden="true">AI</span>
           </button>
         </Tooltip>
       ) : (

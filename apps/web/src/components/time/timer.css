@@ -289,3 +289,30 @@
     min-inline-size: 40px;
   }
 }
+
+/*
+ * My Day v4's running-timer pill (Fable review ruling 6): after New project in the header, the dot
+ * and the time only, 36 high, level with New project. A neutral outline capsule with the red dot,
+ * never a lime fill. It opens the timed item; the task name and Stop are in the Timer rows.
+ */
+.tm-timer-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  block-size: 36px;
+  padding-inline: var(--s3);
+  border: var(--b-structural) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-timer-capsule .tm-timer-dot {
+  background: var(--danger-600);
+}

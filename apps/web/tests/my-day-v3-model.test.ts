@@ -184,7 +184,7 @@ describe('My Day v3.1 model', () => {
   });
 });
 
-describe('My Day v3.1 layout', () => {
+describe('My Day v4 layout', () => {
   it('places every allowlisted widget in exactly one group', () => {
     const placed = Object.values(DEFAULT_LAYOUT).flat();
     expect([...placed].sort()).toEqual([...HOME_WIDGET_IDS].sort());
@@ -195,7 +195,8 @@ describe('My Day v3.1 layout', () => {
       order: ['timer', 'summary', 'ghost' as never],
       hidden: ['recent'],
     });
-    expect(layout.groups.side.slice(0, 2)).toEqual(['timer', 'summary']);
+    expect(layout.groups.side.slice(0, 1)).toEqual(['timer']);
+    expect(layout.groups.top).toEqual(['summary', 'pulse', 'next']);
     expect(layout.groups.side).toHaveLength(DEFAULT_LAYOUT.side.length);
     expect(layout.hidden.has('recent')).toBe(true);
   });
@@ -210,10 +211,14 @@ describe('My Day v3.1 layout', () => {
   it('moves a widget inside its own group only, and not past either end', () => {
     const layout = foldLayout(undefined);
     const moved = moveWidget(layout, 'byProject', -1);
-    expect(moved.groups.main).toEqual(['next', 'byProject', 'myDay', 'businessBriefing']);
+    expect(moved.groups.main).toEqual(['myDay', 'waiting', 'byProject', 'businessBriefing']);
+    expect(moveWidget(layout, 'myDay', -1)).toBe(layout);
+    expect(moveWidget(layout, 'quickQuestion', 1)).toBe(layout);
+    // The top keeps its places: nothing can be moved above "Do this next" (spec §4.2 rule 1).
     expect(moveWidget(layout, 'next', -1)).toBe(layout);
     expect(moveWidget(layout, 'pulse', 1)).toBe(layout);
     expect(movable('top')).toBe(false);
+    expect(movable('main')).toBe(true);
   });
 
   it('round-trips through the stored shape', () => {

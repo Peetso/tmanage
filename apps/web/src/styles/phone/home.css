@@ -1,0 +1,435 @@
+/*
+ * Phone · Home / My Day (Figma 405:6293 "Phone redesign — website direction", frames 406:6374 EN
+ * and 406:6505 AR). Phone only: every rule that draws something sits under max-width 767px, and
+ * the phone-only elements are hidden above it, so the desktop My Day is unchanged.
+ *
+ * Inverse surfaces use the absolute ink/paper pair from the component layer, so the black hero
+ * stays black (and its lime stays legible) in the dark theme too.
+ */
+
+.tm-phone-home,
+.tm-phone-home__count,
+.tm-phone-home-card__orb,
+.tm-phone-home-card__meta {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* What the phone does not draw (spec MYDAY-V4 §4.4): the header sentence and the desktop
+     numbers (the phone shows them as its own row, rank 6), the header actions (the dock's lime +
+     is the way in) and the day capsule's orbs (the dock carries Search, Help and AI). The day bar
+     itself, "Do this next" and the filter chips stay. */
+  .tm-app__body:has(.tm-phone-home) .tm-canvas-header__description,
+  .tm-app__body:has(.tm-phone-home) .tm-canvas-header__aside,
+  .tm-app__body:has(.tm-phone-home) .tm-canvas-header__actions,
+  .tm-app__body:has(.tm-phone-home) .tm-day-pulse__search,
+  .tm-home-section .tm-section-head .tm-home-section__count {
+    display: none;
+  }
+
+  /* ── One column in rank order (§4.4): the columns step aside, each part keeps its rank ── */
+
+  .tm-home {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  .tm-home-body,
+  .tm-home-main,
+  .tm-home-side {
+    display: contents;
+  }
+
+  .tm-home [data-rank='20'] {
+    order: 20;
+  }
+
+  .tm-home [data-rank='30'] {
+    order: 30;
+  }
+
+  .tm-home [data-rank='35'] {
+    order: 35;
+  }
+
+  .tm-home [data-rank='40'] {
+    order: 40;
+  }
+
+  .tm-home [data-rank='50'] {
+    order: 50;
+  }
+
+  .tm-home [data-rank='60'] {
+    order: 60;
+  }
+
+  .tm-home [data-rank='70'] {
+    order: 70;
+  }
+
+  .tm-home [data-rank='80'] {
+    order: 80;
+  }
+
+  .tm-home [data-rank='90'] {
+    order: 90;
+  }
+
+  .tm-home [data-rank='100'] {
+    order: 100;
+  }
+
+  .tm-home [data-rank='110'] {
+    order: 110;
+  }
+
+  .tm-home [data-rank='120'] {
+    order: 120;
+  }
+
+  .tm-home [data-rank='130'] {
+    order: 130;
+  }
+
+  .tm-home [data-rank='140'] {
+    order: 140;
+  }
+
+  .tm-home [data-rank='150'] {
+    order: 150;
+  }
+
+  .tm-home [data-rank='160'] {
+    order: 160;
+  }
+
+  /* The lens opens only when the person picks a card, as a sheet from the bottom edge. */
+  .tm-home-lens {
+    display: none;
+  }
+
+  .tm-home-lens[data-picked] {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 950;
+    display: flex;
+    max-block-size: 80dvh;
+    overflow-y: auto;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+    box-shadow: var(--tm-overlay-shadow);
+  }
+
+  /* Waiting rows: status and since-when as a second line under the title (fix 2). */
+  .tm-home-rows > li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'avatar title more go'
+      'avatar status when when'
+      'actions actions actions actions';
+    align-items: center;
+    column-gap: var(--s3);
+    row-gap: var(--s1);
+  }
+
+  .tm-home-rows > li > .tm-avatar {
+    grid-area: avatar;
+    align-self: start;
+  }
+
+  .tm-home-rows__title {
+    grid-area: title;
+  }
+
+  .tm-home-rows .tm-home-rows__status {
+    grid-area: status;
+    inline-size: auto;
+    text-align: start;
+  }
+
+  .tm-home-rows .tm-home-rows__when {
+    display: inline;
+    grid-area: when;
+    inline-size: auto;
+  }
+
+  .tm-home-rows > li > .tm-home-more {
+    grid-area: more;
+  }
+
+  .tm-home-rows > li > .tm-button {
+    grid-area: go;
+  }
+
+  .tm-home-rows > li > .tm-phone-card-actions {
+    grid-area: actions;
+  }
+
+  .tm-phone-home {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  /* ── Hero · Today (406:6390) ───────────────────────────────────────────────────── */
+
+  .tm-phone-home__hero {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+    padding: var(--s6);
+    border-radius: var(--r-feature);
+    background: var(--tm-ink-absolute);
+    color: var(--tm-paper-absolute);
+  }
+
+  .tm-phone-home__eyebrow {
+    margin: 0;
+    color: var(--tm-accent-on-ink, var(--lime-500));
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    text-transform: uppercase;
+  }
+
+  .tm-phone-home__headline {
+    margin: 0;
+    color: var(--tm-paper-absolute);
+    font-size: var(--t-heading-page);
+    font-weight: 600;
+    line-height: var(--t-heading-page-line);
+  }
+
+  .tm-phone-home__metrics {
+    display: flex;
+    gap: var(--s4);
+    margin: 0;
+  }
+
+  .tm-phone-home__metric {
+    display: flex;
+    flex: 1 0 0;
+    flex-direction: column;
+    gap: var(--s1);
+    min-inline-size: 0;
+  }
+
+  .tm-phone-home__dash {
+    order: 0;
+    inline-size: 24px;
+    block-size: 4px;
+    border-radius: var(--r-capsule);
+    background: var(--lime-500);
+    color: var(--tm-on-lime);
+  }
+
+  .tm-phone-home__metric-value {
+    order: 1;
+    margin: 0;
+    font-size: var(--t-display-metric);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    line-height: var(--t-display-metric-line);
+  }
+
+  .tm-phone-home__metric-label {
+    order: 2;
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    opacity: 0.72;
+  }
+
+  /* ── Up next (406:6406) ────────────────────────────────────────────────────────── */
+
+  .tm-phone-home__next {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+    padding: var(--s5);
+    border-radius: var(--r-card);
+    background: var(--lime-500);
+    color: var(--tm-on-lime);
+  }
+
+  .tm-phone-home__next-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    text-transform: uppercase;
+  }
+
+  .tm-phone-home__next-orb {
+    display: grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--orb-compact);
+    block-size: var(--orb-compact);
+    border-radius: var(--r-capsule);
+    background: var(--tm-ink-absolute);
+    color: var(--tm-accent-on-ink, var(--lime-500));
+  }
+
+  .tm-phone-home__next-title {
+    margin: 0;
+    color: var(--tm-on-lime);
+    font-size: var(--t-heading-section);
+    font-weight: 600;
+    line-height: var(--t-heading-section-line);
+  }
+
+  .tm-phone-home__next-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .tm-phone-home__join {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 44px;
+    padding-inline: var(--s5);
+    border-radius: var(--r-capsule);
+    background: var(--tm-ink-absolute);
+    color: var(--tm-paper-absolute);
+    font-size: var(--t-ui-md);
+    font-weight: 500;
+    line-height: var(--t-ui-md-line);
+    text-decoration: none;
+  }
+
+  .tm-phone-home__join:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* ── Section head "Due & at risk" + count badge (406:6430) ─────────────────────── */
+
+  .tm-home-section .tm-section-head:has(.tm-phone-home__count) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 0;
+  }
+
+  .tm-home-section .tm-section-head:has(.tm-phone-home__count) .tm-section-head__title {
+    font-size: var(--t-heading-section);
+    font-weight: 600;
+    line-height: var(--t-heading-section-line);
+  }
+
+  .tm-phone-home__count {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--s1) var(--s3);
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-capsule);
+    background: var(--paper-50);
+    color: var(--ink-800);
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+  }
+
+  /* ── Due & at risk cards (406:6434): orb · title / meta, then the state ──────────── */
+
+  .tm-home-cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  .tm-home-cards .tm-home-card,
+  .tm-home-cards .tm-home-card.tm-card--lime {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-areas:
+      'orb title'
+      'orb meta'
+      'foot foot';
+    column-gap: var(--s3);
+    row-gap: var(--s1);
+    padding: var(--s5);
+    border: 0;
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+    color: var(--ink-950);
+    box-shadow:
+      0 1px 1px rgb(9 10 9 / 4%),
+      0 1px 2px rgb(9 10 9 / 6%);
+  }
+
+  /* The first card keeps the old lime (spec §4.4). */
+  .tm-home-cards .tm-home-card.tm-card--lime {
+    background: var(--lime-500);
+    color: var(--tm-on-lime);
+  }
+
+  .tm-home-cards .tm-home-card.tm-card--lime .tm-phone-home-card__orb {
+    background: var(--tm-ink-absolute);
+    color: var(--tm-accent-on-ink, var(--lime-500));
+  }
+
+  .tm-home-cards .tm-home-card.tm-card--lime .tm-phone-home-card__meta {
+    color: var(--tm-on-lime);
+  }
+
+  .tm-home-cards .tm-home-card__top,
+  .tm-home-cards .tm-home-card .tm-home-card__foot > .tm-card__meta {
+    display: none;
+  }
+
+  .tm-phone-home-card__orb {
+    display: grid;
+    grid-area: orb;
+    place-items: center;
+    align-self: start;
+    inline-size: var(--orb-comfortable);
+    block-size: var(--orb-comfortable);
+    border-radius: var(--r-capsule);
+    background: var(--paper-150);
+    color: var(--ink-950);
+  }
+
+  .tm-home-cards .tm-home-card .tm-card__title {
+    grid-area: title;
+    margin: 0;
+    font-size: var(--t-body-lg);
+    font-weight: 400;
+    line-height: var(--t-body-lg-line);
+  }
+
+  .tm-home-cards .tm-home-card .tm-card__title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .tm-phone-home-card__meta {
+    display: block;
+    grid-area: meta;
+    color: var(--ink-650);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+  }
+
+  .tm-home-cards .tm-home-card__foot {
+    display: flex;
+    grid-area: foot;
+    align-items: center;
+    justify-content: flex-start;
+    margin-block-start: var(--s3);
+  }
+}

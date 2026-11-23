@@ -2,31 +2,32 @@ import { HOME_WIDGET_IDS } from '../../lib/api/home-widget-prefs';
 import type { HomeWidgetId, HomeWidgetPrefsView } from '../../lib/api/home-widget-prefs';
 
 /**
- * **My Day v3.1 widget layout** (Fable review F1, F6, ruling (c)). The page is a full-width Today
- * row, two independent stacks (Main: 8 columns, Side: 4 columns) and a full-width bottom row. A
- * widget moves inside its own group only, so the saved order is one flat list read group by group.
+ * **My Day v4 widget layout** (spec MYDAY-V4-MERGE-SPEC §3.2, §8.3). The old page with its parts
+ * placed by priority: a fixed top (the day bar, the three numbers and "Do this next", in that
+ * place always, so nothing ever stands between the header and the next action), then two columns.
+ * Main: Due & at risk, the two Waiting lists, the business briefing, personal work by project.
+ * Side, under the context lens: Timer, Saved, Pinned, Recently viewed, Getting started and the
+ * pricing question. A widget moves inside its own column only, so the saved order is one flat
+ * list read column by column (Edit widgets, `HomeWidgetPrefsScreen`).
  *
- * The ids are the server's allowlist (`home_widget_prefs`, migration 0115). The pre-v3 ids are
- * kept for the widget that took their place, so a person who hid something before keeps it hidden:
- * `pulse` → Today, `myDay` → Due & at risk, `summary` → At a glance, `savedContext` → Saved,
- * `pins` → Pinned, `businessBriefing` → Briefing.
+ * The ids are the server's allowlist (`home_widget_prefs`, migration 0115); no id is added. The
+ * one `waiting` id holds both Waiting lists, on you and on others, so they always read as a pair.
  */
-export const LAYOUT_GROUPS = ['top', 'main', 'side', 'bottom'] as const;
+export const LAYOUT_GROUPS = ['top', 'main', 'side'] as const;
 export type LayoutGroup = (typeof LAYOUT_GROUPS)[number];
 
 export const DEFAULT_LAYOUT: Readonly<Record<LayoutGroup, readonly HomeWidgetId[]>> = {
-  top: ['pulse'],
-  main: ['next', 'myDay', 'byProject', 'businessBriefing'],
-  side: ['summary', 'waiting', 'timer', 'gettingStarted', 'quickQuestion'],
-  bottom: ['savedContext', 'pins', 'recent'],
+  top: ['pulse', 'summary', 'next'],
+  main: ['myDay', 'waiting', 'businessBriefing', 'byProject'],
+  side: ['timer', 'savedContext', 'pins', 'recent', 'gettingStarted', 'quickQuestion'],
 };
 
-/** Next is the page's anchor: it can move inside Main but never be hidden (spec rule 10). */
-export const ALWAYS_SHOWN: ReadonlySet<HomeWidgetId> = new Set<HomeWidgetId>(['next']);
+/** "Do this next" is the page's anchor: it is never hidden (spec §3.2 rank 1). */
+export const ALWAYS_SHOWN: ReadonlySet<HomeWidgetId> = new Set<HomeWidgetId>(['next', 'pulse']);
 
-/** Today is alone in its group: its arrows would never work, so they are not drawn (ruling c). */
+/** The top parts keep their places (spec §4.2 rule 1); only the two columns can be re-ordered. */
 export function movable(group: LayoutGroup): boolean {
-  return DEFAULT_LAYOUT[group].length > 1;
+  return group !== 'top';
 }
 
 export interface MyDayLayout {
@@ -68,7 +69,7 @@ export function toPrefs(layout: MyDayLayout): HomeWidgetPrefsView {
 /** Move a widget one place up (−1) or down (+1) inside its group; a no-op at either end. */
 export function moveWidget(layout: MyDayLayout, id: HomeWidgetId, delta: -1 | 1): MyDayLayout {
   const group = GROUP_OF.get(id);
-  if (!group) return layout;
+  if (!group || !movable(group)) return layout;
   const list = [...layout.groups[group]];
   const from = list.indexOf(id);
   const to = from + delta;

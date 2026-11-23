@@ -73,9 +73,9 @@ function mount({
       <button type="button">Before</button>
       {withTargets ? (
         <>
-          <section className="tm-myday-w tm-myday-w--next" />
-          <section className="tm-myday-w tm-myday-w--waiting">
-            <h2>Waiting</h2>
+          <ul className="tm-home-cards" />
+          <section aria-labelledby="tm-my-day-waiting">
+            <h2 id="tm-my-day-waiting">Waiting on you</h2>
           </section>
         </>
       ) : null}
@@ -90,7 +90,7 @@ function mount({
 describe('coach marks anchored to their target (2026-11-09)', () => {
   it('places the step next to its target with an arrow and a spotlight, never in a corner', async () => {
     // Window is 1024 x 768 in jsdom. The ranked list sits near the top: room below it.
-    layout({ '.tm-myday-w--next': rect(100, 200, 400, 120) });
+    layout({ '.tm-home-cards': rect(100, 200, 400, 120) });
     mount();
     const dialog = await screen.findByRole('dialog', { name: 'Your day, ranked' });
     expect(dialog).toHaveAttribute('data-side', 'bottom');
@@ -102,14 +102,12 @@ describe('coach marks anchored to their target (2026-11-09)', () => {
     expect(spotlight).not.toBeNull();
     expect(spotlight!.style.top).toBe('94px');
     expect(spotlight!.style.width).toBe('412px');
-    expect(document.querySelector('.tm-myday-w--next')!.hasAttribute('data-coach-active')).toBe(
-      true,
-    );
+    expect(document.querySelector('.tm-home-cards')!.hasAttribute('data-coach-active')).toBe(true);
     expect(dialog).toHaveAttribute('aria-modal', 'true');
   });
 
   it('flips above the target when there is no room below', async () => {
-    layout({ '.tm-myday-w--next': rect(560, 200, 400, 120) });
+    layout({ '.tm-home-cards': rect(560, 200, 400, 120) });
     mount();
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveAttribute('data-side', 'top');
@@ -118,14 +116,14 @@ describe('coach marks anchored to their target (2026-11-09)', () => {
 
   it('beside a tall target, sits after it in reading order: right in English, left in Arabic', async () => {
     const tall = rect(16, 40, 300, 736);
-    layout({ '.tm-myday-w--next': tall });
+    layout({ '.tm-home-cards': tall });
     mount({ dir: 'ltr' });
     const ltr = await screen.findByRole('dialog');
     expect(ltr).toHaveAttribute('data-side', 'right');
     expect(ltr.style.left).toBe(`${40 + 300 + 14}px`);
     cleanup();
 
-    layout({ '.tm-myday-w--next': rect(16, 684, 300, 736) });
+    layout({ '.tm-home-cards': rect(16, 684, 300, 736) });
     mount({ dir: 'rtl' });
     const rtl = await screen.findByRole('dialog');
     expect(rtl).toHaveAttribute('data-side', 'left');
@@ -133,7 +131,7 @@ describe('coach marks anchored to their target (2026-11-09)', () => {
   });
 
   it('moves focus into the step, keeps Tab inside it, and Escape skips the tour', async () => {
-    layout({ '.tm-myday-w--next': rect(100, 200, 400, 120) });
+    layout({ '.tm-home-cards': rect(100, 200, 400, 120) });
     screen.queryByRole('button', { name: 'Before' })?.focus();
     const puts = mount();
     const dialog = await screen.findByRole('dialog');
@@ -161,19 +159,19 @@ describe('coach marks anchored to their target (2026-11-09)', () => {
 
   it('follows the target from step to step', async () => {
     layout({
-      '.tm-myday-w--next': rect(100, 200, 400, 120),
-      '.tm-myday-w--waiting': rect(380, 200, 400, 60),
+      '.tm-home-cards': rect(100, 200, 400, 120),
+      'section[aria-labelledby="tm-my-day-waiting"]': rect(380, 200, 400, 60),
     });
     mount();
     await screen.findByRole('dialog', { name: 'Your day, ranked' });
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const second = await screen.findByRole('dialog', { name: 'Waiting on you' });
     await waitFor(() => expect(second.style.top).toBe(`${380 + 60 + 14}px`));
-    expect(document.querySelector('.tm-myday-w--waiting')!.hasAttribute('data-coach-active')).toBe(
-      true,
-    );
-    expect(document.querySelector('.tm-myday-w--next')!.hasAttribute('data-coach-active')).toBe(
-      false,
-    );
+    expect(
+      document
+        .querySelector('section[aria-labelledby="tm-my-day-waiting"]')!
+        .hasAttribute('data-coach-active'),
+    ).toBe(true);
+    expect(document.querySelector('.tm-home-cards')!.hasAttribute('data-coach-active')).toBe(false);
   });
 });

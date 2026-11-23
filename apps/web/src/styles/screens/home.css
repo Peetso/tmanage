@@ -36,7 +36,7 @@
 
 .tm-home-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 352px;
+  grid-template-columns: minmax(0, 888fr) minmax(300px, 400fr);
   gap: var(--s6);
   align-items: start;
 }
@@ -932,4 +932,290 @@
 /* The focus strip is black in both themes; its "why now" line keeps the inverted muted ink. */
 .tm-home-focus .tm-focus-capsule__why {
   color: var(--tm-inverted-muted);
+}
+
+/* ── My Day v4 (spec MYDAY-V4 §4–§6): the old parts, placed by priority ─────────────── */
+
+.tm-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+/* One part of a column; an empty part (a widget that drew nothing) takes no gap. */
+.tm-home-part {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-home-part:empty {
+  display: none;
+}
+
+/* "Do this next" is as wide as the cards under it; its "why now" stays on one line (fix 4). */
+.tm-home-focus.tm-focus-capsule {
+  max-inline-size: none;
+}
+
+.tm-home-focus .tm-focus-capsule__text {
+  flex: 1;
+}
+
+.tm-home-focus .tm-focus-capsule__why {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-home-focus__secondary.tm-button--outline {
+  border-color: var(--ink-650);
+  background: transparent;
+  color: var(--tm-paper-absolute, #f7f7f3);
+}
+
+.tm-home-focus__secondary.tm-button--outline:hover {
+  border-color: var(--tm-paper-absolute, #f7f7f3);
+}
+
+/* Arrows point the reading way: in Arabic and Urdu they turn round. */
+.tm-home-flip {
+  display: inline-block;
+}
+
+[dir='rtl'] .tm-home-flip {
+  transform: scaleX(-1);
+}
+
+/* The three header numbers lead to their lists. */
+.tm-home-metrics__link {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--r-control);
+}
+
+.tm-home-metrics__link:hover .tm-metric__label {
+  text-decoration: underline;
+}
+
+.tm-home-metrics__link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Help, AI and Search: orbs at the end of the day capsule. */
+.tm-day-pulse__orb {
+  font-size: var(--t-caption);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tm-day-pulse__orb:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Row "⋯" menus (fix 1) ─────────────────────────────────────────────────────────── */
+
+.tm-home-card__orbs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-home-more__orb {
+  padding: 0;
+  cursor: pointer;
+}
+
+.tm-home-more__orb:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-home-rows .tm-home-more__orb {
+  inline-size: 30px;
+  block-size: 30px;
+}
+
+.tm-home-more .tm-new-menu__panel {
+  color: var(--ink-950);
+}
+
+.tm-home-card[data-in-lens] {
+  box-shadow: 0 0 0 var(--b-structural) var(--ink-950);
+}
+
+.tm-home-card:not(.tm-card--lime) {
+  cursor: pointer;
+}
+
+.tm-home-edit {
+  align-self: flex-start;
+}
+
+/* ── The context lens (old 351:2188): the dark story beside "Do this next" ─────────── */
+
+.tm-home-lens {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s6);
+  border-radius: var(--r-feature);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute, #f7f7f3);
+  min-inline-size: 0;
+}
+
+.tm-home-lens__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-home-lens__eyebrow {
+  flex: 1;
+  margin: 0;
+  color: var(--tm-accent-on-ink, var(--lime-500));
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  line-height: var(--t-caption-line);
+  text-transform: uppercase;
+}
+
+.tm-home-lens__orb {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 32px;
+  block-size: 32px;
+  padding: 0;
+  border: var(--b-quiet) solid var(--ink-650);
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tm-home-lens__orb:focus-visible,
+.tm-home-lens__client:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-home-lens__project,
+.tm-home-lens__due,
+.tm-home-lens__line {
+  margin: 0;
+  color: var(--tm-inverted-muted);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-home-lens__title {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  font-weight: 600;
+  line-height: var(--t-heading-section-line);
+  overflow-wrap: anywhere;
+}
+
+.tm-home-lens__heading {
+  margin: var(--s3) 0 0;
+  color: var(--tm-paper-absolute, #f7f7f3);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  line-height: var(--t-caption-line);
+  text-transform: uppercase;
+}
+
+.tm-home-lens__story {
+  gap: var(--s4);
+}
+
+.tm-home-lens__story > li::before {
+  background: var(--tm-paper-absolute, #f7f7f3);
+}
+
+.tm-home-lens__story > li:not(:last-child)::after {
+  inset-block-end: calc(var(--s4) * -1 + 3px);
+  background: var(--ink-650);
+}
+
+.tm-home-lens__story > li[data-state='current']::before {
+  border-color: var(--tm-paper-absolute, #f7f7f3);
+}
+
+.tm-home-lens__story .tm-work-story__when {
+  color: var(--tm-inverted-muted);
+}
+
+.tm-home-lens__story .tm-work-story__title {
+  overflow: hidden;
+  color: var(--tm-paper-absolute, #f7f7f3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-home-lens__client {
+  align-self: flex-start;
+  margin-block-start: var(--s2);
+  color: var(--tm-accent-on-ink, var(--lime-500));
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  line-height: var(--t-ui-sm-line);
+  border-radius: var(--r-control);
+}
+
+/* ── Timer and Getting started rows (side column) ──────────────────────────────────── */
+
+.tm-home-timer .tm-home-saved__text,
+.tm-home-start .tm-home-saved__text {
+  flex: 1;
+}
+
+.tm-home-saved__item .tm-home-saved__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-home-timer__today {
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-home-timer__face {
+  flex: none;
+  white-space: nowrap;
+}
+
+.tm-home-timer__orb {
+  color: var(--ink-950);
+}
+
+.tm-home-saved__item[data-running] .tm-home-timer__orb {
+  color: var(--danger-600);
+}
+
+.tm-home-timer__auto {
+  flex: 1;
+}
+
+.tm-home-saved__item > .tm-button,
+.tm-home-saved__item > .tm-switch {
+  flex: none;
+}
+
+/* Narrower than the two columns: the lens leads the side parts, which wrap in a grid. */
+@media (max-width: 73.75rem) {
+  .tm-home-side > .tm-home-lens {
+    grid-column: 1 / -1;
+  }
 }

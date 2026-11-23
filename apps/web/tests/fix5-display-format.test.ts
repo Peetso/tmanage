@@ -3,6 +3,7 @@ import { compactUnit, relativeAgo } from '../src/lib/i18n/compact-time';
 import { displayFormat, numericDay, withNumerals } from '../src/lib/i18n/display-format';
 import { formatDateTime, formatDay, formatNumber, formatTime } from '../src/lib/i18n/format';
 import { pluralPhrase } from '../src/lib/i18n/plural';
+import ar from '../src/lib/i18n/messages/ar.json';
 
 /**
  * FIX5 item 6b (B-N7): the profile's `numerals` and `dateFormat` reach every shared formatter, so
@@ -63,5 +64,12 @@ describe('the shared formatter honours the profile in Arabic', () => {
   it('writes Latin digits until a profile is published (AR-DIGITS default)', () => {
     expect(formatNumber(8, ctx)).toBe('8');
     expect(withNumerals('ar-EG')).toBe('ar-EG-u-nu-latn');
+  });
+});
+
+describe('Recently viewed meta line agrees with the kind', () => {
+  it('a task (feminine) reads "فُتحت في", the masculine kinds keep "فُتح في"', () => {
+    expect(ar['HomeRecentItemsView.viewedPrefixWork']).toBe('فُتحت في');
+    expect(ar['HomeRecentItemsView.viewedPrefix']).toBe('فُتح في');
   });
 });
