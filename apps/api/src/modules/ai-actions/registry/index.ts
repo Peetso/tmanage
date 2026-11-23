@@ -990,8 +990,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'GET',
     path: '/v1/organizations/:orgSlug/client-memberships',
     capability: 'client_member.manage',
-    risk: 'confirm',
-    scope: 'manage',
+    risk: 'read',
+    scope: 'read',
   },
   {
     id: 'client_memberships.create',
@@ -2201,8 +2201,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'GET',
     path: '/v1/organizations/:orgSlug/file-tags',
     capability: 'file.download',
-    risk: 'confirm',
-    scope: 'manage',
+    risk: 'read',
+    scope: 'read',
   },
   {
     id: 'file_tags.create',
