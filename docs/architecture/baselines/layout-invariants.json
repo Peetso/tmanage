@@ -1,0 +1,612 @@
+{
+  "$comment": "Layout-invariant violations per vr story and rule (apps/web/vr/layout.spec.ts, ADR-0016). May only shrink.",
+  "total": 2219,
+  "stories": {
+    "ai-panel-two-tabs--dictation-menu · light": {
+      "container-inset": 2,
+      "capsule-inset": 5
+    },
+    "ai-panel-two-tabs--dictation-menu · rtl": {
+      "container-inset": 2,
+      "capsule-inset": 5
+    },
+    "ai-panel-two-tabs--dictation-menu-arabic · light": {
+      "container-inset": 2,
+      "capsule-inset": 5
+    },
+    "ai-panel-two-tabs--dictation-menu-arabic · rtl": {
+      "container-inset": 2,
+      "capsule-inset": 5
+    },
+    "ai-panel-two-tabs--tab-1-chat · light": {
+      "container-inset": 1,
+      "capsule-inset": 4
+    },
+    "ai-panel-two-tabs--tab-1-chat · rtl": {
+      "container-inset": 1,
+      "capsule-inset": 4
+    },
+    "ai-panel-two-tabs--tab-1-chat-arabic · light": {
+      "container-inset": 1,
+      "capsule-inset": 4
+    },
+    "ai-panel-two-tabs--tab-1-chat-arabic · rtl": {
+      "container-inset": 1,
+      "capsule-inset": 4
+    },
+    "ai-panel-two-tabs--tab-1-history · light": {
+      "container-inset": 1,
+      "capsule-inset": 4
+    },
+    "ai-panel-two-tabs--tab-1-history · rtl": {
+      "container-inset": 1,
+      "capsule-inset": 4
+    },
+    "ai-panel-two-tabs--tab-1-phone · light": {
+      "container-inset": 1,
+      "capsule-inset": 5
+    },
+    "ai-panel-two-tabs--tab-1-phone · rtl": {
+      "container-inset": 1,
+      "capsule-inset": 5
+    },
+    "ai-panel-two-tabs--tab-2-activity-failed · light": {
+      "container-inset": 3,
+      "capsule-inset": 8
+    },
+    "ai-panel-two-tabs--tab-2-activity-failed · rtl": {
+      "container-inset": 3,
+      "capsule-inset": 8
+    },
+    "ai-panel-two-tabs--tab-2-connected · light": {
+      "container-inset": 5,
+      "capsule-inset": 19,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tab-2-connected · rtl": {
+      "container-inset": 5,
+      "capsule-inset": 19,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tab-2-connected-arabic · light": {
+      "container-inset": 5,
+      "capsule-inset": 19,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tab-2-connected-arabic · rtl": {
+      "container-inset": 5,
+      "capsule-inset": 19,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tab-2-nothing-connected · light": {
+      "container-inset": 1,
+      "capsule-inset": 4,
+      "target-size": 2
+    },
+    "ai-panel-two-tabs--tab-2-nothing-connected · rtl": {
+      "container-inset": 1,
+      "capsule-inset": 4,
+      "target-size": 2
+    },
+    "ai-panel-two-tabs--tab-2-phone · light": {
+      "container-inset": 5,
+      "capsule-inset": 19,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tab-2-phone · rtl": {
+      "container-inset": 5,
+      "capsule-inset": 19,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tab-2-review · light": {
+      "container-inset": 2,
+      "capsule-inset": 3,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tab-2-review · rtl": {
+      "container-inset": 2,
+      "capsule-inset": 3,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tmanage-ai-off-owner · light": {
+      "container-inset": 1,
+      "capsule-inset": 1,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--tmanage-ai-off-owner · rtl": {
+      "container-inset": 1,
+      "capsule-inset": 1,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--your-ai-only · light": {
+      "container-inset": 5,
+      "capsule-inset": 18,
+      "target-size": 1
+    },
+    "ai-panel-two-tabs--your-ai-only · rtl": {
+      "container-inset": 5,
+      "capsule-inset": 18,
+      "target-size": 1
+    },
+    "clients-onepage-client-company--activity · light": {
+      "capsule-inset": 13
+    },
+    "clients-onepage-client-company--activity · rtl": {
+      "capsule-inset": 13
+    },
+    "clients-onepage-client-company--activity-empty · light": {
+      "capsule-inset": 9
+    },
+    "clients-onepage-client-company--activity-empty · rtl": {
+      "capsule-inset": 9
+    },
+    "clients-onepage-client-company--overview · light": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 9
+    },
+    "clients-onepage-client-company--overview · rtl": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 9
+    },
+    "clients-onepage-client-company--overview-arabic · light": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 9
+    },
+    "clients-onepage-client-company--overview-arabic · rtl": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 9
+    },
+    "clients-onepage-client-company--overview-without-finance · light": {
+      "container-inset": 5,
+      "target-size": 5,
+      "capsule-inset": 8
+    },
+    "clients-onepage-client-company--overview-without-finance · rtl": {
+      "container-inset": 5,
+      "target-size": 5,
+      "capsule-inset": 8
+    },
+    "clients-onepage-client-company--people · light": {
+      "capsule-inset": 2
+    },
+    "clients-onepage-client-company--people · rtl": {
+      "capsule-inset": 2
+    },
+    "clients-onepage-client-company--projects-at-risk · light": {
+      "capsule-inset": 4
+    },
+    "clients-onepage-client-company--projects-at-risk · rtl": {
+      "capsule-inset": 4
+    },
+    "home-business-briefing--empty · light": {
+      "capsule-inset": 1
+    },
+    "home-business-briefing--empty · rtl": {
+      "capsule-inset": 1
+    },
+    "home-business-briefing--failed · light": {
+      "capsule-inset": 1
+    },
+    "home-business-briefing--failed · rtl": {
+      "capsule-inset": 1
+    },
+    "home-business-briefing--lead · light": {
+      "capsule-inset": 5
+    },
+    "home-business-briefing--lead · rtl": {
+      "capsule-inset": 5
+    },
+    "home-business-briefing--owner · light": {
+      "capsule-inset": 8
+    },
+    "home-business-briefing--owner · rtl": {
+      "capsule-inset": 8
+    },
+    "home-business-briefing--phone · light": {
+      "container-inset": 8,
+      "capsule-inset": 8
+    },
+    "home-business-briefing--phone · rtl": {
+      "container-inset": 8,
+      "capsule-inset": 8
+    },
+    "platform-attack-tracker--accounts · light": {
+      "capsule-inset": 33,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--accounts · rtl": {
+      "capsule-inset": 33,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--allow-add · light": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--allow-add · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--allow-blocked · light": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--allow-blocked · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--arabic · light": {
+      "capsule-inset": 31,
+      "container-inset": 4,
+      "target-size": 10
+    },
+    "platform-attack-tracker--arabic · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 4,
+      "target-size": 10
+    },
+    "platform-attack-tracker--block-allowlisted · light": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--block-allowlisted · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--block-dialog · light": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--block-dialog · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--could-not-load · light": {
+      "capsule-inset": 3,
+      "container-inset": 2
+    },
+    "platform-attack-tracker--could-not-load · rtl": {
+      "capsule-inset": 3,
+      "container-inset": 2
+    },
+    "platform-attack-tracker--default · light": {
+      "capsule-inset": 31,
+      "container-inset": 4,
+      "target-size": 10
+    },
+    "platform-attack-tracker--default · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 4,
+      "target-size": 10
+    },
+    "platform-attack-tracker--door-off · light": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--door-off · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--quiet · light": {
+      "capsule-inset": 2,
+      "container-inset": 2
+    },
+    "platform-attack-tracker--quiet · rtl": {
+      "capsule-inset": 2,
+      "container-inset": 2
+    },
+    "platform-attack-tracker--row-menu · light": {
+      "capsule-inset": 31,
+      "container-inset": 4,
+      "target-size": 10
+    },
+    "platform-attack-tracker--row-menu · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 4,
+      "target-size": 10
+    },
+    "platform-attack-tracker--side-sheet-1024 · light": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--side-sheet-1024 · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--sign-out · light": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-attack-tracker--sign-out · rtl": {
+      "capsule-inset": 31,
+      "container-inset": 5,
+      "target-size": 10
+    },
+    "platform-growth-figures--no-data-yet · light": {
+      "capsule-inset": 1
+    },
+    "platform-growth-figures--no-data-yet · rtl": {
+      "capsule-inset": 1
+    },
+    "projects-onepage-project-overview--activity · light": {
+      "capsule-inset": 13
+    },
+    "projects-onepage-project-overview--activity · rtl": {
+      "capsule-inset": 13
+    },
+    "projects-onepage-project-overview--activity-arabic · light": {
+      "capsule-inset": 13
+    },
+    "projects-onepage-project-overview--activity-arabic · rtl": {
+      "capsule-inset": 13
+    },
+    "projects-onepage-project-overview--activity-empty · light": {
+      "capsule-inset": 9
+    },
+    "projects-onepage-project-overview--activity-empty · rtl": {
+      "capsule-inset": 9
+    },
+    "projects-onepage-project-overview--activity-phone · light": {
+      "capsule-inset": 13,
+      "container-inset": 1
+    },
+    "projects-onepage-project-overview--activity-phone · rtl": {
+      "capsule-inset": 13,
+      "container-inset": 1
+    },
+    "projects-onepage-project-overview--activity-without-finance · light": {
+      "capsule-inset": 11
+    },
+    "projects-onepage-project-overview--activity-without-finance · rtl": {
+      "capsule-inset": 11
+    },
+    "projects-onepage-project-overview--empty · light": {
+      "container-inset": 6,
+      "target-size": 6
+    },
+    "projects-onepage-project-overview--empty · rtl": {
+      "container-inset": 6,
+      "target-size": 6
+    },
+    "projects-onepage-project-overview--filled · light": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 8
+    },
+    "projects-onepage-project-overview--filled · rtl": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 8
+    },
+    "projects-onepage-project-overview--filled-arabic · light": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 8
+    },
+    "projects-onepage-project-overview--filled-arabic · rtl": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 8
+    },
+    "projects-onepage-project-overview--load-failed · light": {
+      "capsule-inset": 1
+    },
+    "projects-onepage-project-overview--load-failed · rtl": {
+      "capsule-inset": 1
+    },
+    "projects-onepage-project-overview--phone · light": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 10
+    },
+    "projects-onepage-project-overview--phone · rtl": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 10
+    },
+    "projects-onepage-project-overview--with-signals · light": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 10
+    },
+    "projects-onepage-project-overview--with-signals · rtl": {
+      "container-inset": 6,
+      "target-size": 6,
+      "capsule-inset": 10
+    },
+    "projects-onepage-project-overview--without-finance · light": {
+      "container-inset": 5,
+      "target-size": 5,
+      "capsule-inset": 6
+    },
+    "projects-onepage-project-overview--without-finance · rtl": {
+      "container-inset": 5,
+      "target-size": 5,
+      "capsule-inset": 6
+    },
+    "settings-alerts--phone · light": {
+      "capsule-inset": 17,
+      "container-inset": 1
+    },
+    "settings-alerts--phone · rtl": {
+      "capsule-inset": 17,
+      "container-inset": 1
+    },
+    "vr-admin-policies--policy · light": {
+      "capsule-inset": 1,
+      "container-inset": 1
+    },
+    "vr-admin-policies--policy · rtl": {
+      "capsule-inset": 1,
+      "container-inset": 1
+    },
+    "vr-automations--schedules · light": {
+      "control-inset": 3,
+      "container-inset": 2,
+      "capsule-inset": 1
+    },
+    "vr-automations--schedules · rtl": {
+      "control-inset": 3,
+      "container-inset": 2,
+      "capsule-inset": 1
+    },
+    "vr-automations--templates · light": {
+      "control-inset": 3,
+      "target-size": 2,
+      "capsule-inset": 1,
+      "container-inset": 1
+    },
+    "vr-automations--templates · rtl": {
+      "control-inset": 3,
+      "target-size": 2,
+      "capsule-inset": 1,
+      "container-inset": 2
+    },
+    "vr-billing--invoices · light": {
+      "container-inset": 3,
+      "capsule-inset": 3
+    },
+    "vr-billing--invoices · rtl": {
+      "container-inset": 3,
+      "capsule-inset": 3
+    },
+    "vr-billing--seats · light": {
+      "container-inset": 2,
+      "capsule-inset": 3
+    },
+    "vr-billing--seats · rtl": {
+      "container-inset": 2,
+      "capsule-inset": 3
+    },
+    "vr-copilot-answer--answer · light": {
+      "capsule-inset": 4,
+      "container-inset": 3
+    },
+    "vr-copilot-answer--answer · rtl": {
+      "capsule-inset": 4,
+      "container-inset": 3
+    },
+    "vr-file-viewer--image-with-pins · light": {
+      "capsule-inset": 14,
+      "control-inset": 8,
+      "container-inset": 7
+    },
+    "vr-file-viewer--image-with-pins · rtl": {
+      "capsule-inset": 15,
+      "control-inset": 7,
+      "container-inset": 7
+    },
+    "vr-file-viewer-drawing--drawings-and-toolbar · light": {
+      "capsule-inset": 10,
+      "control-inset": 6,
+      "container-inset": 5
+    },
+    "vr-file-viewer-drawing--drawings-and-toolbar · rtl": {
+      "capsule-inset": 11,
+      "control-inset": 5,
+      "container-inset": 5
+    },
+    "vr-insights-portfolio-mobile--summary · light": {
+      "target-size": 2
+    },
+    "vr-insights-portfolio-mobile--summary · rtl": {
+      "target-size": 2
+    },
+    "vr-people-directory--directory · light": {
+      "capsule-inset": 7,
+      "container-inset": 1
+    },
+    "vr-people-directory--directory · rtl": {
+      "capsule-inset": 7,
+      "container-inset": 1
+    },
+    "vr-platform-states--maintenance-degraded · light": {
+      "capsule-inset": 1
+    },
+    "vr-platform-states--maintenance-degraded · rtl": {
+      "capsule-inset": 1
+    },
+    "vr-platform-states--maintenance-down · light": {
+      "capsule-inset": 1
+    },
+    "vr-platform-states--maintenance-down · rtl": {
+      "capsule-inset": 1
+    },
+    "vr-platform-states--offline · light": {
+      "capsule-inset": 1
+    },
+    "vr-platform-states--offline · rtl": {
+      "capsule-inset": 1
+    },
+    "vr-policy-simulation--decision · light": {
+      "capsule-inset": 1
+    },
+    "vr-policy-simulation--decision · rtl": {
+      "capsule-inset": 1
+    },
+    "vr-portal-milestones--timeline · light": {
+      "capsule-inset": 5,
+      "text-size": 3
+    },
+    "vr-portal-milestones--timeline · rtl": {
+      "capsule-inset": 5,
+      "text-size": 3
+    },
+    "vr-preferences--appearance · light": {
+      "capsule-inset": 5
+    },
+    "vr-preferences--appearance · rtl": {
+      "capsule-inset": 5
+    },
+    "vr-preferences--quiet-hours · light": {
+      "container-inset": 2
+    },
+    "vr-preferences--quiet-hours · rtl": {
+      "container-inset": 2
+    },
+    "vr-pwa-notices--update-available · light": {
+      "capsule-inset": 1
+    },
+    "vr-pwa-notices--update-available · rtl": {
+      "capsule-inset": 1
+    },
+    "vr-quick-capture--sheet · light": {
+      "capsule-inset": 3,
+      "target-size": 1
+    },
+    "vr-quick-capture--sheet · rtl": {
+      "capsule-inset": 3,
+      "target-size": 1
+    },
+    "vr-security-tokens--see-once · light": {
+      "capsule-inset": 4
+    },
+    "vr-security-tokens--see-once · rtl": {
+      "capsule-inset": 4
+    },
+    "vr-security-tokens--tokens · light": {
+      "capsule-inset": 2
+    },
+    "vr-security-tokens--tokens · rtl": {
+      "capsule-inset": 2
+    }
+  }
+}

@@ -58,7 +58,9 @@ export const DENSITY_V2: LayoutOptions = {
 
 export function measureLayout(options: LayoutOptions): LayoutViolation[] {
   const out: LayoutViolation[] = [];
-  const scope: ParentNode = options.root ? (document.querySelector(options.root) ?? document) : document;
+  const scope: ParentNode = options.root
+    ? (document.querySelector(options.root) ?? document)
+    : document;
   const round = (n: number) => Math.round(n * 10) / 10;
 
   const describe = (el: Element): string => {
@@ -146,7 +148,9 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
       const rtl = getComputedStyle(body).direction === 'rtl';
       const gap = rtl ? r.left - c.right : c.left - r.right;
       // The gutter token changes with the Figma Layout mode (32 / 24 / 16); read the live value.
-      const token = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--page-gutter'));
+      const token = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--page-gutter'),
+      );
       const required = Number.isFinite(token) ? token : options.gutter;
       if (gap < required - 0.5) {
         out.push({ rule: 'gutter', where: describe(first), measured: round(gap), required });
@@ -155,7 +159,9 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
   }
 
   const interactive = (el: Element) =>
-    el.matches('button, a[href], [role="button"], [role="tab"], [role="link"], summary, select, input:not([type="hidden"])');
+    el.matches(
+      'button, a[href], [role="button"], [role="tab"], [role="link"], summary, select, input:not([type="hidden"])',
+    );
 
   for (const el of all) {
     const box = el.getBoundingClientRect();
@@ -165,18 +171,30 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
     if (own) {
       const size = parseFloat(getComputedStyle(el).fontSize);
       if (size < options.minText - 0.05) {
-        out.push({ rule: 'text-size', where: describe(el), measured: round(size), required: options.minText });
+        out.push({
+          rule: 'text-size',
+          where: describe(el),
+          measured: round(size),
+          required: options.minText,
+        });
       }
     }
 
     // target-size — buttons and standalone links (a link inside running text is exempt, SC 2.5.8).
     if (interactive(el) && !el.closest('p, li > span, [data-inline-link]')) {
       const inputType = el instanceof HTMLInputElement ? el.type : '';
-      const textual = el instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit'].includes(inputType);
+      const textual =
+        el instanceof HTMLInputElement &&
+        !['checkbox', 'radio', 'button', 'submit'].includes(inputType);
       if (!textual) {
         const small = Math.min(box.width, box.height);
         if (small < options.minTarget - 0.5) {
-          out.push({ rule: 'target-size', where: describe(el), measured: round(small), required: options.minTarget });
+          out.push({
+            rule: 'target-size',
+            where: describe(el),
+            measured: round(small),
+            required: options.minTarget,
+          });
         }
       }
     }
@@ -193,29 +211,49 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
     if (capsule) {
       // Rule 1: 16px and at least half the height from a rounded end; a tall capsule is held to
       // the 24px any container edge needs, not more (the curve has turned by then).
-      const required = Math.max(options.capsuleInset, Math.min(box.height / 2, options.containerInset));
+      const required = Math.max(
+        options.capsuleInset,
+        Math.min(box.height / 2, options.containerInset),
+      );
       if (inset < required - 0.5) {
-        out.push({ rule: 'capsule-inset', where: describe(el), measured: round(inset), required: round(required) });
+        out.push({
+          rule: 'capsule-inset',
+          where: describe(el),
+          measured: round(inset),
+          required: round(required),
+        });
       }
       continue;
     }
 
     if (interactive(el) || el.matches('[class*="chip"], [class*="pill"], [class*="tag"]')) {
       if (inset < options.controlInset - 0.5) {
-        out.push({ rule: 'control-inset', where: describe(el), measured: round(inset), required: options.controlInset });
+        out.push({
+          rule: 'control-inset',
+          where: describe(el),
+          measured: round(inset),
+          required: options.controlInset,
+        });
       }
       continue;
     }
 
     const container =
       el.matches('dialog, [role="dialog"], [role="alertdialog"], section, article, aside') ||
-      /(?:^|[-_])(card|panel|sheet|dialog|lens|context-rail)(?:$|[-_])/.test(el.className.toString());
+      /(?:^|[-_])(card|panel|sheet|dialog|lens|context-rail)(?:$|[-_])/.test(
+        el.className.toString(),
+      );
     if (container && box.height >= 48) {
       const top = text.top - box.top;
       const bottom = box.bottom - text.bottom;
       const edge = Math.min(start, end, top, bottom);
       if (edge < options.containerInset - 0.5) {
-        out.push({ rule: 'container-inset', where: describe(el), measured: round(edge), required: options.containerInset });
+        out.push({
+          rule: 'container-inset',
+          where: describe(el),
+          measured: round(edge),
+          required: options.containerInset,
+        });
       }
     }
   }
@@ -223,7 +261,12 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
   // header-height — the page header row: one control height.
   for (const row of scope.querySelectorAll('.tm-canvas-header__actions')) {
     const controls = [...row.querySelectorAll('button, a[href], [role="button"]')].filter(
-      (c) => visible(c) && c.closest('.tm-canvas-header__actions') === row && !c.closest('[role="menu"], [role="dialog"]'),
+      (c) =>
+        visible(c) &&
+        c.closest('.tm-canvas-header__actions') === row &&
+        !c.closest(
+          '[role="menu"], [role="dialog"], [role="listbox"], [popover], [class*="__panel"]',
+        ),
     );
     const heights = [...new Set(controls.map((c) => Math.round(c.getBoundingClientRect().height)))];
     if (heights.length > 1) {
@@ -240,7 +283,9 @@ export function measureLayout(options: LayoutOptions): LayoutViolation[] {
 }
 
 /** Violations counted per rule, the unit the baseline ratchets. */
-export function countByRule(violations: readonly LayoutViolation[]): Partial<Record<LayoutRule, number>> {
+export function countByRule(
+  violations: readonly LayoutViolation[],
+): Partial<Record<LayoutRule, number>> {
   const counts: Partial<Record<LayoutRule, number>> = {};
   for (const v of violations) counts[v.rule] = (counts[v.rule] ?? 0) + 1;
   return counts;

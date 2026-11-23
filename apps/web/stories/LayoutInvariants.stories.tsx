@@ -43,7 +43,10 @@ function ShellFixture({ beforeFix }: { readonly beforeFix: boolean }) {
                     <button type="button" className="tm-button tm-button--lime tm-button--header">
                       New work
                     </button>
-                    <button type="button" className="tm-button tm-button--outline tm-button--header">
+                    <button
+                      type="button"
+                      className="tm-button tm-button--outline tm-button--header"
+                    >
                       Help
                     </button>
                   </div>
