@@ -1,3 +1,6 @@
+import { ANTHROPIC_API_VERSION, THINKING_OFF } from './ai-client.js';
+import { isPricedModel, type AiModelId } from './ai-price-table.js';
+import { AiMalformedResponseError, readResponse } from './ai-response.js';
 import { LocalStubProvider } from './copilot.provider.js';
 import type { CopilotContext, CopilotProvider, CopilotProviderAnswer } from './copilot.provider.js';
 
@@ -115,9 +118,36 @@ abstract class RemoteCopilotProvider implements CopilotProvider {
   protected abstract extractAnswer(body: unknown): string;
 }
 
-/** Anthropic Messages API (`POST /v1/messages`). */
+/**
+ * The remote copilot's answer budget. AI-ROUTER-FIX: with thinking off (below) all of it is answer;
+ * the current models think by default and count thinking toward `max_tokens`, which could leave a
+ * reply with no text at all.
+ */
+export const REMOTE_COPILOT_MAX_TOKENS = 1_024;
+
+/**
+ * Anthropic Messages API (`POST /v1/messages`).
+ *
+ * AI-ROUTER-FIX: the same request rules as the in-app AI client (`ai-client.ts`): the current API
+ * version, thinking stated explicitly in the model's own "off" form (Haiku 5.5 `disabled`, Sonnet
+ * 5.5 `between_tools`), effort `low`, and the reply read by the strict Messages parser. So the
+ * model must be one of the priced models ({@link selectCopilotProvider} refuses any other); a reply
+ * that is not a clean `end_turn` with text (cut at `max_tokens`, refused, thinking only) is a
+ * clear stop that fails closed to the stub, logged with its stop reason and block types only.
+ */
 export class AnthropicCopilotProvider extends RemoteCopilotProvider {
   readonly id = 'anthropic';
+
+  /** The priced model this adapter calls; refused at construction otherwise. */
+  private readonly pricedModel: AiModelId;
+
+  constructor(deps: RemoteProviderDeps) {
+    super(deps);
+    if (!isPricedModel(deps.model)) {
+      throw new Error('the Anthropic copilot adapter needs a model from the price table');
+    }
+    this.pricedModel = deps.model;
+  }
 
   protected override buildRequest(question: string, context: CopilotContext): RemoteRequest {
     return {
@@ -127,11 +157,13 @@ export class AnthropicCopilotProvider extends RemoteCopilotProvider {
         headers: {
           'content-type': 'application/json',
           'x-api-key': this.deps.apiKey,
-          'anthropic-version': '2023-06-01',
+          'anthropic-version': ANTHROPIC_API_VERSION,
         },
         body: JSON.stringify({
-          model: this.deps.model,
-          max_tokens: 1024,
+          model: this.pricedModel,
+          max_tokens: REMOTE_COPILOT_MAX_TOKENS,
+          thinking: THINKING_OFF[this.pricedModel],
+          output_config: { effort: 'low' },
           system: systemPrompt(context),
           messages: [{ role: 'user', content: question }],
         }),
@@ -140,16 +172,24 @@ export class AnthropicCopilotProvider extends RemoteCopilotProvider {
   }
 
   protected override extractAnswer(body: unknown): string {
-    if (isRecord(body) && Array.isArray(body['content'])) {
-      const parts: string[] = [];
-      for (const block of body['content']) {
-        if (isRecord(block) && typeof block['text'] === 'string') {
-          parts.push(block['text']);
-        }
-      }
-      return parts.join('');
+    let response;
+    try {
+      response = readResponse(body);
+    } catch (error: unknown) {
+      const reason = error instanceof AiMalformedResponseError ? error.message : 'unreadable';
+      throw new Error(`malformed reply (${reason})`);
     }
-    return '';
+    const text = response.content
+      .flatMap((block) => (block.type === 'text' ? [block.text] : []))
+      .join('');
+    if (response.stopReason !== 'end_turn' || text.trim().length === 0) {
+      // A clear stop, never a cut or empty answer shown as if whole. Shape only in the reason.
+      const blocks = response.replay
+        .map((block) => (typeof block['type'] === 'string' ? block['type'] : 'unknown'))
+        .join(',');
+      throw new Error(`no whole answer (stop_reason=${response.stopReason} blocks=[${blocks}])`);
+    }
+    return text;
   }
 }
 
@@ -191,6 +231,8 @@ export class OpenAiCopilotProvider extends RemoteCopilotProvider {
     return '';
   }
 }
+
+const PRICED_MODELS_TEXT = Object.keys(THINKING_OFF).join(', ');
 
 /** Overridable collaborators for {@link selectCopilotProvider}; defaults are the real ones. */
 export interface SelectProviderDeps {
@@ -247,6 +289,13 @@ export function selectCopilotProvider(
     timeoutMs: deps.timeoutMs ?? 10_000,
   };
   if (choice === 'anthropic') {
+    if (!isPricedModel(model)) {
+      log(
+        `[copilot] COPILOT_MODEL is not a model of the price table (${PRICED_MODELS_TEXT}); ` +
+          'using the offline local stub.',
+      );
+      return stub;
+    }
     return new AnthropicCopilotProvider(remoteDeps);
   }
   if (choice === 'openai') {

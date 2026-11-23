@@ -24,7 +24,9 @@ import {
  */
 
 const MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
-const API_VERSION = '2026-10-21';
+/** The Messages API version every Anthropic call of the app sends (the remote copilot too). */
+export const ANTHROPIC_API_VERSION = '2026-10-21';
+const API_VERSION = ANTHROPIC_API_VERSION;
 /** The API's limit on `cache_control` breakpoints in one request. */
 const MAX_CACHE_BREAKPOINTS = 4;
 
