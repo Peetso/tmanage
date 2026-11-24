@@ -1,3 +1,4 @@
+import { renderTextReport } from '../layout.js';
 /**
  * 57-14 — `monthly_gtm_report`: the monthly go-to-market numbers (English only, per plan), sent on
  * the 1st by the worker's growth job to `ALERT_EMAILS` through the mail queue's normal lane (an
@@ -102,6 +103,7 @@ function funnel(steps: readonly GtmFunnelStep[]): string[] {
 export function composeMonthlyGtmReport(input: MonthlyGtmReportInput): {
   readonly subject: string;
   readonly text: string;
+  readonly html: string;
 } {
   const subject = `[TManage growth] ${input.month}: ${String(input.signups)} sign-up(s)`;
   const sources =
@@ -141,5 +143,6 @@ export function composeMonthlyGtmReport(input: MonthlyGtmReportInput): {
     '',
     'Details: Platform → Activity → Growth.',
   ].join('\n');
-  return { subject, text };
+  // MAILDESIGN: the same words in the shared layout.
+  return { subject, text, html: renderTextReport(subject, text) };
 }

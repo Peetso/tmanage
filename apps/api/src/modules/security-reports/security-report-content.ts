@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { signOffText } from '@tmanage/mail';
+import { designedMail, mailEyebrow, signOff } from '@tmanage/mail';
 import { emailT } from '../../common/i18n/email-messages.js';
 import { ApiError } from '../../common/http/errors.js';
 
@@ -169,16 +169,29 @@ export function composeAcknowledgement(
   to: string,
   reference: string,
   language: 'en' | 'ar' | null,
-): { to: string; subject: string; text: string; templateKey: string; language: 'en' | 'ar' } {
+): {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  templateKey: string;
+  language: 'en' | 'ar';
+} {
   const locale = language ?? 'en';
+  const subject = emailT(locale, 'securityAck.subject', { reference });
   return {
     to,
     language: locale,
-    subject: emailT(locale, 'securityAck.subject', { reference }),
+    subject,
     // C2: signed by TManage Support; a reply (keeping the reference) reaches support@.
-    text: [emailT(locale, 'securityAck.text', { reference }), signOffText('support', locale)].join(
-      '\n\n',
-    ),
+    // MAILDESIGN: in the shared layout; the text part is unchanged.
+    ...designedMail({
+      language: locale,
+      subject,
+      eyebrow: mailEyebrow('security', locale),
+      lines: [emailT(locale, 'securityAck.text', { reference })],
+      signature: signOff('support', locale),
+    }),
     templateKey: 'security_report_ack',
   };
 }

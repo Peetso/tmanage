@@ -2,12 +2,13 @@ import { authorize, uuidv7 } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
 import {
   MailRecipientSuppressedError,
-  plainMailText,
+  designedPlainMail,
+  mailEyebrow,
   signOff,
   workspaceReplyLine,
   workspaceSignOff,
 } from '@tmanage/mail';
-import type { Mailer } from '@tmanage/mail';
+import type { Mailer, MailMessage } from '@tmanage/mail';
 import { uploadObjectKey } from '@tmanage/storage';
 import type { ObjectStore } from '@tmanage/storage';
 import type {
@@ -339,21 +340,9 @@ export class EsignService {
       },
     );
     if (this.options.mailer !== null && email !== '') {
-      // EMAIL-COPY S10, signed [SEC]; the code is never in the subject. Signers carry no language.
-      await this.options.mailer.send({
-        to: email,
-        language: 'en',
-        subject: `Your signature code for ${oneLine(title)}`,
-        templateKey: 'esign_code',
-        text: plainMailText('en', {
-          lines: [
-            `Your code to sign "${oneLine(title)}" for ${organizationName} is ${code}.`,
-            `Enter it on the signing page to confirm it is you. It works once and expires in ${CODE_TTL_MS / 60_000} minutes.`,
-            'Did not start a signature? Ignore this e-mail; nothing is signed without the code.',
-          ],
-          signature: signOff('security', 'en'),
-        }),
-      });
+      await this.options.mailer.send(
+        composeSignatureCodeMail({ to: email, code, title, organizationName }),
+      );
     }
     return {
       emailHint: maskEmail(email) ?? '',
@@ -810,35 +799,10 @@ export class EsignService {
     if (this.options.mailer === null) return;
     const base = this.options.webPublicUrl?.replace(/\/+$/u, '') ?? null;
     const link = base === null ? null : `${base}/${organization.slug}/portal/sign/${requestId}`;
-    const name = oneLine(title);
-    // EMAIL-COPY K9, signed [WS] with R3. No acting person is named: the principal carries none.
-    const text = plainMailText('en', {
-      lines: [
-        `${organization.name} asks you to sign "${name}".`,
-        link === null ? '' : `Read and sign: ${link}`,
-        'You sign in your client portal. We will e-mail you a short code to confirm it is you.',
-      ],
-      signature: workspaceSignOff(
-        'en',
-        organization.name,
-        workspaceReplyLine('en', 'none', {
-          workspaceName: organization.name,
-          ...(link === null ? {} : { portalLink: link }),
-        }),
-      ),
-    });
+    const body = composeSignatureRequestMail({ workspaceName: organization.name, title, link });
     for (const address of to) {
       try {
-        await this.options.mailer.send({
-          to: address,
-          language: 'en',
-          subject: `${organization.name} asks you to sign ${name}`,
-          text,
-          organizationId,
-          templateKey: 'esign_request',
-          audience: 'client',
-          actingFor: { workspaceName: organization.name, replyRoute: 'none' },
-        });
+        await this.options.mailer.send({ to: address, ...body, organizationId });
       } catch (error) {
         // 56-26: an address that bounced in this company is skipped; the request stays in the
         // signer's portal. Any other transport failure is reported as before.
@@ -886,4 +850,75 @@ function succeeded<T>(value: T): Outcome<T> {
 /** A title flattened to one line before it reaches a header or the body. */
 function oneLine(value: string): string {
   return value.replaceAll(/\s+/gu, ' ').trim();
+}
+
+/**
+ * EMAIL-COPY S10, signed [SEC]; the code is never in the subject. Signers carry no language.
+ * MAILDESIGN: the shared layout, the code drawn large; the text part is unchanged.
+ */
+export function composeSignatureCodeMail(facts: {
+  readonly to: string;
+  readonly code: string;
+  readonly title: string;
+  readonly organizationName: string;
+}): MailMessage {
+  const subject = `Your signature code for ${oneLine(facts.title)}`;
+  return {
+    to: facts.to,
+    language: 'en',
+    subject,
+    templateKey: 'esign_code',
+    ...designedPlainMail('en', {
+      subject,
+      eyebrow: mailEyebrow('security', 'en'),
+      lines: [
+        {
+          code: facts.code,
+          text: `Your code to sign "${oneLine(facts.title)}" for ${facts.organizationName} is ${facts.code}.`,
+        },
+        `Enter it on the signing page to confirm it is you. It works once and expires in ${CODE_TTL_MS / 60_000} minutes.`,
+        'Did not start a signature? Ignore this e-mail; nothing is signed without the code.',
+      ],
+      signature: signOff('security', 'en'),
+    }),
+  };
+}
+
+/**
+ * EMAIL-COPY K9, signed [WS] with R3. No acting person is named: the principal carries none.
+ * MAILDESIGN: the shared layout, the workspace as the eyebrow; the text part is unchanged. The
+ * caller adds the recipient and the company.
+ */
+export function composeSignatureRequestMail(facts: {
+  readonly workspaceName: string;
+  readonly title: string;
+  readonly link: string | null;
+}): Omit<MailMessage, 'to'> {
+  const { workspaceName, link } = facts;
+  const name = oneLine(facts.title);
+  const subject = `${workspaceName} asks you to sign ${name}`;
+  return {
+    language: 'en',
+    subject,
+    ...designedPlainMail('en', {
+      subject,
+      eyebrow: workspaceName,
+      lines: [
+        `${workspaceName} asks you to sign "${name}".`,
+        link === null ? '' : { label: 'Read and sign', link },
+        'You sign in your client portal. We will e-mail you a short code to confirm it is you.',
+      ],
+      signature: workspaceSignOff(
+        'en',
+        workspaceName,
+        workspaceReplyLine('en', 'none', {
+          workspaceName,
+          ...(link === null ? {} : { portalLink: link }),
+        }),
+      ),
+    }),
+    templateKey: 'esign_request',
+    audience: 'client',
+    actingFor: { workspaceName, replyRoute: 'none' },
+  };
 }

@@ -1,5 +1,5 @@
-import { forCompany, greeting, signOffText } from '@tmanage/mail';
-import type { Mailer, MailMessage } from '@tmanage/mail';
+import { designedMail, forCompany, greeting, mailEyebrow, signOff } from '@tmanage/mail';
+import type { MailLine, Mailer, MailMessage } from '@tmanage/mail';
 import { isArabicLocale } from './collaboration-mailer.js';
 
 /**
@@ -59,7 +59,7 @@ export function formatMailDate(date: Date, arabic: boolean): string {
 
 interface Copy {
   readonly subject: string;
-  readonly lines: readonly string[];
+  readonly lines: readonly MailLine[];
 }
 
 function englishCopy(kind: PrivacyMailKind, facts: PrivacyEmailFacts): Copy {
@@ -68,8 +68,8 @@ function englishCopy(kind: PrivacyMailKind, facts: PrivacyEmailFacts): Copy {
   const subject = company ? studio : `your account in ${studio}`;
   const Subject = company ? studio : `Your account in ${studio}`;
   const when = facts.scheduledFor === undefined ? '' : formatMailDate(facts.scheduledFor, false);
-  const link = (label: string): string[] =>
-    facts.link === undefined ? [] : [`${label}: ${facts.link}`];
+  const link = (label: string): MailLine[] =>
+    facts.link === undefined ? [] : [{ label, link: facts.link }];
   switch (kind) {
     case 'export_ready':
       return {
@@ -117,8 +117,8 @@ function arabicCopy(kind: PrivacyMailKind, facts: PrivacyEmailFacts): Copy {
   const company = facts.scope === 'company';
   const target = company ? studio : `حسابك في ${studio}`;
   const when = facts.scheduledFor === undefined ? '' : formatMailDate(facts.scheduledFor, true);
-  const link = (label: string): string[] =>
-    facts.link === undefined ? [] : [`${label}: ${facts.link}`];
+  const link = (label: string): MailLine[] =>
+    facts.link === undefined ? [] : [{ label, link: facts.link }];
   switch (kind) {
     case 'export_ready':
       return {
@@ -170,15 +170,26 @@ export function composePrivacyEmail(kind: PrivacyMailKind, facts: PrivacyEmailFa
   const help = arabic
     ? 'لم تطلب ذلك؟ راسلنا على support@tmanageapp.com.'
     : 'Did not ask for this? Write to support@tmanageapp.com.';
+  const subject = `${mark}${copy.subject}`;
+  const marked = (line: MailLine): MailLine =>
+    typeof line === 'string'
+      ? `${mark}${line}`
+      : 'link' in line
+        ? { label: `${mark}${line.label}`, link: line.link }
+        : line;
+  // MAILDESIGN: the shared layout; the text part is the paragraphs it always had.
   return {
     to: facts.recipientEmail,
     language,
-    subject: `${mark}${copy.subject}`,
-    text: [
-      `${mark}${greeting(language, facts.recipientName)}`,
-      ...[...copy.lines, help].map((line) => `${mark}${line}`),
-      signOffText('security', language),
-    ].join('\n\n'),
+    subject,
+    ...designedMail({
+      language,
+      subject,
+      eyebrow: mailEyebrow('account', language),
+      greeting: `${mark}${greeting(language, facts.recipientName)}`,
+      lines: [...copy.lines, help].map(marked),
+      signature: signOff('security', language),
+    }),
   };
 }
 

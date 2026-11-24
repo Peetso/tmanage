@@ -1,3 +1,4 @@
+import { mailEyebrow, renderMailLayout } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 
 /**
@@ -130,6 +131,7 @@ export class AlertNotifier {
           to,
           subject: message.subject,
           text: message.text,
+          html: message.html,
           templateKey: 'ops_alert',
         });
       } catch (error) {
@@ -142,31 +144,56 @@ export class AlertNotifier {
   }
 }
 
-/** The plain-text mail for one alert. Exported for the unit test. */
+/** The mail for one alert: plain text and the shared layout's HTML. Exported for the unit test. */
 export function renderAlert(
   kind: string,
   facts: AlertFacts,
   at: Date,
   held: number,
-): { subject: string; text: string } {
+): { subject: string; text: string; html: string } {
   const what = kind.startsWith('http_5xx')
     ? 'A request failed with a server error'
     : kind.startsWith('job_')
       ? 'A background job failed'
       : 'TManage needs attention';
-  const lines = [`${what}.`, '', `Kind: ${kind}`, `Time (UTC): ${at.toISOString()}`];
+  const rows: { label: string; value: string }[] = [
+    { label: 'Kind', value: kind },
+    { label: 'Time (UTC)', value: at.toISOString() },
+  ];
   const route = safeRoute(facts.route);
-  if (route !== undefined) lines.push(`Route: ${route}`);
-  if (facts.errorName !== undefined) lines.push(`Error: ${facts.errorName.slice(0, 80)}`);
-  if (facts.detail !== undefined) lines.push(`Detail: ${facts.detail.slice(0, 300)}`);
-  if (facts.correlationId !== undefined) lines.push(`Correlation id: ${facts.correlationId}`);
-  if (held > 0) lines.push(`Held back since the last alert of this kind: ${String(held)}`);
-  lines.push(
-    '',
+  if (route !== undefined) rows.push({ label: 'Route', value: route });
+  if (facts.errorName !== undefined)
+    rows.push({ label: 'Error', value: facts.errorName.slice(0, 80) });
+  if (facts.detail !== undefined) rows.push({ label: 'Detail', value: facts.detail.slice(0, 300) });
+  if (facts.correlationId !== undefined) {
+    rows.push({ label: 'Correlation id', value: facts.correlationId });
+  }
+  if (held > 0) {
+    rows.push({ label: 'Held back since the last alert of this kind', value: String(held) });
+  }
+  const notes = [
     'You get at most one alert of each kind every 15 minutes.',
     'Search the server log for the correlation id to see the full entry.',
-  );
-  return { subject: `[TManage alert] ${what}: ${kind}`, text: lines.join('\n') };
+  ];
+  const subject = `[TManage alert] ${what}: ${kind}`;
+  const text = [
+    `${what}.`,
+    '',
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    '',
+    ...notes,
+  ].join('\n');
+  // MAILDESIGN: the operator's alert in the shared layout too (internal, English only).
+  const html = renderMailLayout({
+    arabic: false,
+    subject,
+    preheader: `${what}.`,
+    eyebrow: mailEyebrow('operations', 'en'),
+    heading: `${what}.`,
+    blocks: [{ kind: 'rows', rows }],
+    note: notes.join(' '),
+  });
+  return { subject, text, html };
 }
 
 /** The process's notifier, from the parsed recipients and the app's own mailer. */

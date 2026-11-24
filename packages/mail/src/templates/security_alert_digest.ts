@@ -1,3 +1,4 @@
+import { renderTextReport } from '../layout.js';
 /**
  * 56-23 — `security_alert_digest`: the batched security alert (transactional lane, noreply@).
  *
@@ -61,6 +62,7 @@ export function securityDigestLabel(ruleKey: string): readonly [string, string] 
 export function composeSecurityAlertDigest(input: SecurityDigestInput): {
   readonly subject: string;
   readonly text: string;
+  readonly html: string;
 } {
   const high = input.signals.filter((signal) => signal.severity === 'high').length;
   const subject =
@@ -89,5 +91,6 @@ export function composeSecurityAlertDigest(input: SecurityDigestInput): {
       ? 'Details: Platform → Alerts.'
       : 'Details: Admin → Security events.',
   ].join('\n');
-  return { subject, text };
+  // MAILDESIGN: the same words in the shared layout.
+  return { subject, text, html: renderTextReport(subject, text) };
 }

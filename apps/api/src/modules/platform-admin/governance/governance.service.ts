@@ -1,5 +1,5 @@
 import { uuidv7 } from '@tmanage/domain';
-import { greeting } from '@tmanage/mail';
+import { designedMail, greeting, mailEyebrow } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { ApiError, MESSAGES } from '../../../common/http/errors.js';
 import { optionalReason, requireReason } from '../platform-admin.access.js';
@@ -409,16 +409,23 @@ export class PlatformGovernanceService {
         // the signed-in account's, never typed in the form. The owner row carries no name or
         // language, so the greeting is "Hello," and the mail is English.
         const staff = actor.account.displayName.trim();
+        const mailSubject = `About ${owner.organizationName}: ${subject}`;
         delivery = await this.mailer.send({
           to: owner.ownerEmail,
           language: 'en',
-          subject: `About ${owner.organizationName}: ${subject}`,
-          text: [
-            greeting('en', undefined),
-            message,
-            'If you have a question about this, reply to this e-mail. It reaches our support team.',
-            staff === '' ? 'TManage Support' : `${staff}, TManage Support`,
-          ].join('\n\n'),
+          subject: mailSubject,
+          // MAILDESIGN: the shared layout; the text part is the paragraphs it always had.
+          ...designedMail({
+            language: 'en',
+            subject: mailSubject,
+            eyebrow: mailEyebrow('support', 'en'),
+            greeting: greeting('en', undefined),
+            lines: [
+              message,
+              'If you have a question about this, reply to this e-mail. It reaches our support team.',
+            ],
+            signature: [staff === '' ? 'TManage Support' : `${staff}, TManage Support`],
+          }),
           templateKey: 'platform_owner_notice',
         });
       } catch {

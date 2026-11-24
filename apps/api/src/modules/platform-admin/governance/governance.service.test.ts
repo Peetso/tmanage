@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
+import { MAIL_LAYOUT_MARK } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { ApiError } from '../../../common/http/errors.js';
 import { PlatformOrganizationsController } from '../organizations/organizations.controller.js';
@@ -226,6 +227,11 @@ describe('56-21 owner notices', () => {
     );
     expect(view.delivery).toBe('sent');
     expect(h.sent[0]).toMatchObject({ to: 'mona@acme.test', templateKey: 'platform_owner_notice' });
+    // MAILDESIGN: the shared layout beside the text part; the staff message is in both.
+    const mail = h.sent[0] as { text: string; html: string };
+    expect(mail.html).toContain(MAIL_LAYOUT_MARK);
+    expect(mail.html).toContain('Please clean up.');
+    expect(mail.text).toContain('Please clean up.');
     expect(JSON.stringify(h.notices)).not.toContain('mona@acme.test');
     expect(h.audits[0]?.action).toBe('platform.owner_notice_sent');
   });

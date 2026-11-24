@@ -1,6 +1,7 @@
 import type { Principal } from '@tmanage/domain';
 import {
   anchored,
+  designedMail,
   forCompany,
   greeting,
   workspaceReplyLine,
@@ -268,23 +269,27 @@ export function composeAskResendEmail(facts: {
           : workspaceReplyLine(language, 'none', { workspaceName: studio }),
       )
     : [];
-  const text = [
-    anchored(language, greeting(language, undefined)),
-    [anchored(language, lead), ...listed].join('\n'),
-    anchored(language, ask),
-    ...(signature.length === 0 ? [] : [anchored(language, signature.join('\n'))]),
-  ].join('\n\n');
   const fallbackSubject = ar ? 'من فضلك أعد إرسال المرفقات' : 'Please send your attachments again';
+  const subject = anchored(
+    language,
+    subjectLine !== 'attachment' && subjectLine !== ''
+      ? `${ar ? 'رد' : 'Re'}: ${subjectLine}`
+      : fallbackSubject,
+  );
+  // MAILDESIGN: the shared layout; the text part is the paragraphs it always had.
+  const body = designedMail({
+    language,
+    subject,
+    ...(named ? { eyebrow: studio } : {}),
+    greeting: anchored(language, greeting(language, undefined)),
+    lines: [[anchored(language, lead), ...listed].join('\n'), anchored(language, ask)],
+    signature: signature.map((line, index) => (index === 0 ? anchored(language, line) : line)),
+  });
   return {
     to: facts.to,
     language,
-    subject: anchored(
-      language,
-      subjectLine !== 'attachment' && subjectLine !== ''
-        ? `${ar ? 'رد' : 'Re'}: ${subjectLine}`
-        : fallbackSubject,
-    ),
-    text,
+    subject,
+    ...body,
     ...(facts.replyTo ? { replyTo: facts.replyTo } : {}),
     ...(named
       ? {

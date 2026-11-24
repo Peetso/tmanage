@@ -12,6 +12,8 @@ import {
   createIdentityMailers,
   deriveBounceKey,
   deriveUnsubscribeKey,
+  mailEyebrow,
+  renderMailLayout,
   resolveMailboxLogin,
   withTemplateKey,
 } from '@tmanage/mail';
@@ -267,13 +269,27 @@ function mailAlertsFor(env: Env, queue: Mailer): MailDrainerDeps['alert'] {
     .filter((address) => address.includes('@'));
   if (recipients.length === 0) return undefined;
   return async (kind, facts) => {
-    const lines = Object.entries(facts).map(([key, value]) => `${key}: ${String(value)}`);
-    const text = [`Mail lane alert: ${kind}`, `Time (UTC): ${new Date().toISOString()}`, ...lines];
+    const rows = [
+      { label: 'Time (UTC)', value: new Date().toISOString() },
+      ...Object.entries(facts).map(([key, value]) => ({ label: key, value: String(value) })),
+    ];
+    const subject = `[TManage alert] mail: ${kind}`;
+    const text = [`Mail lane alert: ${kind}`, ...rows.map((row) => `${row.label}: ${row.value}`)];
+    // MAILDESIGN: the operator's alert in the shared layout too (internal, English only).
+    const html = renderMailLayout({
+      arabic: false,
+      subject,
+      preheader: `Mail lane alert: ${kind}`,
+      eyebrow: mailEyebrow('operations', 'en'),
+      heading: `Mail lane alert: ${kind}`,
+      blocks: [{ kind: 'rows', rows }],
+    });
     for (const to of recipients) {
       await queue.send({
         to,
-        subject: `[TManage alert] mail: ${kind}`,
+        subject,
         text: text.join('\n'),
+        html,
         templateKey: 'ops_alert',
       });
     }

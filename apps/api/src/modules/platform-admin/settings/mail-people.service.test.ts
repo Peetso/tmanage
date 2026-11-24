@@ -1,5 +1,6 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants.js';
 import { describe, expect, it, vi } from 'vitest';
+import { MAIL_LAYOUT_MARK } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { PlatformAdminGuard } from '../platform-admin.guard.js';
 import type { PlatformAdminActor } from '../platform-admin.guard.js';
@@ -131,6 +132,10 @@ describe('EMAILBUILD — mail people', () => {
       templateKey: 'tip',
       personRef: { kind: 'test', personId: LAYLA.id },
     });
+    // MAILDESIGN: the test mail is drawn like every mail, signed by the person's tokens.
+    expect(sent[0]?.html).toContain(MAIL_LAYOUT_MARK);
+    expect(sent[0]?.html).toContain('[[tm.sign.by]]');
+    expect(sent[0]?.text).toContain('[[tm.sign.by]]');
     expect(repository.audit).toHaveBeenCalledOnce();
   });
 

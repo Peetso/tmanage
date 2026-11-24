@@ -206,3 +206,9 @@ The edit gate (GATE) is counted separately: it is the enforcement mechanism, not
 ### Build order, updated
 
 The order is: 1, then GATE + PD-1…PD-4 (built 2026-11-20; part docs are optional since Peter's rule change that day, PART-DOCS §7), then 2–6 above, then UX-14/UX-11 ratchets, UX-17 measurement, and IP-15/IP-16 on the P0 risk files.
+
+## Added 2026-11-24: mail design (DC-10)
+
+| Rule  | Check (path or spec)                                                                                                                                                                                                                                                                                                                           | Runs in | Status |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------ |
+| DC-10 | Every mail composer is called in `apps/api/src/common/email/mail-design.test.ts` and `apps/worker/src/notifications/mail-design.test.ts` and must return an `html` part carrying `MAIL_LAYOUT_MARK` (the shared `packages/mail/src/layout.ts`), `dir="rtl"` in Arabic, and a text part without markup. A new composer is added to these tests. | unit    | E      |

@@ -1,6 +1,6 @@
 import type { OutboxEventPayloads } from '@tmanage/domain';
-import { forCompany, greeting, signOffText } from '@tmanage/mail';
-import type { Mailer, MailMessage } from '@tmanage/mail';
+import { designedMail, forCompany, greeting, mailEyebrow, signOff } from '@tmanage/mail';
+import type { MailLine, Mailer, MailMessage } from '@tmanage/mail';
 
 /**
  * 51-17 slice 2 — the "your company's files are at risk" mail to a workspace owner, the sibling of
@@ -47,8 +47,11 @@ export function composeStorageRootEmail(facts: StorageRootEmailFacts): MailMessa
   const personal = facts.reason === 'personal_root';
   const target = facts.link ?? (arabic ? 'الإعدادات > التخزين' : 'Settings > Storage');
   const mark = arabic ? RLM : '';
+  // A link becomes the button; without one the line names where to go in the app.
+  const act = (label: string): MailLine =>
+    facts.link === undefined ? `${label}: ${target}` : { label, link: facts.link };
   let subject: string;
-  let lines: string[];
+  let lines: MailLine[];
   if (arabic) {
     const ws = named === '' ? 'مساحة عملك' : named;
     const who = holder === '' ? 'شخص واحد' : holder;
@@ -58,12 +61,12 @@ export function composeStorageRootEmail(facts: StorageRootEmailFacts): MailMessa
     lines = personal
       ? [
           `ملفات ${ws} محفوظة في حساب ${provider} الشخصي لـ ${who}. لو أُغلق هذا الحساب أو غادر صاحبه، تفقد الشركة الوصول إليها.`,
-          `انقل الملفات إلى حساب الشركة: ${target}`,
+          act('انقل الملفات إلى حساب الشركة'),
           'ردّ علينا لو أردت أن نشرح لك الخطوات.',
         ]
       : [
           `تخزين ${provider} الخاص بـ ${ws} مربوط بحساب شخص لم يعد مسؤولًا في مساحة العمل. من فضلك سلّمه إلى حساب تابع للشركة حتى تبقى الملفات مع الشركة.`,
-          `ابدأ التسليم: ${target}`,
+          act('ابدأ التسليم'),
         ];
   } else {
     const ws = named === '' ? 'Your workspace' : named;
@@ -74,23 +77,34 @@ export function composeStorageRootEmail(facts: StorageRootEmailFacts): MailMessa
     lines = personal
       ? [
           `The files of ${ws} are stored in ${whose} personal ${provider}. If that account is closed or its owner leaves, the company loses access to them.`,
-          `Move the files to a company account: ${target}`,
+          act('Move the files to a company account'),
           'Reply if you want us to walk you through it.',
         ]
       : [
           `The ${provider} storage of ${ws} is connected through the account of someone who is no longer an admin. Please hand it over to a company account so the files stay with the company.`,
-          `Start the handover: ${target}`,
+          act('Start the handover'),
         ];
   }
+  const marked = `${mark}${subject}`;
+  // MAILDESIGN: the shared layout; the text part is the paragraphs it always had.
   return {
     to: facts.recipientEmail,
     language,
-    subject: `${mark}${subject}`,
-    text: [
-      greeting(language, facts.recipientName),
-      ...lines.map((line) => `${mark}${line}`),
-      signOffText('support', language, true),
-    ].join('\n\n'),
+    subject: marked,
+    ...designedMail({
+      language,
+      subject: marked,
+      eyebrow: mailEyebrow('support', language),
+      greeting: greeting(language, facts.recipientName),
+      lines: lines.map((line) =>
+        typeof line === 'string'
+          ? `${mark}${line}`
+          : 'link' in line
+            ? { label: `${mark}${line.label}`, link: line.link }
+            : line,
+      ),
+      signature: signOff('support', language, true),
+    }),
   };
 }
 

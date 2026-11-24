@@ -1,4 +1,4 @@
-import { LINK_TOKENS, forCompany, greeting, signOff } from '@tmanage/mail';
+import { LINK_TOKENS, designedMail, forCompany, greeting, signOff } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import type { NaturalNotificationKind } from '@tmanage/domain';
 import { briefingSectionParagraphs } from './briefing-mail.js';
@@ -76,9 +76,9 @@ export function composeDigestEmail(facts: DigestEmailFacts): MailMessage {
   const kinds = KIND_ORDER.filter((kind) => (facts.counts[kind] ?? 0) > 0);
   const arabic = isArabicLocale(facts.locale);
   const language = arabic ? 'ar' : 'en';
-  const signature = signOff('notice', language)
-    .map((line) => line.replace(LINK_TOKENS.settings, facts.settingsLink))
-    .join('\n');
+  const signature = signOff('notice', language).map((line) =>
+    line.replace(LINK_TOKENS.settings, facts.settingsLink),
+  );
   const briefing =
     facts.briefing === undefined ? [] : briefingSectionParagraphs(facts.briefing, language);
   if (arabic) {
@@ -91,21 +91,27 @@ export function composeDigestEmail(facts: DigestEmailFacts): MailMessage {
             `${RLM}هذا ما حدث في ${studio} ${phrase}:`,
             kinds.map((kind) => `• ${AR_KIND[kind]}: ${String(facts.counts[kind])}`).join('\n'),
           ];
+    const subject =
+      total > 0
+        ? `${RLM}ملخصك ${period} في ${studio}: ${String(total)} تحديثات`
+        : `${RLM}موجز العمل في ${studio}`;
     return {
       to: facts.recipientEmail,
       language,
-      subject:
-        total > 0
-          ? `${RLM}ملخصك ${period} في ${studio}: ${String(total)} تحديثات`
-          : `${RLM}موجز العمل في ${studio}`,
-      text: [
-        greeting(language, facts.recipientName),
-        ...updates,
-        ...briefing,
-        `${RLM}افتح TManage: ${facts.inboxLink}`,
-        'تريد الملخص بوتيرة أقل أو لا تريده؟ غيّر ذلك من إعدادات الإشعارات بالأسفل.',
+      subject,
+      ...designedMail({
+        language,
+        subject,
+        eyebrow: studio,
+        greeting: greeting(language, facts.recipientName),
+        lines: [
+          ...updates,
+          ...briefing,
+          { label: `${RLM}افتح TManage`, link: facts.inboxLink },
+          'تريد الملخص بوتيرة أقل أو لا تريده؟ غيّر ذلك من إعدادات الإشعارات بالأسفل.',
+        ],
         signature,
-      ].join('\n\n'),
+      }),
     };
   }
   const period = facts.cadence === 'weekly' ? 'weekly' : 'daily';
@@ -117,21 +123,28 @@ export function composeDigestEmail(facts: DigestEmailFacts): MailMessage {
           `Here is what happened in ${studio} ${phrase}:`,
           kinds.map((kind) => `• ${EN_KIND[kind]}: ${String(facts.counts[kind])}`).join('\n'),
         ];
+  const subject =
+    total > 0
+      ? `Your ${period} summary for ${studio}: ${String(total)} update${total === 1 ? '' : 's'}`
+      : `Your business briefing for ${studio}`;
+  // MAILDESIGN: the shared layout; the text part is the paragraphs it always had.
   return {
     to: facts.recipientEmail,
     language,
-    subject:
-      total > 0
-        ? `Your ${period} summary for ${studio}: ${String(total)} update${total === 1 ? '' : 's'}`
-        : `Your business briefing for ${studio}`,
-    text: [
-      greeting(language, facts.recipientName),
-      ...updates,
-      ...briefing,
-      `Open TManage: ${facts.inboxLink}`,
-      'Want this less often, or not at all? Change it in Notification settings below.',
+    subject,
+    ...designedMail({
+      language,
+      subject,
+      eyebrow: studio,
+      greeting: greeting(language, facts.recipientName),
+      lines: [
+        ...updates,
+        ...briefing,
+        { label: 'Open TManage', link: facts.inboxLink },
+        'Want this less often, or not at all? Change it in Notification settings below.',
+      ],
       signature,
-    ].join('\n\n'),
+    }),
   };
 }
 

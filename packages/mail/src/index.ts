@@ -20,6 +20,7 @@
  * what happened — `invitation-email.ts` in the API, `client-request-email.ts` in the worker
  * — and a shared template file would make one product decision on behalf of two features —
  * except 56-23's `templates/security_alert_digest.ts`, shared because the brief put it here.
+ * The *layout* those words are drawn in is here (`layout.ts`): one design for every mail.
  */
 
 export type {
@@ -70,6 +71,28 @@ export {
   workspaceSignOff,
 } from './sign-off.js';
 export type { SignOffKind } from './sign-off.js';
+// MAILDESIGN — the one designed HTML layout, and a mail's text + HTML parts from the same lines.
+export {
+  EMAIL_TOKENS,
+  MAIL_LAYOUT_MARK,
+  designedMail,
+  designedPlainMail,
+  escapeHtml,
+  mailEyebrow,
+  renderMailLayout,
+  signatureRow,
+} from './layout.js';
+export type {
+  DesignedMailInput,
+  MailActionLine,
+  MailBlock,
+  MailCodeLine,
+  MailEyebrow,
+  MailLayoutContent,
+  MailLine,
+  MailRow,
+  MailRowsLine,
+} from './layout.js';
 export {
   IdentityRoutingMailer,
   PERSON_IDLE_CLOSE_MS,

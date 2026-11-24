@@ -1,5 +1,5 @@
-import { workspaceReplyLine, workspaceSignOff } from '@tmanage/mail';
-import type { MailMessage } from '@tmanage/mail';
+import { designedMail, workspaceReplyLine, workspaceSignOff } from '@tmanage/mail';
+import type { MailLine, MailMessage } from '@tmanage/mail';
 import type { ClientRequestMailFacts } from '../common/database/mail-store.js';
 
 /**
@@ -107,17 +107,39 @@ function subjectTitle(value: string): string {
  * that 404s would fail §1 more completely than naming the real route does.
  */
 function whyAndSupport(organization: string): string {
-  // EMAILBUILD (c): then the agency's sign-off [WS] with reply line R3 (replies are not read).
+  return (
+    `You are receiving this because you submitted this request to ${organization} using ` +
+    `this address. If you did not, contact ${organization} directly.`
+  );
+}
+
+/**
+ * MAILDESIGN: the message in the shared layout, the studio's name as the eyebrow. The text part is
+ * the paragraphs it always had: the lines, the "why" sentence, then the agency's sign-off [WS]
+ * with reply line R3 (EMAILBUILD (c): replies are not read).
+ */
+function clientRequestMail(
+  facts: ClientRequestEmailFacts,
+  subject: string,
+  organization: string,
+  lines: readonly MailLine[],
+): MailMessage {
   const signature = workspaceSignOff(
     'en',
     organization,
     workspaceReplyLine('en', 'none', { workspaceName: organization }),
   );
-  return [
-    `You are receiving this because you submitted this request to ${organization} using ` +
-      `this address. If you did not, contact ${organization} directly.`,
-    signature.join('\n'),
-  ].join('\n\n');
+  return {
+    to: facts.recipientEmail,
+    subject,
+    ...designedMail({
+      language: 'en',
+      subject,
+      eyebrow: organization,
+      lines: [...lines, whyAndSupport(organization)],
+      signature,
+    }),
+  };
 }
 
 /** `Request received: {{requestTitle}}` — §3, on submission. */
@@ -135,16 +157,11 @@ export function composeClientRequestReceivedEmail(facts: ClientRequestEmailFacts
       ? `You did not ask for a particular date.`
       : `${facts.desiredAt} is a requested date, not a confirmed commitment.`;
 
-  return {
-    to: facts.recipientEmail,
-    subject: `Request received: ${title}`,
-    text: [
-      `We received your request for ${project}. ${desired} The ${organization} team will ` +
-        `review the scope and confirm what happens next.`,
-      `Track request: ${facts.link}`,
-      whyAndSupport(organization),
-    ].join('\n\n'),
-  };
+  return clientRequestMail(facts, `Request received: ${title}`, organization, [
+    `We received your request for ${project}. ${desired} The ${organization} team will ` +
+      `review the scope and confirm what happens next.`,
+    { label: 'Track request', link: facts.link },
+  ]);
 }
 
 /** `Your input is needed for {{requestTitle}}` — §3, on the move to `needs_clarification`. */
@@ -152,20 +169,15 @@ export function composeClarificationRequiredEmail(facts: ClientRequestEmailFacts
   const organization = oneLine(facts.organizationName);
   const title = subjectTitle(facts.title);
 
-  return {
-    to: facts.recipientEmail,
-    subject: `Your input is needed for ${title}`,
-    text: [
-      `The ${organization} team needs an answer to a question before it can confirm scope ` +
-        `and timing. The question is on your request in the portal.`,
-      // See the module doc: the portal shows the question and does not take the answer. REQ-16:
-      // no "yet", which promised an in-portal reply the product has not committed to building.
-      `You cannot reply inside the portal — send your answer to ${organization} the way ` +
-        `you normally reach them.`,
-      `View request: ${facts.link}`,
-      whyAndSupport(organization),
-    ].join('\n\n'),
-  };
+  return clientRequestMail(facts, `Your input is needed for ${title}`, organization, [
+    `The ${organization} team needs an answer to a question before it can confirm scope ` +
+      `and timing. The question is on your request in the portal.`,
+    // See the module doc: the portal shows the question and does not take the answer. REQ-16:
+    // no "yet", which promised an in-portal reply the product has not committed to building.
+    `You cannot reply inside the portal — send your answer to ${organization} the way ` +
+      `you normally reach them.`,
+    { label: 'View request', link: facts.link },
+  ]);
 }
 
 /** `Request accepted: {{requestTitle}}` — §3, on the move to `accepted`. */
@@ -187,13 +199,10 @@ export function composeRequestAcceptedEmail(facts: ClientRequestEmailFacts): Mai
       ? `No date is committed. ${organization} accepted the work without committing to a date.`
       : `Current committed date: ${facts.committedAt}.`;
 
-  return {
-    to: facts.recipientEmail,
-    subject: `Request accepted: ${title}`,
-    text: [`${outcome} ${date}`, `View request: ${facts.link}`, whyAndSupport(organization)].join(
-      '\n\n',
-    ),
-  };
+  return clientRequestMail(facts, `Request accepted: ${title}`, organization, [
+    `${outcome} ${date}`,
+    { label: 'View request', link: facts.link },
+  ]);
 }
 
 /**
@@ -213,11 +222,10 @@ export function composeRequestDeclinedEmail(facts: ClientRequestEmailFacts): Mai
       ? `${organization} has declined this request.`
       : `${organization} has declined this request. Reason: ${oneLine(facts.clientVisibleReason)}`;
 
-  return {
-    to: facts.recipientEmail,
-    subject: `Request declined: ${title}`,
-    text: [outcome, `View request: ${facts.link}`, whyAndSupport(organization)].join('\n\n'),
-  };
+  return clientRequestMail(facts, `Request declined: ${title}`, organization, [
+    outcome,
+    { label: 'View request', link: facts.link },
+  ]);
 }
 
 /**
@@ -236,9 +244,8 @@ export function composeRequestDeferredEmail(facts: ClientRequestEmailFacts): Mai
       ? `${organization} has deferred this request.`
       : `${organization} has deferred this request. Reason: ${oneLine(facts.clientVisibleReason)}`;
 
-  return {
-    to: facts.recipientEmail,
-    subject: `Request deferred: ${title}`,
-    text: [outcome, `View request: ${facts.link}`, whyAndSupport(organization)].join('\n\n'),
-  };
+  return clientRequestMail(facts, `Request deferred: ${title}`, organization, [
+    outcome,
+    { label: 'View request', link: facts.link },
+  ]);
 }

@@ -1,5 +1,5 @@
-import { forCompany, greeting, signOffText } from '@tmanage/mail';
-import type { Mailer, MailMessage } from '@tmanage/mail';
+import { designedMail, forCompany, greeting, mailEyebrow, signOff } from '@tmanage/mail';
+import type { MailLine, Mailer, MailMessage } from '@tmanage/mail';
 
 /**
  * USAGE-001 slice 4c's storage-threshold receipt, as an email — the relay's fourth producer on
@@ -80,8 +80,11 @@ export function composeUsageThresholdEmail(facts: UsageThresholdEmailFacts): Mai
   const band = String(facts.band);
   const target = facts.link ?? (arabic ? 'الإعدادات > الفوترة' : 'Settings > Billing');
   const mark = arabic ? RLM : '';
+  // A link becomes the button; without one the line names where to go in the app.
+  const act = (label: string): MailLine =>
+    facts.link === undefined ? `${label}: ${target}` : { label, link: facts.link };
   let subject: string;
-  let lines: string[];
+  let lines: MailLine[];
   if (arabic) {
     const ws = named === '' ? 'مساحة عملك' : named;
     subject = blocked
@@ -90,13 +93,13 @@ export function composeUsageThresholdEmail(facts: UsageThresholdEmailFacts): Mai
     lines = blocked
       ? [
           `استخدمت ${ws} كامل مساحة التخزين (${limit})، ولذلك توقف رفع الملفات الجديدة. ملفاتك الحالية آمنة وتفتح كالمعتاد.`,
-          `أفرغ مساحة أو غيّر الخطة: ${target}`,
+          act('أفرغ مساحة أو غيّر الخطة'),
           'ردّ على هذه الرسالة لو أردت مساعدة في الاختيار.',
         ]
       : [
           `استخدمت ${ws} ${used} من أصل ${limit} من مساحة التخزين (${band}%).`,
           'لا شيء يتوقف الآن. يتوقف رفع الملفات فقط عند الوصول إلى 100%.',
-          `اعرف ما الذي يشغل المساحة: ${target}`,
+          act('اعرف ما الذي يشغل المساحة'),
           'لو لم تكن متأكدًا مما يمكن حذفه أو أي خطة تناسبك، ردّ علينا وسنساعدك.',
         ];
   } else {
@@ -107,25 +110,36 @@ export function composeUsageThresholdEmail(facts: UsageThresholdEmailFacts): Mai
     lines = blocked
       ? [
           `${ws} has used all of its ${limit} storage, so new uploads are blocked. Your existing files are safe and open as usual.`,
-          `Free up space or change the plan: ${target}`,
+          act('Free up space or change the plan'),
           'Reply to this e-mail if you want help choosing.',
         ]
       : [
           `${ws} has used ${used} of its ${limit} storage (${band}%).`,
           'Nothing stops working yet. Uploads are blocked only when it reaches 100%.',
-          `See what takes the space: ${target}`,
+          act('See what takes the space'),
           'If you are not sure what to remove or which plan fits, reply and we will help.',
         ];
   }
+  const marked = `${mark}${subject}`;
+  // MAILDESIGN: the shared layout; the text part is the paragraphs it always had.
   return {
     to: facts.recipientEmail,
     language,
-    subject: `${mark}${subject}`,
-    text: [
-      greeting(language, facts.recipientName),
-      ...lines.map((line) => `${mark}${line}`),
-      signOffText('support', language, true),
-    ].join('\n\n'),
+    subject: marked,
+    ...designedMail({
+      language,
+      subject: marked,
+      eyebrow: mailEyebrow('support', language),
+      greeting: greeting(language, facts.recipientName),
+      lines: lines.map((line) =>
+        typeof line === 'string'
+          ? `${mark}${line}`
+          : 'link' in line
+            ? { label: `${mark}${line.label}`, link: line.link }
+            : line,
+      ),
+      signature: signOff('support', language, true),
+    }),
   };
 }
 

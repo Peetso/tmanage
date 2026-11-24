@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { CONTACT_EMAILS } from '@tmanage/domain';
+import { mailEyebrow, renderMailLayout } from '@tmanage/mail';
 import type { MailMessage } from '@tmanage/mail';
 import { ApiError, type ApiErrorDetail } from '../../common/http/errors.js';
 
@@ -222,29 +223,53 @@ function describeSlot(slot: string, zone: string): string {
  * Reply-To is the visitor's address, so the team answers with Reply. Internal mail in English.
  */
 export function composeSalesNotification(input: WalkthroughInput, reference: string): MailMessage {
-  const lines = [
-    `New walkthrough request ${reference}.`,
-    '',
-    `Name: ${input.name}`,
-    `Work e-mail: ${input.email}`,
-    `Company: ${input.company}`,
-    `Team size: ${input.teamSize}`,
-    `Page language: ${input.language}`,
-    ...(input.source === null ? [] : [`Came from: ${input.source}`]),
-    '',
+  const rows = [
+    { label: 'Name', value: input.name },
+    { label: 'Work e-mail', value: input.email },
+    { label: 'Company', value: input.company },
+    { label: 'Team size', value: input.teamSize },
+    { label: 'Page language', value: input.language },
+    ...(input.source === null ? [] : [{ label: 'Came from', value: input.source }]),
+  ];
+  const times = [
     'Preferred times, in order:',
     ...input.slots.map((slot, i) => `${String(i + 1)}. ${describeSlot(slot, input.timeZone)}`),
-    '',
-    'Topics:',
-    ...input.topics.map((topic) => `- ${TOPIC_LABELS[topic]}`),
-    '',
+  ];
+  const topics = ['Topics:', ...input.topics.map((topic) => `- ${TOPIC_LABELS[topic]}`)];
+  const close = [
     'They agreed to be answered by e-mail about this request. Reply to this e-mail to answer',
     'them, and confirm one of the times with a calendar invitation.',
   ];
+  const lines = [
+    `New walkthrough request ${reference}.`,
+    '',
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    '',
+    ...times,
+    '',
+    ...topics,
+    '',
+    ...close,
+  ];
+  const subject = `Walkthrough request from ${input.company} (${reference})`;
   return {
     to: CONTACT_EMAILS.sales,
-    subject: `Walkthrough request from ${input.company} (${reference})`,
+    subject,
     text: lines.join('\n'),
+    // MAILDESIGN: the sales team's copy in the shared layout too (internal, English only).
+    html: renderMailLayout({
+      arabic: false,
+      subject,
+      preheader: `New walkthrough request ${reference}.`,
+      eyebrow: mailEyebrow('operations', 'en'),
+      heading: `New walkthrough request ${reference}.`,
+      blocks: [
+        { kind: 'rows', rows },
+        { kind: 'text', text: times.join('\n') },
+        { kind: 'text', text: topics.join('\n') },
+      ],
+      note: close.join(' '),
+    }),
     templateKey: 'walkthrough_request',
     replyTo: input.email,
     language: 'en',

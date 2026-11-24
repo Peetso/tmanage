@@ -1,3 +1,4 @@
+import { MAIL_LAYOUT_MARK } from '@tmanage/mail';
 import { describe, expect, it } from 'vitest';
 import type { PublicLinkCodeRow, PublicLinkRow } from '../../common/database/schema.js';
 import { PublicLinkSecrets } from '../public-links/public-link-secrets.js';
@@ -15,7 +16,7 @@ function harness() {
   const links = new Map<string, PublicLinkRow>();
   const codes = new Map<string, PublicLinkCodeRow>();
   const auth: { userId: string | null; outcome: string; reason: string | null }[] = [];
-  const mail: { to: string; text: string }[] = [];
+  const mail: { to: string; text: string; html?: string }[] = [];
   const tx: PortalSignInTx = {
     findLink: async (id) => links.get(id) ?? null,
     insertLink: async (row) => void links.set(row.id, { ...row }),
@@ -66,7 +67,9 @@ function harness() {
     countFailedOpens: async () =>
       auth.filter((e) => e.outcome === 'failed' && e.reason?.startsWith('link_')).length,
   };
-  const mailer = { send: async (m: { to: string; text: string }) => void mail.push(m) };
+  const mailer = {
+    send: async (m: { to: string; text: string; html?: string }) => void mail.push(m),
+  };
   const service = new PortalSignInService({
     store,
     secrets,
@@ -142,6 +145,10 @@ describe('55-14 portal magic-link sign-in', () => {
     await h.service.notYou(token, {});
     expect(h.mail.at(-1)).toMatchObject({ to: 'sara@client.com' });
     expect(h.mail.at(-1)!.text).toContain('cancelled');
+    // MAILDESIGN: both mails carry the shared layout beside the text part.
+    expect(h.mail.at(-1)!.html).toContain(MAIL_LAYOUT_MARK);
+    expect(h.mail.at(-2)!.html).toContain(MAIL_LAYOUT_MARK);
+    expect(h.mail.at(-2)!.html).toContain(`href="https://app.test/portal-sign-in/${token}"`);
     await expect(h.service.preview(token, {})).resolves.toEqual({ state: 'revoked' });
     await expect(h.service.consume(token, {})).rejects.toMatchObject({ status: 409 });
   });

@@ -1,5 +1,11 @@
 import { CONTACT_EMAILS, uuidv7 } from '@tmanage/domain';
-import { addressDomain, validateSenderAddress, validateSenderName } from '@tmanage/mail';
+import {
+  SIGNATURE_TOKENS,
+  addressDomain,
+  designedMail,
+  validateSenderAddress,
+  validateSenderName,
+} from '@tmanage/mail';
 import type { MailDelivery, MailLoginCheck, Mailer } from '@tmanage/mail';
 import {
   MAIL_PERSON_LANGUAGES,
@@ -271,16 +277,24 @@ export class MailPeopleService {
     let delivery: MailDelivery | 'failed' = 'none';
     if (this.options.mailer !== null) {
       try {
+        const subject = language === 'ar' ? 'رسالة تجربة من TManage' : 'A test e-mail from TManage';
         delivery = await this.options.mailer.send({
           to: actor.account.email,
           templateKey: 'tip',
           language,
           personRef: { kind: 'test', personId: id },
-          subject: language === 'ar' ? 'رسالة تجربة من TManage' : 'A test e-mail from TManage',
-          text:
-            language === 'ar'
-              ? 'هذه رسالة تجربة تُظهر كيف تصل النصائح بهذا الاسم.\n\n[[tm.sign.by]]\n[[tm.sign.note]]'
-              : 'This test shows how tips signed by this person arrive.\n\n[[tm.sign.by]]\n[[tm.sign.note]]',
+          subject,
+          // MAILDESIGN: in the shared layout, signed by the person as a tip is.
+          ...designedMail({
+            language,
+            subject,
+            lines: [
+              language === 'ar'
+                ? 'هذه رسالة تجربة تُظهر كيف تصل النصائح بهذا الاسم.'
+                : 'This test shows how tips signed by this person arrive.',
+            ],
+            signature: [SIGNATURE_TOKENS.by, SIGNATURE_TOKENS.note],
+          }),
         });
       } catch {
         delivery = 'failed';

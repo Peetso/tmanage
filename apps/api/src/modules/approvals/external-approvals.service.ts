@@ -3,7 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import {
   MailRecipientSuppressedError,
   anchored,
-  plainMailText,
+  designedPlainMail,
   workspaceReplyLine,
   workspaceSignOff,
 } from '@tmanage/mail';
@@ -326,7 +326,12 @@ export function approvalMail(facts: {
   readonly message: string | null;
   readonly expiresAt: string;
   readonly language: 'en' | 'ar';
-}): { readonly subject: string; readonly text: string; readonly language: 'en' | 'ar' } {
+}): {
+  readonly subject: string;
+  readonly text: string;
+  readonly html: string;
+  readonly language: 'en' | 'ar';
+} {
   const version = facts.versionNo === null ? '' : ` (v${facts.versionNo})`;
   const day = facts.expiresAt.slice(0, 10);
   const studio = facts.organizationName;
@@ -338,24 +343,27 @@ export function approvalMail(facts: {
     ? [
         `يطلب ${studio} مراجعتك واعتمادك لـ "${facts.title}"${version}.`,
         note,
-        `افتح وقرّر: ${facts.url}`,
+        { label: 'افتح وقرّر', link: facts.url },
         `لا تحتاج إلى حساب. سنرسل إليك رمزًا من 6 أرقام لتأكيد هويتك. يعمل الرابط حتى ${day}.`,
       ]
     : [
         `${studio} asks you to review and approve "${facts.title}"${version}.`,
         note,
-        `Open and decide: ${facts.url}`,
+        { label: 'Open and decide', link: facts.url },
         `You do not need an account. We will e-mail you a 6-digit code to confirm it is you. The link works until ${day}.`,
       ];
+  const subject = anchored(
+    language,
+    ar
+      ? `${studio}: من فضلك راجع ${facts.title}${version}`
+      : `${studio}: please review ${facts.title}${version}`,
+  );
   return {
     language,
-    subject: anchored(
-      language,
-      ar
-        ? `${studio}: من فضلك راجع ${facts.title}${version}`
-        : `${studio}: please review ${facts.title}${version}`,
-    ),
-    text: plainMailText(language, {
+    subject,
+    ...designedPlainMail(language, {
+      subject,
+      eyebrow: studio,
       lines,
       signature: workspaceSignOff(
         language,

@@ -1,4 +1,4 @@
-import { forCompany, greeting } from '@tmanage/mail';
+import { designedMail, forCompany, greeting, mailEyebrow } from '@tmanage/mail';
 import type { Mailer, MailMessage } from '@tmanage/mail';
 import { noticeSignature, signatureRowHtml } from './notice-sign-off.js';
 import { composeReviewEmail } from './review-email.js';
@@ -469,16 +469,23 @@ function composePlainNotice(kind: PlainKind, facts: CollaborationEmailFacts): Ma
     link: facts.link,
   });
   const mark = arabic ? RLM : '';
+  const subject = `${mark}${copy.subject}`;
   return {
     to: facts.recipientEmail,
     language,
-    subject: `${mark}${copy.subject}`,
-    text: [
-      greeting(language, facts.recipientName),
-      ...copy.lines.filter(Boolean).map((line) => `${mark}${line}`),
-      `${copy.button}: ${facts.link}`,
-      signature.join('\n'),
-    ].join('\n\n'),
+    subject,
+    // MAILDESIGN: the shared layout; the text part is the paragraphs it always had.
+    ...designedMail({
+      language,
+      subject,
+      eyebrow: portal ? oneLine(facts.organizationName) : mailEyebrow('notification', language),
+      greeting: greeting(language, facts.recipientName),
+      lines: [
+        ...copy.lines.filter(Boolean).map((line) => `${mark}${line}`),
+        { label: copy.button, link: facts.link },
+      ],
+      signature,
+    }),
   };
 }
 

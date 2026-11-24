@@ -8,7 +8,7 @@ import {
   validateSignInPolicyPatch,
 } from '@tmanage/domain';
 import type { Principal, SignInMethod, SignInPolicy, TwoStepRoleScope } from '@tmanage/domain';
-import { anchored, plainMailText, signOff } from '@tmanage/mail';
+import { anchored, designedPlainMail, mailEyebrow, signOff } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { OrgPolicyValue } from '../../common/database/schema.js';
@@ -329,7 +329,14 @@ export function composeSignInPolicyNotice(
   owner: OwnerRecipient,
   before: SignInPolicy,
   after: SignInPolicy,
-): { to: string; subject: string; text: string; templateKey: string; language: 'en' | 'ar' } {
+): {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  templateKey: string;
+  language: 'en' | 'ar';
+} {
   const lang: 'en' | 'ar' = (owner.locale ?? '').toLowerCase().startsWith('ar') ? 'ar' : 'en';
   const methods = (policy: SignInPolicy) =>
     policy.allowedMethods.map((method) => METHOD_LABEL[lang][method]).join(', ');
@@ -351,16 +358,22 @@ export function composeSignInPolicyNotice(
           `Now: ${methods(after)}; two-step sign-in required for: ${scope(after)}`,
           'If you did not expect this, review it in Settings > Security, or write to support@tmanageapp.com.',
         ];
+  const subject = anchored(
+    lang,
+    lang === 'ar'
+      ? 'تغيّرت قواعد تسجيل الدخول في مساحة عملك'
+      : 'The sign-in rules of your workspace changed',
+  );
   return {
     to: owner.email,
     language: lang,
-    subject: anchored(
-      lang,
-      lang === 'ar'
-        ? 'تغيّرت قواعد تسجيل الدخول في مساحة عملك'
-        : 'The sign-in rules of your workspace changed',
-    ),
-    text: plainMailText(lang, { lines, signature: signOff('security', lang) }),
+    subject,
+    ...designedPlainMail(lang, {
+      subject,
+      eyebrow: mailEyebrow('security', lang),
+      lines,
+      signature: signOff('security', lang),
+    }),
     templateKey: 'credential_change',
   };
 }
