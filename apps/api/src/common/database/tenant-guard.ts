@@ -1497,6 +1497,9 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // ID-002 recovery (ACC-02, migration 0204). A reset link belongs to a person, asked for by
   // somebody with no session who names no tenant — global for the reason the credentials are.
   'password_reset_tokens',
+  // RESENDVERIFY (0416). The 1/3/7-day "Confirm your e-mail" reminders a person was sent: about
+  // their sign-up, not any company — global like the reset links they carry.
+  'email_confirmation_reminders',
   // "Continue with Google" (migration 0205). A linked sign-in identity belongs to a person and is
   // read on the unauthenticated callback before any tenant exists — global like the credentials.
   'user_identities',

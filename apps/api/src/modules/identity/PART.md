@@ -41,6 +41,7 @@ tables_owned:
     authentication_events,
     credential_change_notices,
     password_reset_tokens,
+    email_confirmation_reminders,
     ip_lookups,
     network_block_lists,
     network_block_ranges,
@@ -225,6 +226,7 @@ or invalid credentials, 403 refusal, 404 hidden, 409 conflict, 429 rate limit.
 | `user_passwords`, `user_mfa_factors`, `user_recovery_codes`, `authentication_events` | `0004_credentials.sql` | — | `uq_user_recovery_codes_hash` (`:146`) | `authentication_events`: append log, used for lockout window |
 | `credential_change_notices` | `0020_credential_change_notices.sql` | — | — | delivered by worker |
 | `password_reset_tokens` | `0204_password_reset_tokens.sql` | — | `uq_password_reset_tokens_hash` (`:32`) | short TTL |
+| `email_confirmation_reminders` | `0416_email_confirmation_reminders.sql` | — | PK `(user_id, reminder_day)`: the claim that stops a second send | three rows per person at most; erased with the account |
 | `user_passkeys` | `0329_user_passkeys.sql` | — | `uq_user_passkeys_credential (credential_id_hash)` (`:44`) | until removed |
 | `user_mfa_email_codes` | `0360_mfa_email_codes.sql` | — | PK id (`:42`) | TTL 10 min |
 | `ip_lookups` | `0280_security_ip_intelligence.sql` | — | — | cache, swept by `apps/worker/.../ip-lookup-sweeper-store.ts` |
@@ -262,7 +264,10 @@ audience (staff | client) on `GET /v1/sessions/current` (`session.service.ts:233
 
 **Owned background work.** Credential-change mail (`apps/worker/src/consumers/credential-change-mail.ts`
 reading `credential_change_notices`); IP lookup sweep (`apps/worker/src/common/database/ip-lookup-sweeper-store.ts`);
-Tor exit list refresh (in-process timer, `geo/tor-exit-list.ts:10-22`).
+Tor exit list refresh (in-process timer, `geo/tor-exit-list.ts:10-22`). RESENDVERIFY: the hourly
+"Confirm your e-mail" reminders, 1/3/7 days after a password sign-up (in-process under
+`WORKER_INPROCESS=1`, `email-confirmation-reminders.ts`; claim-before-send on
+`email_confirmation_reminders`, AS-2; stopped by the platform "Tips and reminders" switch).
 
 | Failure | Behaviour today | Pattern / rule | Verdict |
 | --- | --- | --- | --- |

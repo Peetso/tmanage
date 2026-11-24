@@ -24,7 +24,19 @@ import {
   PASSWORD_RESET_SERVICE,
   PasswordResetController,
 } from './password-reset.controller.js';
-import { EmailConfirmationService, PasswordResetService } from './password-reset.service.js';
+import {
+  EmailConfirmationService,
+  PasswordResetService,
+  createPasswordResetMailBudget,
+} from './password-reset.service.js';
+import {
+  EMAIL_CONFIRMATION_REMINDER_JOB,
+  EmailConfirmationReminderJob,
+  EmailConfirmationReminderPass,
+  REMINDER_MAX_PER_HOUR,
+  emailConfirmationRemindersEnabled,
+} from './email-confirmation-reminders.js';
+import { reminderStore } from './email-confirmation-reminders.repository.js';
 import {
   EMAIL_CONFIRMATION_SERVICE,
   EmailConfirmationController,
@@ -170,6 +182,25 @@ export class IdentityModule {
       useFactory: (database: TenantDatabase, mailer: PasswordResetMailer | undefined) =>
         new EmailConfirmationService(database, mailer ?? null),
     };
+    // RESENDVERIFY. The 1/3/7-day "Confirm your e-mail" reminders: the same link and mail, on a
+    // confirmation service of their own (its own hourly bound), hourly and in-process only.
+    const emailConfirmationReminderJob: Provider = {
+      provide: EMAIL_CONFIRMATION_REMINDER_JOB,
+      inject: [TENANT_DATABASE, { token: PASSWORD_RESET_MAILER, optional: true }],
+      useFactory: (database: TenantDatabase, mailer: PasswordResetMailer | undefined) =>
+        new EmailConfirmationReminderJob(
+          new EmailConfirmationReminderPass(
+            reminderStore(database),
+            new EmailConfirmationService(
+              database,
+              mailer ?? null,
+              undefined,
+              createPasswordResetMailBudget({ maxDeliveries: REMINDER_MAX_PER_HOUR }),
+            ),
+          ),
+          emailConfirmationRemindersEnabled(),
+        ),
+    };
     const passwordResetAdmission: Provider = {
       provide: PASSWORD_RESET_ADMISSION,
       inject: [API_CONFIG],
@@ -203,6 +234,7 @@ export class IdentityModule {
       providers: [
         passwordResetService,
         emailConfirmationService,
+        emailConfirmationReminderJob,
         passwordResetAdmission,
         sessionService,
         authenticationService,

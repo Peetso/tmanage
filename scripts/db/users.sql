@@ -1228,6 +1228,10 @@ GRANT INSERT, UPDATE ON `tmanage`.`user_passwords`      TO 'tmanage_app'@'%';
 -- links retired). No DELETE: a used or superseded link stays as evidence, like the other
 -- credential tables. The worker holds nothing here.
 GRANT INSERT, UPDATE ON `tmanage`.`password_reset_tokens` TO 'tmanage_app'@'%';
+-- 0416 "Confirm your e-mail" reminders (RESENDVERIFY). INSERT (the claim, `INSERT IGNORE` before
+-- the send), UPDATE (the result after it). No DELETE: a row is what stops a second send; the
+-- account erasure removes them. The worker holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`email_confirmation_reminders` TO 'tmanage_app'@'%';
 -- 0205 external sign-in identities ("Continue with Google"). INSERT (a Google account is linked),
 -- UPDATE (`last_used_at` on each sign-in). No DELETE: unlinking is not built, and a person's
 -- removal cascades from `users`. The worker holds nothing here.
@@ -2959,6 +2963,7 @@ GRANT SELECT, DELETE ON `tmanage`.`document_templates` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`document_versions` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`documents` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`einvoice_chain_checks` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`email_confirmation_reminders` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`expenses` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`external_approvers` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`figma_connections` TO 'tmanage_erasure'@'%';

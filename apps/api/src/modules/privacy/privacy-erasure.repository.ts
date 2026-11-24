@@ -12,6 +12,7 @@ import {
   marketingLeads,
   memberships,
   passwordResetTokens,
+  emailConfirmationReminders,
   platformAdmins,
   platformOwnerNotices,
   sessionRefreshTokens,
@@ -460,6 +461,8 @@ const ACCOUNT_GLOBAL_PRIVILEGES = {
   user_passkeys: ['SELECT', 'DELETE'],
   user_identities: ['SELECT', 'DELETE'],
   password_reset_tokens: ['SELECT', 'DELETE'],
+  // 0416: the "Confirm your e-mail" reminders the person was sent.
+  email_confirmation_reminders: ['SELECT', 'DELETE'],
   credential_change_notices: ['SELECT', 'DELETE'],
   authentication_events: ['SELECT', 'UPDATE'],
   marketing_leads: ['SELECT', 'DELETE'],
@@ -716,6 +719,9 @@ export class AccountErasure {
     await db.delete(userAvatars).where(eq(userAvatars.userId, userId));
     await db.delete(userIdentities).where(eq(userIdentities.userId, userId));
     await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+    await db
+      .delete(emailConfirmationReminders)
+      .where(eq(emailConfirmationReminders.userId, userId));
     await db.delete(credentialChangeNotices).where(eq(credentialChangeNotices.userId, userId));
     await db.delete(platformOwnerNotices).where(eq(platformOwnerNotices.ownerUserId, userId));
     // The column's collation compares the address without case, as the enquiry form stored it.

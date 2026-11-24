@@ -16185,3 +16185,25 @@ Object.assign(TABLES, {
   network_access_blocklist: networkAccessBlocklist,
   security_source_labels: securitySourceLabels,
 });
+
+// ---- RESENDVERIFY (0416) ----
+
+/**
+ * 0416 — the "Confirm your e-mail" reminders, 1, 3 and 7 days after a password sign-up. GLOBAL
+ * (NON_TENANT_TABLES) like `password_reset_tokens`. One row per (person, reminder day), claimed by
+ * `INSERT IGNORE` before the send so a reminder is never sent twice; `result` after the send.
+ */
+export const emailConfirmationReminders = mysqlTable(
+  'email_confirmation_reminders',
+  {
+    userId: char('user_id', { length: 36 }).notNull(),
+    reminderDay: tinyint('reminder_day', { unsigned: true }).notNull(),
+    claimedAt: datetime('claimed_at', { mode: 'date', fsp: 3 }).notNull(),
+    result: varchar('result', { length: 20 }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.reminderDay] })],
+);
+
+Object.assign(TABLES, {
+  email_confirmation_reminders: emailConfirmationReminders,
+});
