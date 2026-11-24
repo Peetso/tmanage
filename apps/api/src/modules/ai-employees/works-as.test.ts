@@ -45,6 +45,7 @@ function record(id: string, over: Partial<AiEmployeeRecord> = {}): AiEmployeeRec
     timezone: 'UTC',
     workingHoursJson: null,
     limitsJson: null,
+    allowedTaskTypesJson: null,
     discloseToClients: true,
     version: 1,
     createdAt: new Date('2026-11-01T00:00:00Z'),
