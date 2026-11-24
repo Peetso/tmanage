@@ -141,6 +141,8 @@ export class InsightsAdoptionRepository {
         and(
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.status, 'active'),
+          // 60-09: adoption is measured over people; an AI employee is no active member.
+          eq(memberships.kind, 'human'),
         ),
       );
   }

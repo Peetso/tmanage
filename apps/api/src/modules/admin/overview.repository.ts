@@ -79,6 +79,8 @@ export class AdminOverviewRepository {
         and(
           eq(memberships.organizationId, context.organizationId),
           inArray(memberships.status, [...SEAT_STATUSES]),
+          // 60-09: an AI employee holds no seat and is no active member (security test 16).
+          eq(memberships.kind, 'human'),
         ),
       );
   }

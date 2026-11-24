@@ -10,9 +10,12 @@ import { AiEmployeesService } from '../src/modules/ai-employees/ai-employees.ser
 import type { AiEmployeeView } from '../src/modules/ai-employees/ai-employees.service.js';
 import { AuditEventsRepository } from '../src/modules/audit/audit-events.repository.js';
 import { AuditService } from '../src/modules/audit/audit.service.js';
+import { AdminOverviewRepository } from '../src/modules/admin/overview.repository.js';
 import { BillingSeatsRepository } from '../src/modules/billing/seats.repository.js';
 import { SubscriptionRepository } from '../src/modules/billing/subscription.repository.js';
+import { InsightsAdoptionRepository } from '../src/modules/insights/adoption.repository.js';
 import { WorkloadForecastRepository } from '../src/modules/insights/workload-forecast.repository.js';
+import { SignInPolicyRepository } from '../src/modules/identity/sign-in-policy.repository.js';
 import { PeopleDirectoryRepository } from '../src/modules/people/directory.repository.js';
 import { PeopleOverviewRepository } from '../src/modules/people/people-overview.repository.js';
 import { PersonTimeOffRepository } from '../src/modules/people/time-off.repository.js';
@@ -88,7 +91,12 @@ beforeAll(async () => {
     agentKeys: new AgentKeysService(),
     enabled: true,
   });
-  mat = await service.hire(owner(), ownerPrincipal(), { displayName: 'Mat', jobTitle: 'Designer' });
+  // 60-07: a hire names the projects he may work in (his boundary).
+  mat = await service.hire(owner(), ownerPrincipal(), {
+    displayName: 'Mat',
+    jobTitle: 'Designer',
+    projectIds: [world.northstar.projectId],
+  });
   const [found] = await db.admin.query<RowDataPacket[]>(
     'select user_id from memberships where id = ?',
     [mat.membershipId],
@@ -145,5 +153,36 @@ describe('60-09 an AI employee is not counted as a person', () => {
     );
     expect(ai.has(aiUserId)).toBe(true);
     expect(ai.has(world.northstar.owner.id)).toBe(false);
+  });
+
+  it('it is no seat or active member on the admin overview and in adoption', async () => {
+    const reads = await database.read(owner(), async (r) => ({
+      seats: (await new AdminOverviewRepository().listSeatMemberships(r, owner())).map(
+        (x) => x.membershipId,
+      ),
+      adoption: (await new InsightsAdoptionRepository().listActiveMembers(r, owner())).map(
+        (x) => x.userId,
+      ),
+    }));
+    expect(reads.seats).not.toContain(mat.membershipId);
+    expect(reads.seats).toContain(world.northstar.owner.membershipId);
+    expect(reads.adoption).not.toContain(aiUserId);
+  });
+
+  it('a sign-in policy cannot be held back by an AI employee that never signs in', async () => {
+    // Nobody in the seed holds this provider, so every active non-owner person is counted.
+    const [people] = await db.admin.query<RowDataPacket[]>(
+      `select count(*) as n from memberships where organization_id = ? and status = 'active'
+         and role <> 'owner' and kind = 'human' and platform_support_session_id is null`,
+      [world.northstar.organizationId],
+    );
+    const counted = await database.read(owner(), (r) =>
+      new SignInPolicyRepository().countMembersWithout(r, owner(), ['t-60-09-none']),
+    );
+    const [clients] = await db.admin.query<RowDataPacket[]>(
+      `select count(*) as n from client_memberships where organization_id = ? and status = 'active'`,
+      [world.northstar.organizationId],
+    );
+    expect(counted).toBe(Number(people[0]?.['n']) + Number(clients[0]?.['n']));
   });
 });

@@ -51,6 +51,7 @@ export class SignInPolicyRepository {
   /**
    * Active members and clients of the acting organization, owners excluded, holding no linked
    * identity for any of `providers` — the people a policy without `password` would lock out.
+   * 60-09: people only. An AI employee never signs in (60-04), so no policy can lock it out.
    */
   async countMembersWithout(
     runner: TenantQueryRunner,
@@ -62,6 +63,7 @@ export class SignInPolicyRepository {
     const internal = await runner.query<QueryRows>(
       `SELECT COUNT(*) AS n FROM memberships m
         WHERE m.organization_id = ? AND m.status = 'active' AND m.role <> 'owner'
+          AND m.kind = 'human'
           AND m.platform_support_session_id IS NULL
           AND NOT EXISTS (SELECT 1 FROM user_identities ui
                            WHERE ui.user_id = m.user_id AND ui.provider IN (${marks}))`,
