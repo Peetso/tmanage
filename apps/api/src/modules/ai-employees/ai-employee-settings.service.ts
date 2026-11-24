@@ -168,7 +168,8 @@ export class AiEmployeeSettingsService {
         objectId: context.organizationId,
         actorUserId: context.userId,
         metadata: {
-          fields: Object.keys(change).sort().join(','),
+          // An array: the audit refuses comma-joined values (60-10).
+          fields: Object.keys(change).sort(),
           enabled: next.enabled,
           client_work: next.clientWork,
         },

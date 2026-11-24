@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Body, Controller, Injectable, Module, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Injectable, Module, Post, Put } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
@@ -22,7 +22,7 @@ import { freezeConfirmAction } from '../mcp/pending-actions.js';
  * refused for a bound token; an AI internal grant runs a confirm op only from the approve page.
  */
 
-const handlerCalls = { invite: 0, security: 0, work: 0 };
+const handlerCalls = { invite: 0, security: 0, work: 0, agent: 0 };
 
 // The same route templates as the real controllers, so the registry resolves them.
 @Controller('v1/organizations/:orgSlug/invitations')
@@ -53,6 +53,16 @@ class FakeWorkItemsController {
   }
 }
 
+// 60-10: the agent contract's REST mirror, NEVER with reason `agent_contract`.
+@Controller('v1/organizations/:orgSlug/agent')
+class FakeAgentController {
+  @Get('me')
+  whoami(): unknown {
+    handlerCalls.agent += 1;
+    return { name: 'Mat' };
+  }
+}
+
 const TENANT = {
   organizationId: 'org-1',
   userId: 'user-1',
@@ -74,7 +84,22 @@ class FakeAuthGuard implements CanActivate {
       'cookie' | 'personal_access_token' | 'ai_grant';
     state.authScheme = scheme;
     state.session = { sessionId: 'pat:token-1', userId: 'user-1' } as never;
-    state.tenant = TENANT;
+    // 60-10: `x-test-agent` plays an agent key (`agent` on the token binding);
+    // `x-test-stamp` plays the agent gate's stamp on the tenant context.
+    state.tenant =
+      request.headers['x-test-stamp'] === 'yes'
+        ? ({
+            ...TENANT,
+            aiEmployee: {
+              aiEmployeeId: 'ai-1',
+              sponsorMembershipId: 'mem-2',
+              allowedTaskTypes: [],
+            },
+          } as unknown as TenantContext)
+        : TENANT;
+    if (request.headers['x-test-agent'] === 'yes') {
+      state.personalAccessToken = { organizationId: 'org-1', membershipId: 'mem-1', agent: true };
+    }
     const tokenName = request.headers['x-test-token-name'];
     if (scheme === 'personal_access_token' && tokenName !== undefined) {
       state.personalAccessToken = {
@@ -104,7 +129,12 @@ const approvals = {
 };
 
 @Module({
-  controllers: [FakeInvitationsController, FakeSecurityController, FakeWorkItemsController],
+  controllers: [
+    FakeInvitationsController,
+    FakeSecurityController,
+    FakeWorkItemsController,
+    FakeAgentController,
+  ],
   providers: [
     { provide: API_CONFIG, useValue: { webPublicUrl: 'https://app.example.test' } },
     { provide: Symbol.for('tmanage.PendingAiActionsService'), useValue: approvals },
@@ -133,6 +163,7 @@ beforeEach(() => {
   handlerCalls.invite = 0;
   handlerCalls.security = 0;
   handlerCalls.work = 0;
+  handlerCalls.agent = 0;
   approvals.request.mockClear();
 });
 
@@ -243,5 +274,42 @@ describe('NV01 — confirm-class ops do not run on the personal-access-token cha
     });
     expect(approved.statusCode).toBe(201);
     expect(handlerCalls.invite).toBe(1);
+  });
+});
+
+describe('60-10 — the agent contract on the personal-access-token channel', () => {
+  const whoami = (headers: Record<string, string>) =>
+    app.inject({ method: 'GET', url: '/v1/organizations/acme/agent/me', headers });
+
+  it('an agent key the agent gate stamped reaches agent_whoami', async () => {
+    const res = await whoami({
+      'x-test-scheme': 'personal_access_token',
+      'x-test-agent': 'yes',
+      'x-test-stamp': 'yes',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(handlerCalls.agent).toBe(1);
+  });
+
+  it('a person’s token is refused there, like on every NEVER route', async () => {
+    const res = await whoami({ 'x-test-scheme': 'personal_access_token', 'x-test-stamp': 'yes' });
+    expect(res.statusCode).toBe(403);
+    expect(handlerCalls.agent).toBe(0);
+  });
+
+  it('an agent key without the gate’s stamp is refused', async () => {
+    const res = await whoami({ 'x-test-scheme': 'personal_access_token', 'x-test-agent': 'yes' });
+    expect(res.statusCode).toBe(403);
+    expect(handlerCalls.agent).toBe(0);
+  });
+
+  it('an agent key on another NEVER route is still refused', async () => {
+    const res = await inject('PUT', '/v1/organizations/acme/security/sso', {
+      'x-test-scheme': 'personal_access_token',
+      'x-test-agent': 'yes',
+      'x-test-stamp': 'yes',
+    });
+    expect(res.statusCode).toBe(403);
+    expect(handlerCalls.security).toBe(0);
   });
 });

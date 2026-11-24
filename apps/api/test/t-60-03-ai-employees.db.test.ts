@@ -99,6 +99,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   await db.admin.query('delete from ai_employees');
   await db.admin.query("delete from memberships where kind = 'ai'");
+  // 60-07: a hire saves his projects as project memberships of his user row.
+  await db.admin.query(
+    'delete pm from project_memberships pm join users u on u.id = pm.user_id where u.email like ?',
+    [`%@${AI_EMPLOYEE_EMAIL_DOMAIN}`],
+  );
   await db.admin.query('delete from users where email like ?', [`%@${AI_EMPLOYEE_EMAIL_DOMAIN}`]);
 });
 
@@ -112,6 +117,7 @@ describe('hire', () => {
     const view = await service.hire(northstar(), northstarOwner(), {
       displayName: 'Mat',
       jobTitle: 'Social media designer',
+      projectIds: [world.northstar.projectId],
     });
     const [user] = await rows(
       'select u.id, u.email from users u join memberships m on m.user_id = u.id where m.id = ?',
@@ -141,11 +147,20 @@ describe('hire', () => {
       await service.hire(northstar(), northstarOwner(), {
         displayName: `Seat ${i}`,
         jobTitle: 'x',
+        projectIds: [world.northstar.projectId],
       });
     }
     const outcomes = await Promise.allSettled([
-      service.hire(northstar(), northstarOwner(), { displayName: 'Race A', jobTitle: 'x' }),
-      service.hire(northstar(), northstarOwner(), { displayName: 'Race B', jobTitle: 'x' }),
+      service.hire(northstar(), northstarOwner(), {
+        displayName: 'Race A',
+        jobTitle: 'x',
+        projectIds: [world.northstar.projectId],
+      }),
+      service.hire(northstar(), northstarOwner(), {
+        displayName: 'Race B',
+        jobTitle: 'x',
+        projectIds: [world.northstar.projectId],
+      }),
     ]);
     expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
     expect(outcomes.find((o) => o.status === 'rejected')).toMatchObject({
@@ -163,6 +178,7 @@ describe('another workspace', () => {
     const view = await service.hire(northstar(), northstarOwner(), {
       displayName: 'Mat',
       jobTitle: 'Designer',
+      projectIds: [world.northstar.projectId],
     });
     await expect(service.get(twin(), twinOwner(), view.id)).rejects.toMatchObject({ status: 404 });
     await expect(
@@ -180,9 +196,19 @@ describe('retire', () => {
     const view = await service.hire(northstar(), northstarOwner(), {
       displayName: 'Mat',
       jobTitle: 'Designer',
+      projectIds: [world.northstar.projectId],
     });
-    const retired = await service.retire(northstar(), northstarOwner(), view.id, {
+    // 60-10: pause and resume first (the e2e journey's path), each one versioned write.
+    const paused = await service.pause(northstar(), northstarOwner(), view.id, {
       version: view.version,
+    });
+    expect(paused).toMatchObject({ status: 'paused', pausedReason: 'manual' });
+    const resumed = await service.resume(northstar(), northstarOwner(), view.id, {
+      version: paused.version,
+    });
+    expect(resumed.status).toBe('active');
+    const retired = await service.retire(northstar(), northstarOwner(), view.id, {
+      version: resumed.version,
     });
     expect(retired.status).toBe('retired');
     const [member] = await rows('select status from memberships where id = ?', [view.membershipId]);
@@ -195,6 +221,7 @@ describe('the member role paths never touch an AI member (60-04 interim door)', 
     const view = await service.hire(northstar(), northstarOwner(), {
       displayName: 'Mat',
       jobTitle: 'Designer',
+      projectIds: [world.northstar.projectId],
     });
     const memberships = new MembershipsRepository();
     await expect(

@@ -104,6 +104,9 @@ function apiEnv(databaseUrl: string, storageRoot?: string): NodeJS.ProcessEnv {
     // The seeded platform operator (`world().platformAdmin`, a verified user in no organization)
     // is the bootstrap super admin, so the platform journeys can open `/platform`.
     PLATFORM_ADMIN_EMAILS: PLATFORM_ADMIN_EMAIL,
+    // Plan 60 v2 (60-10): the AI-employee surface, a server switch that is off unless exactly
+    // `on`. The journeys run with it on, as production will once Phase 1 ships.
+    TMANAGE_AI_EMPLOYEES: 'on',
   };
 }
 

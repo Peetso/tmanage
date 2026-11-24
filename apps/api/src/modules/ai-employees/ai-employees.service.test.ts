@@ -1,5 +1,9 @@
 import type { Capability, Principal } from '@tmanage/domain';
-import { AI_EMPLOYEE_EMAIL_DOMAIN, AI_EMPLOYEES_PER_WORKSPACE } from '@tmanage/domain';
+import {
+  AI_EMPLOYEE_EMAIL_DOMAIN,
+  AI_EMPLOYEES_PER_WORKSPACE,
+  assertSafeAuditMetadata,
+} from '@tmanage/domain';
 import { describe, expect, it } from 'vitest';
 import type {
   AiEmployeeHireScope,
@@ -289,6 +293,9 @@ function harness(enabled = true) {
         _c: TenantContext,
         input: { action: string; metadata: unknown },
       ) => {
+        // The real write boundary refuses content-shaped keys; so does this fake (60-10: a
+        // `reason` key made every pause a 500 that only the e2e journey saw).
+        if (input.metadata !== undefined) assertSafeAuditMetadata(input.metadata);
         audits.push({ action: input.action, metadata: input.metadata });
         return {};
       }) as unknown as AiEmployeesServiceOptions['audit']['record'],
@@ -751,7 +758,10 @@ describe('60-07 projects, hire policy and role', () => {
     expect(view.projects.find((project) => project.id === P_ACME)?.isClient).toBe(true);
     expect(view.taskTypes).toEqual(['design.social_post']);
     expect(view.userId).toBe(h.users[0]?.id);
-    expect(h.audits.at(-1)?.metadata).toMatchObject({ projects: `${P_LAUNCH},${P_ACME}` });
+    expect(h.audits.at(-1)?.metadata).toMatchObject({
+      project_count: 2,
+      project_ids: [P_LAUNCH, P_ACME],
+    });
   });
 
   it('refuses an archived, unknown or closed-to-AI project, and a client one under internal only', async () => {
@@ -800,6 +810,11 @@ describe('60-07 projects, hire policy and role', () => {
     expect(h.roleChanges).toEqual([{ membershipId: hired.membershipId, role: 'guest' }]);
     const changed = h.audits.filter((audit) => audit.action === AI_EMPLOYEE_AUDIT.projectsChanged);
     expect(changed).toHaveLength(1);
-    expect(changed[0]?.metadata).toEqual({ added: P_ACME, removed: P_LAUNCH });
+    expect(changed[0]?.metadata).toEqual({
+      added_count: 1,
+      removed_count: 1,
+      added: [P_ACME],
+      removed: [P_LAUNCH],
+    });
   });
 });

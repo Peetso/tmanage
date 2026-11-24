@@ -14,6 +14,7 @@ import {
   routeKey,
 } from './registry/index.js';
 import type { AiActionOp, StoredFieldLookup } from './registry/index.js';
+import type { NeverReason } from './registry/types.js';
 import { STORED_AUDIENCE_RESOLVER } from './stored-audience.repository.js';
 import type { StoredAudienceResolver } from './stored-audience.repository.js';
 import { mcpBodyShapeRefusal } from '../mcp/mcp-body-shape.js';
@@ -103,6 +104,19 @@ export function registryRouteOf(
 const refused = (auditCode: string): ApiError =>
   new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, auditCode);
 
+/**
+ * 60-10: a call on the agent contract (NEVER reason `agent_contract`) by an AI employee's agent
+ * key that the agent gate admitted. All three facts are server-made: the reason from the registry,
+ * the agent flag from the token row (`SessionAuthGuard`), the stamp from `TenantContextGuard`.
+ */
+function isAgentContractCall(state: RequestState, reason: NeverReason): boolean {
+  return (
+    reason === 'agent_contract' &&
+    state.personalAccessToken?.agent === true &&
+    state.tenant?.aiEmployee !== undefined
+  );
+}
+
 interface RequestLike {
   readonly params?: Record<string, unknown>;
   readonly query?: Record<string, unknown>;
@@ -151,7 +165,13 @@ export class BoundTokenConfirmInterceptor implements NestInterceptor {
     const route = registryRouteOf(context);
     if (route === undefined) return next.handle();
 
-    if (state.tenant !== undefined && neverByKey.has(routeKey(route.method, route.path))) {
+    const never =
+      state.tenant === undefined ? undefined : neverByKey.get(routeKey(route.method, route.path));
+    if (never !== undefined) {
+      // 60-10: the agent contract is NEVER for the AI connector, but it is exactly what an AI
+      // employee's agent key exists for. Only that key, stamped by the agent gate, gets through;
+      // any other bound token on these routes is refused like every NEVER route.
+      if (isAgentContractCall(state, never.reason)) return next.handle();
       throw refused('bound_token_never_route');
     }
     const op = findOpByRoute(route.method, route.path);

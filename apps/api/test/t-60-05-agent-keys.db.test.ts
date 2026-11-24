@@ -96,6 +96,7 @@ beforeAll(async () => {
   mat = await service.hire(owner(), ownerPrincipal(), {
     displayName: 'Mat',
     jobTitle: 'Designer',
+    projectIds: [world.northstar.projectId],
     sponsorMembershipId: world.northstar.designer.membershipId,
   });
 }, 180_000);

@@ -1,4 +1,5 @@
 import type { Principal } from '@tmanage/domain';
+import { assertSafeAuditMetadata } from '@tmanage/domain';
 import { describe, expect, it } from 'vitest';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { ApiError } from '../../common/http/errors.js';
@@ -82,6 +83,9 @@ function harness(input: { enabled?: boolean; row?: AiEmployeeRecord | null } = {
     },
     audit: {
       record: (async (_r: unknown, _c: unknown, event: (typeof audits)[number]) => {
+        // The real write boundary refuses unsafe metadata; so does this fake.
+        const { metadata } = event as { metadata?: unknown };
+        if (metadata !== undefined) assertSafeAuditMetadata(metadata);
         audits.push(event);
         return {};
       }) as never,

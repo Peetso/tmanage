@@ -114,7 +114,11 @@ beforeAll(async () => {
     agentKeys: new AgentKeysService(),
     enabled: true,
   });
-  mat = await service.hire(owner(), ownerPrincipal(), { displayName: 'Mat', jobTitle: 'Designer' });
+  mat = await service.hire(owner(), ownerPrincipal(), {
+    displayName: 'Mat',
+    jobTitle: 'Designer',
+    projectIds: [world.northstar.projectId],
+  });
   keyToken = (
     await service.createKey(owner(), ownerPrincipal(), mat.id, { name: 'k', lifetimeDays: 30 })
   ).token;

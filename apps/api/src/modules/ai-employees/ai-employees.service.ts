@@ -460,7 +460,7 @@ export class AiEmployeesService {
         result: 'allowed',
         objectId: id,
         actorUserId: context.userId,
-        metadata: { fields: fields.sort().join(',') },
+        metadata: { fields: fields.sort() },
       });
       return change;
     });
@@ -488,7 +488,8 @@ export class AiEmployeesService {
         result: 'allowed',
         objectId: id,
         actorUserId: context.userId,
-        metadata: { reason: 'manual' },
+        // A classification, never `reason`: the audit refuses content-shaped keys (60-10).
+        metadata: { pause_cause: 'manual' },
       });
       return { status: 'paused', pausedReason: 'manual', pausedAt: at };
     });
@@ -523,7 +524,7 @@ export class AiEmployeesService {
         result: 'allowed',
         objectId: id,
         actorUserId: context.userId,
-        metadata: { previous_reason: current.pausedReason ?? 'none' },
+        metadata: { previous_cause: current.pausedReason ?? 'none' },
       });
       return { status: 'active', pausedReason: null, pausedAt: null };
     });
@@ -1031,7 +1032,12 @@ export class AiEmployeesService {
       result: 'allowed',
       objectId: row.id,
       actorUserId: context.userId,
-      metadata: { added: added.join(','), removed: removed.join(',') },
+      metadata: {
+        added_count: added.length,
+        removed_count: removed.length,
+        ...auditIdList('added', added),
+        ...auditIdList('removed', removed),
+      },
     });
   }
 
@@ -1125,7 +1131,11 @@ export class AiEmployeesService {
         role: typeof input.role === 'string' ? input.role : 'custom',
         sponsor_membership_id: sponsorId,
         department_key: input.departmentKey ?? 'none',
-        projects: projects.map((project) => project.id).join(','),
+        project_count: projects.length,
+        ...auditIdList(
+          'project_ids',
+          projects.map((project) => project.id),
+        ),
       },
     });
     return id;
@@ -1233,6 +1243,19 @@ export class AiEmployeesService {
     });
     return this.readView(context, id, true);
   }
+}
+
+/**
+ * An id list as audit metadata: an array of at most {@link AUDIT_ID_LIST_MAX} ids (the audit
+ * refuses longer arrays and comma-joined strings), and `<key>_truncated` when there were more.
+ * The full set is the stored project memberships; the count beside it is exact.
+ */
+const AUDIT_ID_LIST_MAX = 20;
+
+function auditIdList(key: string, ids: readonly string[]): Record<string, string[] | boolean> {
+  return ids.length > AUDIT_ID_LIST_MAX
+    ? { [key]: ids.slice(0, AUDIT_ID_LIST_MAX), [`${key}_truncated`]: true }
+    : { [key]: [...ids] };
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { Principal } from '@tmanage/domain';
-import { AI_EMPLOYEES_PER_WORKSPACE } from '@tmanage/domain';
+import { AI_EMPLOYEES_PER_WORKSPACE, assertSafeAuditMetadata } from '@tmanage/domain';
 import { describe, expect, it } from 'vitest';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -53,6 +53,8 @@ function harness(enabled = true) {
         _c: TenantContext,
         input: { action: string; objectId: string; metadata: unknown },
       ) => {
+        // The real write boundary refuses unsafe metadata; so does this fake.
+        assertSafeAuditMetadata(input.metadata);
         audits.push(input);
         return {};
       }) as unknown as AiEmployeeSettingsServiceOptions['audit']['record'],
@@ -107,7 +109,11 @@ describe('60-07 AI-employee settings', () => {
         result: 'allowed',
         objectId: ORG,
         actorUserId: contextOf().userId,
-        metadata: { fields: 'clientWork,enabled', enabled: false, client_work: 'internal_only' },
+        metadata: {
+          fields: ['clientWork', 'enabled'],
+          enabled: false,
+          client_work: 'internal_only',
+        },
       },
     ]);
     const stale = await refusal(
