@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { uploadStateMachine } from '@tmanage/domain';
+import { assertSafeAuditMetadata, uploadStateMachine } from '@tmanage/domain';
 import type { ObjectStore } from '@tmanage/storage';
 import { EICAR, NoneScanner, StubScanner } from '../../common/scan/malware-scanner.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -125,6 +125,8 @@ function harness(
       _ctx: unknown,
       row: { action: string; metadata: Record<string, unknown> },
     ) => {
+      // The real audit write boundary refuses content-shaped keys; so does this fake (DC-11).
+      assertSafeAuditMetadata(row.metadata);
       audits.push({ action: row.action, metadata: row.metadata });
     },
   } as unknown as AuditService;
@@ -182,7 +184,7 @@ describe('FileRescanner (QA-FIX S1)', () => {
     expect(t.audits).toEqual([
       expect.objectContaining({
         action: 'file_asset.rejected',
-        metadata: expect.objectContaining({ rescan: true, signature_version: 2 }),
+        metadata: expect.objectContaining({ rescan: true, definitions_version: 2 }),
       }),
     ]);
     expect(t.events).toEqual(['file.rejected.v1']);

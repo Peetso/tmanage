@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FakeObjectStore } from '@tmanage/storage';
-import { authorize } from '@tmanage/domain';
+import { assertSafeAuditMetadata, authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { InboundEmailService, inboundServicePrincipal } from './inbound-email.service.js';
 import type { InboundEmailRepository } from './inbound-email.repository.js';
@@ -92,6 +92,10 @@ function harness(
       Promise.resolve(void emails.push({ ...row, receivedAt: NOW, trustedAt: null })),
     insertAttachments: (_r: never, _c: never, rows: Row[]) =>
       Promise.resolve(void atts.push(...rows)),
+    findActiveAddress: () => Promise.resolve(address),
+    markRotated: () => Promise.resolve(),
+    insertAddress: (_r: never, _c: never, input: Row) =>
+      Promise.resolve({ ...address, ...input, createdAt: NOW }),
     findEmail: (_r: never, _c: never, id: string) =>
       Promise.resolve(emails.find((e) => e['id'] === id) ?? null),
     listEmails: () => Promise.resolve(emails.map(({ bodyText: _b, ...rest }) => rest)),
@@ -103,7 +107,16 @@ function harness(
       Promise.resolve({ id: 'cr-1' })
     ),
   };
-  const audit = { append: () => Promise.resolve({}) };
+  const audits: { action: string; metadata: unknown }[] = [];
+  const audit = {
+    // The real write boundary (`AuditEventsRepository.append`) refuses content-shaped keys; so
+    // does this fake (DC-11: `previous_address_id` made every rotate a 500 no unit test saw).
+    append: (_r: never, _c: never, input: { action: string; metadata?: unknown }) => {
+      if (input.metadata !== undefined) assertSafeAuditMetadata(input.metadata);
+      audits.push({ action: input.action, metadata: input.metadata });
+      return Promise.resolve({});
+    },
+  };
   const workItems = {
     create: (_c: unknown, principal: Principal, input: Row) => (
       created.push({ ...input, principal }),
@@ -136,7 +149,7 @@ function harness(
           },
         }),
   });
-  return { service, emails, atts, submitted, created, store };
+  return { service, emails, atts, submitted, created, store, audits };
 }
 
 const pass = { 'Authentication-Results': 'mx; dmarc=pass' };
@@ -325,5 +338,14 @@ describe('InboundEmailService — webhook outcomes and bytes (R22-c)', () => {
     expect(trusted).toMatchObject({ outcome: 'client_request', attachmentsReleased: 1 });
     expect(h.atts[0]?.['state']).toBe('unavailable');
     expect(h.submitted).toHaveLength(1);
+  });
+
+  it('rotating the address audits the old address id through the real audit check', async () => {
+    const h = harness();
+    const view = await h.service.rotate(context, owner, 'acme');
+    expect(view).toBeDefined();
+    expect(h.audits).toEqual([
+      { action: 'inbound_email_address.rotated', metadata: { rotated_from_id: ADDRESS } },
+    ]);
   });
 });

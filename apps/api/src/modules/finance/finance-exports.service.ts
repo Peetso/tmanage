@@ -350,9 +350,14 @@ export class FinanceExportsService {
           kinds: kinds.join(':'),
           latin_only: request.latinOnly,
           reexport: request.reexport,
-          credit_notes_marked: creditNotes.length,
+          // `note` is a key segment the audit refuses (it names prose), so a credit note is a
+          // credit memo here; the export kind itself stays `credit_notes`.
+          credit_memos_marked: creditNotes.length,
           ...Object.fromEntries(
-            Object.entries(built.rowCounts).map(([kind, count]) => [`${kind}_count`, count]),
+            Object.entries(built.rowCounts).map(([kind, count]) => [
+              `${kind === 'credit_notes' ? 'credit_memos' : kind}_count`,
+              count,
+            ]),
           ),
         },
         changes: [],

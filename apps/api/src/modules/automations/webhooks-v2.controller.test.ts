@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
+import { assertSafeAuditMetadata } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { createFieldCipher, parseFieldCipherKeys } from '@tmanage/domain/field-cipher';
 import { ApiError } from '../../common/http/errors.js';
@@ -73,6 +74,9 @@ function harness(
   } as unknown as WebhooksRepository;
   const audit = {
     append: (_r: never, _c: never, input: { action: string; metadata: unknown }) => {
+      // The real `AuditEventsRepository.append` refuses content-shaped keys; so does this fake
+      // (DC-11: a `reason` key made every webhook pause a 500 that no unit test saw).
+      if (input.metadata !== undefined) assertSafeAuditMetadata(input.metadata);
       audits.push(input);
       return Promise.resolve({});
     },
@@ -153,5 +157,16 @@ describe('webhooks v2 routes (R13-s2)', () => {
     expect(await code(h.make('127.0.0.1').resume(context, owner, 'wh-1'))).toBe(400);
     expect(h.audits).toHaveLength(0);
     expect((await h.make().resume(context, owner, 'wh-1')).status).toBe('active');
+  });
+
+  it('pauses and audits the cause through the real audit check', async () => {
+    const h = harness();
+    expect((await h.make().pause(context, owner, 'wh-1')).status).toBe('paused');
+    expect(h.audits).toEqual([
+      expect.objectContaining({
+        action: 'webhook.paused',
+        metadata: { pause_cause: 'paused_by_admin' },
+      }),
+    ]);
   });
 });

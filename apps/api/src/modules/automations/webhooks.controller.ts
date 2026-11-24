@@ -469,7 +469,7 @@ export class WebhooksController {
         action: 'webhook.paused',
         result: 'allowed',
         objectId: id,
-        metadata: { reason: 'paused_by_admin' },
+        metadata: { pause_cause: 'paused_by_admin' },
       });
       return paused;
     });

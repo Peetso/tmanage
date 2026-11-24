@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
+import { assertSafeAuditMetadata } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { ObjectStore } from '@tmanage/storage';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -160,7 +161,9 @@ function harness(input: {
     store,
     { google_drive: source },
     {
-      record: () => {
+      record: (_r: unknown, _c: unknown, input: { metadata?: unknown }) => {
+        // The real audit write boundary refuses content-shaped keys; so does this fake (DC-11).
+        if (input.metadata !== undefined) assertSafeAuditMetadata(input.metadata);
         events.push('audit');
         return Promise.resolve({} as never);
       },
@@ -317,7 +320,12 @@ describe('57-13b start and status', () => {
     const requested: string[] = [];
     const moves = new StorageMoveService(
       database,
-      { record: () => Promise.resolve({} as never) },
+      {
+        record: (_r: unknown, _c: unknown, input: { metadata?: unknown }) => {
+          if (input.metadata !== undefined) assertSafeAuditMetadata(input.metadata);
+          return Promise.resolve({} as never);
+        },
+      },
       { request: () => requested.push('request') },
       jobs,
       { findConnection: () => Promise.resolve(connection()) },

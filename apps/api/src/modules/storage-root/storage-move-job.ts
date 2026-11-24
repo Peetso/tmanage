@@ -358,7 +358,7 @@ export class StorageMovePass {
         metadata: {
           provider: job.backend,
           status,
-          reason: error ?? 'none',
+          stop_code: error ?? 'none',
           moved: row?.moved ?? 0,
           failed: row?.failed ?? 0,
           skipped: row?.skipped ?? 0,

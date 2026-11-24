@@ -338,7 +338,7 @@ export class SsoService {
           sso_enforce: settings.enforce,
           sso_auto_join: settings.autoJoin,
           sso_domain_count: settings.allowedDomains.length,
-          sso_secret_replaced: secretReplaced,
+          sso_client_key_replaced: secretReplaced,
           sso_protocol: settings.protocol,
         },
       });

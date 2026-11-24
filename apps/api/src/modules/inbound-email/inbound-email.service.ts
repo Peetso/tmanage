@@ -342,7 +342,7 @@ export class InboundEmailService {
           action: 'inbound_email_address.rotated',
           result: 'allowed',
           objectId: id,
-          metadata: { previous_address_id: current.id },
+          metadata: { rotated_from_id: current.id },
         });
         return created;
       }),

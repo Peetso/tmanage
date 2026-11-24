@@ -305,3 +305,25 @@ describe('the register write path refuses SSRF targets and writes no row', () =>
     );
   });
 });
+
+describe('DC-11: pausing writes its audit row through the real write boundary', () => {
+  it('pauses the endpoint and records the cause as a classification key', async () => {
+    const [found] = await db.admin.query<RowDataPacket[]>(
+      `select id from webhook_endpoints where organization_id = ?`,
+      [world.northstar.organizationId],
+    );
+    const id = String(found[0]?.['id']);
+    // Before 2026-11-24 the metadata key was `reason`, which the audit refuses: this was a 500.
+    const paused = await controller.pause(ownerCtx, owner, id);
+    expect(paused.status).toBe('paused');
+    const [events] = await db.admin.query<RowDataPacket[]>(
+      `select metadata_json from audit_events
+        where organization_id = ? and action = 'webhook.paused' and object_id = ?`,
+      [world.northstar.organizationId, id],
+    );
+    expect(events).toHaveLength(1);
+    const raw: unknown = events[0]?.['metadata_json'];
+    const metadata: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    expect(metadata).toEqual({ pause_cause: 'paused_by_admin' });
+  });
+});

@@ -284,7 +284,7 @@ export class FileRescanner {
             verdict: 'infected',
             rejection_code: MALWARE_REJECTION_CODE,
             rescan: true,
-            signature_version: engine.signatureVersion,
+            definitions_version: engine.signatureVersion,
           },
         });
         await this.outbox?.append(tx, context, {

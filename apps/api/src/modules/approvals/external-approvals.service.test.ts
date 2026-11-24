@@ -7,6 +7,7 @@ import {
   readBounceMessageId,
 } from '@tmanage/mail';
 import type { MailMessage } from '@tmanage/mail';
+import { assertSafeAuditMetadata } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type {
   ExternalApproverRow,
@@ -99,7 +100,15 @@ function service(overrides: Partial<ExternalApprovalsServiceOptions> = {}) {
       list: async () => [],
     },
     outbox: { append: async (_r, _c, e) => (outbox.push(e), 'evt') },
-    audit: { record: async (_r, _c, e) => (audit.push(e), {}) as never },
+    audit: {
+      // The real audit write boundary refuses content-shaped keys; so does this fake (DC-11:
+      // `email_verified` made every external decision a 500 that no unit test saw).
+      record: async (_r, _c, e) => {
+        if (e.metadata !== undefined) assertSafeAuditMetadata(e.metadata);
+        audit.push(e);
+        return {} as never;
+      },
+    },
     mailer: { send: async (m) => (mail.push(m), {}) as never },
     organizationName: async () => 'Northstar',
     webPublicUrl: 'https://tmanage.example/',
@@ -150,6 +159,9 @@ describe('52-18 external approver: decision permission', () => {
       },
     ]);
     expect(s.audit).toMatchObject([{ action: 'approval.changes_requested', actorUserId: null }]);
+    expect(Object.keys((s.audit[0] as { metadata: object }).metadata)).toContain(
+      'approver_verified',
+    );
   });
 
   it('rolls the link decision back when the record refuses it', async () => {
@@ -243,7 +255,12 @@ describe('52-18 external approver: token and code check', () => {
       lookup: async (hash) => (hash === issued.hash ? { id: LINK, organizationId: ORG } : null),
       targets,
       secrets,
-      audit: { record: async () => ({}) as never },
+      audit: {
+        record: async (_r, _c, e) => {
+          if (e.metadata !== undefined) assertSafeAuditMetadata(e.metadata);
+          return {} as never;
+        },
+      },
       mailer: { send: async (m) => (mail.push(m.text), {}) as never },
       store,
     });

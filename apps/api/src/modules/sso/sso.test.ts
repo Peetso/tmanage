@@ -1,5 +1,7 @@
 import { createSign, generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
+import { assertSafeAuditMetadata } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
 import { decideWithSsoEnforcement } from './sso-enforcement.js';
 import {
   newSsoFlow,
@@ -146,5 +148,51 @@ describe('54-14 company sign-in: membership and enforcement', () => {
     expect(() =>
       parseSsoSettings({ ...base, issuer: 'http://login.example', allowedDomains: ['a.example'] }),
     ).toThrow();
+  });
+});
+
+describe('DC-11: saving the company sign-in audits through the real audit check', () => {
+  it('records a new OIDC connection with a replaced client key, ids and flags only', async () => {
+    const audits: { action: string; metadata: unknown }[] = [];
+    const run = (_c: unknown, work: (tx: unknown) => unknown) => work({});
+    const deps = {
+      database: { transaction: run, read: run },
+      cipher: { enabled: true, encrypt: () => 'fc1.sealed' },
+      repository: {
+        find: () => Promise.resolve(null),
+        insert: () => Promise.resolve(),
+        update: () => Promise.resolve(),
+      },
+      audit: {
+        // The real audit write boundary refuses content-shaped keys; so does this fake
+        // (`sso_secret_replaced` made every SSO save a 500 that no unit test saw).
+        record: (_tx: unknown, _c: unknown, input: { action: string; metadata: unknown }) => {
+          assertSafeAuditMetadata(input.metadata);
+          audits.push({ action: input.action, metadata: input.metadata });
+          return Promise.resolve({});
+        },
+      },
+      sessionSecret: 's',
+      webPublicUrl: 'https://app.example',
+    } as unknown as SsoServiceDeps;
+    const owner = { kind: 'internal', role: 'owner', userId: 'u-1' } as unknown as Principal;
+    await new SsoService(deps).save({ organizationId: 'org-1' } as never, owner, {
+      protocol: 'oidc',
+      issuer: ISSUER,
+      clientId: CLIENT,
+      clientSecret: 'a-client-secret',
+      allowedDomains: ['northstar.example'],
+      enforce: false,
+      autoJoin: true,
+    });
+    expect(audits).toEqual([
+      expect.objectContaining({
+        action: 'org.sign_in_policy_changed',
+        metadata: expect.objectContaining({
+          change: 'sso_connection_created',
+          sso_client_key_replaced: true,
+        }),
+      }),
+    ]);
   });
 });

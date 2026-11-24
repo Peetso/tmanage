@@ -280,7 +280,7 @@ export class ExternalApprovalsService {
         deliverable_id: record.deliverableId,
         deliverable_version_id: record.deliverableVersionId,
         project_id: record.projectId,
-        email_verified: detail.verified ? 'true' : 'false',
+        approver_verified: detail.verified ? 'true' : 'false',
       },
     });
   }

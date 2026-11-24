@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { assertSafeAuditMetadata } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { signReauthToken } from '../identity/reauth-token.js';
@@ -188,6 +189,9 @@ function world(options: WorldOptions = {}) {
       },
     );
     audit.record.mockImplementation(async (_r: unknown, _c: unknown, input: unknown) => {
+      // The real audit write boundary refuses content-shaped keys; so does this fake (DC-11).
+      const metadata = (input as { metadata?: unknown }).metadata;
+      if (metadata !== undefined) assertSafeAuditMetadata(metadata);
       staged.audits.push(input);
     });
     const result = await work(tx);
@@ -260,7 +264,7 @@ describe('POST finance/exports (52-11)', () => {
     expect(noteMark?.slice(1)).toEqual([ORG, ['n1', 'n2'], NOW, 'generic']);
     expect(invoiceMark?.slice(3)).toEqual(noteMark?.slice(3));
     expect(committed.audits[0]).toMatchObject({
-      metadata: { invoices_count: 1, credit_notes_count: 2, credit_notes_marked: 2 },
+      metadata: { invoices_count: 1, credit_memos_count: 2, credit_memos_marked: 2 },
     });
   });
 
