@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { AI_EMPLOYEE_EMAIL_DOMAIN, capabilitiesFor, uuidv7 } from '@tmanage/domain';
@@ -97,6 +98,21 @@ beforeAll(async () => {
 }, 180_000);
 
 beforeEach(async () => {
+  // Retire's revocation case leaves an agent key, a connector grant and its token behind.
+  const aiUsers = [`%@${AI_EMPLOYEE_EMAIL_DOMAIN}`];
+  await db.admin.query(
+    'delete t from personal_access_tokens t join users u on u.id = t.user_id where u.email like ?',
+    aiUsers,
+  );
+  await db.admin.query(
+    `delete a from oauth_access_tokens a join oauth_grants g on g.id = a.grant_id
+       join users u on u.id = g.user_id where u.email like ?`,
+    aiUsers,
+  );
+  await db.admin.query(
+    'delete g from oauth_grants g join users u on u.id = g.user_id where u.email like ?',
+    aiUsers,
+  );
   await db.admin.query('delete from ai_employees');
   await db.admin.query("delete from memberships where kind = 'ai'");
   // 60-07: a hire saves his projects as project memberships of his user row.
@@ -213,6 +229,63 @@ describe('retire', () => {
     expect(retired.status).toBe('retired');
     const [member] = await rows('select status from memberships where id = ?', [view.membershipId]);
     expect(member?.['status']).toBe('offboarded');
+  });
+
+  it('marks his agent keys and connector grants revoked, with their tokens, and audits them', async () => {
+    const view = await service.hire(northstar(), northstarOwner(), {
+      displayName: 'Mat',
+      jobTitle: 'Designer',
+      projectIds: [world.northstar.projectId],
+    });
+    const key = await service.createKey(northstar(), northstarOwner(), view.id, {
+      name: 'Mat on Claude',
+      lifetimeDays: 30,
+    });
+    const [ai] = await rows('select user_id from memberships where id = ?', [view.membershipId]);
+    const org = world.northstar.organizationId;
+    const clientPk = uuidv7();
+    const grantId = uuidv7();
+    await db.admin.execute(
+      `insert into oauth_clients (id, client_id, kind, name, redirect_uris_json)
+       values (?, ?, 'dcr', 'Claude', json_array('https://claude.ai/api/mcp/auth_callback'))`,
+      [clientPk, `t-60-03-${clientPk}`],
+    );
+    await db.admin.execute(
+      `insert into oauth_grants (id, organization_id, client_pk, membership_id, user_id, scopes)
+       values (?, ?, ?, ?, ?, 'tmanage:read')`,
+      [grantId, org, clientPk, view.membershipId, ai?.['user_id']],
+    );
+    await db.admin.execute(
+      `insert into oauth_access_tokens (token_hash, grant_id, family_id, audience, scopes, expires_at)
+       values (?, ?, ?, '/mcp', 'tmanage:read', date_add(utc_timestamp(3), interval 1 hour))`,
+      [createHash('sha256').update(`t-60-03-${grantId}`).digest('hex'), grantId, uuidv7()],
+    );
+
+    await service.retire(northstar(), northstarOwner(), view.id, { version: view.version });
+
+    const [token] = await rows('select revoked_at from personal_access_tokens where id = ?', [
+      key.id,
+    ]);
+    expect(token?.['revoked_at']).not.toBeNull();
+    const [grant] = await rows('select revoked_at from oauth_grants where id = ?', [grantId]);
+    expect(grant?.['revoked_at']).not.toBeNull();
+    const live = await rows(
+      'select 1 from oauth_access_tokens where grant_id = ? and revoked_at is null',
+      [grantId],
+    );
+    expect(live).toEqual([]);
+    const [event] = await rows(
+      "select metadata_json from audit_events where action = 'ai_employee.retired' and object_id = ?",
+      [view.id],
+    );
+    const raw: unknown = event?.['metadata_json'];
+    const metadata: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    expect(metadata).toMatchObject({
+      keys_revoked: 1,
+      revoked_key_ids: [key.id],
+      connectors_revoked: 1,
+      revoked_grant_ids: [grantId],
+    });
   });
 });
 

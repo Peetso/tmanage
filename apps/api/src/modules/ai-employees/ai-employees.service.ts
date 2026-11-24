@@ -240,7 +240,7 @@ export interface AiEmployeesServiceOptions {
    * 60-07: connectors that work as an AI employee, through the module that owns `oauth_grants`
    * (AR-7). Counted with the keys against the cap of live credentials. Defaults to the real one.
    */
-  readonly aiConnectors?: Pick<AiConnectorsService, 'countLive'>;
+  readonly aiConnectors?: Pick<AiConnectorsService, 'countLive' | 'revokeAll'>;
   /** 60-07: the workspace's AI-employee rules (S8). Defaults to the real repository. */
   readonly settings?: Pick<AiEmployeeSettingsRepository, 'read'>;
   /**
@@ -568,8 +568,11 @@ export class AiEmployeesService {
   /**
    * Retire: the companion row becomes `retired` and the membership `offboarded` in one
    * transaction, so every credential bound to the membership stops at the next resolution (the
-   * membership resolver admits active members only). Nothing is deleted: the history keeps its
-   * author. Open assignments returning to their supervisors is 60-21's sweep.
+   * membership resolver admits active members only). In the same transaction every agent key and
+   * every connector grant (with its tokens) is marked revoked, so the rows say what the membership
+   * already enforces and a later re-activation of the membership could not wake them; the audit
+   * row names them. Nothing is deleted: the history keeps its author. Open assignments returning
+   * to their supervisors is 60-21's sweep.
    */
   async retire(
     context: TenantContext,
@@ -597,12 +600,25 @@ export class AiEmployeesService {
           'offboarded',
         );
       }
+      const revokedKeys = await this.options.agentKeys.revokeAll(tx, context, ownerOf(current), at);
+      const revokedGrants = await (this.options.aiConnectors ?? DEFAULT_CONNECTORS).revokeAll(
+        tx,
+        context,
+        current.membershipId,
+      );
       await this.options.audit.record(tx, context, {
         action: AI_EMPLOYEE_AUDIT.retired,
         result: 'allowed',
         objectId: id,
         actorUserId: context.userId,
-        metadata: { membership_id: current.membershipId, previous_status: current.status },
+        metadata: {
+          membership_id: current.membershipId,
+          previous_status: current.status,
+          keys_revoked: revokedKeys.length,
+          ...auditIdList('revoked_key_ids', revokedKeys),
+          connectors_revoked: revokedGrants.length,
+          ...auditIdList('revoked_grant_ids', revokedGrants),
+        },
       });
       return { status: 'retired', retiredAt: at, retiredByMembershipId: context.membershipId };
     });

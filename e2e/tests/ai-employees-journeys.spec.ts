@@ -15,8 +15,8 @@ import type { Lang } from '../setup/journey-kit.js';
  *   call of every run, `agent_whoami` (`GET …/agent/me`): it answers his name, job title, sponsor
  *   and his one project. The wizard's Test step sees the call and says he is ready. The same key
  *   reaches nothing outside the agent contract (a project list, `/mcp`): 403. Paused from his
- *   profile, `agent_whoami` is refused; resumed, it answers again; retired, it is refused for good
- *   and the profile says Retired.
+ *   profile, `agent_whoami` is refused; resumed, it answers again; retired, it is refused for good,
+ *   the profile says Retired and his agent key is marked revoked.
  *
  * The twin workspace, so Northstar's People stay as the other journeys expect them. Each language
  * hires its own AI employee (the beta allows five per workspace), so the two runs never share one.
@@ -128,7 +128,7 @@ for (const lang of LANGS) {
     test.setTimeout(300_000);
     const { name, jobTitle } = HIRE[lang];
     const owner = await signIn(world().twin.owner.id, { member: { org: TWIN, lang } });
-    const { page } = owner;
+    const { page, context } = owner;
 
     await page.goto(inLang(`/${TWIN}/people`, lang));
     await expectLanguage(page, lang);
@@ -198,10 +198,31 @@ for (const lang of LANGS) {
     await expect(
       page.getByText(word(lang, 'AiPeople.status.retired'), { exact: true }).first(),
     ).toBeVisible();
-    // Retired, his membership is offboarded: the workspace no longer knows him, so his key gets
-    // the same 404 a stranger gets (no hint that he ever existed), on every route.
+    // Retired, his membership is offboarded and his key is revoked: the key itself is dead, so it
+    // gets the 401 any unknown or revoked key gets (no hint that he ever existed), on every route.
     const after = await agent.whoami();
-    expect(after.status(), await after.text()).toBe(404);
-    expect(((await after.json()) as { error?: { code?: string } }).error?.code).toBe('not_found');
+    expect(after.status(), await after.text()).toBe(401);
+    expect(((await after.json()) as { error?: { code?: string } }).error?.code).toBe(
+      'unauthenticated',
+    );
+
+    // And the rows say so: retire marked his key revoked (not only his membership offboarded),
+    // so nothing re-opening the membership could wake it. Read with the owner's own session.
+    const base = `${API_URL}/v1/organizations/${TWIN}`;
+    const listed = await context.request.get(`${base}/ai-employees`);
+    expect(listed.status(), await listed.text()).toBe(200);
+    const him = (
+      (await listed.json()) as { aiEmployees: { id: string; displayName: string }[] }
+    ).aiEmployees.find((row) => row.displayName === name);
+    expect(him).toBeDefined();
+    const keys = await context.request.get(`${base}/ai-employees/${him?.id ?? ''}/keys`);
+    expect(keys.status(), await keys.text()).toBe(200);
+    const keyList = (await keys.json()) as {
+      keys: { revokedAt: string | null; live: boolean }[];
+      live: number;
+    };
+    expect(keyList.keys.length).toBeGreaterThan(0);
+    expect(keyList.keys.every((key) => key.revokedAt !== null && !key.live)).toBe(true);
+    expect(keyList.live).toBe(0);
   });
 }

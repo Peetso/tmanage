@@ -116,6 +116,26 @@ describe('AgentKeysService', () => {
     expect(await service.countLive(RUNNER, CONTEXT, OWNER, T0)).toBe(0);
     expect(await service.revoke(RUNNER, CONTEXT, OWNER, a.id, T0)).toBe(false);
   });
+
+  it('revokeAll (retire) marks every unrevoked key of this AI employee, expired ones too', async () => {
+    const store = new MemoryTokens();
+    const service = new AgentKeysService(store);
+    const request = { name: 'k', lifetimeDays: 30 as const, ipAllowlistJson: null };
+    const live = await service.mint(RUNNER, CONTEXT, OWNER, request, 'm', T0);
+    const expired = await service.mint(RUNNER, CONTEXT, OWNER, request, 'm', T0);
+    const done = await service.mint(RUNNER, CONTEXT, OWNER, request, 'm', T0);
+    const other = { membershipId: 'm-other', userId: 'u-other' };
+    const theirs = await service.mint(RUNNER, CONTEXT, other, request, 'm', T0);
+    (store.rows.find((r) => r.id === expired.id) as { expiresAt: Date }).expiresAt = T0;
+    await service.revoke(RUNNER, CONTEXT, OWNER, done.id, T0);
+    const later = new Date(T0.getTime() + DAY);
+
+    expect(await service.revokeAll(RUNNER, CONTEXT, OWNER, later)).toEqual([live.id, expired.id]);
+    const at = (id: string) => store.rows.find((r) => r.id === id)?.revokedAt;
+    expect([at(live.id), at(expired.id), at(done.id)]).toEqual([later, later, T0]);
+    expect(at(theirs.id)).toBeNull();
+    expect(await service.revokeAll(RUNNER, CONTEXT, OWNER, later)).toEqual([]);
+  });
 });
 
 describe('the agent scope stays fail-closed until 60-06', () => {

@@ -97,4 +97,21 @@ export class AiConnectorsService {
     await this.tokens.revokeTokensByGrant(runner, grantId);
     return true;
   }
+
+  /**
+   * Retire: stop every live connector of this membership, each grant with all its tokens, in the
+   * caller's transaction. Returns the grant ids revoked now (for the audit row).
+   */
+  async revokeAll(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+  ): Promise<readonly string[]> {
+    const live = await this.grants.listLiveForMembership(runner, context, membershipId);
+    const revoked: string[] = [];
+    for (const row of live) {
+      if (await this.revoke(runner, context, membershipId, row.id)) revoked.push(row.id);
+    }
+    return revoked;
+  }
 }

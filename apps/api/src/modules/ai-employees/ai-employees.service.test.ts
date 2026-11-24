@@ -270,7 +270,7 @@ function harness(enabled = true) {
   const offboarded: string[] = [];
   const scope: AiEmployeeHireScope = { identity: RUNNER, tenant: RUNNER };
   const tokens = new MemoryTokens(T0);
-  const connectors = { live: 0 };
+  const connectors = { live: 0, grants: [] as string[], revokedFor: [] as string[] };
   const settings: { value: AiEmployeeSettings } = { value: AI_EMPLOYEE_SETTINGS_DEFAULTS };
   const roleChanges: { membershipId: string; role: unknown }[] = [];
   const options: AiEmployeesServiceOptions = {
@@ -366,7 +366,16 @@ function harness(enabled = true) {
     },
     agentKeys: new AgentKeysService(tokens),
     // 60-07: live connectors that work as the AI employee count against the same cap.
-    aiConnectors: { countLive: async () => connectors.live },
+    aiConnectors: {
+      countLive: async () => connectors.live,
+      revokeAll: async (_r: TenantQueryRunner, _c: TenantContext, membershipId: string) => {
+        connectors.revokedFor.push(membershipId);
+        const revoked = connectors.grants;
+        connectors.grants = [];
+        connectors.live = 0;
+        return revoked;
+      },
+    },
     enabled,
     now: () => T0,
   };
@@ -530,6 +539,35 @@ describe('60-03 lifecycle', () => {
     ]);
   });
 
+  it('retire marks his agent keys and connector grants revoked and audits them', async () => {
+    const h = harness();
+    const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    const key = { name: 'Mat on Claude', lifetimeDays: 30 };
+    const first = await h.service.createKey(contextOf(), OWNER, hired.id, key);
+    const second = await h.service.createKey(contextOf(), OWNER, hired.id, key);
+    h.connectors.grants = ['g-1'];
+    h.connectors.live = 1;
+    await h.service.retire(contextOf(), OWNER, hired.id, { version: 1 });
+
+    const keys = h.tokens.rows.filter((row) => row.membershipId === hired.membershipId);
+    expect(keys.map((row) => [row.id, row.revokedAt])).toEqual([
+      [first.id, T0],
+      [second.id, T0],
+    ]);
+    expect(h.connectors.revokedFor).toEqual([hired.membershipId]);
+    expect(h.audits.at(-1)).toEqual({
+      action: AI_EMPLOYEE_AUDIT.retired,
+      metadata: {
+        membership_id: hired.membershipId,
+        previous_status: 'active',
+        keys_revoked: 2,
+        revoked_key_ids: [first.id, second.id],
+        connectors_revoked: 1,
+        revoked_grant_ids: ['g-1'],
+      },
+    });
+  });
+
   it('will not resume while the sponsor is not an active person', async () => {
     const h = harness();
     const hired = await h.service.hire(contextOf(), OWNER, MAT);
@@ -678,18 +716,24 @@ describe('60-05 agent keys', () => {
     });
   });
 
-  it('revokes at once, also after retirement; a retired AI employee gets no new key', async () => {
+  it('revokes at once; retiring revokes the rest; a retired AI employee gets no new key', async () => {
     const h = harness();
     const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    const first = await h.service.createKey(contextOf(), OWNER, hired.id, KEY);
     const key = await h.service.createKey(contextOf(), OWNER, hired.id, KEY);
+    await h.service.revokeKey(contextOf(), OWNER, hired.id, first.id);
+    expect(h.audits.at(-1)?.action).toBe(AI_EMPLOYEE_AUDIT.keyRevoked);
     await h.service.retire(contextOf(), OWNER, hired.id, { version: 1 });
     const blocked = await refusal(h.service.createKey(contextOf(), OWNER, hired.id, KEY));
     expect(blocked.auditCode).toBe('ai_employee:retired');
-    await h.service.revokeKey(contextOf(), OWNER, hired.id, key.id);
-    expect(h.tokens.rows[0]?.revokedAt).toEqual(T0);
+    // Retire already marked the second key revoked; revoking it again finds nothing live.
+    expect(h.tokens.rows.find((row) => row.id === key.id)?.revokedAt).toEqual(T0);
     const twice = await refusal(h.service.revokeKey(contextOf(), OWNER, hired.id, key.id));
     expect(twice.auditCode).toBe('ai_employee:key_not_found');
-    expect(h.audits.at(-1)?.action).toBe(AI_EMPLOYEE_AUDIT.keyRevoked);
+    expect(h.audits.at(-1)).toMatchObject({
+      action: AI_EMPLOYEE_AUDIT.retired,
+      metadata: { keys_revoked: 1, revoked_key_ids: [key.id] },
+    });
   });
 
   it('refuses a bad body before any write, and an AI-assistant channel entirely', async () => {

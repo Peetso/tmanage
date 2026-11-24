@@ -216,4 +216,26 @@ export class AgentKeysService {
   ): Promise<boolean> {
     return (await this.tokens.revoke(runner, context, owner.membershipId, keyId, at)) > 0;
   }
+
+  /**
+   * Retire: mark every key of this AI employee that is not yet revoked as revoked at `at`, expired
+   * ones included, so the rows say what the membership already enforces. Runs in the caller's
+   * transaction; returns the ids revoked now (for the audit row).
+   */
+  async revokeAll(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    owner: AgentKeyOwner,
+    at: Date,
+  ): Promise<readonly string[]> {
+    const rows = await this.tokens.listForMembership(runner, context, owner.membershipId);
+    const revoked: string[] = [];
+    for (const row of rows) {
+      if (row.revokedAt !== null) continue;
+      if ((await this.tokens.revoke(runner, context, owner.membershipId, row.id, at)) > 0) {
+        revoked.push(row.id);
+      }
+    }
+    return revoked;
+  }
 }
