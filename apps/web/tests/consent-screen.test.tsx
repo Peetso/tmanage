@@ -128,7 +128,7 @@ describe('S9 consent screen', () => {
     await userEvent.click(screen.getByRole('button', { name: /Consent\.allow$|Allow access/ }));
 
     await waitFor(() => expect(went).toEqual(['https://notes.example/cb?code=c&state=s1']));
-    const post = calls.find((call) => call.url.includes('/organizations/northstar/oauth/consent'));
+    const post = calls.find((call) => call.url.endsWith('/organizations/northstar/oauth/consent'));
     expect(post?.method).toBe('POST');
     expect(post?.body).toMatchObject({
       ...PARAMS,

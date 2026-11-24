@@ -66,6 +66,9 @@ function routedClient(sent: Sent[], delivery: 'sent' | 'none' = 'sent') {
           headers: { 'content-type': 'application/json' },
         }),
       );
+    // Plan 60: AI employees are not offered here (the API answers 404 while they are off).
+    if (url.pathname.includes('/ai-employees'))
+      return reply({ error: { code: 'not_found', message: 'Not found', correlationId: 'c' } }, 404);
     if (url.pathname.endsWith('/people')) {
       return reply({
         people: [
@@ -161,7 +164,8 @@ describe('Members and roles — pending invitations', () => {
     expect(within(table).getByText('hana@northstar.studio')).toBeTruthy();
     expect(within(table).getAllByText('Maya Hassan')).toHaveLength(2);
     expect(within(table).getByText('Expired')).toBeTruthy();
-    expect(await screen.findByText('1 member · 1 invitation waiting')).toBeTruthy();
+    // Plan 60 S1: the header counts people; the invitations count heads their own table.
+    expect(await screen.findByText('1 person')).toBeTruthy();
     expect(initialsOfEmail('hana@northstar.studio')).toBe('HN');
   });
 

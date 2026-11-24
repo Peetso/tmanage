@@ -77,6 +77,8 @@ function gate(input: {
   sponsorResolveFails?: boolean;
   excluded?: readonly string[];
   enabled?: boolean;
+  workspaceOn?: boolean;
+  closedProjectIds?: readonly string[];
 }): AgentEnforcement {
   const runner = {} as TenantQueryRunner;
   return new AgentEnforcement({
@@ -101,6 +103,12 @@ function gate(input: {
       }) as never,
     },
     enabled: input.enabled ?? true,
+    rules: {
+      read: async () => ({
+        enabled: input.workspaceOn ?? true,
+        closedProjectIds: input.closedProjectIds ?? [],
+      }),
+    },
     now: () => T0,
   });
 }
@@ -172,6 +180,17 @@ describe('agent gate: decisions in the plan order', () => {
       status: 404,
       auditCode: 'feature.ai_employees_off',
     });
+  });
+
+  it('60-07: refuses every call while the workspace switched AI off, and drops client projects', async () => {
+    expect((await refusal(gate({ workspaceOn: false }).decide(asAgent))).auditCode).toBe(
+      'agent:workspace_off',
+    );
+    const decision = await gate({
+      excluded: ['p-excluded'],
+      closedProjectIds: ['p-client', 'p-excluded'],
+    }).decide(asAgent);
+    expect([...(decision?.excludedProjectIds ?? [])].sort()).toEqual(['p-client', 'p-excluded']);
   });
 
   it('refuses a paused or retired AI employee', async () => {

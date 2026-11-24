@@ -1429,6 +1429,28 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'ai_employee',
     clause: '§12 60-05 — a person revoked an agent key (immediately)',
   },
+  /**
+   * 60-07. A person connected an AI app that works as an AI employee (consent "works as"). The
+   * metadata names the grant id only — never a token.
+   */
+  'ai_employee.connector_added': {
+    objectType: 'ai_employee',
+    clause: '§12 60-07 — a person connected an app that works as an AI employee',
+  },
+  'ai_employee.connector_revoked': {
+    objectType: 'ai_employee',
+    clause: '§12 60-07 — a person stopped a connector of an AI employee (immediately)',
+  },
+  /** 60-07 (S8). A person changed the workspace's AI-employee rules; metadata names the fields. */
+  'ai_employee.settings_changed': {
+    objectType: 'organization',
+    clause: '§12 60-07 — a person changed the workspace rules for AI employees',
+  },
+  /** 60-07 (S3, S6). A person changed which projects an AI employee works in (its boundary). */
+  'ai_employee.projects_changed': {
+    objectType: 'ai_employee',
+    clause: '§12 60-07 — a person changed the projects an AI employee works in',
+  },
   // ---- plan 60 v2 M5 · project exclusion ----
   /** A person kept a project away from every AI employee. Object: the project. */
   'ai_employee.project_excluded': {
@@ -2470,6 +2492,10 @@ const AUDIT_ACTION_LABELS = {
   'ai_employee.key_created': 'Made an agent key for an AI employee',
   'ai_employee.key_rotated': "Rotated an AI employee's agent key",
   'ai_employee.key_revoked': "Revoked an AI employee's agent key",
+  'ai_employee.connector_added': 'Connected an app that works as an AI employee',
+  'ai_employee.connector_revoked': "Stopped an AI employee's connector",
+  'ai_employee.settings_changed': 'Changed the rules for AI employees',
+  'ai_employee.projects_changed': "Changed an AI employee's projects",
   'ai_employee.project_excluded': 'Kept a project away from AI employees',
   'ai_employee.project_included': 'Let AI employees read a project again',
   'member.photo_changed': 'Changed their own profile photo',

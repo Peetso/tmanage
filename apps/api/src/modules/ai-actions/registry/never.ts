@@ -61,6 +61,8 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/oauth/consent', reason: 'oauth' },
   { method: 'POST', path: '/v1/oauth/consent/deny', reason: 'oauth' },
   { method: 'POST', path: '/v1/organizations/:orgSlug/oauth/consent', reason: 'oauth' },
+  // 60-07 (S5): the AI employees the person may connect the app as. Cookie session only.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/oauth/consent/works-as', reason: 'oauth' },
   // S10: the approve page's API for confirm-class AI actions — view, approve, decline. A cookie
   // session of the same member only; an AI principal must never approve its own request.
   // MCPEASE (55-15p): the member's own waiting list behind the AI actions page. Cookie session only.
@@ -525,6 +527,17 @@ export const NEVER: readonly NeverEntry[] = [
   },
   // 60-06: the agent contract; the tool wall lets only an agent key through.
   { method: 'GET', path: '/v1/organizations/:orgSlug/agent/me', reason: 'agent_contract' },
+  // 60-07 (S8): the workspace's rules for AI employees, an owner's or admin's decision.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/ai-employees/settings/',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/ai-employees/settings/',
+    reason: 'ai_employee_admin',
+  },
   // Plan 60 v2 M5: the projects kept away from AI employees, a person's decision.
   {
     method: 'GET',
@@ -560,6 +573,17 @@ export const NEVER: readonly NeverEntry[] = [
   {
     method: 'DELETE',
     path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/keys/:keyId',
+    reason: 'ai_employee_admin',
+  },
+  // 60-07: an AI employee's connections (keys and connectors), people only.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/connections/',
+    reason: 'ai_employee_admin',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/ai-employees/:aiEmployeeId/connections/connectors/:grantId',
     reason: 'ai_employee_admin',
   },
   { method: 'POST', path: '/v1/public/portal-sign-in/', reason: 'auth' },

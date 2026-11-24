@@ -37,6 +37,8 @@ export type ControlCenterSection =
   | 'members'
   // W-WEB-4: Teams (people grouped to assign work to), the menu entry the owner found missing.
   | 'teams'
+  // Plan 60 (S8): the workspace's AI employee rules, owner and admin.
+  | 'ai-employees'
   | 'roles'
   | 'client-organizations'
   | 'invitations'
@@ -255,6 +257,15 @@ const GROUPS: readonly SectionGroup[] = [
       },
       { id: 'members', labelKey: 'ControlCenterShell.membersAndRoles', href: '/people' },
       { id: 'teams', labelKey: 'ControlCenterShell.teams', href: '/people/teams' },
+      // Plan 60 (S8, Figma 960:1036): AI employee rules, under Teams, owner and admin.
+      {
+        id: 'ai-employees',
+        labelKey: 'RouteTitle.settingsAiEmployees' as MessageKey,
+        fallback: 'AI employees',
+        href: '/settings/ai-employees',
+        capability: 'ai_employee.manage',
+        pageCapability: 'ai_employee.manage',
+      },
       {
         id: 'roles',
         labelKey: 'ControlCenterShell.roles',
@@ -442,6 +453,7 @@ export const SECTION_ICONS: Partial<Record<ControlCenterSection, PhoneIconName>>
   overview: 'layoutDashboard',
   members: 'users',
   teams: 'layers',
+  'ai-employees': 'zap',
   roles: 'key',
   'client-organizations': 'handshake',
   invitations: 'userPlus',

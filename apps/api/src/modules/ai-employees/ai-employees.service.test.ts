@@ -14,9 +14,14 @@ import {
   AiEmployeesRepository,
   type AiEmployeeChange,
   type AiEmployeeRecord,
+  type AiProjectFacts,
   type MemberFacts,
   type NewAiEmployee,
 } from './ai-employees.repository.js';
+import {
+  AI_EMPLOYEE_SETTINGS_DEFAULTS,
+  type AiEmployeeSettings,
+} from './ai-employee-settings.repository.js';
 import {
   AI_EMPLOYEE_AUDIT,
   AiEmployeesService,
@@ -35,6 +40,9 @@ const OWNER_M = '0190a000-0000-7000-8000-0000000000b1';
 const LEFT_M = '0190a000-0000-7000-8000-0000000000b2';
 const AI_M = '0190a000-0000-7000-8000-0000000000b3';
 const T0 = new Date('2026-11-21T09:00:00.000Z');
+const P_LAUNCH = '0190a000-0000-7000-8000-0000000000e1';
+const P_ACME = '0190a000-0000-7000-8000-0000000000e2';
+const P_DONE = '0190a000-0000-7000-8000-0000000000e3';
 
 const MANAGE: readonly Capability[] = ['ai_employee.manage', 'people.view'];
 
@@ -136,6 +144,7 @@ class MemoryRepository extends AiEmployeesRepository {
       workingHoursJson: row.workingHoursJson,
       limitsJson: row.limitsJson,
       discloseToClients: row.discloseToClients,
+      allowedTaskTypesJson: row.allowedTaskTypesJson,
       version: 1,
       createdAt: row.at,
       updatedAt: row.at,
@@ -146,6 +155,42 @@ class MemoryRepository extends AiEmployeesRepository {
   }
   readonly projectIds = new Set(['0190a000-0000-7000-8000-0000000000f1']);
   readonly excluded = new Map<string, { setBy: string; at: Date }>();
+  /** 60-07: the workspace's projects (id, name, status, client or not). */
+  readonly projects = new Map<string, AiProjectFacts>([
+    [P_LAUNCH, { id: P_LAUNCH, name: 'Launch', status: 'active', isClient: false }],
+    [P_ACME, { id: P_ACME, name: 'Acme site', status: 'active', isClient: true }],
+    [P_DONE, { id: P_DONE, name: 'Old site', status: 'archived', isClient: false }],
+  ]);
+  /** 60-07: project memberships per user id (the projects an AI employee works in). */
+  readonly memberOf = new Map<string, Set<string>>();
+  override async projectFacts(
+    _r: TenantQueryRunner,
+    _c: TenantContext,
+    ids: readonly string[],
+  ): Promise<readonly AiProjectFacts[]> {
+    return ids.flatMap((id) => {
+      const fact = this.projects.get(id);
+      return fact === undefined ? [] : [fact];
+    });
+  }
+  override async excludedProjectIds(): Promise<readonly string[]> {
+    return [...this.excluded.keys()];
+  }
+  override async projectsOfUsers(
+    _r: TenantQueryRunner,
+    _c: TenantContext,
+    userIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly AiProjectFacts[]>> {
+    return new Map(
+      userIds.map((userId) => [
+        userId,
+        [...(this.memberOf.get(userId) ?? [])].flatMap((id) => {
+          const fact = this.projects.get(id);
+          return fact === undefined ? [] : [fact];
+        }),
+      ]),
+    );
+  }
   override async projectExists(
     _r: TenantQueryRunner,
     _c: TenantContext,
@@ -221,6 +266,9 @@ function harness(enabled = true) {
   const offboarded: string[] = [];
   const scope: AiEmployeeHireScope = { identity: RUNNER, tenant: RUNNER };
   const tokens = new MemoryTokens(T0);
+  const connectors = { live: 0 };
+  const settings: { value: AiEmployeeSettings } = { value: AI_EMPLOYEE_SETTINGS_DEFAULTS };
+  const roleChanges: { membershipId: string; role: unknown }[] = [];
   const options: AiEmployeesServiceOptions = {
     database: {
       transaction: (async (_c: TenantContext, work: (tx: TenantQueryRunner) => Promise<unknown>) =>
@@ -263,7 +311,46 @@ function harness(enabled = true) {
         offboarded.push(id);
         return {};
       }) as unknown as AiEmployeesServiceOptions['memberships']['transitionStatus'],
+      changeAiRole: (async (
+        _r: TenantQueryRunner,
+        _c: TenantContext,
+        membershipId: string,
+        role: unknown,
+      ) => {
+        roleChanges.push({ membershipId, role });
+        return true;
+      }) as unknown as AiEmployeesServiceOptions['memberships']['changeAiRole'],
     },
+    settings: { read: async () => settings.value },
+    projectMembers: {
+      add: (async (
+        _r: TenantQueryRunner,
+        _c: TenantContext,
+        input: { projectId: string; userId: string },
+      ) => {
+        const held = repository.memberOf.get(input.userId) ?? new Set<string>();
+        held.add(input.projectId);
+        repository.memberOf.set(input.userId, held);
+        return {};
+      }) as unknown as NonNullable<AiEmployeesServiceOptions['projectMembers']>['add'],
+      findByProjectAndUser: (async (
+        _r: TenantQueryRunner,
+        _c: TenantContext,
+        projectId: string,
+        userId: string,
+      ) =>
+        repository.memberOf.get(userId)?.has(projectId) === true
+          ? { id: `${projectId}|${userId}` }
+          : null) as unknown as NonNullable<
+        AiEmployeesServiceOptions['projectMembers']
+      >['findByProjectAndUser'],
+      remove: (async (_r: TenantQueryRunner, _c: TenantContext, id: string) => {
+        const [projectId = '', userId = ''] = id.split('|');
+        repository.memberOf.get(userId)?.delete(projectId);
+        return true;
+      }) as unknown as NonNullable<AiEmployeesServiceOptions['projectMembers']>['remove'],
+    },
+    connections: async () => new Map(),
     accounts: {
       insertUser: async (_r, user) => {
         users.push({ id: user.id, email: user.email, displayName: user.displayName });
@@ -271,10 +358,15 @@ function harness(enabled = true) {
       },
     },
     agentKeys: new AgentKeysService(tokens),
+    // 60-07: live connectors that work as the AI employee count against the same cap.
+    aiConnectors: { countLive: async () => connectors.live },
     enabled,
     now: () => T0,
   };
   return {
+    connectors,
+    settings,
+    roleChanges,
     service: new AiEmployeesService(options),
     repository,
     audits,
@@ -295,7 +387,12 @@ async function refusal(promise: Promise<unknown>): Promise<ApiError> {
   throw new Error('expected a refusal');
 }
 
-const MAT = { displayName: 'Mat', jobTitle: 'Social media designer', vendorLabel: 'Claude' };
+const MAT = {
+  displayName: 'Mat',
+  jobTitle: 'Social media designer',
+  vendorLabel: 'Claude',
+  projectIds: [P_LAUNCH],
+};
 
 describe('60-03 parsing', () => {
   it('refuses hidden characters, unknown roles and limits above the cap', () => {
@@ -310,15 +407,16 @@ describe('60-03 parsing', () => {
     expect(bad.issues.map((issue) => issue.field).sort()).toEqual([
       'displayName',
       'limits.callsPerMinute',
+      'projectIds',
       'role',
     ]);
   });
 
-  it('defaults role member, UTC, defaults limits, disclosure on, always working', () => {
+  it('defaults role member, UTC, defaults limits, the workspace disclosure, always working', () => {
     const parsed = parseHire(MAT);
     expect(parsed).toMatchObject({
       ok: true,
-      value: { role: 'member', timezone: 'UTC', workingWindows: null, discloseToClients: true },
+      value: { role: 'member', timezone: 'UTC', workingWindows: null, discloseToClients: null },
     });
   });
 
@@ -527,6 +625,19 @@ describe('60-05 agent keys', () => {
     expect(h.audits.filter((a) => a.action === AI_EMPLOYEE_AUDIT.keyCreated)).toHaveLength(3);
   });
 
+  it('60-07: live connectors count with keys against the cap of 3', async () => {
+    const h = harness();
+    const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    h.connectors.live = 2;
+    await h.service.createKey(contextOf(), OWNER, hired.id, KEY);
+    const second = await refusal(h.service.createKey(contextOf(), OWNER, hired.id, KEY));
+    expect([second.status, second.auditCode]).toEqual([409, 'ai_employee:credential_limit']);
+    expect(await h.service.listKeys(contextOf(), OWNER, hired.id)).toMatchObject({
+      live: 3,
+      canCreate: false,
+    });
+  });
+
   it('the sponsor may bind without the manage capability; anyone else may not', async () => {
     const h = harness();
     const hired = await h.service.hire(contextOf(), OWNER, MAT);
@@ -623,5 +734,72 @@ describe('project exclusion (plan 60 v2 M5)', () => {
     const channel = await refusal(h.service.excludeProject(contextOf(true), OWNER, PROJECT));
     expect(channel.status).toBe(403);
     expect(h.repository.excluded.size).toBe(0);
+  });
+});
+
+describe('60-07 projects, hire policy and role', () => {
+  it('a hire needs at least one project; open, internal projects become his memberships', async () => {
+    const h = harness();
+    const none = parseHire({ ...MAT, projectIds: [] });
+    expect(none).toMatchObject({ ok: false });
+    const view = await h.service.hire(contextOf(), OWNER, {
+      ...MAT,
+      projectIds: [P_LAUNCH, P_ACME],
+      taskTypes: ['design.social_post'],
+    });
+    expect(view.projects.map((project) => project.id)).toEqual([P_LAUNCH, P_ACME]);
+    expect(view.projects.find((project) => project.id === P_ACME)?.isClient).toBe(true);
+    expect(view.taskTypes).toEqual(['design.social_post']);
+    expect(view.userId).toBe(h.users[0]?.id);
+    expect(h.audits.at(-1)?.metadata).toMatchObject({ projects: `${P_LAUNCH},${P_ACME}` });
+  });
+
+  it('refuses an archived, unknown or closed-to-AI project, and a client one under internal only', async () => {
+    const h = harness();
+    h.repository.excluded.set(P_LAUNCH, { setBy: OWNER_M, at: T0 });
+    for (const projectIds of [[P_DONE], ['0190a000-0000-7000-8000-0000000000ef'], [P_LAUNCH]]) {
+      const error = await refusal(h.service.hire(contextOf(), OWNER, { ...MAT, projectIds }));
+      expect([error.status, error.code], projectIds[0]).toEqual([400, 'validation_failed']);
+    }
+    h.settings.value = { ...AI_EMPLOYEE_SETTINGS_DEFAULTS, clientWork: 'internal_only' };
+    const client = await refusal(
+      h.service.hire(contextOf(), OWNER, { ...MAT, projectIds: [P_ACME] }),
+    );
+    expect(client.status).toBe(400);
+    expect(h.users).toHaveLength(0);
+  });
+
+  it('under the owners-only policy an admin may not hire; the owner may', async () => {
+    const h = harness();
+    h.settings.value = { ...AI_EMPLOYEE_SETTINGS_DEFAULTS, hirePolicy: 'owners' };
+    const admin = { ...OWNER, role: 'workspace_admin' } as unknown as Principal;
+    const error = await refusal(h.service.hire(contextOf(), admin, MAT));
+    expect([error.status, error.auditCode]).toEqual([403, 'ai_employee.hire:owners_only']);
+    const list = await h.service.list(contextOf(), admin);
+    expect(list.canHire).toBe(false);
+    await h.service.hire(contextOf(), OWNER, MAT);
+    expect(h.users).toHaveLength(1);
+  });
+
+  it('the disclosure default comes from the workspace when the hire does not say', async () => {
+    const h = harness();
+    h.settings.value = { ...AI_EMPLOYEE_SETTINGS_DEFAULTS, discloseToClients: false };
+    const view = await h.service.hire(contextOf(), OWNER, MAT);
+    expect(view.discloseToClients).toBe(false);
+  });
+
+  it('an update changes his projects (added and removed, audited once) and his role', async () => {
+    const h = harness();
+    const hired = await h.service.hire(contextOf(), OWNER, MAT);
+    const view = await h.service.update(contextOf(), OWNER, hired.id, {
+      version: hired.version,
+      projectIds: [P_ACME],
+      role: 'guest',
+    });
+    expect(view.projects.map((project) => project.id)).toEqual([P_ACME]);
+    expect(h.roleChanges).toEqual([{ membershipId: hired.membershipId, role: 'guest' }]);
+    const changed = h.audits.filter((audit) => audit.action === AI_EMPLOYEE_AUDIT.projectsChanged);
+    expect(changed).toHaveLength(1);
+    expect(changed[0]?.metadata).toEqual({ added: P_ACME, removed: P_LAUNCH });
   });
 });

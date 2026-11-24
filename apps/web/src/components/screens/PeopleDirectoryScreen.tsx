@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, IconButton, InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
 import {
   capabilitySetFor,
   CLIENT_ROLES,
   mayActOnMember,
   memberAuthorityTier,
 } from '@tmanage/domain';
-import { ControlCenterShell } from '../admin/ControlCenterShell';
+import { AppShell } from '../shell/AppShell';
+import { PeopleSectionNav } from '../people/PeopleSectionNav';
 import {
   ChangeRoleDialog,
   fill,
@@ -36,30 +37,59 @@ import { fetchPendingInvitations, reissueInvitation } from '../../lib/api/admin-
 import type { IssuedInvitation } from '../../lib/api/invitations';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
+import { changeAiEmployeeStatus, type AiEmployeeView } from '../../lib/api/ai-employees';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { pluralPhrase } from '../../lib/i18n/plural';
+import { withNumerals } from '../../lib/i18n/display-format';
 import { describePeopleError } from './peopleShared';
 import { ViewSwitcher } from '../views/ViewSwitcher';
 import { useViewPreference } from '../views/use-view-preference';
 import { invitationRoleName } from './AdminInvitationsView';
-import '../../styles/screens/people.css';
-import { withNumerals } from '../../lib/i18n/display-format';
 import { PersonAvatar } from '../people/PersonAvatar';
+import { SearchIcon } from '../work/work-icons';
+import { AiAvatar, AiBadge, aiInitialsOf } from '../ai-employees/AiBadge';
+import { AiStatus } from '../ai-employees/AiStatus';
+import { AddChooserDialog } from '../ai-employees/AddChooserDialog';
+import { HireWizard, type HireWizardStart } from '../ai-employees/HireWizard';
+import { PeopleRoster, type RosterActions } from '../ai-employees/PeopleRoster';
+import { AiTabs } from '../ai-employees/AiTabs';
+import {
+  aiRowStatus,
+  grantableCustomRoles,
+  hireBlocked,
+  matchesQuery,
+  mergeDirectory,
+  personJobTitle,
+  rowsForTab,
+  type DirectoryRow,
+  type DirectoryTab,
+} from '../ai-employees/ai-employee-model';
+import {
+  useAiEmployeeList,
+  useAiRefresh,
+  useExcludedProjects,
+  useOrganizationMe,
+  useProjectOptions,
+} from '../ai-employees/use-ai-employees';
+import '../../styles/screens/people.css';
+import '../people/teams/teams.css';
+import '../ai-employees/ai-employees.css';
 
 export interface PeopleDirectoryScreenProps {
   organizationSlug: string;
   organizationName: string;
   /** Injected in tests. Defaults to the browser client. */
   client?: ApiClient;
+  /** Stories: open on this tab. */
+  initialTab?: DirectoryTab;
+  /** Stories: open with the add chooser, or the hire wizard at a drawn state. */
+  initialDialog?: 'add' | 'hire';
+  initialWizard?: HireWizardStart;
+  /** Stories: the connector address the design shows. */
+  addressOverride?: string;
 }
-
-/**
- * The roster row as this screen reads it: the directory read carries `email` (r-people's second
- * line), `lastActiveAt` (LAST ACTIVE) and `version` (the role change's compare-and-swap token). A
- * null email shows no address and a null `lastActiveAt` shows "—".
- */
-type MemberRow = PersonSummary;
 
 /** Owner and org admin assign roles and invite (`12-PERMISSION-MATRIX` §2 "Assign roles"). */
 const ROLE_ASSIGNERS = new Set(['owner', 'org_admin']);
@@ -68,25 +98,15 @@ const ROLE_ASSIGNERS = new Set(['owner', 'org_admin']);
 const PEOPLE_LAYOUTS = ['list', 'grid'] as const;
 type PeopleLayout = (typeof PEOPLE_LAYOUTS)[number];
 
-const PLURAL_EN: Record<string, { one: string; other: string }> = {
-  members: { one: '1 member', other: '{count} members' },
-  invitations: { one: '1 invitation waiting', other: '{count} invitations waiting' },
-  projects: { one: '1 project', other: '{count} projects' },
-};
-
-/** A count in the active locale's plural form — Arabic has six, English two. */
-function usePlural(): (kind: 'members' | 'invitations' | 'projects', count: number) => string {
-  const tr = useTOr();
-  const locale = useActiveLocale();
-  return (kind, count) => {
-    const category = new Intl.PluralRules(locale).select(count);
-    const english = PLURAL_EN[kind] ?? { one: '{count}', other: '{count}' };
-    const fallback = category === 'one' ? english.one : english.other;
-    return fill(tr(`PeopleDirectoryScreen.${kind}.${category}`, fallback), {
-      count: count.toLocaleString(withNumerals(locale)),
-    });
-  };
-}
+type Dialog =
+  | { readonly kind: 'role'; readonly target: ChangeRoleTarget }
+  | { readonly kind: 'reset'; readonly person: PersonSummary }
+  | { readonly kind: 'add' }
+  | { readonly kind: 'hire' }
+  | { readonly kind: 'invite'; readonly email?: string }
+  | { readonly kind: 'invite-role'; readonly invitation: PendingInvitation }
+  | { readonly kind: 'invite-revoke'; readonly invitation: PendingInvitation }
+  | { readonly kind: 'invite-link'; readonly issued: IssuedInvitation };
 
 /** "Online now"-style wording for LAST ACTIVE, in the active locale; "—" when unknown. */
 function useLastActive(): (iso: string | null | undefined) => string {
@@ -106,51 +126,51 @@ function useLastActive(): (iso: string | null | undefined) => string {
   };
 }
 
-type Dialog =
-  | { readonly kind: 'role'; readonly target: ChangeRoleTarget }
-  | { readonly kind: 'reset'; readonly person: MemberRow }
-  | { readonly kind: 'invite'; readonly email?: string }
-  | { readonly kind: 'invite-role'; readonly invitation: PendingInvitation }
-  | { readonly kind: 'invite-revoke'; readonly invitation: PendingInvitation }
-  | { readonly kind: 'invite-link'; readonly issued: IssuedInvitation };
-
 /**
- * **Members and roles** — Control Center › People (Figma 374:1985, r-people; A1).
+ * **People** (plan 60 slice 60-07, S1; Figma `949:1022`, phone `949:1853`). People's own menu on
+ * the left, "People · 5 people · 3 AI employees", Search people and Add in the header; the tabs
+ * Everyone / People / AI employees with their counts; and everyone in one table: Name, Job title,
+ * Role, Sponsor, Status and a ⋯ menu.
  *
- * The PEOPLE eyebrow, "Members and roles", "N members · M invitations waiting", the black
- * "Invite member", and the roster as a table: NAME (initials, name, address), ROLE (a chip that
- * opens Change role for an owner or admin), PROJECTS, LAST ACTIVE and a row menu — Change role,
- * Send password reset link, View profile, and the red "Remove from <organization>" that opens
- * offboarding. The footnote says the one rule the menu enforces: only an owner changes an owner's
- * role. The screen draws its own header (the frame's), so the shell's is hidden.
+ * Every feature of the earlier Members and roles page stays: the role chip and Change role, Send
+ * password reset link, View profile, Remove (offboarding), pending invitations with all their
+ * actions, Invite (now through Add), the list / grid switch (grid cards keep each person's
+ * address, projects and last activity) and the Capacity link (both at the end of the tab row).
+ *
+ * AI employees come from `GET …/ai-employees`. A 404 (the server switch is off) or a 403 means
+ * this workspace shows none: no AI tab and no AI count, never an error. While the workspace has
+ * them switched off (`enabled: false`) a banner says so (S1d).
  */
 export function PeopleDirectoryScreen({
   organizationSlug,
   organizationName,
   client,
+  initialTab = 'everyone',
+  initialDialog,
+  initialWizard,
+  addressOverride,
 }: PeopleDirectoryScreenProps) {
   const api = client ?? browserApiClient();
   const tr = useTOr();
-  const plural = usePlural();
+  const locale = useActiveLocale();
   const queryClient = useQueryClient();
   const workspace = useOrganizationName(organizationSlug, organizationName) || organizationName;
   const { role: myRole, capabilities: myCapabilities } = useOrganizationRole(organizationSlug);
-  // Assigning roles stays with owner and org admin: a custom role id is never in this set, so a
-  // custom-role viewer is never offered the role change the API would refuse.
   const canAssign = myRole !== undefined && ROLE_ASSIGNERS.has(myRole);
-  const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [dialog, setDialog] = useState<Dialog | null>(
+    initialDialog === undefined ? null : { kind: initialDialog },
+  );
   const [announcement, setAnnouncement] = useState('');
+  const [tab, setTab] = useState<DirectoryTab>(initialTab);
+  const [query, setQuery] = useState('');
+  const [phoneSearch, setPhoneSearch] = useState(false);
   const [layout, setLayout] = useViewPreference<PeopleLayout>(
     `people:${organizationSlug}`,
     PEOPLE_LAYOUTS,
     'list',
   );
-  // F1: a member holding a custom role shows that role's name, not its id — for every viewer.
   const customRoles = useCustomRoles(api, organizationSlug, myRole !== undefined);
   const chip = useRoleChipLabel(customRoles.data);
-  // B11 / D3: a pending invitation can carry a client role, which the members' chip map does not
-  // know, so it read "Custom role". Where the chip falls back, name the role with the Admin >
-  // Invitations helper instead (a client role in this locale, a custom role by its own name).
   const customRoleFallback = tr('PeopleDirectoryScreen.role.custom', 'Custom role');
   const invitationChip = (role: string): string => {
     const label = chip(role);
@@ -160,24 +180,18 @@ export function PeopleDirectoryScreen({
       ? tr(`PermissionEditor.role.${role}`, named)
       : named;
   };
-  // A viewer whose own custom role grants `org.manage` may invite and manage members (the API's
-  // gate for those routes), but still not change roles.
   const myCustomRole = customRoles.data?.find((entry) => entry.id === myRole);
-  // H1: the organization list carries the viewer's own custom set, so this no longer depends on
-  // the Control > Roles read (itself behind `org.manage`) succeeding.
   const canManage =
     canAssign ||
     (myCustomRole?.capabilities.includes('org.manage') ?? false) ||
     (myCapabilities?.includes('org.manage') ?? false);
 
-  // QA-FIX-P S3: the row actions are offered only on people the viewer outranks — the domain's
-  // one rule (`mayActOnMember`), which the API enforces on every one of these routes. An admin
-  // is never offered a reset, role change or removal for the owner or another admin.
-  const myTier = memberAuthorityTier(
-    myRole ?? '',
-    new Set<string>([...capabilitySetFor(myRole ?? ''), ...(myCapabilities ?? [])]),
+  const myRights = useMemo(
+    () => new Set<string>([...capabilitySetFor(myRole ?? ''), ...(myCapabilities ?? [])]),
+    [myRole, myCapabilities],
   );
-  const outranks = (person: MemberRow): boolean =>
+  const myTier = memberAuthorityTier(myRole ?? '', myRights);
+  const outranks = (person: PersonSummary): boolean =>
     myRole !== undefined &&
     mayActOnMember(
       myTier,
@@ -189,6 +203,13 @@ export function PeopleDirectoryScreen({
     );
 
   const people = usePeopleDirectory(api, organizationSlug);
+  const ai = useAiEmployeeList(api, organizationSlug);
+  const aiList = ai.data ?? null;
+  const refreshAi = useAiRefresh(organizationSlug);
+  const wizardOpen = dialog?.kind === 'hire';
+  const projects = useProjectOptions(api, organizationSlug, wizardOpen);
+  const excluded = useExcludedProjects(api, organizationSlug, wizardOpen);
+  const me = useOrganizationMe(api, organizationSlug);
 
   const invitations = useQuery({
     queryKey: ['admin-invitations', organizationSlug],
@@ -198,7 +219,6 @@ export function PeopleDirectoryScreen({
   });
 
   const describeError = useDescribeApiError();
-  // "Resend invitation" is the API's re-issue with the same role: a new link, mailed again.
   const resend = useMutation({
     mutationFn: (invitation: PendingInvitation) =>
       reissueInvitation(api, organizationSlug, invitation.id),
@@ -216,49 +236,182 @@ export function PeopleDirectoryScreen({
     },
   });
 
-  const roster: readonly MemberRow[] = people.isSuccess ? people.data.people : [];
+  const roster: readonly PersonSummary[] = people.isSuccess ? people.data.people : [];
   const complete = people.isSuccess && people.data.nextAfter === null;
   const activeOwners = roster.filter((person) => person.role === 'owner').length;
   const pending: readonly PendingInvitation[] = Array.isArray(invitations.data?.invitations)
     ? invitations.data.invitations
     : [];
-  const waiting = Array.isArray(invitations.data?.invitations)
-    ? invitations.data.invitations.filter((invitation) => !invitation.isExpired).length
-    : null;
 
   const reload = () => {
     void queryClient.invalidateQueries({ queryKey: ['people-directory', organizationSlug] });
     void queryClient.invalidateQueries({ queryKey: ['admin-invitations', organizationSlug] });
   };
 
-  const summary = people.isSuccess
+  const aiRows = aiList?.aiEmployees ?? [];
+  const all = mergeDirectory(roster, aiRows, locale);
+  const shownTab: DirectoryTab = aiList === null ? 'everyone' : tab;
+  const shown = rowsForTab(all, shownTab).filter((row) => matchesQuery(row, query));
+  const humanCount = all.filter((row) => row.kind === 'person').length;
+  const count = (key: string, value: number, one: string, other: string) =>
+    pluralPhrase(tr, locale, key, value, { one, other });
+  const meta = people.isSuccess
     ? [
-        plural('members', roster.length),
-        ...(waiting !== null ? [plural('invitations', waiting)] : []),
+        count('AiPeople.peopleCount', humanCount, '1 person', '{count} people'),
+        ...(aiList === null
+          ? []
+          : [count('AiPeople.aiCount', aiRows.length, '1 AI employee', '{count} AI employees')]),
       ].join(' · ')
-    : null;
+    : undefined;
 
-  const title = tr('PeopleDirectoryScreen.membersTitle', 'Members and roles');
+  const aiBlockedReason = (() => {
+    if (aiList === null)
+      return tr('AiPeople.aiUnavailable', 'AI employees are not available here.');
+    if (!aiList.enabled) return tr('AiPeople.aiSwitchedOff', 'AI employees are switched off.');
+    if (aiList.live >= aiList.limit) {
+      return fill(
+        tr('AiPeople.atLimit', '{live} of {limit} used in the beta. Retire one to hire another.'),
+        {
+          live: aiList.live.toLocaleString(withNumerals(locale)),
+          limit: aiList.limit.toLocaleString(withNumerals(locale)),
+        },
+      );
+    }
+    if (hireBlocked(aiList)) return tr('AiPeople.mayNotHire', 'You can’t hire AI employees here.');
+    return null;
+  })();
+  const mayAdd = canManage || (aiList !== null && aiList.canHire);
+  const openAdd = () => setDialog(aiList === null ? { kind: 'invite' } : { kind: 'add' });
+
+  const aiStep = useMutation({
+    mutationFn: ({ target, step }: { target: AiEmployeeView; step: 'pause' | 'resume' }) =>
+      changeAiEmployeeStatus(api, organizationSlug, target.id, step, target.version),
+    onSuccess: (changed, { step }) => {
+      refreshAi();
+      setAnnouncement(
+        fill(
+          step === 'pause'
+            ? tr('AiPeople.paused', '{name} is paused.')
+            : tr('AiPeople.resumed', '{name} is working again.'),
+          { name: changed.displayName },
+        ),
+      );
+    },
+    onError: (error) => {
+      refreshAi();
+      setAnnouncement(describeError(error));
+    },
+  });
+
+  const actions: RosterActions = {
+    mayChangeRole: (person) => canAssign && outranks(person),
+    mayRemove: (person) =>
+      canAssign && outranks(person) && !(person.role === 'owner' && complete && activeOwners === 1),
+    mayManage: (person) => canManage && outranks(person),
+    roleLabel: (role, roleName) => roleName ?? chip(role),
+    onChangeRole: (person) =>
+      setDialog({
+        kind: 'role',
+        target: {
+          userId: person.userId,
+          displayName: person.displayName,
+          role: person.role,
+          version: person.version,
+        },
+      }),
+    onSendReset: (person) => setDialog({ kind: 'reset', person }),
+    onAiStep: (target, step) => {
+      if (!aiStep.isPending) aiStep.mutate({ target, step });
+    },
+  };
+
+  const title = tr('RouteTitle.people', 'People');
+  const add = mayAdd ? (
+    <Button tone="lime" size="header" onClick={openAdd}>
+      {tr('AiPeople.add', 'Add')}
+    </Button>
+  ) : null;
+  const searchLabel = tr('AiPeople.search', 'Search people');
+  const hireAllowed = aiBlockedReason === null;
 
   return (
-    <ControlCenterShell
+    <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      section="members"
-      crumbs={[title]}
+      activeNavigationId="people"
+      header="compact"
       title={title}
-      client={api}
+      {...(meta === undefined ? {} : { titleMeta: meta })}
+      contextRail={<PeopleSectionNav organizationSlug={organizationSlug} current="directory" />}
+      actions={
+        <>
+          <SearchField
+            label={searchLabel}
+            placeholder={searchLabel}
+            className="tm-aie-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <IconButton
+            label={searchLabel}
+            icon={<SearchIcon />}
+            outline
+            className="tm-aie-search-toggle"
+            aria-expanded={phoneSearch}
+            onClick={() => setPhoneSearch((open) => !open)}
+          />
+          {add}
+        </>
+      }
     >
-      <div className="ppl-screen ppl-screen--own-header">
-        <header className="ppl-members-header">
-          <div>
-            <p className="ppl-mono ppl-members-header__eyebrow">
-              {tr('PeopleDirectoryScreen.membersEyebrow', 'People')}
-            </p>
-            <h1 className="ppl-members-header__title">{title}</h1>
-            {summary ? <p className="ppl-members-header__summary">{summary}</p> : null}
-          </div>
-          <div className="ppl-members-header__actions">
+      <div className="tm-aie-people">
+        <p className="tm-visually-hidden" role="status" aria-live="polite">
+          {announcement}
+        </p>
+
+        {phoneSearch ? (
+          <SearchField
+            label={searchLabel}
+            placeholder={searchLabel}
+            className="tm-aie-search-phone"
+            value={query}
+            // The person pressed Search: the field that opened takes the focus.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        ) : null}
+
+        {aiList !== null && !aiList.enabled ? (
+          <InlineAlert tone="warning">
+            {tr(
+              'AiPeople.offBanner',
+              'AI employees are switched off. Their agents can’t work until an owner switches them on in Settings.',
+            )}
+          </InlineAlert>
+        ) : null}
+
+        <div className="tm-aie-tabbar">
+          {aiList !== null ? (
+            <AiTabs
+              label={tr('AiPeople.tabsLabel', 'Show')}
+              idPrefix="tm-aie-people"
+              current={shownTab}
+              onChange={setTab}
+              tabs={[
+                {
+                  id: 'everyone',
+                  label: tr('AiPeople.tabEveryone', 'Everyone'),
+                  count: all.length,
+                },
+                { id: 'people', label: tr('AiPeople.tabPeople', 'People'), count: humanCount },
+                { id: 'ai', label: tr('AiPeople.tabAi', 'AI employees'), count: aiRows.length },
+              ]}
+            />
+          ) : (
+            <span />
+          )}
+          <div className="tm-aie-tabbar__tools">
             <ViewSwitcher
               label={tr('ViewSwitcher.peopleLabel', 'People view')}
               options={[
@@ -268,155 +421,76 @@ export function PeopleDirectoryScreen({
               value={layout}
               onChange={setLayout}
             />
-            <Link
-              href={`/${organizationSlug}/people/capacity`}
-              className="tm-button tm-button--outline tm-button--default ppl-members-header__cta"
-            >
+            <Link href={`/${organizationSlug}/people/capacity`} className="tm-aie-link">
               {tr('PeopleCapacityTabs.capacity', 'Capacity')}
             </Link>
-            {canManage ? (
-              <button
-                type="button"
-                className="tm-button tm-button--ink ppl-members-header__cta"
-                onClick={() => setDialog({ kind: 'invite' })}
-              >
-                {tr('PeopleDirectoryScreen.inviteMember', 'Invite member')}
-              </button>
-            ) : null}
           </div>
-        </header>
+        </div>
 
-        <p className="tm-visually-hidden" role="status" aria-live="polite">
-          {announcement}
-        </p>
-
-        {people.isPending ? (
-          <LoadingRegion
-            label={tr('PeopleDirectoryScreen.loadingMembers', 'Loading members')}
-            className="tm-stack tm-stack--tight ppl-members-loading"
-          >
-            <Skeleton height="68px" />
-            <Skeleton height="68px" />
-          </LoadingRegion>
-        ) : null}
-
-        {people.isError ? (
-          <InlineAlert
-            tone="danger"
-            title={tr('PeopleDirectoryScreen.membersLoadError', 'Members could not be loaded')}
-            live
-          >
-            {describePeopleError(people.error)}
-          </InlineAlert>
-        ) : null}
-
-        {people.isSuccess && layout === 'grid' ? (
-          roster.length === 0 ? (
-            <p className="ppl-members__empty">
-              {tr('PeopleDirectoryScreen.noMembers', 'No members yet.')}
-            </p>
-          ) : (
-            <ul
-              className="tm-view-grid"
-              aria-label={tr('PeopleDirectoryScreen.listLabel', 'People in this organization')}
+        <div
+          id="tm-aie-people-panel"
+          {...(aiList !== null
+            ? { role: 'tabpanel', 'aria-labelledby': `tm-aie-people-tab-${shownTab}` }
+            : {})}
+        >
+          {people.isPending ? (
+            <LoadingRegion
+              label={tr('PeopleDirectoryScreen.loadingMembers', 'Loading members')}
+              className="tm-stack tm-stack--tight"
             >
-              {roster.map((person) => {
-                const mayChange = canAssign && outranks(person);
-                const chipLabel = person.roleName ?? chip(person.role);
-                return (
-                  <li key={person.userId}>
-                    <MemberCardView
-                      person={person}
-                      organizationSlug={organizationSlug}
-                      chipLabel={chipLabel}
-                      projectsLabel={plural('projects', person.projectCount)}
-                      mayChangeRole={mayChange}
-                      onChangeRole={() =>
-                        setDialog({
-                          kind: 'role',
-                          target: {
-                            userId: person.userId,
-                            displayName: person.displayName,
-                            role: person.role,
-                            version: person.version,
-                          },
-                        })
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )
-        ) : null}
+              <Skeleton height="var(--app-row)" />
+              <Skeleton height="var(--app-row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {people.isSuccess && layout === 'list' ? (
-          <div className="ppl-members-card">
-            <table
-              className="ppl-members"
-              aria-label={tr('PeopleDirectoryScreen.listLabel', 'People in this organization')}
+          {people.isError ? (
+            <InlineAlert
+              tone="danger"
+              title={tr('PeopleDirectoryScreen.membersLoadError', 'Members could not be loaded')}
+              live
             >
-              <thead>
-                <tr>
-                  <th scope="col">{tr('PeopleDirectoryScreen.membersColName', 'Name')}</th>
-                  <th scope="col">{tr('PeopleDirectoryScreen.membersColRole', 'Role')}</th>
-                  <th scope="col">{tr('PeopleDirectoryScreen.membersColProjects', 'Projects')}</th>
-                  <th scope="col">
-                    {tr('PeopleDirectoryScreen.membersColLastActive', 'Last active')}
-                  </th>
-                  <th scope="col">
-                    <span className="tm-visually-hidden">
-                      {tr('PeopleDirectoryScreen.membersColActions', 'Actions')}
-                    </span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {roster.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="ppl-members__empty">
-                      {tr('PeopleDirectoryScreen.noMembers', 'No members yet.')}
-                    </td>
-                  </tr>
-                ) : (
-                  roster.map((person) => {
-                    // Only someone who outranks the person changes their seat (S3; CQ-06).
-                    const mayChange = canAssign && outranks(person);
-                    return (
-                      <MemberRowView
-                        key={person.userId}
-                        person={person}
-                        organizationSlug={organizationSlug}
-                        organizationName={workspace}
-                        mayChangeRole={mayChange}
-                        // ACCOUNT item 3: the last owner is never offered for removal (the API
-                        // refuses it too, `offboard_last_owner`): someone else becomes owner first.
-                        mayRemove={
-                          mayChange && !(person.role === 'owner' && complete && activeOwners === 1)
-                        }
-                        mayManage={canManage && outranks(person)}
-                        chipLabel={person.roleName ?? chip(person.role)}
-                        projectsLabel={plural('projects', person.projectCount)}
-                        onChangeRole={() =>
-                          setDialog({
-                            kind: 'role',
-                            target: {
-                              userId: person.userId,
-                              displayName: person.displayName,
-                              role: person.role,
-                              version: person.version,
-                            },
-                          })
-                        }
-                        onSendReset={() => setDialog({ kind: 'reset', person })}
-                      />
-                    );
-                  })
+              {describePeopleError(people.error)}
+            </InlineAlert>
+          ) : null}
+
+          {people.isSuccess && shownTab === 'ai' && aiRows.length === 0 && query === '' ? (
+            <section className="tm-aie-empty" aria-label={tr('AiPeople.tabAi', 'AI employees')}>
+              <AiAvatar initials="AI" size={40} />
+              <h2 className="tm-aie-empty__title">
+                {tr('AiPeople.emptyTitle', 'No AI employees yet')}
+              </h2>
+              <p className="tm-aie-empty__text">
+                {tr(
+                  'AiPeople.emptyBody',
+                  'Hire your own AI agent. It works on the tasks you brief it on.',
                 )}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+              </p>
+              {hireAllowed ? (
+                <Button tone="lime" size="large" onClick={() => setDialog({ kind: 'hire' })}>
+                  {tr('AiPeople.hireAi', 'Hire an AI employee')}
+                </Button>
+              ) : null}
+            </section>
+          ) : null}
+
+          {people.isSuccess && !(shownTab === 'ai' && aiRows.length === 0 && query === '') ? (
+            layout === 'grid' ? (
+              <DirectoryGrid rows={shown} organizationSlug={organizationSlug} actions={actions} />
+            ) : (
+              <PeopleRoster
+                rows={shown}
+                organizationSlug={organizationSlug}
+                organizationName={workspace}
+                actions={actions}
+                empty={
+                  query === ''
+                    ? tr('PeopleDirectoryScreen.noMembers', 'No members yet.')
+                    : tr('AiPeople.noMatch', 'Nobody matches this search.')
+                }
+              />
+            )
+          ) : null}
+        </div>
 
         {canManage && resend.isError ? (
           <InlineAlert
@@ -428,13 +502,11 @@ export function PeopleDirectoryScreen({
           </InlineAlert>
         ) : null}
 
-        {/* QA-FIX-P L8: the Control Center's "Invitations" entry lands here (`/people#invitations`).
-            Drawn only for someone who manages invitations: an empty wrapper is still a column item
-            and pushed the owner footnote down by a gap for everyone else. */}
-        {canManage && people.isSuccess ? (
+        {/* QA-FIX-P L8: the Control Center's "Invitations" entry lands here (`/people#invitations`). */}
+        {canManage && people.isSuccess && shownTab !== 'ai' ? (
           <div id="invitations" tabIndex={-1}>
             {invitations.isSuccess && pending.length === 0 ? (
-              <p className="ppl-members__empty">
+              <p className="tm-aie-quiet">
                 {tr('PeopleDirectoryScreen.noInvitations', 'No invitations are waiting.')}
               </p>
             ) : null}
@@ -457,21 +529,51 @@ export function PeopleDirectoryScreen({
         ) : null}
 
         {people.isSuccess && !complete ? (
-          <p className="ppl-members-footnote">
+          <p className="tm-aie-quiet">
             {tr(
               'PeopleDirectoryScreen.moreMembers',
               'There are more members than this list shows.',
             )}
           </p>
         ) : null}
-
-        <p className="ppl-members-footnote">
-          {tr(
-            'PeopleDirectoryScreen.ownerFootnote',
-            "Only an owner can change another owner's role.",
-          )}
-        </p>
       </div>
+
+      {dialog?.kind === 'add' ? (
+        <AddChooserDialog
+          mayInvite={canManage}
+          aiBlockedReason={aiBlockedReason}
+          live={aiList?.live ?? 0}
+          limit={aiList?.limit ?? 0}
+          onChoose={(choice) => setDialog(choice === 'ai' ? { kind: 'hire' } : { kind: 'invite' })}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
+
+      {dialog?.kind === 'hire' ? (
+        <HireWizard
+          api={api}
+          organizationSlug={organizationSlug}
+          projects={projects.data ?? []}
+          projectsLoading={projects.isPending}
+          closedIds={new Set((excluded.data?.projects ?? []).map((project) => project.projectId))}
+          customRoles={grantableCustomRoles(customRoles.data ?? [], myRights)}
+          people={roster}
+          myMembershipId={me.data?.membershipId ?? null}
+          roleLabel={(role) => chip(role)}
+          onHired={() => refreshAi()}
+          onClose={(hired) => {
+            setDialog(null);
+            if (hired) {
+              refreshAi();
+              setAnnouncement(
+                fill(tr('AiPeople.hired', '{name} joined the team.'), { name: hired.displayName }),
+              );
+            }
+          }}
+          {...(initialWizard === undefined ? {} : { start: initialWizard })}
+          {...(addressOverride === undefined ? {} : { addressOverride })}
+        />
+      ) : null}
 
       {dialog?.kind === 'role' ? (
         <ChangeRoleDialog
@@ -578,248 +680,126 @@ export function PeopleDirectoryScreen({
           }}
         />
       ) : null}
-    </ControlCenterShell>
+    </AppShell>
   );
 }
 
-/** R38 G5-views: one member as a card in the Grid view. */
-function MemberCardView({
-  person,
+/** R38 G5-views: everyone as cards. A person's card keeps the address, projects and last activity. */
+function DirectoryGrid({
+  rows,
   organizationSlug,
-  chipLabel,
-  projectsLabel,
-  mayChangeRole,
-  onChangeRole,
+  actions,
 }: {
-  person: MemberRow;
+  rows: readonly DirectoryRow[];
   organizationSlug: string;
-  chipLabel: string;
-  projectsLabel: string;
-  mayChangeRole: boolean;
-  onChangeRole: () => void;
+  actions: RosterActions;
 }) {
   const tr = useTOr();
-  const profileHref = person.membershipId
-    ? `/${organizationSlug}/people/${encodeURIComponent(person.membershipId)}`
-    : null;
-  return (
-    <article className="tm-view-card ppl-member-card">
-      <PersonAvatar
-        organizationSlug={organizationSlug}
-        userId={person.userId}
-        name={person.displayName}
-        className="ppl-avatar"
-        decorative
-        fallback={
-          <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
-            {initialsOf(person.displayName)}
-          </span>
-        }
-      />
-      <h3 className="tm-view-card__title">
-        {profileHref ? <Link href={profileHref}>{person.displayName}</Link> : person.displayName}
-      </h3>
-      {person.email ? (
-        <p className="tm-view-card__meta" dir="ltr">
-          {person.email}
-        </p>
-      ) : null}
-      <p className="tm-view-card__meta">{projectsLabel}</p>
-      <div>
-        {mayChangeRole ? (
-          <button
-            type="button"
-            className="ppl-role-chip"
-            aria-label={fill(
-              tr('PeopleDirectoryScreen.roleChip', 'Role of {name}: {role}. Change role'),
-              { name: person.displayName, role: chipLabel },
-            )}
-            onClick={onChangeRole}
-          >
-            {chipLabel}
-            <span className="ppl-role-chip__caret" aria-hidden="true" />
-          </button>
-        ) : (
-          <span className="ppl-role-chip ppl-role-chip--static">{chipLabel}</span>
-        )}
-      </div>
-    </article>
-  );
-}
-
-function MemberRowView({
-  person,
-  organizationSlug,
-  organizationName,
-  mayChangeRole,
-  mayRemove,
-  mayManage,
-  chipLabel,
-  projectsLabel,
-  onChangeRole,
-  onSendReset,
-}: {
-  person: MemberRow;
-  organizationSlug: string;
-  organizationName: string;
-  mayChangeRole: boolean;
-  mayRemove: boolean;
-  mayManage: boolean;
-  chipLabel: string;
-  projectsLabel: string;
-  onChangeRole: () => void;
-  onSendReset: () => void;
-}) {
-  const tr = useTOr();
+  const locale = useActiveLocale();
   const lastActive = useLastActive();
-  const [open, setOpen] = useState(false);
-  const menuId = useId();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLUListElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    const onDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const profileHref = person.membershipId
-    ? `/${organizationSlug}/people/${encodeURIComponent(person.membershipId)}`
-    : null;
-
+  if (rows.length === 0) {
+    return (
+      <p className="tm-aie-quiet">{tr('PeopleDirectoryScreen.noMembers', 'No members yet.')}</p>
+    );
+  }
   return (
-    <tr className="ppl-member">
-      <td>
-        <span className="ppl-member__who">
-          <PersonAvatar
-            organizationSlug={organizationSlug}
-            userId={person.userId}
-            name={person.displayName}
-            className="ppl-avatar"
-            decorative
-            fallback={
-              <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
-                {initialsOf(person.displayName)}
-              </span>
-            }
-          />
-          <span>
-            <span className="ppl-member__name">{person.displayName}</span>
-            {person.email ? (
-              <span className="ppl-member__email" dir="ltr">
-                {person.email}
-              </span>
-            ) : null}
-          </span>
-        </span>
-      </td>
-      <td>
-        {mayChangeRole ? (
-          <button
-            type="button"
-            className="ppl-role-chip"
-            aria-label={fill(
-              tr('PeopleDirectoryScreen.roleChip', 'Role of {name}: {role}. Change role'),
-              { name: person.displayName, role: chipLabel },
-            )}
-            onClick={onChangeRole}
-          >
-            {chipLabel}
-            <span className="ppl-role-chip__caret" aria-hidden="true" />
-          </button>
-        ) : (
-          <span className="ppl-role-chip ppl-role-chip--static">{chipLabel}</span>
-        )}
-      </td>
-      <td className="ppl-member__cell">{projectsLabel}</td>
-      <td className="ppl-member__cell">{lastActive(person.lastActiveAt)}</td>
-      <td className="ppl-member__actions">
-        <button
-          ref={triggerRef}
-          type="button"
-          className="ppl-kebab"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-controls={open ? menuId : undefined}
-          aria-label={fill(tr('PeopleDirectoryScreen.rowActions', 'Actions for {name}'), {
-            name: person.displayName,
-          })}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <span aria-hidden="true">•••</span>
-        </button>
-        {open ? (
-          <ul ref={menuRef} id={menuId} role="menu" className="ppl-row-menu">
-            {mayChangeRole ? (
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="ppl-row-menu__item"
-                  onClick={() => {
-                    setOpen(false);
-                    onChangeRole();
-                  }}
-                >
-                  {tr('PeopleDirectoryScreen.menuChangeRole', 'Change role')}
-                </button>
-              </li>
-            ) : null}
-            {mayManage && person.membershipId ? (
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="ppl-row-menu__item"
-                  onClick={() => {
-                    setOpen(false);
-                    onSendReset();
-                  }}
-                >
-                  {tr('PeopleDirectoryScreen.menuSendReset', 'Send password reset link')}
-                </button>
-              </li>
-            ) : null}
-            {profileHref ? (
-              <li role="none">
-                <Link role="menuitem" className="ppl-row-menu__item" href={profileHref}>
-                  {tr('PeopleDirectoryScreen.menuViewProfile', 'View profile')}
-                </Link>
-              </li>
-            ) : null}
-            {mayRemove ? (
-              <li role="none">
-                <Link
-                  role="menuitem"
-                  className="ppl-row-menu__item ppl-row-menu__item--danger"
-                  href={`/${organizationSlug}/people/offboarding?member=${encodeURIComponent(person.userId)}`}
-                >
-                  {fill(tr('PeopleDirectoryScreen.menuRemove', 'Remove from {org}'), {
-                    org: organizationName,
+    <ul
+      className="tm-view-grid"
+      aria-label={tr('PeopleDirectoryScreen.listLabel', 'People in this organization')}
+    >
+      {rows.map((row) => {
+        if (row.kind === 'ai') {
+          const ai = row.ai;
+          return (
+            <li key={row.key}>
+              <article
+                className="tm-view-card tm-aie-card-view"
+                data-retired={ai.status === 'retired' || undefined}
+              >
+                <AiAvatar
+                  initials={aiInitialsOf(ai.displayName)}
+                  size={40}
+                  className="tm-aie-dim"
+                />
+                <h3 className="tm-view-card__title tm-aie-who">
+                  <Link href={`/${organizationSlug}/people/${encodeURIComponent(ai.membershipId)}`}>
+                    <bdi>{ai.displayName}</bdi>
+                  </Link>
+                  <AiBadge />
+                </h3>
+                <p className="tm-view-card__meta">{ai.jobTitle}</p>
+                <AiStatus status={aiRowStatus(ai)} />
+              </article>
+            </li>
+          );
+        }
+        const person = row.person;
+        const mayChange = actions.mayChangeRole(person);
+        const chipLabel = actions.roleLabel(person.role, person.roleName);
+        const profileHref = person.membershipId
+          ? `/${organizationSlug}/people/${encodeURIComponent(person.membershipId)}`
+          : null;
+        const jobTitle = personJobTitle(person);
+        return (
+          <li key={row.key}>
+            <article className="tm-view-card ppl-member-card">
+              <PersonAvatar
+                organizationSlug={organizationSlug}
+                userId={person.userId}
+                name={person.displayName}
+                className="ppl-avatar"
+                decorative
+                fallback={
+                  <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
+                    {initialsOf(person.displayName)}
+                  </span>
+                }
+              />
+              <h3 className="tm-view-card__title">
+                {profileHref ? (
+                  <Link href={profileHref}>{person.displayName}</Link>
+                ) : (
+                  person.displayName
+                )}
+              </h3>
+              {jobTitle ? <p className="tm-view-card__meta">{jobTitle}</p> : null}
+              {person.email ? (
+                <p className="tm-view-card__meta" dir="ltr">
+                  {person.email}
+                </p>
+              ) : null}
+              <p className="tm-view-card__meta">
+                <span>
+                  {pluralPhrase(tr, locale, 'PeopleDirectoryScreen.projects', person.projectCount, {
+                    one: '1 project',
+                    other: '{count} projects',
                   })}
-                </Link>
-              </li>
-            ) : null}
-          </ul>
-        ) : null}
-      </td>
-    </tr>
+                </span>
+                {' · '}
+                <span>{lastActive(person.lastActiveAt)}</span>
+              </p>
+              <div>
+                {mayChange ? (
+                  <button
+                    type="button"
+                    className="ppl-role-chip"
+                    aria-label={fill(
+                      tr('PeopleDirectoryScreen.roleChip', 'Role of {name}: {role}. Change role'),
+                      { name: person.displayName, role: chipLabel },
+                    )}
+                    onClick={() => actions.onChangeRole(person)}
+                  >
+                    {chipLabel}
+                    <span className="ppl-role-chip__caret" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <span className="ppl-role-chip ppl-role-chip--static">{chipLabel}</span>
+                )}
+              </div>
+            </article>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

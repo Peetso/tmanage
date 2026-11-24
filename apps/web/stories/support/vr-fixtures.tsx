@@ -440,6 +440,8 @@ const PERSON_DEFAULTS = {
   lastActiveAt: null,
   // H1: built-in roles only, so no custom role name.
   roleName: null,
+  // 60-07: no job title, so the role line reads as before.
+  jobTitle: null,
   version: 1,
 } as const;
 

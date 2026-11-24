@@ -2768,6 +2768,10 @@ GRANT INSERT, UPDATE ON `tmanage`.`ai_employees` TO 'tmanage_app'@'%';
 -- that row (audited in the same transaction). Nothing else is ever written. SELECT rides the
 -- database-wide read.
 GRANT INSERT, DELETE ON `tmanage`.`ai_excluded_projects` TO 'tmanage_app'@'%';
+-- 0415 (60-07 AI EMPLOYEES S8). A workspace's AI-employee rules: the first save is an INSERT,
+-- later saves a conditional UPDATE on `version` (each audited in the same transaction). Never
+-- deleted on the app path. SELECT rides the database-wide read.
+GRANT INSERT, UPDATE ON `tmanage`.`ai_employee_settings` TO 'tmanage_app'@'%';
 -- 0403 (62-17 AI SETTINGS). The owner blocking a member from TManage AI is an INSERT; "Allow
 -- again" is a DELETE of that row (each audited in the same transaction). Nothing else is ever
 -- written. The new `ai_workspace_settings.file_reading` column rides the existing upsert grant.
@@ -2869,6 +2873,7 @@ GRANT SELECT, DELETE ON `tmanage`.`ai_credit_pack_requests` TO 'tmanage_erasure'
 GRANT SELECT, DELETE ON `tmanage`.`ai_credit_packs` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_digest_wordings` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_employees` TO 'tmanage_erasure'@'%';
+GRANT SELECT, DELETE ON `tmanage`.`ai_employee_settings` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_excluded_projects` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_chunks` TO 'tmanage_erasure'@'%';
 GRANT SELECT, DELETE ON `tmanage`.`ai_file_summaries` TO 'tmanage_erasure'@'%';

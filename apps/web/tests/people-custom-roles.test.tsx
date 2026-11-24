@@ -77,6 +77,9 @@ function mount(options: { people: readonly object[]; custom: object }) {
           headers: { 'content-type': 'application/json' },
         }),
       );
+    // Plan 60: AI employees are not offered here (the API answers 404 while they are off).
+    if (url.pathname.includes('/ai-employees'))
+      return reply({ error: { code: 'not_found', message: 'Not found', correlationId: 'c' } }, 404);
     if (url.pathname.endsWith('/people')) return reply({ people: options.people, nextAfter: null });
     if (url.pathname.endsWith('/admin/invitations')) return reply({ invitations: [] });
     if (url.pathname.endsWith('/admin/roles/built-in')) return reply(BUILT_IN);
@@ -195,7 +198,8 @@ describe('Custom roles in Change role and Invite (F1)', () => {
   it('invites with a custom role: the invitation carries the role id', async () => {
     const { sent } = mount({ people: [MAYA, SARA], custom: CUSTOM });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
+    // Plan 60 S2: Add; with AI employees not offered, it opens the invite at once.
+    fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
     const dialog = await screen.findByRole('dialog', { name: 'Invite a team member' });
     fireEvent.change(within(dialog).getByLabelText(/Email/), {
       target: { value: 'omar@northstar.studio' },

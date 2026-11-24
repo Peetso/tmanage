@@ -16008,9 +16008,37 @@ export const aiExcludedProjects = mysqlTable(
 
 export type AiExcludedProjectRow = typeof aiExcludedProjects.$inferSelect;
 
+/**
+ * 0415 `ai_employee_settings` (60-07, S8). A workspace's rules for AI employees: the switch, who
+ * may hire and assign (narrowing the capabilities), client work, the disclosure default and the
+ * second approver. One row per workspace; a missing row is the defaults. TENANT; api SELECT,
+ * INSERT, UPDATE.
+ */
+export const AI_HIRE_POLICY_VALUES = ['owners_and_admins', 'owners'] as const;
+export const AI_ASSIGN_POLICY_VALUES = ['managers', 'owners_and_admins'] as const;
+export const AI_CLIENT_WORK_VALUES = ['allowed', 'internal_only'] as const;
+
+export const aiEmployeeSettings = mysqlTable('ai_employee_settings', {
+  organizationId: char('organization_id', { length: 36 }).primaryKey(),
+  enabled: boolean('enabled').notNull().default(true),
+  hirePolicy: mysqlEnum('hire_policy', AI_HIRE_POLICY_VALUES)
+    .notNull()
+    .default('owners_and_admins'),
+  assignPolicy: mysqlEnum('assign_policy', AI_ASSIGN_POLICY_VALUES).notNull().default('managers'),
+  clientWork: mysqlEnum('client_work', AI_CLIENT_WORK_VALUES).notNull().default('allowed'),
+  discloseToClients: boolean('disclose_to_clients').notNull().default(true),
+  secondApprover: boolean('second_approver').notNull().default(true),
+  version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+  updatedByMembershipId: char('updated_by_membership_id', { length: 36 }),
+  updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+});
+
+export type AiEmployeeSettingsRow = typeof aiEmployeeSettings.$inferSelect;
+
 Object.assign(TABLES, {
   ai_employees: aiEmployees,
   ai_excluded_projects: aiExcludedProjects,
+  ai_employee_settings: aiEmployeeSettings,
 });
 
 /**

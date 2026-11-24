@@ -13,6 +13,8 @@ import {
   aiExcludedProjects,
   memberships,
   organizations,
+  projectClients,
+  projectMemberships,
   projects,
   users,
 } from '../../common/database/schema.js';
@@ -48,9 +50,20 @@ export interface AiEmployeeRecord {
   readonly workingHoursJson: string | null;
   readonly limitsJson: string | null;
   readonly discloseToClients: boolean;
+  /** 60-07: the task type keys it may be given (JSON list), NULL = none chosen yet. */
+  readonly allowedTaskTypesJson: string | null;
   readonly version: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+/** 60-07: a project as the hire and profile need it (its boundary, plan §4.6 rule 6). */
+export interface AiProjectFacts {
+  readonly id: string;
+  readonly name: string;
+  readonly status: string;
+  /** The project has a client company (`project_clients`). */
+  readonly isClient: boolean;
 }
 
 /** A membership of this workspace as a sponsor check needs it. */
@@ -101,6 +114,7 @@ export interface NewAiEmployee {
   readonly workingHoursJson: string | null;
   readonly limitsJson: string;
   readonly discloseToClients: boolean;
+  readonly allowedTaskTypesJson: string | null;
   readonly at: Date;
 }
 
@@ -114,6 +128,7 @@ export interface AiEmployeeChange {
   readonly workingHoursJson?: string | null;
   readonly limitsJson?: string;
   readonly discloseToClients?: boolean;
+  readonly allowedTaskTypesJson?: string | null;
   readonly sponsorMembershipId?: string;
   readonly status?: AiEmployeeStatus;
   readonly pausedReason?: AiEmployeePauseReason | null;
@@ -240,7 +255,7 @@ export class AiEmployeesRepository {
       pausedAt: null,
       retiredAt: null,
       retiredByMembershipId: null,
-      allowedTaskTypesJson: null,
+      allowedTaskTypesJson: row.allowedTaskTypesJson,
       timezone: row.timezone,
       workingHoursJson: row.workingHoursJson,
       limitsJson: row.limitsJson,
@@ -352,6 +367,7 @@ export class AiEmployeesRepository {
         workingHoursJson: aiEmployees.workingHoursJson,
         limitsJson: aiEmployees.limitsJson,
         discloseToClients: aiEmployees.discloseToClients,
+        allowedTaskTypesJson: aiEmployees.allowedTaskTypesJson,
         version: aiEmployees.version,
         createdAt: aiEmployees.createdAt,
         updatedAt: aiEmployees.updatedAt,
@@ -534,6 +550,90 @@ export class AiEmployeesRepository {
         ),
       )
       .orderBy(asc(projects.name), asc(projects.id));
+  }
+
+  /** 60-07: the named projects of this workspace, each with whether it has a client company. */
+  async projectFacts(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly AiProjectFacts[]> {
+    if (projectIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({ id: projects.id, name: projects.name, status: projects.status })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.organizationId, context.organizationId),
+          inArray(projects.id, [...projectIds]),
+        ),
+      )
+      .orderBy(asc(projects.name), asc(projects.id));
+    const clients = new Set(await this.clientProjectIds(runner, context, projectIds));
+    return rows.map((row) => ({ ...row, isClient: clients.has(row.id) }));
+  }
+
+  /**
+   * 60-07: the projects with a client company — of `among`, or of the whole workspace when it is
+   * omitted (the agent gate's "only internal projects" rule).
+   */
+  async clientProjectIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    among?: readonly string[],
+  ): Promise<readonly string[]> {
+    if (among !== undefined && among.length === 0) return [];
+    const predicates = [eq(projectClients.organizationId, context.organizationId)];
+    if (among !== undefined) predicates.push(inArray(projectClients.projectId, [...among]));
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ projectId: projectClients.projectId })
+      .from(projectClients)
+      .where(and(...predicates));
+    return rows.map((row) => row.projectId);
+  }
+
+  /**
+   * 60-07: each AI employee's projects (its `project_memberships`), keyed by user id, in one read
+   * for the whole list (never one per row).
+   */
+  async projectsOfUsers(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userIds: readonly string[],
+  ): Promise<ReadonlyMap<string, readonly AiProjectFacts[]>> {
+    const out = new Map<string, AiProjectFacts[]>();
+    if (userIds.length === 0) return out;
+    const rows = await tenantDrizzle(runner)
+      .select({
+        userId: projectMemberships.userId,
+        id: projects.id,
+        name: projects.name,
+        status: projects.status,
+      })
+      .from(projectMemberships)
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.organizationId, projectMemberships.organizationId),
+          eq(projects.id, projectMemberships.projectId),
+        ),
+      )
+      .where(
+        and(
+          eq(projectMemberships.organizationId, context.organizationId),
+          inArray(projectMemberships.userId, [...userIds]),
+        ),
+      )
+      .orderBy(asc(projects.name), asc(projects.id));
+    const clients = new Set(
+      await this.clientProjectIds(runner, context, [...new Set(rows.map((row) => row.id))]),
+    );
+    for (const row of rows) {
+      const list = out.get(row.userId) ?? [];
+      list.push({ id: row.id, name: row.name, status: row.status, isClient: clients.has(row.id) });
+      out.set(row.userId, list);
+    }
+    return out;
   }
 
   private async displayNames(

@@ -1448,6 +1448,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0402 (60-02 AI EMPLOYEES). Tenant-owned: the projects a workspace keeps away from every AI
   // employee. No foreign key, so the company erasure may empty it in any order.
   ai_excluded_projects: 'organization_id',
+  // 0415 (60-07 AI EMPLOYEES). Tenant-owned: a workspace's rules for AI employees (S8). No
+  // foreign key, so the company erasure may empty it in any order.
+  ai_employee_settings: 'organization_id',
   // 0403 (62-17 AI SETTINGS). Tenant-owned: the members a workspace owner keeps away from
   // TManage AI. No foreign key, so the company erasure may empty it in any order.
   ai_member_blocks: 'organization_id',

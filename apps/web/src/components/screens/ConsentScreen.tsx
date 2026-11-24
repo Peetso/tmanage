@@ -9,13 +9,17 @@ import { ApiRequestError } from '../../lib/api/errors';
 import { listOrganizations, type OrganizationSummary } from '../../lib/api/organizations';
 import {
   approveConsent,
+  approveConsentAs,
   denyConsent,
   loadConsent,
+  loadWorksAs,
   type ConsentParams,
   type ConsentView,
 } from '../../lib/api/oauth-consent';
+import { getCurrentSession, signOut } from '../../lib/api/session';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { ConsentWorksAs, WORKS_AS_ME } from './ConsentWorksAs';
 import '../../styles/screens/consent.css';
 
 /**
@@ -34,6 +38,10 @@ import '../../styles/screens/consent.css';
  *   the app can do is still the person's own rights;
  * - "Allow access" posts the decision with the session-bound ticket; "Cancel" tells the app no.
  *   Both answer with the URL to go to, followed with `location.assign`.
+ * - 60-07 (S5): when the workspace has AI employees this person may connect the app as, the
+ *   page becomes "This agent works as" (`ConsentWorksAs`): "Me" keeps the scope switches; an AI
+ *   employee is approved with `worksAs`, which the API re-checks and grants `tmanage:agent` only.
+ *   Otherwise the page is unchanged.
  */
 
 export interface ConsentScreenProps {
@@ -104,6 +112,17 @@ const NEVER_KEYS: readonly MessageKey[] = [
 
 /** Roles that may grant billing — mirrors `consent.ts` on the API, which enforces it. */
 const BILLING_ROLES: ReadonlySet<string> = new Set(['owner', 'org_admin']);
+
+/** Plain role names for the "Me" row (S5), shared with the People directory. */
+const ROLE_NAME_KEYS: Readonly<Record<string, MessageKey>> = {
+  owner: k('PeopleDirectoryScreen.role.owner'),
+  org_admin: k('PeopleDirectoryScreen.role.org_admin'),
+  workspace_admin: k('PeopleDirectoryScreen.role.workspace_admin'),
+  manager: k('PeopleDirectoryScreen.role.manager'),
+  moderator: k('PeopleDirectoryScreen.role.moderator'),
+  member: k('PeopleDirectoryScreen.role.member'),
+  guest: k('PeopleDirectoryScreen.role.guest'),
+};
 
 const ROLE_KEYS: Readonly<Record<string, MessageKey>> = {
   owner: k('Consent.role.owner'),
@@ -182,6 +201,7 @@ export function ConsentScreen({
       view={view.data}
       workspaces={workspaces}
       navigate={navigate}
+      {...(onSignInRequired ? { onSignInRequired } : {})}
     />
   );
 }
@@ -192,12 +212,14 @@ function ConsentDecision({
   view,
   workspaces,
   navigate,
+  onSignInRequired,
 }: {
   readonly api: ApiClient;
   readonly params: ConsentParams;
   readonly view: ConsentView;
   readonly workspaces: readonly OrganizationSummary[];
   readonly navigate: (url: string) => void;
+  readonly onSignInRequired?: () => void;
 }) {
   const t = useT();
   const { client } = view;
@@ -231,9 +253,42 @@ function ConsentDecision({
   );
   const scopeRows = platformOffered ? [...SCOPE_ROWS, PLATFORM_ROW] : SCOPE_ROWS;
 
+  // 60-07 (S5): the AI employees this person may connect the app as, in the chosen workspace.
+  // Any failure (the feature off, an older server) reads as "none": the page stays unchanged.
+  const worksAs = useQuery({
+    queryKey: ['oauth-consent-works-as', workspace?.slug],
+    queryFn: () => loadWorksAs(api, workspace?.slug ?? ''),
+    enabled: workspace !== undefined,
+    retry: false,
+  });
+  const worksAsOptions = worksAs.data?.aiEmployees ?? [];
+  const person = useQuery({
+    queryKey: ['session-account'],
+    queryFn: () => getCurrentSession(api),
+    enabled: worksAsOptions.length > 0,
+    retry: false,
+  });
+  const [worksAsChoice, setWorksAsChoice] = useState<string | null>(null);
+  // As designed (953:1464): the first AI employee that can be chosen starts selected.
+  // A choice from another workspace (the picker changed) falls back to the default.
+  const kept =
+    worksAsChoice === WORKS_AS_ME ||
+    worksAsOptions.some((option) => option.available && option.id === worksAsChoice)
+      ? worksAsChoice
+      : null;
+  const choice = kept ?? worksAsOptions.find((option) => option.available)?.id ?? WORKS_AS_ME;
+  const asAiEmployee = worksAsOptions.length > 0 && choice !== WORKS_AS_ME;
+
   const allow = useMutation({
     mutationFn: () => {
       if (!workspace) throw new Error('no workspace');
+      if (asAiEmployee) {
+        return approveConsentAs(api, workspace.slug, {
+          params,
+          ticket: view.ticket,
+          aiEmployeeId: choice,
+        });
+      }
       return approveConsent(api, workspace.slug, { params, ticket: view.ticket, scopes: granted });
     },
     onSuccess: navigate,
@@ -243,6 +298,11 @@ function ConsentDecision({
     mutationFn: () => denyConsent(api, params),
     onSuccess: navigate,
     onError: () => setFailed(true),
+  });
+  // "Not you?": end this session and sign in again, coming back to this same request.
+  const notYou = useMutation({
+    mutationFn: () => signOut(api),
+    onSettled: () => onSignInRequired?.(),
   });
 
   const footer = <p className="tm-consent__note">{t(k('Consent.footer'))}</p>;
@@ -294,63 +354,62 @@ function ConsentDecision({
     });
   }
 
-  return (
-    <ConsentFrame>
-      <h1 className="tm-consent__title">{fill(t(k('Consent.title')), { app: client.name })}</h1>
-      <ClientCard client={client} />
-
-      <section className="tm-consent__workspace" aria-labelledby="tm-consent-workspace">
-        <p id="tm-consent-workspace" className="tm-consent__caption">
-          {t(k('Consent.workspace'))}
-        </p>
-        {workspace ? (
-          <>
-            <button
-              type="button"
-              className="tm-consent__picker"
-              aria-expanded={picking}
-              onClick={() => setPicking((open) => !open)}
-            >
-              <span className="tm-consent__picker-text">
-                <span className="tm-consent__picker-name">{workspace.name}</span>
-                <span className="tm-consent__picker-sub">
-                  {roleKey ? fill(t(k('Consent.youAre')), { role: t(roleKey) }) : null}
-                  {` · ${t(k('Consent.change'))}`}
-                </span>
+  const workspaceSection = (
+    <section className="tm-consent__workspace" aria-labelledby="tm-consent-workspace">
+      <p id="tm-consent-workspace" className="tm-consent__caption">
+        {t(k('Consent.workspace'))}
+      </p>
+      {workspace ? (
+        <>
+          <button
+            type="button"
+            className="tm-consent__picker"
+            aria-expanded={picking}
+            onClick={() => setPicking((open) => !open)}
+          >
+            <span className="tm-consent__picker-text">
+              <span className="tm-consent__picker-name">{workspace.name}</span>
+              <span className="tm-consent__picker-sub">
+                {roleKey ? fill(t(k('Consent.youAre')), { role: t(roleKey) }) : null}
+                {` · ${t(k('Consent.change'))}`}
               </span>
-              <span className="tm-consent__chevron" aria-hidden="true">
-                ›
-              </span>
-            </button>
-            {/* The row and "change" always show, as designed; with one workspace the list
-                simply holds that one workspace. */}
-            {picking ? (
-              <ul className="tm-consent__options" aria-label={t(k('Consent.chooseWorkspace'))}>
-                {workspaces.map((org) => (
-                  <li key={org.id}>
-                    <button
-                      type="button"
-                      className="tm-consent__picker"
-                      aria-current={org.id === workspace.id ? 'true' : undefined}
-                      onClick={() => {
-                        setWorkspaceId(org.id);
-                        setPicking(false);
-                      }}
-                    >
-                      <span className="tm-consent__picker-text">
-                        <span className="tm-consent__picker-name">{org.name}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </>
-        ) : (
-          <InlineAlert tone="warning">{t(k('Consent.noWorkspace'))}</InlineAlert>
-        )}
-      </section>
+            </span>
+            <span className="tm-consent__chevron" aria-hidden="true">
+              ›
+            </span>
+          </button>
+          {/* The row and "change" always show, as designed; with one workspace the list
+              simply holds that one workspace. */}
+          {picking ? (
+            <ul className="tm-consent__options" aria-label={t(k('Consent.chooseWorkspace'))}>
+              {workspaces.map((org) => (
+                <li key={org.id}>
+                  <button
+                    type="button"
+                    className="tm-consent__picker"
+                    aria-current={org.id === workspace.id ? 'true' : undefined}
+                    onClick={() => {
+                      setWorkspaceId(org.id);
+                      setPicking(false);
+                    }}
+                  >
+                    <span className="tm-consent__picker-text">
+                      <span className="tm-consent__picker-name">{org.name}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      ) : (
+        <InlineAlert tone="warning">{t(k('Consent.noWorkspace'))}</InlineAlert>
+      )}
+    </section>
+  );
 
+  const scopeDetails = (
+    <>
       <h2 className="tm-consent__section">
         {fill(t(k('Consent.abilities')), { app: client.name })}
       </h2>
@@ -410,6 +469,58 @@ function ConsentDecision({
           ))}
         </ul>
       </section>
+    </>
+  );
+
+  if (workspace !== undefined && worksAs.isPending) {
+    return (
+      <ConsentFrame>
+        <LoadingRegion label={t(k('Consent.loading'))}>
+          <Skeleton height="var(--s16)" />
+          <Skeleton height="var(--s16)" />
+        </LoadingRegion>
+      </ConsentFrame>
+    );
+  }
+
+  if (workspace !== undefined && worksAsOptions.length > 0) {
+    const roleNameKey = ROLE_NAME_KEYS[workspace.role];
+    return (
+      <ConsentFrame eyebrow={false}>
+        <ConsentWorksAs
+          appName={client.name}
+          personName={person.data?.displayName ?? null}
+          workspaceName={workspace.name}
+          roleLabel={roleNameKey ? t(roleNameKey) : null}
+          options={worksAsOptions}
+          choice={choice}
+          onChoose={setWorksAsChoice}
+          onNotYou={() => notYou.mutate()}
+          notYouPending={notYou.isPending}
+          clientCard={<ClientCard client={client} />}
+          workspacePicker={workspaces.length > 1 ? workspaceSection : null}
+          meDetails={scopeDetails}
+          failure={failure}
+          onCancel={() => cancel.mutate()}
+          cancelPending={cancel.isPending}
+          onAllow={() => {
+            setFailed(false);
+            allow.mutate();
+          }}
+          allowPending={allow.isPending}
+        />
+      </ConsentFrame>
+    );
+  }
+
+  return (
+    <ConsentFrame>
+      <h1 className="tm-consent__title">{fill(t(k('Consent.title')), { app: client.name })}</h1>
+      <ClientCard client={client} />
+
+      {workspaceSection}
+
+      {scopeDetails}
 
       {failure}
       <div className="tm-consent__actions">
@@ -481,7 +592,14 @@ function ClientCard({
   );
 }
 
-function ConsentFrame({ children }: { readonly children: ReactNode }) {
+function ConsentFrame({
+  children,
+  eyebrow = true,
+}: {
+  readonly children: ReactNode;
+  /** S5 has no "Connect an app" caption: its title already says it. */
+  readonly eyebrow?: boolean;
+}) {
   const t = useT();
   return (
     <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
@@ -491,7 +609,7 @@ function ConsentFrame({ children }: { readonly children: ReactNode }) {
             <span className="tm-consent__mark" aria-hidden="true" />
             <span className="tm-consent__product">TManage</span>
           </header>
-          <p className="tm-consent__caption">{t(k('Consent.eyebrow'))}</p>
+          {eyebrow ? <p className="tm-consent__caption">{t(k('Consent.eyebrow'))}</p> : null}
           <main id="tm-main" className="tm-consent__body" tabIndex={-1}>
             {children}
           </main>

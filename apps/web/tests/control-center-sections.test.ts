@@ -28,6 +28,7 @@ describe('controlCenterSectionsFor', () => {
         ['members', '/people'],
         // W-WEB-4: Teams, the menu entry the owner found missing.
         ['teams', '/people/teams'],
+        ['ai-employees', '/settings/ai-employees'],
         ['roles', '/admin/roles'],
         ['client-organizations', null],
         ['invitations', '/people#invitations'],
@@ -100,6 +101,13 @@ describe('controlCenterSectionsFor', () => {
       'audit',
     ]);
     expect(ids(undefined)).toEqual([...own, 'members', 'teams']);
+  });
+
+  it('shows Settings › AI employees to those who manage AI employees only (plan 60, S8)', () => {
+    expect(ids('owner')).toContain('ai-employees');
+    expect(ids('org_admin')).toContain('ai-employees');
+    expect(ids('member')).not.toContain('ai-employees');
+    expect(ids('guest')).not.toContain('ai-employees');
   });
 
   it('keeps the parent entry marked on sub-pages the frame does not list', () => {

@@ -5396,3 +5396,78 @@ type _timeTrustEntry = Assert<Exact<ApiTimeTrustEntryView, WebTimeTrustEntry>>;
 type _timeApprovalQueue = Assert<Exact<ApiTimeApprovalQueueView, WebTimeApprovalQueue>>;
 /** `GET …/time/entries/:id/history` — an entry, what it corrects, its corrections. */
 type _timeEntryHistory = Assert<Exact<ApiTimeEntryHistoryView, WebTimeEntryHistory>>;
+
+// ---- 60-07 (plan 60 v2) · an AI employee's connections (S6b) and consent "works as" (S5) ----
+import type {
+  AiEmployeeConnectionListView as ApiAiEmployeeConnectionListView,
+  AiEmployeeConnectionView as ApiAiEmployeeConnectionView,
+} from '../../apps/api/src/modules/ai-employees/connections.service.js';
+import type {
+  ConsentWorksAsView as ApiConsentWorksAsView,
+  WorksAsOptionView as ApiWorksAsOptionView,
+} from '../../apps/api/src/modules/oauth/works-as.js';
+import type {
+  AiEmployeeConnectionListView as WebAiEmployeeConnectionListView,
+  AiEmployeeConnectionView as WebAiEmployeeConnectionView,
+} from '../../apps/web/src/lib/api/ai-employees';
+import type {
+  ConsentWorksAsView as WebConsentWorksAsView,
+  WorksAsOptionView as WebWorksAsOptionView,
+} from '../../apps/web/src/lib/api/oauth-consent';
+/** `GET …/ai-employees/:aiEmployeeId/connections` — live keys and connectors, cap over both. */
+type _aiEmployeeConnectionList = Assert<
+  Exact<ApiAiEmployeeConnectionListView, WebAiEmployeeConnectionListView>
+>;
+/** One row of it: an agent key or a connector that works as the AI employee. */
+type _aiEmployeeConnection = Assert<
+  Exact<ApiAiEmployeeConnectionView, WebAiEmployeeConnectionView>
+>;
+/** `GET …/oauth/consent/works-as` — the AI employees the person may connect an app as. */
+type _consentWorksAs = Assert<Exact<ApiConsentWorksAsView, WebConsentWorksAsView>>;
+/** One row of it. */
+type _worksAsOption = Assert<Exact<ApiWorksAsOptionView, WebWorksAsOptionView>>;
+
+// ---- 60-07 (plan 60 v2) · AI employees: People (S1), hire (S3), profile (S6), settings (S8) ----
+import type { AiEmployeeSettingsView as ApiAiEmployeeSettingsView } from '../../apps/api/src/modules/ai-employees/ai-employee-settings.service.js';
+import type {
+  AiEmployeeConnectionSummaryView as ApiAiEmployeeConnectionSummaryView,
+  AiEmployeeListView as ApiAiEmployeeListView,
+  AiEmployeeProjectView as ApiAiEmployeeProjectView,
+  AiEmployeeView as ApiAiEmployeeView,
+  ExcludedProjectListView as ApiAiExcludedProjectListView,
+  ExcludedProjectView as ApiAiExcludedProjectView,
+  WorkingWindowView as ApiAiWorkingWindowView,
+} from '../../apps/api/src/modules/ai-employees/ai-employees.service.js';
+import type { CreatedAgentKeyView as ApiCreatedAgentKeyView } from '../../apps/api/src/modules/personal-access-tokens/agent-keys.js';
+import type {
+  AiEmployeeConnectionSummaryView as WebAiEmployeeConnectionSummaryView,
+  AiEmployeeListView as WebAiEmployeeListView,
+  AiEmployeeProjectView as WebAiEmployeeProjectView,
+  AiEmployeeSettingsView as WebAiEmployeeSettingsView,
+  AiEmployeeView as WebAiEmployeeView,
+  AiEmployeeWorkingWindowView as WebAiEmployeeWorkingWindowView,
+  AiExcludedProjectListView as WebAiExcludedProjectListView,
+  AiExcludedProjectView as WebAiExcludedProjectView,
+  CreatedAgentKeyView as WebCreatedAgentKeyView,
+} from '../../apps/web/src/lib/api/ai-employees';
+/** `GET …/ai-employees` — the workspace's AI employees, the beta cap and the workspace switch. */
+type _aiEmployeeList = Assert<Exact<ApiAiEmployeeListView, WebAiEmployeeListView>>;
+/** `GET|PATCH …/ai-employees/:aiEmployeeId` and every lifecycle route — one AI employee. */
+type _aiEmployee = Assert<Exact<ApiAiEmployeeView, WebAiEmployeeView>>;
+/** His projects, his boundary. */
+type _aiEmployeeProject = Assert<Exact<ApiAiEmployeeProjectView, WebAiEmployeeProjectView>>;
+/** Live credentials and his latest call. */
+type _aiEmployeeConnectionSummary = Assert<
+  Exact<ApiAiEmployeeConnectionSummaryView, WebAiEmployeeConnectionSummaryView>
+>;
+/** His working hours, one window. */
+type _aiWorkingWindow = Assert<Exact<ApiAiWorkingWindowView, WebAiEmployeeWorkingWindowView>>;
+/** `GET|PUT …/ai-employees/settings` — the workspace's rules for AI employees (S8). */
+type _aiEmployeeSettings = Assert<Exact<ApiAiEmployeeSettingsView, WebAiEmployeeSettingsView>>;
+/** `GET|PUT …/ai-employees/excluded-projects` — the projects closed to AI. */
+type _aiExcludedProjectList = Assert<
+  Exact<ApiAiExcludedProjectListView, WebAiExcludedProjectListView>
+>;
+type _aiExcludedProject = Assert<Exact<ApiAiExcludedProjectView, WebAiExcludedProjectView>>;
+/** `POST …/keys`, `POST …/keys/:keyId/rotate` — the key, shown once. */
+type _createdAgentKey = Assert<Exact<ApiCreatedAgentKeyView, WebCreatedAgentKeyView>>;

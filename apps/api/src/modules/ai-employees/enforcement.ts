@@ -10,12 +10,49 @@ import type {
   AiEmployeeContextStamp,
   TenantContext,
   TenantDatabase,
+  TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { MembershipResolver } from '../tenancy/membership-resolver.repository.js';
 import { MembershipNotResolvedError } from '../tenancy/membership-resolver.repository.js';
-import type { AiEmployeeStamp, AiEmployeesRepository } from './ai-employees.repository.js';
+import { AiEmployeesRepository, type AiEmployeeStamp } from './ai-employees.repository.js';
 import { aiEmployeesOff } from './ai-employees.switch.js';
+import { AiEmployeeSettingsRepository } from './ai-employee-settings.repository.js';
+
+/**
+ * 60-07 (S8): the workspace rules the gate applies on every call: the workspace switch, and the
+ * client projects to drop when the workspace keeps AI to internal projects.
+ */
+export interface WorkspaceAiRules {
+  readonly enabled: boolean;
+  readonly closedProjectIds: readonly string[];
+}
+
+export interface WorkspaceAiRulesReader {
+  read(runner: TenantQueryRunner, context: TenantContext): Promise<WorkspaceAiRules>;
+}
+
+/** The real reader: the settings row, then (only for `internal_only`) the client projects. */
+export class SettingsAiRulesReader implements WorkspaceAiRulesReader {
+  constructor(
+    private readonly settings = new AiEmployeeSettingsRepository(),
+    private readonly projects: Pick<
+      AiEmployeesRepository,
+      'clientProjectIds'
+    > = new AiEmployeesRepository(),
+  ) {}
+
+  async read(runner: TenantQueryRunner, context: TenantContext): Promise<WorkspaceAiRules> {
+    const settings = await this.settings.read(runner, context);
+    return {
+      enabled: settings.enabled,
+      closedProjectIds:
+        settings.clientWork === 'internal_only'
+          ? await this.projects.clientProjectIds(runner, context)
+          : [],
+    };
+  }
+}
 
 /**
  * 60-06 (plan 60 v2 §4.4, §4.6; security tests 2, 4, 5) — the server-side wall around an AI
@@ -127,6 +164,8 @@ export interface AgentGate {
   decide(input: AgentGateInput): Promise<AgentGateDecision | null>;
 }
 
+const DEFAULT_RULES: WorkspaceAiRulesReader = new SettingsAiRulesReader();
+
 function refused(cause: string, message: string): ApiError {
   return new ApiError(403, 'forbidden', message, undefined, cause);
 }
@@ -178,6 +217,8 @@ export interface AgentEnforcementOptions {
   readonly resolver: Pick<MembershipResolver, 'resolve'>;
   /** `TMANAGE_AI_EMPLOYEES=on`. Off: an AI employee's credential is 404, like the whole surface. */
   readonly enabled: boolean;
+  /** 60-07: the workspace switch and client-work rule (S8). Defaults to the settings row. */
+  readonly rules?: WorkspaceAiRulesReader;
   readonly now?: () => Date;
 }
 
@@ -196,14 +237,22 @@ export class AgentEnforcement implements AgentGate {
         context,
         context.membershipId,
       );
-      if (row === null) return { row, sponsor: null, excluded: [] as readonly string[] };
+      if (row === null) {
+        return { row, sponsor: null, excluded: [] as readonly string[], workspaceOn: true };
+      }
       const sponsor = await this.options.repository.findMember(
         runner,
         context,
         row.sponsorMembershipId,
       );
       const excluded = await this.options.repository.excludedProjectIds(runner, context);
-      return { row, sponsor, excluded };
+      const rules = await (this.options.rules ?? DEFAULT_RULES).read(runner, context);
+      return {
+        row,
+        sponsor,
+        excluded: [...new Set([...excluded, ...rules.closedProjectIds])],
+        workspaceOn: rules.enabled,
+      };
     });
 
     if (read.row === null) {
@@ -219,6 +268,9 @@ export class AgentEnforcement implements AgentGate {
     if (!input.agentCredential) {
       // A person's token or OAuth grant can never act as an AI employee (no human scopes, §4.5).
       throw refused('agent:credential_not_agent', 'Use the AI employee’s agent key.');
+    }
+    if (!read.workspaceOn) {
+      throw refused('agent:workspace_off', 'AI employees are switched off in this workspace.');
     }
     if (row.status !== 'active') {
       throw refused(

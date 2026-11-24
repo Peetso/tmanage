@@ -5,6 +5,7 @@ import type { WorkItemState } from '@tmanage/domain';
 import { dateFromDriver, tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   memberAvailability,
+  memberProfiles,
   memberships,
   memberTeams,
   projectMemberships,
@@ -59,6 +60,8 @@ export interface PersonDirectoryEntry {
   readonly role: string;
   readonly status: string;
   readonly projectCount: number;
+  /** 60-07 (S1 "Job title"): the member's own title in this workspace (`member_profiles`), or null. */
+  readonly jobTitle: string | null;
   /** `memberships.version`, the token `PATCH members/:userId/role` compares and swaps. */
   readonly version: number;
 }
@@ -155,9 +158,17 @@ export class PeopleDirectoryRepository {
         projectCount: sql<number>`count(distinct ${projectMemberships.id})`,
         email: users.email,
         version: memberships.version,
+        jobTitle: memberProfiles.jobTitle,
       })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))
+      .leftJoin(
+        memberProfiles,
+        and(
+          eq(memberProfiles.organizationId, memberships.organizationId),
+          eq(memberProfiles.userId, memberships.userId),
+        ),
+      )
       .leftJoin(
         projectMemberships,
         and(
@@ -174,6 +185,7 @@ export class PeopleDirectoryRepository {
         memberships.status,
         users.email,
         memberships.version,
+        memberProfiles.jobTitle,
       )
       .orderBy(asc(memberships.id))
       .limit(limit);
@@ -187,6 +199,7 @@ export class PeopleDirectoryRepository {
       projectCount: Number(row.projectCount ?? 0),
       email: row.email,
       version: Number(row.version),
+      jobTitle: row.jobTitle ?? null,
     }));
   }
 

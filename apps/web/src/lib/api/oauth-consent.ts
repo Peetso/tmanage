@@ -71,6 +71,54 @@ export async function approveConsent(
   return data.redirectUrl;
 }
 
+/** 60-07 (S5): why an AI employee row cannot be chosen. */
+export type WorksAsUnavailableReason = 'paused' | 'not_allowed' | 'limit';
+
+/** One AI employee the app could work as. */
+export interface WorksAsOptionView {
+  readonly id: string;
+  readonly displayName: string;
+  readonly jobTitle: string;
+  readonly available: boolean;
+  /** Set exactly when `available` is false. */
+  readonly unavailableReason: WorksAsUnavailableReason | null;
+}
+
+/**
+ * 60-07 (S5) "This agent works as": the AI employees this person may connect the app as in one
+ * workspace. Empty = the ordinary consent page, unchanged.
+ */
+export interface ConsentWorksAsView {
+  readonly aiEmployees: readonly WorksAsOptionView[];
+}
+
+export async function loadWorksAs(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<ConsentWorksAsView> {
+  const { data } = await client.request<ConsentWorksAsView>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/oauth/consent/works-as`,
+  });
+  return data;
+}
+
+/**
+ * 60-07: approve as an AI employee. The API grants `tmanage:agent` only and re-checks, on the
+ * server, that this person may bind it (the page's list proves nothing).
+ */
+export async function approveConsentAs(
+  client: ApiClient,
+  organizationSlug: string,
+  input: { readonly params: ConsentParams; readonly ticket: string; readonly aiEmployeeId: string },
+): Promise<string> {
+  const { data } = await client.request<{ redirectUrl: string }>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/oauth/consent`,
+    body: { ...input.params, ticket: input.ticket, worksAs: input.aiEmployeeId },
+  });
+  return data.redirectUrl;
+}
+
 export async function denyConsent(client: ApiClient, params: ConsentParams): Promise<string> {
   const { data } = await client.request<{ redirectUrl: string }>({
     method: 'POST',

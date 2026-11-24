@@ -1,0 +1,202 @@
+/*
+ * S5 Consent — "This agent works as" (plan 60 v2, slice 60-07; Figma 953:1464 / 953:1571 /
+ * 953:1678 / 953:1785). Lives inside the consent card (`consent.css`), scoped under
+ * `.tm-works-as*`. Density v2 tokens only (UX-25: no hand-typed sizes), logical properties
+ * throughout, so the Arabic frame is the same CSS read right-to-left.
+ *
+ * Unavailable rows (Fable R2, finding 19): only the radio, the AI avatar and the name are dimmed;
+ * the reason ("Paused", "Not allowed") keeps the full muted colour, 6.5:1.
+ */
+
+/* ── Who is signed in ─────────────────────────────────────────────── */
+
+.tm-works-as__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-works-as__identity-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  font-weight: var(--t-app-ui-weight);
+  color: var(--ink-650);
+  overflow-wrap: anywhere;
+}
+
+.tm-works-as__not-you {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+/* ── The choice ───────────────────────────────────────────────────── */
+
+.tm-works-as {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.tm-works-as__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0;
+  margin-block-end: var(--s2);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  font-weight: var(--t-app-ui-weight);
+  color: var(--ink-650);
+}
+
+.tm-works-as__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  overflow: hidden;
+}
+
+.tm-works-as__row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s4);
+  min-block-size: var(--app-panel-row);
+  padding-block: var(--s3);
+  padding-inline: var(--inset-card);
+}
+
+.tm-works-as__row + .tm-works-as__row {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-works-as__text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  cursor: pointer;
+}
+
+.tm-works-as__name-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-works-as__name {
+  font-size: var(--t-app-ui-strong);
+  line-height: var(--t-app-ui-strong-line);
+  font-weight: var(--t-app-ui-strong-weight);
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+.tm-works-as__sub {
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+  font-weight: var(--t-app-caption-weight);
+  color: var(--ink-650);
+  overflow-wrap: anywhere;
+}
+
+.tm-works-as__reason {
+  justify-self: end;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+  font-weight: var(--t-app-caption-weight);
+  color: var(--ink-650);
+  text-align: end;
+}
+
+.tm-works-as__row[data-unavailable='true'] .tm-works-as__text {
+  cursor: default;
+}
+
+.tm-works-as__row[data-unavailable='true'] .tm-works-as__dim {
+  opacity: 0.45;
+}
+
+/* ── What the chosen AI employee can and can never do ─────────────── */
+
+.tm-works-as__powers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s6);
+}
+
+.tm-works-as__powers > section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-works-as__powers-title {
+  margin: 0;
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+  font-weight: var(--t-app-caption-weight);
+  color: var(--ink-650);
+}
+
+.tm-works-as__powers-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-works-as__power {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  font-weight: var(--t-app-ui-weight);
+  color: var(--ink-950);
+}
+
+.tm-works-as__glyph {
+  flex: none;
+  inline-size: var(--s4);
+  text-align: center;
+  color: var(--ink-950);
+}
+
+/* ── Actions ──────────────────────────────────────────────────────── */
+
+.tm-works-as__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s3);
+}
+
+/* Phone (Figma 953:1571 / 953:1785): the two lists stack. */
+@media (max-width: 599px) {
+  .tm-works-as__powers {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
+  }
+
+  .tm-works-as__row {
+    column-gap: var(--s3);
+    padding-inline: var(--s4);
+  }
+}

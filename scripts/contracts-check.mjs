@@ -69,28 +69,8 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
-    'AiEmployeeListView',
-    'No web consumer yet: 60-03 AI employees routes (…/ai-employees); the People list, hire wizard and profile screens (S1–S6) are designed in Figma first and built in 60-07.',
-  ],
-  [
     'AgentKeyListView',
     'No web consumer yet: 60-05 agent-key routes (…/ai-employees/:aiEmployeeId/keys); the AI employee keys screen is designed in Figma first and built in 60-07.',
-  ],
-  [
-    'ExcludedProjectListView',
-    'No web consumer yet: plan 60 v2 M5 project exclusion (…/ai-employees/excluded-projects); the Settings > AI employees screen (S8) is designed in Figma first and built in 60-07.',
-  ],
-  [
-    'ExcludedProjectView',
-    'No web consumer yet: plan 60 v2 M5 project exclusion (…/ai-employees/excluded-projects); the Settings > AI employees screen (S8) is designed in Figma first and built in 60-07.',
-  ],
-  [
-    'AiEmployeeView',
-    'No web consumer yet: 60-03 AI employee profile and edit routes; the profile screen (S6) is designed in Figma first and built in 60-07.',
-  ],
-  [
-    'WorkingWindowView',
-    'No web consumer yet: part of AiEmployeeView (60-03); the hours editor is screen S21 (60-38).',
   ],
   [
     'BriefingSignalView',

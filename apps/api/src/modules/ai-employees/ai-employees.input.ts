@@ -31,6 +31,11 @@ const HIDDEN =
   // eslint-disable-next-line no-control-regex
   /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 const DEPARTMENT_KEY = /^[a-z][a-z0-9_]{0,63}$/;
+/** A task type key (the Phase 2 catalogue's keys, 60-13): lower case, digits, `_`, `-`, `.`. */
+const TASK_TYPE_KEY = /^[a-z][a-z0-9_.-]{0,63}$/;
+/** 60-07: an AI employee works in at least one project, and at most this many at once. */
+export const AI_EMPLOYEE_PROJECTS_MAX = 50;
+export const AI_EMPLOYEE_TASK_TYPES_MAX = 50;
 
 /** The role an AI employee is given: a built-in `member` / `guest`, or a custom role id. */
 export type AiEmployeeRoleInput = 'member' | 'guest' | { readonly customRoleId: string };
@@ -47,7 +52,12 @@ export interface HireInput {
   readonly timezone: string;
   readonly workingWindows: readonly WorkingWindow[] | null;
   readonly limits: AiEmployeeLimits;
-  readonly discloseToClients: boolean;
+  /** Null = the workspace's default (S8 "Tell clients when AI helped"). */
+  readonly discloseToClients: boolean | null;
+  /** 60-07: his projects, his boundary (plan §4.6 rule 6). At least one, distinct, lower case. */
+  readonly projectIds: readonly string[];
+  /** 60-07: task type keys; saved now, offered in the wizard once the catalogue exists (Phase 2). */
+  readonly taskTypes: readonly string[];
 }
 
 export interface UpdateInput {
@@ -61,6 +71,10 @@ export interface UpdateInput {
   readonly workingHours?: unknown;
   readonly limits?: AiEmployeeLimits;
   readonly discloseToClients?: boolean;
+  /** 60-07: a new role (the same checks as at hire). */
+  readonly role?: AiEmployeeRoleInput;
+  /** 60-07: the whole new project list (at least one); the service adds and removes the rest. */
+  readonly projectIds?: readonly string[];
 }
 
 export interface SponsorChangeInput {
@@ -199,6 +213,41 @@ function roleOf(body: Body, issues: Issues): AiEmployeeRoleInput | undefined {
   return undefined;
 }
 
+function projectIdsOf(body: Body, issues: Issues, required: boolean): string[] | undefined {
+  const value = body['projectIds'];
+  if (value === undefined) {
+    if (required) issues.add('projectIds', 'must name at least one project');
+    return undefined;
+  }
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.length > AI_EMPLOYEE_PROJECTS_MAX ||
+    !value.every((id) => typeof id === 'string' && isUuid(id))
+  ) {
+    issues.add('projectIds', `must be a list of 1 to ${AI_EMPLOYEE_PROJECTS_MAX} project ids`);
+    return undefined;
+  }
+  return [...new Set(value.map((id: string) => id.toLowerCase()))];
+}
+
+function taskTypesOf(body: Body, issues: Issues): string[] | undefined {
+  const value = body['taskTypes'];
+  if (value === undefined || value === null) return undefined;
+  if (
+    !Array.isArray(value) ||
+    value.length > AI_EMPLOYEE_TASK_TYPES_MAX ||
+    !value.every((key) => typeof key === 'string' && TASK_TYPE_KEY.test(key))
+  ) {
+    issues.add(
+      'taskTypes',
+      `must be a list of at most ${AI_EMPLOYEE_TASK_TYPES_MAX} task type keys`,
+    );
+    return undefined;
+  }
+  return [...new Set(value as string[])];
+}
+
 function booleanOf(body: Body, field: string, issues: Issues): boolean | undefined {
   const value = body[field];
   if (value === undefined) return undefined;
@@ -226,8 +275,11 @@ export function parseHire(input: unknown): Parsed<HireInput> {
   const disclose = booleanOf(body, 'discloseToClients', issues);
   const windows = parseWindows(body['workingHours'], timezone);
   if (!windows.ok) issues.list.push(...windows.issues);
+  const projectIds = projectIdsOf(body, issues, true);
+  const taskTypes = taskTypesOf(body, issues);
   if (
     issues.list.length > 0 ||
+    projectIds === undefined ||
     displayName === undefined ||
     displayName === null ||
     jobTitle === undefined ||
@@ -251,7 +303,9 @@ export function parseHire(input: unknown): Parsed<HireInput> {
       timezone,
       workingWindows: windows.value,
       limits: limits ?? parseAiEmployeeLimitsDefaults(),
-      discloseToClients: disclose ?? true,
+      discloseToClients: disclose ?? null,
+      projectIds,
+      taskTypes: taskTypes ?? [],
     },
   };
 }
@@ -276,6 +330,8 @@ export function parseUpdate(input: unknown): Parsed<UpdateInput> {
   const timezone = timezoneOf(body, issues);
   const limits = limitsOf(body, issues);
   const disclose = booleanOf(body, 'discloseToClients', issues);
+  const role = body['role'] === undefined ? undefined : roleOf(body, issues);
+  const projectIds = projectIdsOf(body, issues, false);
   const value: UpdateInput = {
     version: version ?? 0,
     ...(typeof jobTitle === 'string' ? { jobTitle } : {}),
@@ -286,6 +342,8 @@ export function parseUpdate(input: unknown): Parsed<UpdateInput> {
     ...(body['workingHours'] === undefined ? {} : { workingHours: body['workingHours'] }),
     ...(limits === undefined ? {} : { limits }),
     ...(disclose === undefined ? {} : { discloseToClients: disclose }),
+    ...(role === undefined ? {} : { role }),
+    ...(projectIds === undefined ? {} : { projectIds }),
   };
   if (issues.list.length === 0 && Object.keys(value).length === 1) {
     issues.add('body', 'names nothing to change');

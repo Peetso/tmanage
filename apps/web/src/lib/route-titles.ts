@@ -447,6 +447,10 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   },
   '/[orgSlug]/settings/ai-assistant': { en: 'AI assistant', key: 'RouteTitle.settingsAiAssistant' },
   '/[orgSlug]/settings/ai-actions': { en: 'AI actions', key: 'RouteTitle.settingsAiActions' },
+  '/[orgSlug]/settings/ai-employees': {
+    en: 'AI employees',
+    key: 'RouteTitle.settingsAiEmployees',
+  },
   '/[orgSlug]/settings/alerts': { en: 'Alerts', key: 'RouteTitle.settingsAlerts' },
   '/[orgSlug]/settings/calendar-connections': {
     en: 'Calendar connections',

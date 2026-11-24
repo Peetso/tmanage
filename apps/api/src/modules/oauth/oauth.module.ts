@@ -1,4 +1,5 @@
 import { platformConsentCheckProvider } from '../mcp/platform-rights.js';
+import { worksAsProvider } from '../ai-employees/works-as.js';
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { API_CONFIG, TENANT_DATABASE } from '../../common/http/tokens.js';
@@ -86,6 +87,8 @@ export class OAuthModule {
         AiPlatformSwitchGuard,
         // ADR-0015 F11: who may be offered and granted `tmanage:platform` on the consent page.
         platformConsentCheckProvider,
+        // 60-07 (S5): "This agent works as" — the AI-employee module's rules behind a port.
+        worksAsProvider,
         {
           provide: CONNECTED_APPS_SERVICE,
           inject: [TENANT_DATABASE, AI_ACCESS_SWITCHES],

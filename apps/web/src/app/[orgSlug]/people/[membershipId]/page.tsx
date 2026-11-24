@@ -1,7 +1,7 @@
 'use client';
 
 import { use } from 'react';
-import { PersonProfileScreen } from '../../../../components/screens/PersonProfileScreen';
+import { MembershipProfile } from '../../../../components/ai-employees/MembershipProfile';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
 
 /**
@@ -12,6 +12,8 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
  * tenant-scoped on the server (a cross-tenant/unknown id is a 404). The screen reads
  * `GET …/people/:membershipId`, gated on `work.read`, so a caller without it sees the API's refusal
  * rather than a blank page. Disjoint from the `/people` directory route (x168).
+ *
+ * Plan 60 (S6): when the membership is an AI employee, the AI employee profile draws instead.
  */
 export default function PersonProfilePage({
   params,
@@ -21,7 +23,7 @@ export default function PersonProfilePage({
   const { orgSlug, membershipId } = use(params);
 
   return (
-    <PersonProfileScreen
+    <MembershipProfile
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       membershipId={membershipId}

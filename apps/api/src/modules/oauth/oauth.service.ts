@@ -13,7 +13,8 @@ import { assertCimdUrl, CimdError, type CimdFetcher } from './cimd-fetcher.js';
 import { GrantsRepository } from './grants.repository.js';
 import { verifyPkceS256 } from './pkce.js';
 import { matchesRegisteredRedirect } from './redirect-uri.js';
-import { SCOPE_PLATFORM, parseScopes, scopesToString } from './scopes.js';
+import { SCOPE_AGENT, SCOPE_PLATFORM, parseScopes, scopesToString } from './scopes.js';
+import type { WorksAsBinder } from './works-as.js';
 import type { AiAccessSwitches } from './ai-access.js';
 
 /**
@@ -452,22 +453,40 @@ export class OAuthService {
        * the end of the grant's own platform window.
        */
       readonly platform?: { readonly stepUpSessionId: string; readonly until: Date };
+      /**
+       * 60-07 (plan 60 v2 §4.5) "works as": the grant is bound to an AI employee, not to the
+       * consenting person (`membershipId` / `userId` above). Runs first inside the grant's
+       * transaction: it locks the AI employee, re-checks every rule (switches, status, who may
+       * bind, the credential cap), records the audit row, and answers the AI employee's
+       * membership. The grant then holds `tmanage:agent` only, and records the person in
+       * `authorized_by_membership_id`. Never combined with `platform`.
+       */
+      readonly worksAs?: WorksAsBinder;
     },
     ids: { grantId: string },
   ): Promise<{ redirectUrl: string; code: string }> {
+    if (input.worksAs !== undefined && input.platform !== undefined) {
+      throw new Error('A grant that works as an AI employee never holds the platform scope.');
+    }
     const code = newOpaqueToken();
     await this.database.transaction(context, async (tx) => {
+      const bound =
+        input.worksAs === undefined ? null : await input.worksAs(tx, context, ids.grantId);
       await this.repo.insertGrant(tx, {
         id: ids.grantId,
         organizationId: context.organizationId,
         clientPk: input.clientPk,
-        membershipId: input.membershipId,
-        userId: input.userId,
-        scopes: scopesToString(
-          input.platform === undefined
-            ? input.scopes.filter((scope) => scope !== SCOPE_PLATFORM)
-            : input.scopes,
-        ),
+        membershipId: bound?.membershipId ?? input.membershipId,
+        userId: bound?.userId ?? input.userId,
+        scopes:
+          bound !== null
+            ? SCOPE_AGENT
+            : scopesToString(
+                input.platform === undefined
+                  ? input.scopes.filter((scope) => scope !== SCOPE_PLATFORM)
+                  : input.scopes,
+              ),
+        ...(bound !== null ? { authorizedByMembershipId: input.membershipId } : {}),
         ...(input.platform !== undefined
           ? {
               platformStepUpSessionId: input.platform.stepUpSessionId,

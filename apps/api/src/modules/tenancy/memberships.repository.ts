@@ -427,6 +427,38 @@ export class MembershipsRepository {
 
     await tenantDrizzle(runner)
       .insert(memberships)
+  /**
+   * 60-07 (S6 "Role"). The one writer of an AI member's role (kind `ai`): the AI-employee service
+   * has already applied the AI ceiling and the caller's own ceiling. Like {@link changeRole} it
+   * bumps `version` and `policy_version` (the authorization epoch), so the AI employee's next call
+   * resolves the new role. It never touches a person's membership (`kind = 'ai'` in the write);
+   * `false` when no AI membership of this workspace matched.
+   */
+  async changeAiRole(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+    role: string,
+    at: Date,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(memberships)
+      .set({
+        role,
+        version: sql`version + 1`,
+        policyVersion: sql`policy_version + 1`,
+        updatedAt: at,
+      })
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.id, membershipId),
+          eq(memberships.kind, 'ai'),
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
       .values({
         id,
         // From the context. Not from `input` — there is no such field.

@@ -28,6 +28,8 @@ export interface PersonSummary {
   readonly status?: string;
   /** How many of this organization's projects the person is a member of. */
   readonly projectCount: number;
+  /** 60-07 (S1 "Job title"): the member's own title in this workspace, or null. */
+  readonly jobTitle: string | null;
   /** The membership's compare-and-swap token for `PATCH members/:userId/role` (409 when stale). */
   readonly version: number;
   /** LAST ACTIVE: the latest sign-in or session refresh (ISO), or null for never. */

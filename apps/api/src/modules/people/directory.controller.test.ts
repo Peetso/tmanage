@@ -67,6 +67,7 @@ function capturingRunner(
 }
 
 const repository = new PeopleDirectoryRepository();
+const statement0 = (captured: readonly Captured[]) => captured[0]?.sql;
 
 describe('PeopleDirectoryRepository.list', () => {
   it('names each person with a project count, in a statement the tenant guard accepts', async () => {
@@ -74,7 +75,17 @@ describe('PeopleDirectoryRepository.list', () => {
     const membershipId = uuidv7();
     const userId = uuidv7();
     const { runner } = capturingRunner(captured, [
-      [membershipId, userId, 'Priya Raman', 'manager', 'active', 3, 'priya@studio.test', 4],
+      [
+        membershipId,
+        userId,
+        'Priya Raman',
+        'manager',
+        'active',
+        3,
+        'priya@studio.test',
+        4,
+        'Producer',
+      ],
     ]);
 
     const rows = await repository.list(runner, contextFor(ORG));
@@ -88,8 +99,11 @@ describe('PeopleDirectoryRepository.list', () => {
         projectCount: 3,
         email: 'priya@studio.test',
         version: 4,
+        // 60-07: the job title from her member profile (People shows it under the name).
+        jobTitle: 'Producer',
       },
     ]);
+    expect(statement0(captured)).toMatch(/left join\s+`member_profiles`/i);
 
     const statement = captured[0];
     expect(statement).toBeDefined();

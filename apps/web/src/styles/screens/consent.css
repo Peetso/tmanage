@@ -478,8 +478,9 @@
     padding: var(--s4);
   }
 
+  /* 24px inline inset on a phone (the S5 phone frames; layout rule container-inset). */
   .tm-consent__card {
-    padding: var(--s6) var(--s5);
+    padding: var(--s6);
   }
 
   .tm-consent__title {

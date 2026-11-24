@@ -109,9 +109,9 @@ describe('switch off: every route is 404 and nothing runs', () => {
 });
 
 describe('absent from AI discovery in both states', () => {
-  it('no registry op is an /ai-employees route; all 15 routes are NEVER', () => {
+  it('no registry op is an /ai-employees route; all 19 routes are NEVER (60-07: +2 connections, +2 settings)', () => {
     expect(OPS.filter((op) => op.path.includes(PATH))).toEqual([]);
-    expect(NEVER.filter((entry) => entry.path.includes(PATH))).toHaveLength(15);
+    expect(NEVER.filter((entry) => entry.path.includes(PATH))).toHaveLength(19);
     expect(
       NEVER.filter((entry) => entry.path.includes(PATH)).every(
         (entry) => entry.reason === 'ai_employee_admin',

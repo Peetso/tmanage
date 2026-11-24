@@ -1,0 +1,43 @@
+/* The AI mark and the AI avatar (plan 60 v2; Figma Badge/AI 947:1014, Avatar · AI 947:1016/1018).
+   Tokens only (UX-25). The mark keeps the mono overline style in every language (Fable n-t-h 3). */
+
+.tm-ai-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 2px var(--s2);
+  border: var(--b-quiet) solid var(--ink-650);
+  /* Drawn round-ended, but kept just under half the height on purpose: a two-letter mark is not
+     a text capsule, so the 16px capsule inset (UX-26) does not apply to it. */
+  border-radius: calc(var(--r-micro) - 2px);
+  background: var(--lime-100);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-app-overline);
+  font-weight: var(--t-app-overline-weight);
+  line-height: var(--t-app-overline-line);
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.tm-ai-avatar {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: var(--r-micro);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-app-overline);
+  font-weight: var(--t-app-overline-weight);
+  line-height: 1;
+}
+
+.tm-ai-avatar[data-size='40'] {
+  inline-size: var(--app-control-lg);
+  block-size: var(--app-control-lg);
+  border-radius: var(--r-control);
+  font-size: var(--t-app-caption);
+}

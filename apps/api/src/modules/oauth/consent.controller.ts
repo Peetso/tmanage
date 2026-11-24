@@ -34,6 +34,12 @@ import {
   type PlatformConsentCheck,
 } from './consent.js';
 import { SCOPE_PLATFORM } from './scopes.js';
+import {
+  parseWorksAs,
+  WORKS_AS_PORT,
+  type ConsentWorksAsView,
+  type WorksAsPort,
+} from './works-as.js';
 import { OAuthError, type OAuthService, type ValidatedAuthorize } from './oauth.service.js';
 import { OAUTH_SERVICE } from './oauth.tokens.js';
 
@@ -64,6 +70,8 @@ interface ConsentParams {
 interface DecisionBody extends ConsentParams {
   readonly ticket?: unknown;
   readonly scopes?: unknown;
+  /** 60-07 "works as": absent / `"me"` = the person, otherwise an AI employee's id. */
+  readonly worksAs?: unknown;
 }
 
 export interface ConsentView {
@@ -97,7 +105,11 @@ export interface ConsentView {
  *   gotcha in the architecture).
  * - `POST /v1/oauth/consent/deny` sends the client `error=access_denied`.
  *
- * All three refuse anything but a cookie session: a personal access token or an AI grant must
+ * - 60-07 `GET /v1/organizations/:orgSlug/oauth/consent/works-as` lists the AI employees the
+ *   person may connect the app as (S5, "This agent works as"); the approve body's `worksAs` names
+ *   the choice, which the AI-employee module re-checks inside the grant's transaction.
+ *
+ * All of them refuse anything but a cookie session: a personal access token or an AI grant must
  * never approve an OAuth client (B3, "cannot create OAuth clients or change its own grant").
  */
 // S11: 503 while the platform AI switch is off.
@@ -112,6 +124,10 @@ export class OAuthConsentController {
     @Optional()
     @Inject(PLATFORM_CONSENT_CHECK)
     private readonly platformCheck?: PlatformConsentCheck,
+    /** 60-07. Absent (unit tests, or a server without the AI-employee module): "Me" only. */
+    @Optional()
+    @Inject(WORKS_AS_PORT)
+    private readonly worksAs?: WorksAsPort,
   ) {}
 
   private async platformStanding(session: AuthenticatedSession, correlationId: string) {
@@ -141,6 +157,20 @@ export class OAuthConsentController {
     };
   }
 
+  /** 60-07 (S5): the AI employees this person may connect the app as, in this workspace. */
+  @Get('v1/organizations/:orgSlug/oauth/consent/works-as')
+  @RequireCapability('work.read')
+  async worksAsOptions(
+    @Ctx() context: TenantContext,
+    @Req() request: RequestLike,
+    @Res({ passthrough: true }) reply: ReplyLike,
+  ): Promise<ConsentWorksAsView> {
+    this.requireCookie(request);
+    noStore(reply);
+    if (this.worksAs === undefined) return { aiEmployees: [] };
+    return this.worksAs.options(context);
+  }
+
   @Post('v1/organizations/:orgSlug/oauth/consent')
   @RequireCapability('work.read')
   @HttpCode(200)
@@ -160,6 +190,36 @@ export class OAuthConsentController {
     // S11: no new connection while the workspace owner has AI apps turned off.
     if (!(await this.aiAccess.organizationOn(context.organizationId, state.correlationId))) {
       throw aiWorkspaceDisabledError();
+    }
+    const choice = parseWorksAs(body?.worksAs);
+    if (!choice.ok) {
+      throw new ApiError(400, 'validation_failed', 'The connection request is not valid', [
+        { field: 'worksAs', message: 'must be "me" or an AI employee id' },
+      ]);
+    }
+    if (choice.aiEmployeeId !== null) {
+      // 60-07: the grant works as an AI employee — `tmanage:agent` only, whatever the page sent
+      // as scopes; every rule is re-checked by the binder inside the grant's transaction.
+      if (this.worksAs === undefined) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'ai_employee:not_found');
+      }
+      const { redirectUrl } = await this.oauth.grantConsent(
+        context,
+        {
+          clientPk: validated.clientPk,
+          membershipId: context.membershipId,
+          userId: context.userId,
+          redirectUri: validated.redirectUri,
+          challenge: validated.challenge,
+          resource: validated.resource,
+          scopes: [],
+          state: validated.state,
+          sessionId: session.sessionId,
+          worksAs: this.worksAs.binder(choice.aiEmployeeId),
+        },
+        { grantId: randomUUID() },
+      );
+      return { redirectUrl };
     }
     const role = state.membership?.role ?? '';
     // ADR-0015 F11: `tmanage:platform` only for a platform admin with two-step on and a step-up

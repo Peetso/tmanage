@@ -58,6 +58,9 @@ function mount(options: { people: readonly object[]; myRole?: string }) {
           headers: { 'content-type': 'application/json' },
         }),
       );
+    // Plan 60: AI employees are not offered here (the API answers 404 while they are off).
+    if (url.pathname.includes('/ai-employees'))
+      return reply({ error: { code: 'not_found', message: 'Not found', correlationId: 'c' } }, 404);
     if (url.pathname.endsWith('/people')) return reply({ people: options.people, nextAfter: null });
     if (url.pathname.endsWith('/admin/invitations')) {
       return reply({
@@ -134,14 +137,18 @@ describe('Members and roles (r-people)', () => {
 
     const table = await screen.findByRole('table', { name: 'People in this organization' });
     expect(within(table).getByText('Sara Ali')).toBeTruthy();
-    expect(within(table).getAllByText('4 projects')).toHaveLength(2);
-    expect(await screen.findByText('2 members · 2 invitations waiting')).toBeTruthy();
-    // The frame's own header; the shell's (hidden by CSS in a browser) carries the same title.
-    expect(
-      screen.getAllByRole('heading', { level: 1, name: 'Members and roles' }),
-    ).not.toHaveLength(0);
-    expect(screen.getByRole('button', { name: 'Invite member' })).toBeTruthy();
+    // Plan 60 S1: the header counts people; the invitations count heads their own section.
+    expect(await screen.findByText('2 people')).toBeTruthy();
+    expect(await screen.findByRole('table', { name: /Invitations waiting/ })).toBeTruthy();
+    expect(screen.getAllByRole('heading', { level: 1, name: 'People' })).not.toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Add' })).toBeTruthy();
+    // The owner rule moved behind the info icon on the Role column (Peter: explanations behind an icon).
+    fireEvent.click(screen.getByRole('button', { name: 'About roles' }));
     expect(screen.getByText("Only an owner can change another owner's role.")).toBeTruthy();
+    // Project counts and last active live in the grid view (the list follows the S1 columns).
+    fireEvent.click(screen.getByRole('radio', { name: 'Grid' }));
+    expect(screen.getAllByText('4 projects')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('radio', { name: 'List' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Sara Ali' }));
     const menu = screen.getByRole('menu');
@@ -174,10 +181,16 @@ describe('Members and roles (r-people)', () => {
     expect(saraRow).not.toBeNull();
     expect(mayaRow).not.toBeNull();
     expect(within(saraRow as HTMLElement).getByText('sara@northstar.studio')).toBeTruthy();
-    expect(within(saraRow as HTMLElement).getByText('3 days ago')).toBeTruthy();
-    // A null address (a non-staff caller, or none on file) draws no second line; never-active is "—".
+    // A null address (a non-staff caller, or none on file) draws no second line.
     expect((mayaRow as HTMLElement).textContent).not.toContain('@');
-    expect(within(mayaRow as HTMLElement).getByText('—')).toBeTruthy();
+    // Plan 60 S1: last active is drawn on the grid cards; never-active is "—".
+    fireEvent.click(screen.getByRole('radio', { name: 'Grid' }));
+    const cards = await screen.findByRole('list', { name: 'People in this organization' });
+    const saraCard = within(cards).getByText('Sara Ali').closest('article');
+    const mayaCard = within(cards).getByText('Maya Hassan').closest('article');
+    expect(within(saraCard as HTMLElement).getByText(/3 days ago/)).toBeTruthy();
+    expect(within(mayaCard as HTMLElement).getByText(/—/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: 'List' }));
   });
 
   it('changes a role with the row version (r-change-role)', async () => {
@@ -255,7 +268,8 @@ describe('Members and roles (r-people)', () => {
   it('invites with a role, projects and a note (r-invite)', async () => {
     const { sent } = mount({ people: [MAYA, SARA] });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
+    // Plan 60 S2: Add; with AI employees not offered, it opens the invite at once.
+    fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
     const dialog = await screen.findByRole('dialog', { name: 'Invite a team member' });
     fireEvent.change(within(dialog).getByLabelText(/Email/), {
       target: { value: 'omar@northstar.studio' },

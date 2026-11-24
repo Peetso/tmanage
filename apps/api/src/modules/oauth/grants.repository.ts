@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
+  memberships,
   oauthAccessTokens,
   oauthClients,
   oauthGrants,
@@ -36,6 +37,23 @@ export interface ConnectedGrantRow {
   /** The OAuth `client_id` (a CIMD URL or a DCR id) and its kind, for the known-app table. */
   readonly clientId: string;
   readonly clientKind: string;
+}
+
+/** 60-07: a live connector that works as an AI employee, for its profile's Connections tab. */
+export interface AiConnectorGrantRow {
+  readonly id: string;
+  readonly clientName: string;
+  readonly createdAt: Date;
+  /** The person who consented (`authorized_by_membership_id`), and their name. */
+  readonly authorizedByMembershipId: string | null;
+  readonly authorizedByName: string | null;
+}
+
+/** 60-07: per AI membership, its live connectors and the last time any of its grants was used. */
+export interface ConnectorSummaryRow {
+  readonly membershipId: string;
+  readonly live: number;
+  readonly lastUsedAt: Date | null;
 }
 
 /** One OAuth client as the AI panel names it. */
@@ -79,6 +97,77 @@ export class GrantsRepository {
         ),
       )
       .orderBy(desc(oauthGrants.createdAt));
+  }
+
+  /**
+   * 60-07. The live grants bound to one membership (an AI employee's), with the person who
+   * consented to each. Organization first; the consenting membership is joined within the same
+   * organization, so a foreign id never names anyone.
+   */
+  async listLiveForMembership(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+  ): Promise<AiConnectorGrantRow[]> {
+    return tenantDrizzle(runner)
+      .select({
+        id: oauthGrants.id,
+        clientName: oauthClients.name,
+        createdAt: oauthGrants.createdAt,
+        authorizedByMembershipId: oauthGrants.authorizedByMembershipId,
+        authorizedByName: users.displayName,
+      })
+      .from(oauthGrants)
+      .innerJoin(oauthClients, eq(oauthClients.id, oauthGrants.clientPk))
+      .leftJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, oauthGrants.organizationId),
+          eq(memberships.id, oauthGrants.authorizedByMembershipId),
+        ),
+      )
+      .leftJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          eq(oauthGrants.organizationId, context.organizationId),
+          eq(oauthGrants.membershipId, membershipId),
+          isNull(oauthGrants.revokedAt),
+        ),
+      )
+      .orderBy(desc(oauthGrants.createdAt));
+  }
+
+  /**
+   * 60-07. For each membership: how many live grants it holds and when a token was last issued
+   * under any of its grants (revoked ones included, like an agent key's last use). One read for
+   * the whole list.
+   */
+  async connectorSummaries(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipIds: readonly string[],
+  ): Promise<ConnectorSummaryRow[]> {
+    if (membershipIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({
+        membershipId: oauthGrants.membershipId,
+        live: sql<number>`count(distinct case when ${oauthGrants.revokedAt} is null then ${oauthGrants.id} end)`,
+        lastUsedAt: sql<Date | string | null>`max(${oauthAccessTokens.createdAt})`,
+      })
+      .from(oauthGrants)
+      .leftJoin(oauthAccessTokens, eq(oauthAccessTokens.grantId, oauthGrants.id))
+      .where(
+        and(
+          eq(oauthGrants.organizationId, context.organizationId),
+          inArray(oauthGrants.membershipId, [...membershipIds]),
+        ),
+      )
+      .groupBy(oauthGrants.membershipId);
+    return rows.map((row) => ({
+      membershipId: row.membershipId,
+      live: Number(row.live ?? 0),
+      lastUsedAt: sqlDate(row.lastUsedAt),
+    }));
   }
 
   /**
@@ -215,6 +304,14 @@ export class GrantsRepository {
       .limit(1);
     return rows[0]?.name ?? '';
   }
+}
+
+/** An aggregate's datetime: a Date, or the driver's UTC text (`YYYY-MM-DD HH:MM:SS.fff`). */
+function sqlDate(value: Date | string | null): Date | null {
+  if (value === null) return null;
+  if (value instanceof Date) return value;
+  const parsed = new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 /**

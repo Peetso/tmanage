@@ -289,7 +289,9 @@ function holdsPlatformAdminGuard(guards: unknown): boolean {
 // Lane WA (2026-11-23): +1 team rename (PATCH people/teams/:id).
 // Lane WA W-API-2 (2026-11-23): +13 stage-set routes (sets list/get/create/update/delete; stages
 // add/update/delete/reorder; a project's set get/put; a work's set and stage put).
-const EXPECTED_ROUTE_COUNT = 1683;
+// 60-07 lane A (2026-11-24): +3 — an AI employee's connections (GET, DELETE connector) and the
+// consent page's works-as list.
+const EXPECTED_ROUTE_COUNT = 1688;
 // 60-03: +8 NEVER (ai-employees list, get, hire, edit, pause, resume, sponsor, retire).
 // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.

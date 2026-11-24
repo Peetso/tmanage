@@ -1,0 +1,1364 @@
+/* AI employees on the web (plan 60, slice 60-07; Figma section "AI employees", S1–S8).
+   Density v2 tokens only (UX-25): rows 36 (--app-row), controls 32 (--app-control), fields 40
+   (--app-control-lg), cards 24 in (--inset-card), dialogs 24 in (--inset-dialog), controls 12 in
+   (--inset-control), text in a capsule 16 from its round end (--inset-capsule), targets >= 24
+   (--target-min). The avatar and badge are lane B's (ai-badge.css). */
+
+/* ── Shared text ── */
+
+.tm-aie-quiet {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* A standalone link (not in running text) is a 24 x 24 target (WCAG 2.2 SC 2.5.8). */
+.tm-aie-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  color: var(--ink-950);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  text-decoration: underline;
+  text-underline-offset: var(--s1);
+}
+
+/* A retired row or an unavailable card dims its face and name; the reason stays at full colour. */
+[data-retired] .tm-aie-dim,
+[data-disabled] .tm-aie-dim {
+  opacity: 0.55;
+}
+
+.tm-aie-field-error {
+  margin: 0;
+}
+
+.tm-aie-rule {
+  inline-size: 100%;
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aie-row,
+.tm-aie-alert-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aie-alert-row {
+  justify-content: space-between;
+}
+
+/* ── People page ── */
+
+.tm-aie-people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-aie-search {
+  inline-size: min(17.5rem, 100%);
+}
+
+.tm-aie-search .tm-search-field__control,
+.tm-aie-search-phone .tm-search-field__control {
+  block-size: var(--app-control);
+  min-block-size: var(--app-control);
+  border-color: var(--line-300);
+  background: var(--paper-0);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-search-toggle,
+.tm-aie-search-phone {
+  display: none;
+}
+
+/* Tabs (Everyone / People / AI employees; Overview / Connections). The labels never clip: no
+   fixed height, no overflow hidden, so the Arabic dots under the last letter always show. */
+.tm-aie-tabbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aie-tabbar__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding-block-end: var(--s2);
+}
+
+.tm-aie-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-aie-profile .tm-aie-tabs {
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aie-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-row);
+  margin-block-end: calc(var(--b-quiet) * -1);
+  padding: var(--s2) var(--s3);
+  overflow: visible;
+  border: 0;
+  border-block-end: var(--b-expressive) solid transparent;
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-aie-tab:hover {
+  color: var(--ink-950);
+}
+
+.tm-aie-tab[aria-selected='true'] {
+  border-block-end-color: var(--ink-950);
+  color: var(--ink-950);
+  font-weight: var(--t-app-ui-weight);
+}
+
+.tm-aie-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aie-tab__count {
+  color: var(--ink-500);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+}
+
+/* The roster table (S1): Name / Job title / Role / Sponsor / Status / menu, in a card frame. */
+.tm-aie-roster {
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-aie-roster__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-roster__table th,
+.tm-aie-roster__table td {
+  padding: var(--s1) var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.tm-aie-roster__table thead th {
+  block-size: var(--app-row);
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  font-weight: var(--t-app-ui-weight);
+}
+
+.tm-aie-roster__table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.tm-aie-roster__head {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.tm-aie-roster__row {
+  block-size: var(--app-row);
+}
+
+.tm-aie-roster__muted {
+  color: var(--ink-650);
+}
+
+.tm-aie-roster__end {
+  inline-size: var(--app-control);
+  text-align: end;
+}
+
+.tm-aie-roster__empty {
+  padding: var(--inset-card);
+  color: var(--ink-650);
+}
+
+.tm-aie-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-aie-who__text {
+  display: inline-flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-aie-who__name {
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+a.tm-aie-who__name {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+a.tm-aie-who__name:hover,
+.tm-aie-who a:hover {
+  text-decoration: underline;
+}
+
+.tm-aie-face {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  color: var(--ink-950);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+}
+
+.tm-aie-role {
+  min-block-size: var(--target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-aie-role:hover {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+[data-retired] > td,
+[data-retired] > th {
+  color: var(--ink-650);
+}
+
+/* Phone list (S1 phone): one line per member, the sub-line under the name. */
+.tm-aie-phone-list {
+  display: none;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aie-phone-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: var(--app-panel-row);
+  padding-block: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aie-phone-row__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-aie-phone-row__text > a {
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+.tm-aie-phone-row__text > a:hover {
+  text-decoration: underline;
+}
+
+.tm-aie-phone-row__sub {
+  overflow: hidden;
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Grid view: the AI card keeps its badge beside the name. */
+.tm-aie-card-view .tm-aie-who {
+  display: flex;
+}
+
+.tm-aie-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--inset-card);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-aie-empty__title {
+  margin: 0;
+  font-size: var(--t-app-section);
+  font-weight: var(--t-app-section-weight);
+  line-height: var(--t-app-section-line);
+}
+
+.tm-aie-empty__text {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* ── Row menu (APG menu button) ── */
+
+.tm-aie-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-aie-menu__button {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--app-control);
+  block-size: var(--app-control);
+  padding: 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-950);
+  cursor: pointer;
+}
+
+.tm-aie-roster__end .tm-aie-menu__button {
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+}
+
+.tm-aie-menu__button:hover,
+.tm-aie-menu__button[aria-expanded='true'] {
+  border-color: var(--line-300);
+  background: var(--paper-150);
+}
+
+.tm-aie-menu__button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aie-menu__list {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s1));
+  inset-inline-end: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 13rem;
+  margin: 0;
+  padding: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+  list-style: none;
+}
+
+.tm-aie-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  inline-size: 100%;
+  min-block-size: var(--app-row);
+  padding-inline: var(--inset-control);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  text-align: start;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-aie-menu__item:hover,
+.tm-aie-menu__item:focus-visible {
+  outline: none;
+  background: var(--paper-150);
+}
+
+.tm-aie-menu__entry--danger .tm-aie-menu__item {
+  color: var(--danger-600);
+}
+
+/* ── Dialog pieces (the New team dialog, teams.css) ── */
+
+.tm-aie-dialog[data-wide] {
+  inline-size: min(45rem, calc(100% - var(--s8)));
+}
+
+.tm-aie-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.tm-aie-input,
+.tm-aie-select select {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--app-control-lg);
+  padding-inline: var(--inset-control);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+}
+
+.tm-aie-input:focus,
+.tm-aie-select select:focus {
+  border-color: var(--ink-950);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aie-input[aria-invalid='true'] {
+  border-color: var(--danger-600);
+}
+
+.tm-aie-select {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+}
+
+.tm-aie-select select {
+  padding-inline-end: calc(var(--inset-control) + var(--s6));
+  appearance: none;
+  cursor: pointer;
+}
+
+.tm-aie-select select:disabled {
+  color: var(--ink-650);
+  cursor: default;
+}
+
+.tm-aie-select__chevron {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--inset-control);
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-650);
+  pointer-events: none;
+}
+
+.tm-aie-copy {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-control-lg);
+  padding-inline: var(--inset-control) var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+}
+
+.tm-aie-copy:focus-within {
+  border-color: var(--ink-950);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aie-copy__value {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-copy__button {
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  cursor: pointer;
+}
+
+.tm-aie-copy__button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* The projects box is one line until the chips wrap (design S3b), not the Teams box's two. */
+.tm-aie-projects-field .tm-team-combo[data-variant='chips'] .tm-team-combo__box {
+  min-block-size: var(--app-control-lg);
+  align-content: center;
+}
+
+/* A project chip has no face at its start, so its name clears the rounded end by 16 itself
+   (doubled class: teams.css's .tm-team-chip padding loads after this file). */
+.tm-team-chip.tm-aie-chip {
+  gap: var(--s2);
+  padding-inline-start: var(--s4);
+}
+
+.tm-aie-client-dot {
+  display: inline-block;
+  flex: none;
+  inline-size: var(--s2);
+  block-size: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--client-500);
+}
+
+.tm-aie-closed-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-aie-actions-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  inline-size: 100%;
+}
+
+/* Add chooser (S2): two radio cards. */
+.tm-aie-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-aie-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--inset-card);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  cursor: pointer;
+}
+
+.tm-aie-card:has(input:checked) {
+  border-color: var(--ink-950);
+}
+
+.tm-aie-card:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aie-card[data-disabled] {
+  cursor: default;
+}
+
+.tm-aie-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.tm-aie-card__icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--app-control-lg);
+  block-size: var(--app-control-lg);
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: var(--r-control);
+  color: var(--ink-950);
+}
+
+.tm-aie-card__tick {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  color: transparent;
+}
+
+.tm-aie-card:has(input:checked) .tm-aie-card__tick {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-aie-card__title {
+  font-size: var(--t-app-ui-strong);
+  font-weight: var(--t-app-ui-strong-weight);
+  line-height: var(--t-app-ui-strong-line);
+}
+
+.tm-aie-card__body,
+.tm-aie-card__note {
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-card__note {
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+/* Wizard stepper (S3/S4): numbered marks joined by a rule, the done ones ticked, the current one
+   lime (design S3a). */
+.tm-aie-stepper {
+  display: flex;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aie-stepper__step {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink-650);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-stepper__step:last-child {
+  flex: none;
+}
+
+.tm-aie-stepper__step:not(:last-child)::after {
+  flex: 1;
+  min-inline-size: var(--s2);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+  content: '';
+}
+
+.tm-aie-stepper__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--s5);
+  block-size: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-app-overline);
+  line-height: var(--t-app-overline-line);
+}
+
+.tm-aie-stepper__step[data-state='current'] {
+  color: var(--ink-950);
+}
+
+.tm-aie-stepper__step[data-state='current'] .tm-aie-stepper__mark {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-aie-stepper__step[data-state='done'] .tm-aie-stepper__mark {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+/* Connect (S4): app cards, numbered steps. */
+.tm-aie-connect {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-aie-apps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* An app card: its mark above its name (design S4a). */
+.tm-aie-app {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-block-size: var(--s20);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  cursor: pointer;
+}
+
+.tm-aie-app[data-chosen] {
+  border-color: var(--ink-950);
+  background: var(--paper-150);
+}
+
+.tm-aie-app:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aie-app__icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+/* The how-to: numbered rings in a tinted box (design S4a). */
+.tm-aie-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--inset-card);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  counter-reset: tm-aie-step;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  list-style: none;
+}
+
+.tm-aie-steps > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  counter-increment: tm-aie-step;
+}
+
+.tm-aie-steps > li::before {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--s5);
+  block-size: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  color: var(--ink-650);
+  content: counter(tm-aie-step);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+/* Test (S4c–e): the checklist with its marks. */
+.tm-aie-test {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+/* The checklist sits in a tinted box like Connect's how-to (design S4c). */
+.tm-aie-test__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--s2) var(--inset-card);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  list-style: none;
+}
+
+.tm-aie-test__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: var(--app-row);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-test__label {
+  flex: 1;
+}
+
+.tm-aie-test__state {
+  color: var(--ink-650);
+}
+
+.tm-aie-test__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--s5);
+  block-size: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+}
+
+.tm-aie-test__mark[data-state='done'] {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+}
+
+.tm-aie-test__mark[data-state='waiting'] {
+  border-color: var(--warning-600);
+  border-block-start-color: transparent;
+  animation: tm-aie-spin 1s linear infinite;
+}
+
+.tm-aie-test__tick {
+  stroke: var(--tm-on-lime);
+}
+
+@keyframes tm-aie-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-aie-test__mark[data-state='waiting'] {
+    animation: none;
+  }
+}
+
+/* ── Profile (S6) ── */
+
+.tm-aie-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aie-crumbs li + li::before {
+  content: '›';
+  margin-inline-end: var(--s2);
+  color: var(--ink-650);
+}
+
+.tm-aie-crumbs a {
+  color: var(--ink-650);
+  text-decoration: none;
+}
+
+.tm-aie-crumbs a:hover {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+.tm-aie-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aie-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-aie-title__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* The job line sits under the name, past the title row's gutter and the 40px face (design S6a). */
+.tm-aie-title__job {
+  display: block;
+  padding-inline-start: calc(var(--page-gutter) + var(--app-control-lg) + var(--s4));
+  padding-block-end: var(--s5);
+  color: var(--ink-650);
+}
+
+.tm-aie-profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+/* About and Projects sit side by side only when the tab panel has room for both (52rem); a
+   narrower panel (a laptop with the rail open) stacks them so About's rows keep their text. */
+.tm-aie-profile-panel {
+  container-type: inline-size;
+}
+
+.tm-aie-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s5);
+}
+
+@container (min-width: 52rem) {
+  .tm-aie-overview {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 25rem);
+  }
+}
+
+.tm-aie-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--inset-card);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-aie-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-aie-panel__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-app-card-title);
+  font-weight: var(--t-app-card-title-weight);
+  line-height: var(--t-app-card-title-line);
+}
+
+.tm-aie-about {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.tm-aie-about__row {
+  display: grid;
+  grid-template-columns: minmax(0, 7.25rem) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: var(--app-row);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-about__row dt {
+  color: var(--ink-650);
+}
+
+.tm-aie-about__row dd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-inline-size: 0;
+  margin: 0;
+  color: var(--ink-950);
+}
+
+.tm-aie-about__button {
+  flex: none;
+}
+
+.tm-aie-about__edit {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  padding-block: var(--s1);
+}
+
+.tm-aie-about__edit .tm-aie-input,
+.tm-aie-about__edit .tm-aie-select {
+  flex: 1 1 14rem;
+  inline-size: auto;
+}
+
+.tm-aie-about__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-aie-projects {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aie-projects__row {
+  display: grid;
+  grid-template-columns: var(--s4) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--app-panel-row);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-projects__lead {
+  display: inline-grid;
+  place-items: center;
+}
+
+.tm-aie-connections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-aie-conn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-aie-table-frame {
+  overflow-x: auto;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+}
+
+.tm-aie-conn {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-conn th,
+.tm-aie-conn td {
+  padding: var(--s2) var(--s3);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.tm-aie-conn thead th {
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  font-weight: var(--t-app-ui-weight);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-aie-conn tbody tr + tr > * {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aie-conn tbody th {
+  font-weight: var(--t-app-ui-weight);
+}
+
+.tm-aie-conn__name {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aie-conn__icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--app-control-sm);
+}
+
+.tm-aie-conn__title,
+.tm-aie-conn__sub {
+  display: block;
+}
+
+.tm-aie-conn__sub {
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-aie-conn__actions {
+  display: inline-flex;
+  gap: var(--s2);
+}
+
+/* The connection column takes the room (design S6b); Revoke stays neutral here and asks first. */
+.tm-aie-conn thead th:first-child {
+  inline-size: 44%;
+}
+
+.tm-aie-none {
+  align-items: flex-start;
+  max-inline-size: 35rem;
+}
+
+.tm-aie-none__icon {
+  display: inline-grid;
+  place-items: center;
+}
+
+.tm-aie-profile-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--inset-card);
+}
+
+/* ── Settings (S8) ── */
+
+.tm-aie-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  max-inline-size: 47.5rem;
+}
+
+.tm-aie-switch-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tm-aie-switch-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-aie-radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-aie-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: var(--target-min);
+  font-size: var(--t-app-body);
+  line-height: var(--t-app-body-line);
+  cursor: pointer;
+}
+
+.tm-aie-switch-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  min-block-size: var(--app-row);
+}
+
+.tm-aie-switch-line__label {
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-switch-line .tm-aie-label,
+.tm-aie-switch-row__text {
+  min-inline-size: 0;
+}
+
+.tm-aie-switch-line .tm-switch,
+.tm-aie-switch-row .tm-switch {
+  flex: none;
+}
+
+.tm-aie-closed {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aie-closed__row {
+  display: grid;
+  grid-template-columns: var(--s4) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  padding-block: var(--s2);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aie-closed__icon {
+  display: inline-grid;
+  place-items: center;
+}
+
+.tm-aie-closed__text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-aie-closed__name {
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-aie-closed__text .tm-aie-quiet {
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-aie-add-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  inline-size: 100%;
+  min-block-size: var(--app-control);
+  padding-inline: var(--inset-capsule);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-aie-add-line:hover {
+  color: var(--ink-950);
+}
+
+.tm-aie-add-line:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Phone (the shell's 60rem break) ── */
+
+@media (max-width: 60rem) {
+  .tm-aie-search {
+    display: none;
+  }
+
+  .tm-aie-search-toggle {
+    display: inline-grid;
+  }
+
+  .tm-aie-search-phone {
+    display: block;
+  }
+
+  .tm-aie-roster {
+    display: none;
+  }
+
+  .tm-aie-phone-list {
+    display: flex;
+  }
+
+  .tm-aie-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The tab row scrolls sideways on a phone instead of wrapping (design S1, phone). */
+  .tm-aie-tabs {
+    flex-wrap: nowrap;
+    max-inline-size: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tm-aie-tab {
+    flex: none;
+  }
+
+  .tm-aie-app {
+    min-block-size: var(--s16);
+    padding: var(--s3);
+  }
+
+  .tm-aie-about__row {
+    grid-template-columns: minmax(0, 7rem) minmax(0, 1fr);
+  }
+
+  .tm-aie-dialog[data-wide] {
+    inline-size: 100%;
+  }
+
+  .tm-aie-title__job {
+    padding-inline-start: 0;
+  }
+
+  .tm-aie-conn thead {
+    display: none;
+  }
+
+  .tm-aie-conn tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tm-aie-conn td:nth-of-type(1),
+  .tm-aie-conn td:nth-of-type(2),
+  .tm-aie-conn td:nth-of-type(3) {
+    display: none;
+  }
+}

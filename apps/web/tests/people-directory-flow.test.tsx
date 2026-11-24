@@ -13,12 +13,18 @@ import { expectNoAxeViolations } from './axe';
 type Reply = { body: unknown; status?: number };
 
 function mount(reply: Reply) {
-  const routed: typeof globalThis.fetch = (() =>
+  const routed: typeof globalThis.fetch = ((input: RequestInfo | URL) =>
     Promise.resolve(
-      new Response(JSON.stringify(reply.body), {
-        status: reply.status ?? 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+      // Plan 60: AI employees are not offered here (the API answers 404 while they are off).
+      String(input).includes('/ai-employees')
+        ? new Response(JSON.stringify({ error: { code: 'not_found', message: 'Not found' } }), {
+            status: 404,
+            headers: { 'content-type': 'application/json' },
+          })
+        : new Response(JSON.stringify(reply.body), {
+            status: reply.status ?? 200,
+            headers: { 'content-type': 'application/json' },
+          }),
     )) as typeof globalThis.fetch;
 
   const client = new ApiClient({
@@ -62,17 +68,21 @@ describe('PeopleDirectoryScreen', () => {
     const table = await screen.findByRole('table', { name: /people in this organization/i });
     const rows = within(table);
     expect(rows.getByText('Priya Raman')).toBeTruthy();
-    expect(rows.getByText('3 projects')).toBeTruthy();
-    expect(rows.getByText('0 projects')).toBeTruthy();
-
     await expectNoAxeViolations(container);
+
+    // Plan 60 S1: the project count is drawn on the grid cards.
+    fireEvent.click(screen.getByRole('radio', { name: 'Grid' }));
+    expect(screen.getByText('3 projects')).toBeTruthy();
+    expect(screen.getByText('0 projects')).toBeTruthy();
+    // The view choice is saved per workspace; put the list back for the next test.
+    fireEvent.click(screen.getByRole('radio', { name: 'List' }));
   });
 
   it('offers no role controls or invite to someone whose role is not known to assign', async () => {
     mount({ body: { ...PEOPLE, people: [{ ...PEOPLE.people[0], membershipId: 'm-1' }] } });
 
     await screen.findByRole('table', { name: /people in this organization/i });
-    expect(screen.queryByRole('button', { name: 'Invite member' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Change role/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Priya Raman' }));
     expect(screen.getByRole('menuitem', { name: 'View profile' }).getAttribute('href')).toBe(

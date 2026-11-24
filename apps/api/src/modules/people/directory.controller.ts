@@ -58,6 +58,8 @@ export interface PersonDirectoryView {
   /** ADR-0014: an administration field, sent only to a viewer holding `org.manage`. */
   readonly status?: string;
   readonly projectCount: number;
+  /** 60-07 (S1): the member's own job title in this workspace, or null when none is set. */
+  readonly jobTitle: string | null;
   /** The membership's compare-and-swap token, sent back on `PATCH members/:userId/role`. */
   readonly version: number;
   /** The latest sign-in or session refresh (ISO), or null when the member never signed in. */
@@ -193,6 +195,7 @@ export class PeopleDirectoryController {
           roleName: customRoleSummaryOf(roleNames, row.role)?.name ?? null,
           ...(adminFields ? { status: row.status } : {}),
           projectCount: row.projectCount,
+          jobTitle: row.jobTitle,
           version: row.version,
           lastActiveAt: extra?.lastActiveAt ?? null,
           teams: extra?.teams ?? [],

@@ -32,6 +32,14 @@ import {
   type AgentKeyView,
   type CreatedAgentKeyView,
 } from '../personal-access-tokens/agent-keys.js';
+import { AiConnectorsService } from '../oauth/ai-connectors.js';
+import { connectionSummaries, mayBindAiEmployee, NOT_CONNECTED } from './connections.js';
+import type { ConnectionSummary } from './connections.js';
+import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
+import {
+  AiEmployeeSettingsRepository,
+  type AiEmployeeSettings,
+} from './ai-employee-settings.repository.js';
 import type { InviteeAccountsRepository } from '../tenancy/invitee-accounts.repository.js';
 import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import {
@@ -45,14 +53,19 @@ import {
   parseUpdate,
   parseVersionOnly,
   parseWindows,
+  type AiEmployeeRoleInput,
   type HireInput,
 } from './ai-employees.input.js';
 import type {
   AiEmployeeChange,
   AiEmployeeRecord,
   AiEmployeesRepository,
+  AiProjectFacts,
   ExcludedProjectRecord,
 } from './ai-employees.repository.js';
+
+/** 60-07: connectors are read through the OAuth module's service (it owns `oauth_grants`). */
+const DEFAULT_CONNECTORS = new AiConnectorsService();
 
 /**
  * 60-03 (plan 60 v2 §2.1, §4.1, §4.5) — hire, list, read, edit, pause, resume, change the sponsor
@@ -84,6 +97,7 @@ export const AI_EMPLOYEE_AUDIT = {
   keyRevoked: 'ai_employee.key_revoked',
   projectExcluded: 'ai_employee.project_excluded',
   projectIncluded: 'ai_employee.project_included',
+  projectsChanged: 'ai_employee.projects_changed',
 } as const;
 
 /** Project exclusion (plan 60 v2 M5, S8): the projects no AI employee may read. */
@@ -120,6 +134,8 @@ export interface WorkingWindowView {
 export interface AiEmployeeView {
   readonly id: string;
   readonly membershipId: string;
+  /** 60-07: the AI employee's user id (avatars and people pickers key on it). */
+  readonly userId: string;
   readonly displayName: string;
   readonly role: string;
   readonly jobTitle: string;
@@ -135,6 +151,12 @@ export interface AiEmployeeView {
   readonly workingHours: readonly WorkingWindowView[] | null;
   readonly limits: AiEmployeeLimits;
   readonly discloseToClients: boolean;
+  /** 60-07: his projects (his boundary), each with whether it has a client company. */
+  readonly projects: readonly AiEmployeeProjectView[];
+  /** 60-07: task type keys (empty until the Phase 2 catalogue). */
+  readonly taskTypes: readonly string[];
+  /** 60-07: live credentials (keys and connectors) and his latest call. */
+  readonly connection: AiEmployeeConnectionSummaryView;
   readonly version: number;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -145,12 +167,57 @@ export interface AiEmployeeView {
   readonly canRetire: boolean;
 }
 
+export interface AiEmployeeProjectView {
+  readonly id: string;
+  readonly name: string;
+  readonly isClient: boolean;
+}
+
+export interface AiEmployeeConnectionSummaryView {
+  readonly live: number;
+  readonly lastCalledAt: string | null;
+}
+
 export interface AiEmployeeListView {
   readonly aiEmployees: readonly AiEmployeeView[];
   /** The workspace's beta cap and how many are not retired (open question 1). */
   readonly limit: number;
   readonly live: number;
   readonly canHire: boolean;
+  /** 60-07: the workspace switch (S8); false = People shows "AI employees are switched off". */
+  readonly enabled: boolean;
+}
+
+/** What a view adds to the stored row: read in batches for a whole list (never per row). */
+interface ViewExtras {
+  readonly projects: readonly AiProjectFacts[];
+  readonly connection: ConnectionSummary;
+}
+
+const NO_EXTRAS: ViewExtras = Object.freeze({ projects: [], connection: NOT_CONNECTED });
+
+const DEFAULT_SETTINGS = new AiEmployeeSettingsRepository();
+const DEFAULT_PROJECT_MEMBERS = new ProjectMembershipsRepository();
+
+/** S8 "Who may hire": `owners` narrows `ai_employee.manage` to the workspace owner. */
+export function mayHireUnder(
+  settings: Pick<AiEmployeeSettings, 'hirePolicy'>,
+  principal: Pick<Principal, 'role'>,
+): boolean {
+  return settings.hirePolicy !== 'owners' || principal.role === 'owner';
+}
+
+/** The stored task type keys; unreadable JSON reads as none (deny, never a guess). */
+function readTaskTypes(stored: string | null): readonly string[] {
+  if (stored === null) return [];
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed)
+      ? parsed.filter((key): key is string => typeof key === 'string')
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 export type AiEmployeesDatabase = Pick<
@@ -164,11 +231,28 @@ export interface AiEmployeesServiceOptions {
   readonly repository: AiEmployeesRepository;
   readonly memberships: Pick<
     MembershipsRepository,
-    'createAiMember' | 'requireById' | 'transitionStatus'
+    'createAiMember' | 'requireById' | 'transitionStatus' | 'changeAiRole'
   >;
   readonly accounts: Pick<InviteeAccountsRepository, 'insertUser'>;
   /** 60-05: agent keys, through the module that owns `personal_access_tokens` (AR-7). */
   readonly agentKeys: AgentKeysService;
+  /**
+   * 60-07: connectors that work as an AI employee, through the module that owns `oauth_grants`
+   * (AR-7). Counted with the keys against the cap of live credentials. Defaults to the real one.
+   */
+  readonly aiConnectors?: Pick<AiConnectorsService, 'countLive'>;
+  /** 60-07: the workspace's AI-employee rules (S8). Defaults to the real repository. */
+  readonly settings?: Pick<AiEmployeeSettingsRepository, 'read'>;
+  /**
+   * 60-07: his projects are `project_memberships` rows, written through the module that owns
+   * them (AR-7). Defaults to the real repository.
+   */
+  readonly projectMembers?: Pick<
+    ProjectMembershipsRepository,
+    'add' | 'findByProjectAndUser' | 'remove'
+  >;
+  /** 60-07: the connection summary of a list. Defaults to {@link connectionSummaries}. */
+  readonly connections?: typeof connectionSummaries;
   /**
    * The server switch (`TMANAGE_AI_EMPLOYEES=on`, {@link aiEmployeesEnabled}). Required, so no
    * caller can forget it; while `false` every route is the calm 404 of a feature that does not
@@ -257,9 +341,8 @@ function credentialLimit(): ApiError {
  * 60-05 "who may bind" (plan 60 v2 §4.5): only the AI employee's sponsor, or a member holding
  * `ai_employee.manage`, may see, make, rotate or revoke its keys.
  */
-function requireMayBind(context: TenantContext, row: AiEmployeeRecord): void {
-  if (context.membershipId === row.sponsorMembershipId) return;
-  if (context.capabilities.includes(MANAGE)) return;
+export function requireMayBind(context: TenantContext, row: AiEmployeeRecord): void {
+  if (mayBindAiEmployee(context, row.sponsorMembershipId)) return;
   throw new ApiError(
     403,
     'forbidden',
@@ -279,24 +362,30 @@ export class AiEmployeesService {
   async list(context: TenantContext, principal: Principal): Promise<AiEmployeeListView> {
     this.requireEnabled();
     requirePersonSession(context, principal);
-    const rows = await this.options.database.read(context, (db) =>
-      this.options.repository.list(db, context),
-    );
-    const live = rows.filter((row) => row.status !== 'retired').length;
+    const at = this.now();
     const manager = context.capabilities.includes(MANAGE);
+    const { rows, views, settings } = await this.options.database.read(context, async (db) => {
+      const listed = await this.options.repository.list(db, context);
+      return {
+        rows: listed,
+        views: await this.views(db, context, listed, manager, at),
+        settings: await this.settings().read(db, context),
+      };
+    });
+    const live = rows.filter((row) => row.status !== 'retired').length;
     return {
-      aiEmployees: rows.map((row) => this.view(row, manager)),
+      aiEmployees: views,
       limit: AI_EMPLOYEES_PER_WORKSPACE,
       live,
-      canHire: manager && live < AI_EMPLOYEES_PER_WORKSPACE,
+      canHire: manager && live < AI_EMPLOYEES_PER_WORKSPACE && mayHireUnder(settings, principal),
+      enabled: settings.enabled,
     };
   }
 
   async get(context: TenantContext, principal: Principal, id: string): Promise<AiEmployeeView> {
     this.requireEnabled();
     requirePersonSession(context, principal);
-    const row = await this.options.database.read(context, (db) => this.find(db, context, id));
-    return this.view(row, context.capabilities.includes(MANAGE));
+    return this.readView(context, id, context.capabilities.includes(MANAGE));
   }
 
   async hire(context: TenantContext, principal: Principal, body: unknown): Promise<AiEmployeeView> {
@@ -309,8 +398,7 @@ export class AiEmployeesService {
     const id = await this.options.database.aiEmployeeHireTransaction(context, (scope) =>
       this.hireIn(scope, context, principal, input, at),
     );
-    const row = await this.options.database.read(context, (db) => this.find(db, context, id));
-    return this.view(row, true);
+    return this.readView(context, id, true);
   }
 
   async update(
@@ -345,12 +433,34 @@ export class AiEmployeesService {
         if (!windows.ok) throw validation(windows.issues);
         change.workingHoursJson = windowsJson(windows.value);
       }
+      if (input.role !== undefined) {
+        const role = await this.decideRole(tx, context, principal, input.role);
+        if (
+          !(await this.options.memberships.changeAiRole(
+            tx,
+            context,
+            current.membershipId,
+            role,
+            at,
+          ))
+        ) {
+          throw notFound('ai_employee:not_found');
+        }
+      }
+      if (input.projectIds !== undefined) {
+        await this.setProjects(tx, context, current, input.projectIds);
+      }
+      const fields = [
+        ...Object.keys(change),
+        ...(input.role === undefined ? [] : ['role']),
+        ...(input.projectIds === undefined ? [] : ['projects']),
+      ];
       await this.options.audit.record(tx, context, {
         action: AI_EMPLOYEE_AUDIT.updated,
         result: 'allowed',
         objectId: id,
         actorUserId: context.userId,
-        metadata: { fields: Object.keys(change).sort().join(',') },
+        metadata: { fields: fields.sort().join(',') },
       });
       return change;
     });
@@ -592,7 +702,14 @@ export class AiEmployeesService {
       const row = await this.find(db, context, id);
       requireMayBind(context, row);
       const keys = await this.options.agentKeys.list(db, context, ownerOf(row), at);
-      const live = keys.filter((key) => key.live).length;
+      // 60-07: the cap counts live keys and live connectors together.
+      const live =
+        keys.filter((key) => key.live).length +
+        (await (this.options.aiConnectors ?? DEFAULT_CONNECTORS).countLive(
+          db,
+          context,
+          row.membershipId,
+        ));
       return {
         keys,
         limit: AI_EMPLOYEE_MAX_LIVE_CREDENTIALS,
@@ -617,7 +734,7 @@ export class AiEmployeesService {
     const at = this.now();
     return this.options.database.transaction(context, async (tx) => {
       const row = await this.lockedForKeys(tx, context, id);
-      const live = await this.options.agentKeys.countLive(tx, context, ownerOf(row), at);
+      const live = await this.liveCredentials(tx, context, row, at);
       if (live >= AI_EMPLOYEE_MAX_LIVE_CREDENTIALS) throw credentialLimit();
       const created = await this.options.agentKeys.mint(
         tx,
@@ -663,7 +780,7 @@ export class AiEmployeesService {
         old !== null && old.revokedAt === null && (old.expiresAt === null || old.expiresAt > at);
       if (!oldLive) throw notFound('ai_employee:key_not_found');
       // The rotated key is being replaced, so it does not count against the cap.
-      const live = await this.options.agentKeys.countLive(tx, context, ownerOf(row), at);
+      const live = await this.liveCredentials(tx, context, row, at);
       if (live - 1 >= AI_EMPLOYEE_MAX_LIVE_CREDENTIALS) throw credentialLimit();
       await this.options.agentKeys.endWithinOverlap(tx, context, ownerOf(row), keyId, at);
       const created = await this.options.agentKeys.mint(
@@ -715,6 +832,18 @@ export class AiEmployeesService {
     });
   }
 
+  /** 60-07: live agent keys plus live connectors (one cap for both, plan §4.5). */
+  private async liveCredentials(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    row: AiEmployeeRecord,
+    at: Date,
+  ): Promise<number> {
+    const keys = await this.options.agentKeys.countLive(tx, context, ownerOf(row), at);
+    const connectors = this.options.aiConnectors ?? DEFAULT_CONNECTORS;
+    return keys + (await connectors.countLive(tx, context, row.membershipId));
+  }
+
   /** The row locked first (DA-1), the caller allowed to bind, the AI employee not retired. */
   private async lockedForKeys(
     tx: TenantQueryRunner,
@@ -737,11 +866,12 @@ export class AiEmployeesService {
     if (!this.options.enabled) throw aiEmployeesOff();
   }
 
-  view(row: AiEmployeeRecord, manager: boolean): AiEmployeeView {
+  view(row: AiEmployeeRecord, manager: boolean, extras: ViewExtras = NO_EXTRAS): AiEmployeeView {
     const live = row.status !== 'retired';
     return {
       id: row.id,
       membershipId: row.membershipId,
+      userId: row.userId,
       displayName: row.displayName,
       role: row.role,
       jobTitle: row.jobTitle,
@@ -757,6 +887,16 @@ export class AiEmployeesService {
       workingHours: readWindows(row.workingHoursJson, row.timezone),
       limits: readStoredAiEmployeeLimits(row.limitsJson),
       discloseToClients: row.discloseToClients,
+      projects: extras.projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        isClient: project.isClient,
+      })),
+      taskTypes: readTaskTypes(row.allowedTaskTypesJson),
+      connection: {
+        live: extras.connection.live,
+        lastCalledAt: iso(extras.connection.lastCalledAt),
+      },
       version: row.version,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
@@ -769,6 +909,132 @@ export class AiEmployeesService {
 
   // ---- internals ----
 
+  private settings(): Pick<AiEmployeeSettingsRepository, 'read'> {
+    return this.options.settings ?? DEFAULT_SETTINGS;
+  }
+
+  private projectMembers(): Pick<
+    ProjectMembershipsRepository,
+    'add' | 'findByProjectAndUser' | 'remove'
+  > {
+    return this.options.projectMembers ?? DEFAULT_PROJECT_MEMBERS;
+  }
+
+  /** The views of a list, with their projects and connections read in two batches. */
+  private async views(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    rows: readonly AiEmployeeRecord[],
+    manager: boolean,
+    at: Date,
+  ): Promise<AiEmployeeView[]> {
+    if (rows.length === 0) return [];
+    const projects = await this.options.repository.projectsOfUsers(
+      runner,
+      context,
+      rows.map((row) => row.userId),
+    );
+    const connections = await (this.options.connections ?? connectionSummaries)(
+      runner,
+      context,
+      rows.map((row) => row.membershipId),
+      at,
+    );
+    return rows.map((row) =>
+      this.view(row, manager, {
+        projects: projects.get(row.userId) ?? [],
+        connection: connections.get(row.membershipId) ?? NOT_CONNECTED,
+      }),
+    );
+  }
+
+  private async readView(
+    context: TenantContext,
+    id: string,
+    manager: boolean,
+  ): Promise<AiEmployeeView> {
+    const at = this.now();
+    return this.options.database.read(context, async (db) => {
+      const row = await this.find(db, context, id);
+      const [view] = await this.views(db, context, [row], manager, at);
+      if (view === undefined) throw notFound('ai_employee:not_found');
+      return view;
+    });
+  }
+
+  /**
+   * 60-07 (plan §4.6 rule 6): the projects an AI employee may work in. Each must be an active
+   * project of this workspace, not closed to AI (M5), and, when the workspace keeps AI to internal
+   * projects (S8), without a client company. Returns the checked facts in the given order.
+   */
+  private async checkProjects(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+    settings: AiEmployeeSettings,
+  ): Promise<readonly AiProjectFacts[]> {
+    const facts = await this.options.repository.projectFacts(tx, context, projectIds);
+    const byId = new Map(facts.map((fact) => [fact.id, fact] as const));
+    const excluded = new Set(await this.options.repository.excludedProjectIds(tx, context));
+    const issues: { field: string; message: string }[] = [];
+    const checked: AiProjectFacts[] = [];
+    for (const projectId of projectIds) {
+      const fact = byId.get(projectId);
+      if (fact === undefined || fact.status !== 'active') {
+        issues.push({ field: 'projectIds', message: `${projectId} is not an open project here` });
+      } else if (excluded.has(projectId)) {
+        issues.push({ field: 'projectIds', message: `${projectId} is closed to AI employees` });
+      } else if (fact.isClient && settings.clientWork === 'internal_only') {
+        issues.push({
+          field: 'projectIds',
+          message: `${projectId} is a client project, and AI works on internal projects only`,
+        });
+      } else {
+        checked.push(fact);
+      }
+    }
+    if (issues.length > 0) throw validation(issues);
+    return checked;
+  }
+
+  /**
+   * 60-07: make the AI employee's project memberships exactly `projectIds` (each checked), adding
+   * the new ones as `member` and removing the rest, in the caller's transaction, audited once.
+   */
+  private async setProjects(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    row: AiEmployeeRecord,
+    projectIds: readonly string[],
+  ): Promise<void> {
+    const settings = await this.settings().read(tx, context);
+    await this.checkProjects(tx, context, projectIds, settings);
+    const held = await this.options.repository.projectsOfUsers(tx, context, [row.userId]);
+    const current = held.get(row.userId) ?? [];
+    const wanted = new Set(projectIds);
+    const have = new Set(current.map((project) => project.id));
+    const added = projectIds.filter((projectId) => !have.has(projectId));
+    const removed = current
+      .filter((project) => !wanted.has(project.id))
+      .map((project) => project.id);
+    const members = this.projectMembers();
+    for (const projectId of added) {
+      await members.add(tx, context, { projectId, userId: row.userId, role: 'member' });
+    }
+    for (const projectId of removed) {
+      const membership = await members.findByProjectAndUser(tx, context, projectId, row.userId);
+      if (membership !== null) await members.remove(tx, context, membership.id);
+    }
+    if (added.length === 0 && removed.length === 0) return;
+    await this.options.audit.record(tx, context, {
+      action: AI_EMPLOYEE_AUDIT.projectsChanged,
+      result: 'allowed',
+      objectId: row.id,
+      actorUserId: context.userId,
+      metadata: { added: added.join(','), removed: removed.join(',') },
+    });
+  }
+
   private async hireIn(
     scope: AiEmployeeHireScope,
     context: TenantContext,
@@ -780,6 +1046,16 @@ export class AiEmployeesService {
     const repo = this.options.repository;
     // DA-1: the organization row first, always, so the cap and the name are checked serially.
     await repo.lockOrganization(tx, context);
+    const settings = await this.settings().read(tx, context);
+    if (!mayHireUnder(settings, principal)) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        'In this workspace only an owner can hire an AI employee.',
+        undefined,
+        'ai_employee.hire:owners_only',
+      );
+    }
     if ((await repo.countLive(tx, context)) >= AI_EMPLOYEES_PER_WORKSPACE) {
       throw conflict(
         'ai_employee:workspace_limit',
@@ -795,7 +1071,8 @@ export class AiEmployeesService {
         { field: 'sponsorMembershipId', message: 'must be an active person in this workspace' },
       ]);
     }
-    const role = await this.decideRole(tx, context, principal, input);
+    const role = await this.decideRole(tx, context, principal, input.role);
+    const projects = await this.checkProjects(tx, context, input.projectIds, settings);
 
     const userId = uuidv7();
     const membershipId = uuidv7();
@@ -826,9 +1103,18 @@ export class AiEmployeesService {
       timezone: input.timezone,
       workingHoursJson: windowsJson(input.workingWindows),
       limitsJson: JSON.stringify(input.limits),
-      discloseToClients: input.discloseToClients,
+      discloseToClients: input.discloseToClients ?? settings.discloseToClients,
+      allowedTaskTypesJson: input.taskTypes.length === 0 ? null : JSON.stringify(input.taskTypes),
       at,
     });
+    // 60-07: his projects are his boundary (plan §4.6 rule 6), saved in the hire's transaction.
+    for (const project of projects) {
+      await this.projectMembers().add(tx, context, {
+        projectId: project.id,
+        userId,
+        role: 'member',
+      });
+    }
     await this.options.audit.record(tx, context, {
       action: AI_EMPLOYEE_AUDIT.hired,
       result: 'allowed',
@@ -839,6 +1125,7 @@ export class AiEmployeesService {
         role: typeof input.role === 'string' ? input.role : 'custom',
         sponsor_membership_id: sponsorId,
         department_key: input.departmentKey ?? 'none',
+        projects: projects.map((project) => project.id).join(','),
       },
     });
     return id;
@@ -853,8 +1140,9 @@ export class AiEmployeesService {
     tx: TenantQueryRunner,
     context: TenantContext,
     principal: Principal,
-    input: HireInput,
+    role: AiEmployeeRoleInput,
   ): Promise<string> {
+    const input = { role };
     const stored = typeof input.role === 'string' ? input.role : input.role.customRoleId;
     const capabilities = await capabilitiesOfStoredRole(tx, context, stored);
     if (typeof input.role !== 'string' && capabilities.size === 0) {
@@ -943,8 +1231,7 @@ export class AiEmployeesService {
         throw conflict('ai_employee:stale_version', 'Someone changed this AI employee; reload it.');
       }
     });
-    const row = await this.options.database.read(context, (db) => this.find(db, context, id));
-    return this.view(row, true);
+    return this.readView(context, id, true);
   }
 }
 

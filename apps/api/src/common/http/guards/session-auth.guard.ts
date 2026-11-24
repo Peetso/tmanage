@@ -20,6 +20,7 @@ import { PersonalAccessTokenNotAuthenticatedError } from '../../../modules/perso
 import type { PersonalAccessTokensService } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
 import { isTwoStepExemptPath, twoStepRequiredError } from './two-step-requirement.guard.js';
 import { agentContractRouteFor, agentToolWall } from '../../../modules/ai-employees/enforcement.js';
+import { isAgentScoped } from '../../../modules/personal-access-tokens/personal-access-token.js';
 import { hasActiveSecondFactorRow } from '../../../modules/identity/second-factor-presence.repository.js';
 import { TENANT_DATABASE } from '../tokens.js';
 import type { TenantDatabase } from '../../database/tenant-context.js';
@@ -201,12 +202,22 @@ export class SessionAuthGuard implements CanActivate {
       ) {
         try {
           const access = await this.mcpOAuth.authenticate(bearer, state.correlationId);
+          // 60-07: a connector that works as an AI employee (its grant holds `tmanage:agent`) is
+          // an agent credential: the agent gate treats it as the AI employee, and the tool wall
+          // keeps it off `/mcp` until the agent tools land on the connector (60-22), exactly as
+          // for an agent key.
+          const agent = isAgentScoped(access.scopes);
           state.session = { sessionId: `oauth:${access.grantId}`, userId: access.userId };
           state.authScheme = 'ai_grant';
           state.personalAccessToken = {
             organizationId: access.organizationId,
             membershipId: access.membershipId,
+            ...(agent ? { agent: true } : {}),
           };
+          if (agent) {
+            this.recordRefusal(request, state.correlationId, AGENT_TOOL_WALL_REASON);
+            throw agentToolWall();
+          }
           state.aiGrant = {
             grantId: access.grantId,
             clientId: access.clientId,
