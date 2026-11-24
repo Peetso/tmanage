@@ -2,12 +2,15 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, Select } from '@tmanage/ui';
 import { browserApiClient } from '../../../lib/api/browser-client';
 import { ApiRequestError } from '../../../lib/api/errors';
-import { updatePlatformPerson } from '../../../lib/api/platform-people';
+import {
+  sendPlatformPersonEmailConfirmation,
+  updatePlatformPerson,
+} from '../../../lib/api/platform-people';
 import type {
   PlatformPersonDetailView,
   PlatformProfileChangeInput,
@@ -15,7 +18,7 @@ import type {
 import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { useT } from '../../../lib/i18n/use-t';
 import type { ScreenProps } from '../shared/platform-kit';
-import { REASON_MAX, platformErrorText } from '../shared/ReasonDialog';
+import { REASON_MAX, ReasonDialog, platformErrorText } from '../shared/ReasonDialog';
 import { relativeMoment } from '../team/PlatformTeamScreen';
 import { dayAndTime, deviceOf, firstNameOf, fullDay } from './people-format';
 import { PersonFrame, roleName } from './PersonFrame';
@@ -40,6 +43,12 @@ function ProfileBody({ api, me, person, refresh }: PersonScreenContext) {
   const t = useT();
   const locale = useActiveLocale();
   const canEdit = me.permissions.includes('platform.people.edit');
+  const canSecure = me.permissions.includes('platform.people.security');
+  const [resendOpen, setResendOpen] = useState(false);
+  const [resent, setResent] = useState<{
+    readonly tone: 'success' | 'warning';
+    readonly text: string;
+  } | null>(null);
   const [displayName, setDisplayName] = useState(person.displayName);
   const [email, setEmail] = useState(person.email);
   const [language, setLanguage] = useState(person.locale);
@@ -182,7 +191,36 @@ function ProfileBody({ api, me, person, refresh }: PersonScreenContext) {
       </section>
 
       <div className="tm-cc-column">
-        <FactsCard person={person} t={t} locale={locale} />
+        <FactsCard
+          person={person}
+          t={t}
+          locale={locale}
+          action={
+            // RESENDVERIFY: only for an active account whose address is still unconfirmed.
+            canSecure && !person.emailVerified && person.status === 'active' ? (
+              <div className="tm-stack tm-stack--tight">
+                {resent ? (
+                  <InlineAlert tone={resent.tone} live>
+                    {resent.text}
+                  </InlineAlert>
+                ) : null}
+                <div className="tm-cc-card__actions">
+                  <Button
+                    type="button"
+                    tone="outline"
+                    size="compact"
+                    onClick={() => {
+                      setResent(null);
+                      setResendOpen(true);
+                    }}
+                  >
+                    {t('PlatformPeople.resendVerification')}
+                  </Button>
+                </div>
+              </div>
+            ) : null
+          }
+        />
         <section className="tm-cc-card tm-stack" aria-labelledby="pa06-orgs-title">
           <div className="tm-cc-card__head">
             <h3 id="pa06-orgs-title" className="tm-cc-card__title">
@@ -266,6 +304,26 @@ function ProfileBody({ api, me, person, refresh }: PersonScreenContext) {
           </ul>
         </section>
       </div>
+      {resendOpen ? (
+        <ReasonDialog
+          title={`${t('PlatformPeople.resendVerificationTitle')} ${person.displayName}?`}
+          body={t('PlatformPeople.resendVerificationBody')}
+          reasonRequired={false}
+          confirmLabel={t('PlatformPeople.resendVerification')}
+          onConfirm={async (reason) => {
+            const { status } = await sendPlatformPersonEmailConfirmation(api, person.id, reason);
+            setResent(
+              status === 'sent'
+                ? { tone: 'success', text: t('PlatformPeople.resendVerificationSent') }
+                : status === 'already_confirmed'
+                  ? { tone: 'success', text: t('PlatformPeople.resendVerificationAlready') }
+                  : { tone: 'warning', text: t('PlatformPeople.resendVerificationNotSent') },
+            );
+            if (status === 'already_confirmed') await refresh();
+          }}
+          onClose={() => setResendOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -274,10 +332,13 @@ function FactsCard({
   person,
   t,
   locale,
+  action,
 }: {
   person: PlatformPersonDetailView;
   t: T;
   locale: string;
+  /** RESENDVERIFY: the "Resend verification e-mail" control, when it applies. */
+  action?: ReactNode;
 }) {
   const facts = person.facts;
   return (
@@ -311,6 +372,7 @@ function FactsCard({
         <dt>{t('PlatformPeople.factGrants')}</dt>
         <dd>{facts.aiAppGrants}</dd>
       </dl>
+      {action}
     </section>
   );
 }

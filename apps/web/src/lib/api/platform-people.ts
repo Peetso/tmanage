@@ -305,6 +305,63 @@ export async function sendPlatformPersonPasswordReset(
   return data;
 }
 
+/** RESENDVERIFY · `POST /v1/platform/people/:userId/email-confirmation`. */
+export interface PlatformEmailConfirmationResultView {
+  readonly status: 'sent' | 'already_confirmed' | 'not_sent';
+}
+
+/** RESENDVERIFY · `GET /v1/platform/people/email-confirmations`. */
+export interface PlatformEmailConfirmationBacklogView {
+  readonly unverified: number;
+  readonly batchCap: number;
+}
+
+/** RESENDVERIFY · `POST /v1/platform/people/email-confirmations`. */
+export interface PlatformEmailConfirmationBatchView {
+  readonly sent: number;
+  readonly alreadyConfirmed: number;
+  readonly notSent: number;
+  readonly batchCap: number;
+  readonly notReached: number;
+}
+
+/** Mail one person the ordinary "Confirm your e-mail" link (`platform.people.security`). */
+export async function sendPlatformPersonEmailConfirmation(
+  client: ApiClient,
+  userId: string,
+  reason: string | null,
+): Promise<PlatformEmailConfirmationResultView> {
+  const { data } = await client.request<PlatformEmailConfirmationResultView>({
+    method: 'POST',
+    path: `${person(userId)}/email-confirmation`,
+    body: reason ? { reason } : {},
+  });
+  return data;
+}
+
+/** How many unconfirmed password accounts the bulk send would reach, and its cap. */
+export async function fetchPlatformEmailConfirmationBacklog(
+  client: ApiClient,
+): Promise<PlatformEmailConfirmationBacklogView> {
+  const { data } = await client.request<PlatformEmailConfirmationBacklogView>({
+    path: `${BASE}/email-confirmations`,
+  });
+  return data;
+}
+
+/** Mail the link to every unconfirmed password account (at most `batchCap` per call). */
+export async function sendPlatformEmailConfirmations(
+  client: ApiClient,
+  reason: string | null,
+): Promise<PlatformEmailConfirmationBatchView> {
+  const { data } = await client.request<PlatformEmailConfirmationBatchView>({
+    method: 'POST',
+    path: `${BASE}/email-confirmations`,
+    body: reason ? { reason } : {},
+  });
+  return data;
+}
+
 export async function resetPlatformPersonTwoStep(
   client: ApiClient,
   userId: string,

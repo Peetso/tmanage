@@ -3760,6 +3760,9 @@ import type {
   PlatformPersonMembershipView as ApiPlatformPersonMembershipView,
   PlatformPersonOrganizationsView as ApiPlatformPersonOrganizationsView,
   PlatformPersonSecurityResultView as ApiPlatformPersonSecurityResultView,
+  PlatformEmailConfirmationResultView as ApiPlatformEmailConfirmationResultView,
+  PlatformEmailConfirmationBacklogView as ApiPlatformEmailConfirmationBacklogView,
+  PlatformEmailConfirmationBatchView as ApiPlatformEmailConfirmationBatchView,
 } from '../../apps/api/src/modules/platform-admin/people/people.service.js';
 import type {
   PlatformPeopleOrgChipView as WebPlatformPeopleOrgChipView,
@@ -3777,6 +3780,9 @@ import type {
   PlatformPersonMembershipView as WebPlatformPersonMembershipView,
   PlatformPersonOrganizationsView as WebPlatformPersonOrganizationsView,
   PlatformPersonSecurityResultView as WebPlatformPersonSecurityResultView,
+  PlatformEmailConfirmationResultView as WebPlatformEmailConfirmationResultView,
+  PlatformEmailConfirmationBacklogView as WebPlatformEmailConfirmationBacklogView,
+  PlatformEmailConfirmationBatchView as WebPlatformEmailConfirmationBatchView,
 } from '../../apps/web/src/lib/api/platform-people';
 type _pa06PeopleOrgChipView = Assert<
   Exact<ApiPlatformPeopleOrgChipView, WebPlatformPeopleOrgChipView>
@@ -3816,6 +3822,16 @@ type _pa06PersonOrganizationsView = Assert<
 >;
 type _pa06PersonSecurityResultView = Assert<
   Exact<ApiPlatformPersonSecurityResultView, WebPlatformPersonSecurityResultView>
+>;
+// RESENDVERIFY: the confirmation-link resend, one person and bulk.
+type _resendEmailConfirmationResultView = Assert<
+  Exact<ApiPlatformEmailConfirmationResultView, WebPlatformEmailConfirmationResultView>
+>;
+type _resendEmailConfirmationBacklogView = Assert<
+  Exact<ApiPlatformEmailConfirmationBacklogView, WebPlatformEmailConfirmationBacklogView>
+>;
+type _resendEmailConfirmationBatchView = Assert<
+  Exact<ApiPlatformEmailConfirmationBatchView, WebPlatformEmailConfirmationBatchView>
 >;
 
 // ---- platform-admin v2 · PA-07 ----

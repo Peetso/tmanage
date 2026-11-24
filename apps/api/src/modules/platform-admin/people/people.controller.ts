@@ -46,6 +46,25 @@ export class PlatformPeopleController {
     return this.service.list(query ?? {}, platformRequestContext(request));
   }
 
+  /** RESENDVERIFY. How many unconfirmed password accounts the bulk send would reach. */
+  @Get('people/email-confirmations')
+  @RequirePlatformPermission('platform.people.view')
+  emailConfirmationBacklog(@Req() request: object) {
+    return this.service.emailConfirmationBacklog(platformRequestContext(request));
+  }
+
+  /** RESENDVERIFY. Mail the confirmation link to every unconfirmed password account (capped). */
+  @Post('people/email-confirmations')
+  @RequirePlatformPermission('platform.people.security')
+  @HttpCode(202)
+  sendEmailConfirmations(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Body() body: ReasonInput,
+    @Req() request: object,
+  ) {
+    return this.service.sendEmailConfirmations(actor, body ?? {}, platformRequestContext(request));
+  }
+
   @Get('people/:userId')
   @RequirePlatformPermission('platform.people.view')
   person(@Param('userId') id: string, @Req() request: object) {
@@ -125,6 +144,24 @@ export class PlatformPeopleController {
     @Req() request: object,
   ) {
     return this.service.sendPasswordReset(actor, id, body ?? {}, platformRequestContext(request));
+  }
+
+  /** RESENDVERIFY. Mail this person the ordinary confirmation link; `{status}`. */
+  @Post('people/:userId/email-confirmation')
+  @RequirePlatformPermission('platform.people.security')
+  @HttpCode(202)
+  emailConfirmation(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('userId') id: string,
+    @Body() body: ReasonInput,
+    @Req() request: object,
+  ) {
+    return this.service.sendEmailConfirmation(
+      actor,
+      id,
+      body ?? {},
+      platformRequestContext(request),
+    );
   }
 
   @Post('people/:userId/two-step/reset')

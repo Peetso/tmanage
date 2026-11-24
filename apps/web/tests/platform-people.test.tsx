@@ -143,7 +143,7 @@ describe('B1 People list', () => {
     const omar = screen.getByText('Omar Said').closest('tr');
     expect(omar).toHaveAttribute('data-muted', 'true');
     // The drawn defaults: active, signed in during the last 30 days.
-    const list = calls.find((call) => call.url.includes('/v1/platform/people'));
+    const list = calls.find((call) => call.url.includes('/v1/platform/people?'));
     expect(list?.url).toContain('status=active');
     expect(list?.url).toContain('signInFrom=');
   });

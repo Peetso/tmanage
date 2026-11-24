@@ -13,6 +13,7 @@ import {
 } from './invitation-token.js';
 import { describePasswordRejection, hashPassword, screenPassword } from './password.js';
 import { PasswordResetRepository } from './password-reset.repository.js';
+import type { ConfirmationTarget, UnconfirmedAccount } from './password-reset.repository.js';
 import type { SeedCipher } from './seed-cipher.js';
 import { SessionsRepository } from './sessions.repository.js';
 import { BEARER_CREDENTIALS_REVOKER, type BearerCredentialCutoff } from './bearer-credentials.js';
@@ -315,6 +316,46 @@ export class EmailConfirmationService {
    * about anyone else. Bounded per address (3 an hour) and globally, like the reset.
    */
   async request(userId: string, context: PasswordResetContext): Promise<EmailConfirmationRequest> {
+    return this.send(userId, context, false);
+  }
+
+  /**
+   * RESENDVERIFY (2026-11-24) — the same link and mail, for an account someone else names: a
+   * platform admin's resend, or the 1/3/7-day reminder. Only an active password account gets
+   * it: a disabled account, one without a password (Google-only) and an AI employee's address
+   * answer `not_sent`. The per-address and global bounds are this instance's, as for `request`.
+   */
+  async requestForAccount(
+    userId: string,
+    context: PasswordResetContext,
+  ): Promise<EmailConfirmationRequest> {
+    return this.send(userId, context, true);
+  }
+
+  /** RESENDVERIFY. Up to `limit` unconfirmed password accounts with no open link, oldest first. */
+  async unconfirmedAccounts(
+    limit: number,
+    context: PasswordResetContext,
+  ): Promise<readonly UnconfirmedAccount[]> {
+    return this.database.identityRead(
+      { correlationId: context.correlationId, tables: [...RESET_TABLES] },
+      (db) => this.resets.listUnconfirmed(db, limit),
+    );
+  }
+
+  /** RESENDVERIFY. How many unconfirmed password accounts there are. */
+  async countUnconfirmed(context: PasswordResetContext): Promise<number> {
+    return this.database.identityRead(
+      { correlationId: context.correlationId, tables: [...RESET_TABLES] },
+      (db) => this.resets.countUnconfirmed(db),
+    );
+  }
+
+  private async send(
+    userId: string,
+    context: PasswordResetContext,
+    accountMustQualify: boolean,
+  ): Promise<EmailConfirmationRequest> {
     const issued = issueInvitationToken();
     const target = await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...RESET_TABLES] },
@@ -322,6 +363,7 @@ export class EmailConfirmationService {
         const account = await this.resets.findConfirmationTarget(tx, userId);
         if (account === null) return 'not_sent' as const;
         if (account.emailVerified) return 'already_confirmed' as const;
+        if (accountMustQualify && !qualifies(account)) return 'not_sent' as const;
         if (!this.mailBudget.admitRecipient(account.email)) return 'not_sent' as const;
         if (!this.mailBudget.admitDelivery()) return 'not_sent' as const;
         await this.resets.retireOpen(tx, account.userId);
@@ -360,6 +402,11 @@ export class EmailConfirmationService {
     );
     if (!spent) throw unusableLink();
   }
+}
+
+/** RESENDVERIFY: an account someone else may send a confirmation link to. */
+function qualifies(account: ConfirmationTarget): boolean {
+  return !account.disabled && account.hasPassword && !isAiEmployeeEmail(account.email);
 }
 
 function unusableLink(): ApiError {

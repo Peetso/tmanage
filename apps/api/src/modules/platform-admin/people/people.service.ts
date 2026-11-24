@@ -194,6 +194,32 @@ export interface PlatformPersonSecurityResultView {
   readonly sessionsEnded: number;
 }
 
+/** RESENDVERIFY · `POST /v1/platform/people/:userId/email-confirmation`. */
+export interface PlatformEmailConfirmationResultView {
+  readonly status: 'sent' | 'already_confirmed' | 'not_sent';
+}
+
+/** RESENDVERIFY · `GET /v1/platform/people/email-confirmations`: what the bulk send would reach. */
+export interface PlatformEmailConfirmationBacklogView {
+  /** Active, not disabled password accounts whose address is still unconfirmed. */
+  readonly unverified: number;
+  /** The most one bulk send mails ({@link PLATFORM_CONFIRMATION_BATCH}). */
+  readonly batchCap: number;
+}
+
+/** RESENDVERIFY · `POST /v1/platform/people/email-confirmations`: one bulk send, counted. */
+export interface PlatformEmailConfirmationBatchView {
+  readonly sent: number;
+  readonly alreadyConfirmed: number;
+  readonly notSent: number;
+  readonly batchCap: number;
+  /**
+   * Unconfirmed accounts this send did not reach: over the cap, or mailed in the last 30 minutes
+   * (their link is still open). Send again in a while to reach them.
+   */
+  readonly notReached: number;
+}
+
 // ── Input parsing ──────────────────────────────────────────────────────────
 
 const LOCALE_SHAPE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/u;
@@ -342,6 +368,32 @@ function profileOf(person: PersonRow): Record<string, unknown> {
   };
 }
 
+/**
+ * RESENDVERIFY (2026-11-24). Owner: "I want to send a verification email to the old unverified
+ * people." One bulk send mails at most {@link PLATFORM_CONFIRMATION_BATCH} people, and the
+ * platform's confirmation sender at most {@link PLATFORM_CONFIRMATION_MAX_PER_HOUR} links an hour
+ * (single resends included). Both are 100 because the host mailbox takes about 300 mails an hour
+ * (`HOST_MAIL_CEILING`, `send-ceiling.ts`) and every confirmation link expires in 30 minutes:
+ * a third of the hour for this, the rest kept for resets, codes and invitations.
+ */
+export const PLATFORM_CONFIRMATION_BATCH = 100;
+export const PLATFORM_CONFIRMATION_MAX_PER_HOUR = 100;
+/** Links sent at once inside a bulk send (each is one identity transaction and one mail). */
+const CONFIRMATION_PARALLEL = 5;
+
+/** `EmailConfirmationService` (identity): the confirmation link for an account someone names. */
+export interface ConfirmationSender {
+  requestForAccount(
+    userId: string,
+    context: RequestContext,
+  ): Promise<PlatformEmailConfirmationResultView['status']>;
+  unconfirmedAccounts(
+    limit: number,
+    context: RequestContext,
+  ): Promise<readonly { readonly userId: string; readonly email: string }[]>;
+  countUnconfirmed(context: RequestContext): Promise<number>;
+}
+
 /** The address an email change sends the verification link to (the reset path). */
 export type VerificationMailer = ResetMailer;
 
@@ -364,6 +416,8 @@ export class PlatformPeopleService {
     private readonly now: () => Date = () => new Date(),
     /** R12. Session and sign-in intel; the repository's database by default. */
     private readonly intel: SessionIntelReader = people.intelReader(),
+    /** RESENDVERIFY. The confirmation-link sender; `null` where a test does not need it. */
+    private readonly confirmations: ConfirmationSender | null = null,
   ) {}
 
   // ── Reads ────────────────────────────────────────────────────────────────
@@ -635,6 +689,102 @@ export class PlatformPeopleService {
     return { status: 'sent' };
   }
 
+  /**
+   * RESENDVERIFY. Mail one person the ordinary "Confirm your e-mail" link (the token and mail of
+   * `EmailConfirmationService`). `already_confirmed` for a confirmed address; `not_sent` for a
+   * disabled account, one without a password, an AI employee, or over the hourly bounds. Every
+   * call is audited with its result; the reason is optional.
+   */
+  async sendEmailConfirmation(
+    actor: PlatformAdminActor,
+    rawId: unknown,
+    body: { readonly reason?: unknown },
+    context: RequestContext,
+  ): Promise<PlatformEmailConfirmationResultView> {
+    const id = requireId(rawId);
+    const reason = optionalReason(body?.reason);
+    const person = await this.requirePerson(id, context);
+    const status = await this.confirmationSender().requestForAccount(id, context);
+    await this.platform.recordAudit(
+      platformAuditFor(actor, context, {
+        action: 'platform.email_confirmation_sent',
+        targetType: 'user',
+        targetId: id,
+        targetLabel: person.email,
+        reason,
+        afterJson: JSON.stringify({ result: status }),
+      }),
+    );
+    return { status };
+  }
+
+  /** RESENDVERIFY. How many people the bulk send would reach, and its cap. */
+  async emailConfirmationBacklog(
+    context: RequestContext,
+  ): Promise<PlatformEmailConfirmationBacklogView> {
+    return {
+      unverified: await this.confirmationSender().countUnconfirmed(context),
+      batchCap: PLATFORM_CONFIRMATION_BATCH,
+    };
+  }
+
+  /**
+   * RESENDVERIFY. Mail the confirmation link to every unconfirmed password account, at most
+   * {@link PLATFORM_CONFIRMATION_BATCH} per call, oldest accounts first. One audit row per
+   * person (who sent it, to whom, the result) and one for the whole send (the counts).
+   */
+  async sendEmailConfirmations(
+    actor: PlatformAdminActor,
+    body: { readonly reason?: unknown },
+    context: RequestContext,
+  ): Promise<PlatformEmailConfirmationBatchView> {
+    const reason = optionalReason(body?.reason);
+    const sender = this.confirmationSender();
+    const before = await sender.countUnconfirmed(context);
+    const accounts = await sender.unconfirmedAccounts(PLATFORM_CONFIRMATION_BATCH, context);
+    let sent = 0;
+    let alreadyConfirmed = 0;
+    let notSent = 0;
+    for (let start = 0; start < accounts.length; start += CONFIRMATION_PARALLEL) {
+      await Promise.all(
+        accounts.slice(start, start + CONFIRMATION_PARALLEL).map(async (account) => {
+          const status = await sender.requestForAccount(account.userId, context);
+          if (status === 'sent') sent += 1;
+          else if (status === 'already_confirmed') alreadyConfirmed += 1;
+          else notSent += 1;
+          await this.platform.recordAudit(
+            platformAuditFor(actor, context, {
+              action: 'platform.email_confirmation_sent',
+              targetType: 'user',
+              targetId: account.userId,
+              targetLabel: account.email,
+              reason,
+              afterJson: JSON.stringify({ result: status, bulk: true }),
+            }),
+          );
+        }),
+      );
+    }
+    const result: PlatformEmailConfirmationBatchView = {
+      sent,
+      alreadyConfirmed,
+      notSent,
+      batchCap: PLATFORM_CONFIRMATION_BATCH,
+      notReached: Math.max(0, before - accounts.length),
+    };
+    await this.platform.recordAudit(
+      platformAuditFor(actor, context, {
+        action: 'platform.email_confirmations_sent',
+        targetType: 'platform',
+        targetId: null,
+        targetLabel: null,
+        reason,
+        afterJson: JSON.stringify(result),
+      }),
+    );
+    return result;
+  }
+
   async endSession(
     actor: PlatformAdminActor,
     rawId: unknown,
@@ -825,6 +975,11 @@ export class PlatformPeopleService {
       occurredAt: event.occurredAt.toISOString(),
       intel: intel[index] as SignInEventIntelView,
     }));
+  }
+
+  private confirmationSender(): ConfirmationSender {
+    if (this.confirmations === null) throw new Error('the confirmation sender is not wired');
+    return this.confirmations;
   }
 
   private async requirePerson(id: string, context: RequestContext): Promise<PersonRow> {

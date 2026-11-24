@@ -1,7 +1,8 @@
-import { and, eq, gt, isNull, sql } from 'drizzle-orm';
-import { uuidv7 } from '@tmanage/domain';
+import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
+import { AI_EMPLOYEE_EMAIL_DOMAIN, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { passwordResetTokens, users } from '../../common/database/schema.js';
+import { passwordResetTokens, userPasswords, users } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -16,6 +17,41 @@ export interface ResetTarget {
   readonly email: string;
   readonly displayName: string;
   readonly locale: string;
+}
+
+/** VERIFYMAIL: the confirmation target, with what the platform's resend must check. */
+export interface ConfirmationTarget extends ResetTarget {
+  readonly emailVerified: boolean;
+  /** Disabled by a platform admin (`users.disabled_at`). */
+  readonly disabled: boolean;
+  /** Has a `user_passwords` row: a password account (Google-only and AI accounts have none). */
+  readonly hasPassword: boolean;
+}
+
+/** One unconfirmed password account (RESENDVERIFY). */
+export interface UnconfirmedAccount {
+  readonly userId: string;
+  readonly email: string;
+  readonly createdAt: Date;
+}
+
+/**
+ * RESENDVERIFY (2026-11-24) — "still unconfirmed": an active (not disabled) password account whose
+ * address is not confirmed, never an AI employee's `*@ai-employee.invalid` address.
+ */
+function unconfirmedPasswordAccount(): SQL {
+  return and(
+    isNull(users.emailVerifiedAt),
+    isNull(users.disabledAt),
+    sql`${users.email} not like ${`%@${AI_EMPLOYEE_EMAIL_DOMAIN}`}`,
+    sql`exists (select 1 from user_passwords p where p.user_id = ${users.id})`,
+  ) as SQL;
+}
+
+/** No unused, unexpired link is open for the account (a mail just went out; the link still works). */
+function noOpenLink(): SQL {
+  return sql`not exists (select 1 from password_reset_tokens t where t.user_id = ${users.id}
+    and t.used_at is null and t.expires_at > current_timestamp(3))`;
 }
 
 export class PasswordResetRepository {
@@ -36,12 +72,13 @@ export class PasswordResetRepository {
 
   /**
    * VERIFYMAIL: the signed-in person's own account, by id, with whether the address is already
-   * confirmed — for the "Confirm your e-mail" mail. `null` for an unknown id.
+   * confirmed — for the "Confirm your e-mail" mail — and (RESENDVERIFY) whether it is disabled and
+   * has a password, which the platform's resend checks. `null` for an unknown id.
    */
   async findConfirmationTarget(
     runner: IdentityQueryRunner,
     userId: string,
-  ): Promise<(ResetTarget & { readonly emailVerified: boolean }) | null> {
+  ): Promise<ConfirmationTarget | null> {
     const rows = await tenantDrizzle(runner)
       .select({
         userId: users.id,
@@ -49,14 +86,71 @@ export class PasswordResetRepository {
         displayName: users.displayName,
         locale: users.locale,
         emailVerifiedAt: users.emailVerifiedAt,
+        disabledAt: users.disabledAt,
+        passwordSetAt: userPasswords.setAt,
       })
       .from(users)
+      .leftJoin(userPasswords, eq(userPasswords.userId, users.id))
       .where(eq(users.id, userId))
       .limit(1);
     const row = rows[0];
     if (!row) return null;
-    const { emailVerifiedAt, ...target } = row;
-    return { ...target, emailVerified: emailVerifiedAt !== null };
+    const { emailVerifiedAt, disabledAt, passwordSetAt, ...target } = row;
+    return {
+      ...target,
+      emailVerified: emailVerifiedAt !== null,
+      disabled: disabledAt !== null,
+      hasPassword: passwordSetAt !== null,
+    };
+  }
+
+  /**
+   * RESENDVERIFY. Up to `limit` unconfirmed password accounts with no open link, oldest first. An
+   * account mailed a moment ago holds an open link for 30 minutes, so the next batch moves on to
+   * the next people instead of mailing the same ones again.
+   */
+  async listUnconfirmed(
+    runner: IdentityQueryRunner,
+    limit: number,
+  ): Promise<readonly UnconfirmedAccount[]> {
+    return tenantDrizzle(runner)
+      .select({ userId: users.id, email: users.email, createdAt: users.createdAt })
+      .from(users)
+      .where(and(unconfirmedPasswordAccount(), noOpenLink()))
+      .orderBy(asc(users.createdAt), asc(users.id))
+      .limit(limit);
+  }
+
+  /** RESENDVERIFY. How many unconfirmed password accounts there are, open link or not. */
+  async countUnconfirmed(runner: IdentityQueryRunner): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ total: sql<number>`count(*)` })
+      .from(users)
+      .where(unconfirmedPasswordAccount());
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  /**
+   * RESENDVERIFY reminders. Unconfirmed password accounts with no open link created inside the
+   * window `[createdAfter, createdBefore]`, oldest first; the caller decides which reminder is due.
+   */
+  async listUnconfirmedCreatedBetween(
+    runner: IdentityQueryRunner,
+    window: { readonly createdAfter: Date; readonly createdBefore: Date; readonly limit: number },
+  ): Promise<readonly UnconfirmedAccount[]> {
+    return tenantDrizzle(runner)
+      .select({ userId: users.id, email: users.email, createdAt: users.createdAt })
+      .from(users)
+      .where(
+        and(
+          unconfirmedPasswordAccount(),
+          noOpenLink(),
+          sql`${users.createdAt} >= ${window.createdAfter}`,
+          sql`${users.createdAt} <= ${window.createdBefore}`,
+        ),
+      )
+      .orderBy(asc(users.createdAt), asc(users.id))
+      .limit(window.limit);
   }
 
   /** Retire every unused link this person holds, so only the newest one works. */

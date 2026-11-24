@@ -10,8 +10,10 @@ import type { ApiClient } from '../../../lib/api/client';
 import { listPlatformCompanies } from '../../../lib/api/platform-admin';
 import type { PlatformMeView } from '../../../lib/api/platform-admin';
 import {
+  fetchPlatformEmailConfirmationBacklog,
   listPlatformPeople,
   peopleQueryString,
+  sendPlatformEmailConfirmations,
   sendPlatformPersonPasswordReset,
   signOutPlatformPersonEverywhere,
 } from '../../../lib/api/platform-people';
@@ -104,7 +106,16 @@ function PeopleBody({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [bulk, setBulk] = useState<Bulk | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
   const canSecure = me.permissions.includes('platform.people.security');
+  // RESENDVERIFY: how many unconfirmed password accounts the bulk send would reach.
+  const backlog = useQuery({
+    queryKey: [...PLATFORM_PEOPLE_KEY, 'email-confirmations'],
+    queryFn: () => fetchPlatformEmailConfirmationBacklog(api),
+    enabled: canSecure,
+  });
+  const unverified = backlog.data?.unverified ?? 0;
+  const formatCount = (value: number) => value.toLocaleString(withNumerals(locale));
 
   const people = useInfiniteQuery({
     queryKey: [...PLATFORM_PEOPLE_KEY, peopleQueryString(filter)],
@@ -397,6 +408,13 @@ function PeopleBody({
   return (
     <div className="tm-stack">
       {filters}
+      {canSecure && unverified > 0 ? (
+        <div className="tm-cc-card__actions tm-cc-end">
+          <Button type="button" tone="outline" onClick={() => setConfirmAll(true)}>
+            {`${t('PlatformPeople.verifyAllAction')} (${formatCount(unverified)})`}
+          </Button>
+        </div>
+      ) : null}
       {notice ? (
         <InlineAlert tone="success" live>
           {notice}
@@ -433,6 +451,36 @@ function PeopleBody({
             await people.refetch();
           }}
           onClose={() => setBulk(null)}
+        />
+      ) : null}
+      {confirmAll && backlog.data ? (
+        <ReasonDialog
+          title={`${t('PlatformPeople.verifyAllTitle')} ${formatCount(unverified)} ${t('PlatformPeople.peopleWord')}?`}
+          body={
+            unverified > backlog.data.batchCap
+              ? `${t('PlatformPeople.verifyAllBody')} ${t('PlatformPeople.verifyAllCap1')} ${formatCount(backlog.data.batchCap)} ${t('PlatformPeople.verifyAllCap2')}`
+              : t('PlatformPeople.verifyAllBody')
+          }
+          reasonRequired={false}
+          confirmLabel={t('PlatformPeople.verifyAllConfirm')}
+          onConfirm={async (reason) => {
+            const result = await sendPlatformEmailConfirmations(api, reason);
+            setNotice(
+              [
+                `${t('PlatformPeople.verifyAllDone')} ${formatCount(result.sent)} ${t('PlatformPeople.peopleWord')}.`,
+                result.notSent > 0
+                  ? `${t('PlatformPeople.verifyAllNotSent')} ${formatCount(result.notSent)}.`
+                  : '',
+                result.notReached > 0
+                  ? `${t('PlatformPeople.verifyAllNotReached')} ${formatCount(result.notReached)}.`
+                  : '',
+              ]
+                .filter((part) => part !== '')
+                .join(' '),
+            );
+            await backlog.refetch();
+          }}
+          onClose={() => setConfirmAll(false)}
         />
       ) : null}
     </div>

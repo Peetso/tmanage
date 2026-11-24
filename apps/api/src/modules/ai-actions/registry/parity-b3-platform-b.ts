@@ -179,7 +179,7 @@ const ORG_IDS = ' organizationId comes from platform.orgs.list or platform.searc
 const USER_IDS = ' userId comes from platform.people.list or platform.search.list.';
 const MEMBER_IDS = ' membershipId comes from platform.orgs.members.list.';
 
-/** One op per route of lane `b` (82 routes). */
+/** One op per route of lane `b` (85 routes). */
 export const bPlatformOps: readonly AiActionOp[] = [
   // Two-person approvals.
   pop('platform.approvals.list', 'GET', '/approvals', 'platform.orgs.lifecycle'),
@@ -441,6 +441,25 @@ export const bPlatformOps: readonly AiActionOp[] = [
   pop('platform.people.access.list', 'GET', '/people/:userId/access', 'platform.people.view'),
   pop('platform.people.actions.list', 'GET', '/people/:userId/actions', 'platform.people.view'),
   pop('platform.people.disable', 'POST', '/people/:userId/disable', 'platform.people.security'),
+  // RESENDVERIFY: the "Confirm your e-mail" link, to one person or to every unconfirmed one.
+  pop(
+    'platform.people.email_confirmation.send',
+    'POST',
+    '/people/:userId/email-confirmation',
+    'platform.people.security',
+  ),
+  pop(
+    'platform.people.email_confirmations.get',
+    'GET',
+    '/people/email-confirmations',
+    'platform.people.view',
+  ),
+  pop(
+    'platform.people.email_confirmations.send',
+    'POST',
+    '/people/email-confirmations',
+    'platform.people.security',
+  ),
   pop('platform.people.enable', 'POST', '/people/:userId/enable', 'platform.people.security'),
   pop(
     'platform.people.organizations.list',
@@ -549,6 +568,9 @@ export const bPlatformSensitivity: Readonly<Record<string, Sensitivity>> = {
   // A changed e-mail address gets a confirmation link and both addresses get a notice.
   'platform.people.update': 'external',
   'platform.people.disable': 'destructive',
+  // RESENDVERIFY: each e-mails people a confirmation link and changes nothing else.
+  'platform.people.email_confirmation.send': 'external',
+  'platform.people.email_confirmations.send': 'external',
   'platform.people.enable': 'none',
   // A reset, and it e-mails the person (destructive outranks external).
   'platform.people.password_reset.send': 'destructive',
@@ -1773,6 +1795,51 @@ export const bPlatformDetails: readonly AiActionDetail[] = [
     examples: [
       { summary: 'Disable', args: { userId: PU1, reason: 'Account taken over, owner confirmed' } },
     ],
+  }),
+  det({
+    id: 'platform.people.email_confirmation.send',
+    title: 'Send a person the confirm-e-mail link',
+    description:
+      'E-mail the person the ordinary "Confirm your e-mail" link (it works once, for 30 minutes). ' +
+      'Returns { status }: sent, already_confirmed, or not_sent (a disabled account, one ' +
+      'without a password, or more than 3 links to that address this hour).' +
+      USER_IDS +
+      needs('platform.people.security') +
+      CARD +
+      REASON,
+    input: strict({ userId: pf.uuid(), reason: pf.optionalReason() }),
+    redact: 'people',
+    notifies: true,
+    examples: [{ summary: 'Resend', args: { userId: PU1 } }],
+  }),
+  det({
+    id: 'platform.people.email_confirmations.get',
+    title: 'Count people with an unconfirmed e-mail',
+    description:
+      'How many active password accounts still have an unconfirmed e-mail address ' +
+      '({ unverified }), and the most one bulk send mails ({ batchCap }).' +
+      needs('platform.people.view'),
+    input: strict({}),
+    redact: 'standard',
+    examples: [{ summary: 'Count', args: {} }],
+  }),
+  det({
+    id: 'platform.people.email_confirmations.send',
+    title: 'Send the confirm-e-mail link to everyone unconfirmed',
+    description:
+      'E-mail the ordinary "Confirm your e-mail" link to every active password account whose ' +
+      'address is still unconfirmed, oldest first, at most batchCap (100) people per call. ' +
+      'Returns { sent, alreadyConfirmed, notSent, batchCap, notReached }; notReached counts ' +
+      'the people this call did not reach (over the cap, or mailed in the last 30 minutes), so ' +
+      'call again later for them. Say the number from platform.people.email_confirmations.get ' +
+      'on the card.' +
+      needs('platform.people.security') +
+      CARD +
+      REASON,
+    input: strict({ reason: pf.optionalReason() }),
+    redact: 'standard',
+    notifies: true,
+    examples: [{ summary: 'Send to all unconfirmed', args: {} }],
   }),
   det({
     id: 'platform.people.enable',

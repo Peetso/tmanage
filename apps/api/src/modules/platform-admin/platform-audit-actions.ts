@@ -180,6 +180,10 @@ export const PLATFORM_AUDIT_ACTIONS = [
   'platform.network_block_removed',
   'platform.source_label_added',
   'platform.source_label_removed',
+  // ---- RESENDVERIFY ---- a confirmation link sent to a person (result in after_json), and one
+  // bulk send to every unconfirmed password account (the counts in after_json).
+  'platform.email_confirmation_sent',
+  'platform.email_confirmations_sent',
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];
