@@ -7,6 +7,7 @@ import { NavIcon } from '../icons/phone';
 import { MORE_TOOLS_NAVIGATION, MORE_WORKSPACE_NAVIGATION, type MoreSheetItem } from './navigation';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listClientRequestRecords } from '../../lib/api/client-requests';
+import { fetchPlatformMe } from '../../lib/api/platform-admin';
 import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface MoreSheetProps {
@@ -66,6 +67,35 @@ function LiveRequestsBadge({
   });
   return (
     <OrbBadge count={requests.data?.length ?? 0} describedById={describedById} kind="waiting" />
+  );
+}
+
+/**
+ * The Platform admin tile: the phone twin of the rail's `PlatformAdminLink` (the rail is hidden
+ * below 900px, so without it the operator had no way in on a phone). Same query and key, so it
+ * renders nothing unless `GET /v1/platform/me` answers, i.e. only for a platform admin.
+ */
+function PlatformAdminTile({ onClose }: { onClose: () => void }) {
+  const tOr = useTOr();
+  const me = useQuery({
+    queryKey: ['platform', 'me', 'menu'],
+    queryFn: () => fetchPlatformMe(browserApiClient()),
+    retry: false,
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  if (!me.isSuccess) return null;
+  return (
+    <li>
+      <Link href="/platform" className="tm-more__tile" onClick={onClose}>
+        <span className="tm-more__orb">
+          <span aria-hidden="true">
+            <NavIcon name="shield" />
+          </span>
+        </span>
+        <span className="tm-more__label">{tOr('PlatformAdminLink.label', 'Platform admin')}</span>
+      </Link>
+    </li>
   );
 }
 
@@ -170,7 +200,10 @@ export function MoreSheet({ id, organizationSlug, onClose, requestsCount }: More
         <h3 className="tm-more__section">{tOr('MoreSheet.workspace', 'Workspace')}</h3>
         <ul className="tm-more__grid">{MORE_WORKSPACE_NAVIGATION.map(tile)}</ul>
         <h3 className="tm-more__section">{tOr('MoreSheet.tools', 'Tools & account')}</h3>
-        <ul className="tm-more__grid">{MORE_TOOLS_NAVIGATION.map(tile)}</ul>
+        <ul className="tm-more__grid">
+          {MORE_TOOLS_NAVIGATION.map(tile)}
+          {queryClient ? <PlatformAdminTile onClose={onClose} /> : null}
+        </ul>
       </div>
     </div>
   );
