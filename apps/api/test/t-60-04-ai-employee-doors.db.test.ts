@@ -195,6 +195,36 @@ describe('approver doors', () => {
 });
 
 describe('offboarding', () => {
+  /** Two items the sponsor leads: one with a second doer (the designer), one with nobody else. */
+  let handOver: { readonly shared: string; readonly alone: string };
+
+  beforeAll(async () => {
+    const org = world.northstar.organizationId;
+    const item = async (title: string, doers: readonly string[]): Promise<string> => {
+      const id = uuidv7();
+      await db.admin.execute(
+        `insert into work_items (id, organization_id, project_id, title, state, owner_user_id)
+         values (?, ?, ?, ?, 'in_progress', ?)`,
+        [id, org, world.northstar.projectId, title, world.northstar.manager.id],
+      );
+      for (const [index, membershipId] of doers.entries()) {
+        await db.admin.execute(
+          `insert into work_item_assignees (organization_id, work_item_id, membership_id, role, created_at)
+           values (?, ?, ?, 'doer', ?)`,
+          [org, id, membershipId, new Date(Date.UTC(2026, 10, 1, 9, index))],
+        );
+      }
+      return id;
+    };
+    handOver = {
+      shared: await item('Led with a second doer', [
+        world.northstar.manager.membershipId,
+        world.northstar.designer.membershipId,
+      ]),
+      alone: await item('Led alone', [world.northstar.manager.membershipId]),
+    };
+  });
+
   const offboarding = () =>
     new OffboardingService(
       database,
@@ -224,6 +254,27 @@ describe('offboarding', () => {
       "select metadata_json from audit_events where action = 'membership.offboarded' and object_id = ?",
       [world.northstar.manager.membershipId],
     );
-    expect(String(event?.['metadata_json'])).toContain('"ai_employees_paused":1');
+    // The driver hands a JSON column back parsed on one engine and as text on the other.
+    const raw: unknown = event?.['metadata_json'];
+    const metadata: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    expect(metadata).toMatchObject({ ai_employees_paused: 1 });
+  });
+
+  // 2026-11-24: the 0412 hand-over in the same offboarding was refused by the tenant guard (it
+  // read the correlated sub-select in SET as assigning the tenant key), so every offboarding of
+  // someone who led work failed. The sponsor offboarded above led two items, seeded below.
+  it('the items the leaver led pass to the next active doer; the rest are cleared', async () => {
+    const owners = await rows('select id, owner_user_id from work_items where id in (?, ?)', [
+      handOver.shared,
+      handOver.alone,
+    ]);
+    const ownerOf = (id: string) => owners.find((row) => row['id'] === id)?.['owner_user_id'];
+    expect(ownerOf(handOver.shared)).toBe(world.northstar.designer.id);
+    expect(ownerOf(handOver.alone)).toBeNull();
+    const left = await rows(
+      'select work_item_id from work_item_assignees where organization_id = ? and membership_id = ?',
+      [world.northstar.organizationId, world.northstar.manager.membershipId],
+    );
+    expect(left).toEqual([]);
   });
 });

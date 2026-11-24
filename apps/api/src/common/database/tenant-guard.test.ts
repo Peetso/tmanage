@@ -303,6 +303,53 @@ describe('UPDATE and DELETE', () => {
     rejects('update work_items set organization_id = ?', [ORG]);
   });
 
+  describe('a scalar sub-select on the SET value side (0412 offboarding hand-over)', () => {
+    // The statement `WorkItemAssigneesRepository.removeMember` sends, as Drizzle renders it.
+    const handOver = (subqueryOrg: string): readonly unknown[] => [subqueryOrg, 'm1', ORG, 'u1'];
+    const HAND_OVER =
+      'update work_items set owner_user_id = (select memberships.user_id from work_item_assignees ' +
+      'inner join memberships on memberships.organization_id = work_item_assignees.organization_id ' +
+      'and memberships.id = work_item_assignees.membership_id ' +
+      'where work_item_assignees.organization_id = ? and work_item_assignees.work_item_id = work_items.id ' +
+      "and work_item_assignees.role = 'doer' and work_item_assignees.membership_id <> ? " +
+      'order by work_item_assignees.created_at limit 1), version = version + 1 ' +
+      'where work_items.organization_id = ? and work_items.owner_user_id = ?';
+
+    it('reads the tenant key inside the sub-select; it does not assign it', () => {
+      accepts(HAND_OVER, handOver(ORG));
+    });
+
+    it('still requires the sub-select to be scoped to the active organization', () => {
+      rejects(HAND_OVER, handOver(TWIN));
+      rejects(
+        'update work_items set owner_user_id = (select memberships.user_id from memberships ' +
+          'where memberships.id = ? limit 1) where organization_id = ? and id = ?',
+        ['m1', ORG, 'w1'],
+      );
+    });
+
+    it('a correlated outer predicate inside the sub-select never scopes the updated rows', () => {
+      rejects(
+        'update work_items set owner_user_id = (select memberships.user_id from memberships ' +
+          'where memberships.organization_id = ? and work_items.organization_id = ? limit 1) ' +
+          'where id = ?',
+        [ORG, ORG, 'w1'],
+      );
+    });
+
+    it('still rejects assigning the tenant key, plain, qualified or from a sub-select', () => {
+      rejects('update work_items set work_items.organization_id = ? where organization_id = ?', [
+        TWIN,
+        ORG,
+      ]);
+      rejects(
+        'update work_items set state = ?, organization_id = (select organization_id from projects ' +
+          'where organization_id = ? limit 1) where organization_id = ? and id = ?',
+        ['done', ORG, ORG, 'w1'],
+      );
+    });
+  });
+
   it('accepts a scoped delete and rejects an unscoped one', () => {
     accepts('delete from work_items where organization_id = ? and id = ?', [ORG, 'w1']);
     rejects('delete from work_items');

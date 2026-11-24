@@ -2164,9 +2164,20 @@ export function analyzeStatement(
           break;
         }
       }
+      // Only a depth-0 column directly before `=` is an assignment target. A column read inside
+      // a scalar sub-select on the value side (`set owner = (select m.user_id from m where
+      // m.organization_id = ? …)`) is read, not written (2026-11-24: the 0412 offboarding
+      // hand-over was refused on exactly that).
       for (let i = setIndex; i <= end; i += 1) {
         const t = tokens[i] as Token;
-        if (t.kind === 'word' && (t.value === 'organization_id' || t.value === 'id')) {
+        const next = tokens[i + 1];
+        if (
+          t.kind === 'word' &&
+          t.depth === 0 &&
+          (t.value === 'organization_id' || t.value === 'id') &&
+          next?.kind === 'punct' &&
+          next.value === '='
+        ) {
           const owner = resolveOwner(refs, tokens, i);
           if (owner && owner.tenantColumn === t.value) {
             violations.push(
@@ -2176,7 +2187,35 @@ export function analyzeStatement(
           }
         }
       }
-      excludeRange(setIndex, end);
+      // The assignments are excluded from predicate scanning, except the body (FROM onwards) of a
+      // sub-select on the value side: its WHERE is a real predicate for the sub-select's own
+      // tables. As with FIX4 it may anchor only tables declared inside that sub-select, so a
+      // correlated `outer.organization_id = …` there never scopes the rows being updated.
+      for (let i = setIndex; i <= end; i += 1) {
+        const t = tokens[i] as Token;
+        if (t.kind === 'word' && t.value === 'select' && t.depth > 0) {
+          const innerDepth = t.depth;
+          let k = i + 1;
+          while (k <= end) {
+            const u = tokens[k] as Token;
+            if (u.kind === 'word' && u.value === 'from' && u.depth === innerDepth) break;
+            if (u.kind === 'punct' && u.value === ')' && u.depth <= innerDepth) break;
+            k += 1;
+          }
+          excludeRange(i, k - 1);
+          let close = k;
+          while (close <= end) {
+            const u = tokens[close] as Token;
+            if (u.kind === 'punct' && u.value === ')' && u.depth <= innerDepth) break;
+            if (!projectionSubquery.has(close)) projectionSubquery.set(close, innerDepth);
+            close += 1;
+          }
+          excluded.add(close);
+          i = close;
+          continue;
+        }
+        excluded.add(i);
+      }
     }
   }
 
