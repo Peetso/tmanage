@@ -129,6 +129,8 @@ export interface WorkStoryRoutes {
   readonly item?: Record<string, unknown>;
   /** No steps, files, comments or people: a work just made (Figma `WV2-09 work page new`). */
   readonly fresh?: boolean;
+  /** 60-08: answer a read here first (the AI-employee stories); `undefined` falls through. */
+  readonly override?: (path: string, url: URL) => unknown;
 }
 
 function reply(body: unknown, status = 200): Promise<Response> {
@@ -149,6 +151,8 @@ export function workClient(routes: WorkStoryRoutes = {}): ApiClient {
     const path = url.pathname.startsWith(ORG) ? url.pathname.slice(ORG.length) : url.pathname;
     const method = init?.method ?? 'GET';
     if (method !== 'GET') return reply(item);
+    const custom = routes.override?.(path, url);
+    if (custom !== undefined) return reply(custom);
     switch (path) {
       case '/work-items/wi-1':
         return reply(item);

@@ -52,7 +52,7 @@ const ON_PROJECT = [
   { userId: LINA, displayName: 'Lina Samir', kind: 'internal' as const },
 ];
 
-function harness() {
+function harness(ai: { readonly aiUserIds?: readonly string[]; readonly on?: boolean } = {}) {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -91,6 +91,16 @@ function harness() {
     undefined,
     outbox as never,
     people,
+    {
+      kinds: async (_r: unknown, _c: unknown, ids: readonly string[]) =>
+        new Map(
+          ids.map((id) => [
+            id,
+            { membershipId: `m-${id}`, kind: ai.aiUserIds?.includes(id) ? 'ai' : 'human' },
+          ]),
+        ) as never,
+    },
+    ai.on ?? false,
   );
   return { controller: new WorkCommentsController(service), events, searches };
 }
@@ -151,7 +161,28 @@ describe('work item comment @mentions (53-11)', () => {
       WORK_ID,
       'li',
     );
-    expect(candidates).toEqual([{ userId: LINA, displayName: 'Lina Samir', mention: `@${LINA}` }]);
+    expect(candidates).toEqual([
+      { userId: LINA, displayName: 'Lina Samir', mention: `@${LINA}`, kind: 'human' },
+    ]);
+  });
+
+  it('60-08 (S7d): marks an AI employee while AI is on, and leaves him out while it is off', async () => {
+    const on = await harness({ aiUserIds: [LINA], on: true }).controller.mentionCandidates(
+      context,
+      member([PROJECT]),
+      WORK_ID,
+      'li',
+    );
+    expect(on.candidates).toEqual([
+      { userId: LINA, displayName: 'Lina Samir', mention: `@${LINA}`, kind: 'ai' },
+    ]);
+    const off = await harness({ aiUserIds: [LINA], on: false }).controller.mentionCandidates(
+      context,
+      member([PROJECT]),
+      WORK_ID,
+      'li',
+    );
+    expect(off.candidates).toEqual([]);
   });
 
   it('answers 404 to a caller who cannot read the item, and 400 to a bad limit', async () => {

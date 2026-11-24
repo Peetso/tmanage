@@ -17,6 +17,7 @@ import { useTOr } from '../../lib/i18n/use-t-or';
 import { initialsOf } from './channel-browser';
 import './chat-shell.css';
 import { PersonAvatar } from '../people/PersonAvatar';
+import { AiAvatar, AiBadge, aiInitialsOf } from '../ai-employees/AiBadge';
 
 /**
  * **m-mention** — the @ picker over a channel composer.
@@ -31,7 +32,8 @@ import { PersonAvatar } from '../people/PersonAvatar';
  * picked here for its token at send time, so the mention notification still fires.
  */
 
-export type MentionGroup = 'project' | 'others';
+/** 60-08 (S7d): `ai` is the "AI employees" section after the people, in Work comments. */
+export type MentionGroup = 'project' | 'others' | 'ai';
 
 export interface MentionOption {
   readonly userId: string;
@@ -128,6 +130,8 @@ export interface MentionPickerProps {
   readonly onHover: (index: number) => void;
   /** C5: the heading over the "others" group — a direct message says "In this conversation". */
   readonly othersHeading?: string;
+  /** 60-08 (S7d): the heading over the AI employees, when any are offered ("AI employees"). */
+  readonly aiHeading?: string;
   /**
    * 2026-10-31 live-test fix: the letters typed after the `@`. With no options the picker shows
    * its empty state — "No one to mention yet" for a bare `@`, "No one matches “…”" otherwise —
@@ -144,13 +148,16 @@ export function MentionPicker({
   onPick,
   onHover,
   othersHeading,
+  aiHeading,
   query = '',
 }: MentionPickerProps) {
   const tOr = useTOr();
   const headingProject = useId();
   const headingOthers = useId();
+  const headingAi = useId();
   const project = options.filter((option) => option.group === 'project');
   const others = options.filter((option) => option.group === 'others');
+  const ai = options.filter((option) => option.group === 'ai');
 
   function renderOption(option: MentionOption) {
     const index = options.indexOf(option);
@@ -169,20 +176,32 @@ export function MentionPicker({
         }}
         onMouseEnter={() => onHover(index)}
       >
-        <PersonAvatar
-          userId={option.userId}
-          name={option.displayName}
-          className="tm-chat-side__orb tm-mention__orb"
-          size="compact"
-          decorative
-          fallback={
-            <span className="tm-chat-side__orb tm-mention__orb" aria-hidden="true">
-              {initialsOf(option.displayName)}
-            </span>
-          }
-        />
+        {option.group === 'ai' ? (
+          <AiAvatar initials={aiInitialsOf(option.displayName)} size={40} />
+        ) : (
+          <PersonAvatar
+            userId={option.userId}
+            name={option.displayName}
+            className="tm-chat-side__orb tm-mention__orb"
+            size="compact"
+            decorative
+            fallback={
+              <span className="tm-chat-side__orb tm-mention__orb" aria-hidden="true">
+                {initialsOf(option.displayName)}
+              </span>
+            }
+          />
+        )}
         <span className="tm-mention__text">
-          <span className="tm-mention__name">{option.displayName}</span>
+          <span className="tm-mention__name">
+            {option.displayName}
+            {option.group === 'ai' ? (
+              <>
+                {' '}
+                <AiBadge />
+              </>
+            ) : null}
+          </span>
           {option.subtitle ? <span className="tm-mention__sub">{option.subtitle}</span> : null}
         </span>
       </li>
@@ -239,6 +258,14 @@ export function MentionPicker({
                 tOr('MentionPicker.othersWhoCanSee', 'Others who can see this channel')}
             </li>
             {others.map(renderOption)}
+          </ul>
+        ) : null}
+        {ai.length > 0 ? (
+          <ul role="group" aria-labelledby={headingAi} className="tm-mention__items">
+            <li role="presentation" id={headingAi} className="tm-mention__group">
+              {aiHeading ?? tOr('AiPickers.aiEmployees', 'AI employees')}
+            </li>
+            {ai.map(renderOption)}
           </ul>
         ) : null}
       </div>

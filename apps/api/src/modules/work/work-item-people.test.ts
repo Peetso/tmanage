@@ -7,6 +7,7 @@ import {
   WorkItemPeopleService,
 } from './work-item-people.service.js';
 import type { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
+import { WorkAiPeopleGate } from './work-ai-people.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 
@@ -57,7 +58,31 @@ function harness() {
       void writes.push(`lead:${lead}`),
   } as unknown as WorkItemAssigneesRepository;
   const workItems = { findById: async () => item } as unknown as WorkItemsRepository;
-  return { writes, service: new WorkItemPeopleService(db, workItems, undefined, assignees) };
+  // 60-08: everyone here is a person (u-gone is no member), so the AI rules pass through.
+  const people = new WorkAiPeopleGate(
+    true,
+    {
+      kinds: async (_r: unknown, _c: unknown, ids: readonly string[]) =>
+        new Map(
+          ids
+            .filter((id) => id !== 'u-gone')
+            .map((id) => [id, { membershipId: `m-${id}`, kind: 'human' as const }]),
+        ),
+    },
+    { read: async () => Promise.reject(new Error('no AI employee here')) },
+  );
+  return {
+    writes,
+    service: new WorkItemPeopleService(
+      db,
+      workItems,
+      undefined,
+      assignees,
+      undefined,
+      undefined,
+      people,
+    ),
+  };
 }
 
 describe('C26 people on a task', () => {

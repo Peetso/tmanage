@@ -33,6 +33,7 @@ export const APP_NAMESPACES: readonly string[] = [
   'AiEmployees',
   'AiPanel',
   'AiPeople',
+  'AiPickers',
   'AiProfile',
   'AiTest',
   'AiWizard',

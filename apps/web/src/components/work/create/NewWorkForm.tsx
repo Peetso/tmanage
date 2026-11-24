@@ -36,6 +36,8 @@ import {
   StagePicker,
 } from './NewWorkControls';
 import type { NewWorkState } from './use-new-work';
+import { AiPeopleNote } from '../AiPickerRows';
+import { useTOr } from '../../../lib/i18n/use-t-or';
 // The steps, popovers and pickers are the work page's own parts, drawn by its sheet.
 import '../detail/work-detail.css';
 import './new-work.css';
@@ -82,6 +84,7 @@ export function NewWorkForm({
   now,
 }: NewWorkFormProps) {
   const t = useA6T();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const describe = useDescribeApiError(OFFLINE_LINES);
   const stageName = useStageName();
@@ -120,6 +123,8 @@ export function NewWorkForm({
   const nameOf = (id: string) =>
     work.people.candidates.find((person) => person.userId === id)?.displayName ?? '…';
   const firstName = (id: string) => nameOf(id).split(/\s+/)[0] ?? '';
+  const isAi = (id: string) =>
+    work.people.candidates.some((person) => person.userId === id && person.kind === 'ai');
 
   const createLabel = useMutation({
     mutationFn: (name: string) => defineWorkLabel(api, organizationSlug, { name, color: 'gray' }),
@@ -162,6 +167,14 @@ export function NewWorkForm({
   const peopleValue = (key: PeopleRow, label: string) => {
     const list =
       key === 'doers' ? work.doers : key === 'supervisors' ? work.supervisors : work.watchers;
+    if (key === 'supervisors' && work.supervisorRequired) {
+      // 60-08 (S7b): an AI employee does this and no person supervises it yet.
+      return (
+        <span className="tm-ai-choose" data-testid="ai-choose-person">
+          {tOr('AiPickers.choosePerson', 'Choose a person')}
+        </span>
+      );
+    }
     if (list.length === 0) {
       return mode === 'quick' ? (
         <span className="tm-wk-inline">
@@ -178,7 +191,7 @@ export function NewWorkForm({
         : list.length === 1
           ? nameOf(list[0] as string)
           : list.map(firstName).join(', ');
-    return <PeopleValue ids={list} nameOf={nameOf} text={text} />;
+    return <PeopleValue ids={list} nameOf={nameOf} text={text} isAi={isAi} />;
   };
 
   /** Full create: a label in the 104 px column, the control filling the row. */
@@ -266,7 +279,7 @@ export function NewWorkForm({
         variant={variant}
         empty={
           (key === 'doers' ? work.doers : key === 'supervisors' ? work.supervisors : work.watchers)
-            .length === 0
+            .length === 0 && !(key === 'supervisors' && work.supervisorRequired)
         }
         value={peopleValue(key, label)}
         onAction={() => openPeople(key)}
@@ -274,6 +287,20 @@ export function NewWorkForm({
         testId={testId}
       />,
     );
+
+  // 60-08 (S7b0): "Mat is an AI employee, so you supervise his work."
+  const aiNote =
+    work.aiDoer !== null &&
+    !work.supervisorRequired &&
+    work.viewerUserId !== null &&
+    work.supervisors.includes(work.viewerUserId) ? (
+      <AiPeopleNote testId="ai-you-supervise">
+        {tOr(
+          'AiPickers.youSupervise',
+          '{name} is an AI employee, so you supervise his work.',
+        ).replace('{name}', firstName(work.aiDoer))}
+      </AiPeopleNote>
+    ) : null;
 
   const due = row(
     ids.due,
@@ -422,20 +449,29 @@ export function NewWorkForm({
       </div>
 
       {mode === 'quick' ? (
-        <div className="tm-nw__chips" role="group" aria-label={t('NewWork.details')}>
-          {project}
-          {stage}
-          {peopleControl('doers', ids.doers, t('WorkPage.doers'), 'new-doers')}
-          {peopleControl('supervisors', ids.supervisor, t('WorkPage.supervisor'), 'new-supervisor')}
-          {due}
-          {client}
-        </div>
+        <>
+          <div className="tm-nw__chips" role="group" aria-label={t('NewWork.details')}>
+            {project}
+            {stage}
+            {peopleControl('doers', ids.doers, t('WorkPage.doers'), 'new-doers')}
+            {peopleControl(
+              'supervisors',
+              ids.supervisor,
+              t('WorkPage.supervisor'),
+              'new-supervisor',
+            )}
+            {due}
+            {client}
+          </div>
+          {aiNote}
+        </>
       ) : (
         <div className="tm-nw__rows">
           {project}
           {stage}
           {peopleControl('doers', ids.doers, t('WorkPage.doers'), 'new-doers')}
           {peopleControl('supervisors', ids.supervisor, t('WorkPage.supervisor'), 'new-supervisor')}
+          {aiNote}
           {due}
           {client}
           <div className="tm-nw-row tm-nw-row--block">
@@ -732,6 +768,14 @@ export function NewWorkForm({
           }
           showLeadHint={picking === 'doers'}
           removeHint={picking === 'watchers'}
+          {...(picking === 'doers'
+            ? {
+                ai: 'offer' as const,
+                ...(work.canAssignAi === undefined ? {} : { canAssignAi: work.canAssignAi }),
+              }
+            : picking === 'supervisors'
+              ? { ai: 'refuse' as const, requirePerson: work.aiDoer !== null }
+              : {})}
           saving={false}
           onSave={(chosen) => {
             if (picking === 'doers') work.setDoers(chosen);

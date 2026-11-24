@@ -8,6 +8,8 @@ import { useA6T, WorkDialogFrame } from './DueDatePicker';
 import { initialsOf, type OwnerCandidate } from './OwnerPickerDialog';
 import { PickerTeams } from './PickerTeams';
 import { PersonAvatar } from '../people/PersonAvatar';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { AiCandidateRow, AiPeopleNote, PickerGroupHeading } from './AiPickerRows';
 
 /** Avatars shown before the "+N" orb. */
 const STACK = 3;
@@ -134,6 +136,16 @@ interface PeoplePickerDialogProps {
   readonly onClose: () => void;
   /** Offer the workspace's teams above the people: a press ticks a whole team at once. */
   readonly teams?: { readonly api: ApiClient; readonly organizationSlug: string };
+  /**
+   * 60-08 (S7): AI employees in this picker — `offer` (Doers: their own section after People, at
+   * most one ticked), `refuse` (Supervisor: people only, with "AI employees can't supervise").
+   * Absent: people only (Watchers).
+   */
+  readonly ai?: 'offer' | 'refuse';
+  /** 60-08: whether the reader may make an AI employee the doer here (absent: the server decides). */
+  readonly canAssignAi?: boolean;
+  /** 60-08: an AI employee does this work, so a person must stay ticked (S7b). */
+  readonly requirePerson?: boolean;
 }
 
 /** The multi-select people picker: search, tick several at once, in the order ticked. */
@@ -149,24 +161,55 @@ export function PeoplePickerDialog({
   onSave,
   onClose,
   teams,
+  ai,
+  canAssignAi,
+  requirePerson = false,
 }: PeoplePickerDialogProps) {
   const t = useA6T();
+  const tOr = useTOr();
   const titleId = useId();
   const [query, setQuery] = useState('');
   const [ticked, setTicked] = useState<readonly string[]>(initial);
   const needle = query.trim().toLowerCase();
-  const shown =
+  const matching =
     needle === ''
       ? candidates
       : candidates.filter((candidate) => candidate.displayName.toLowerCase().includes(needle));
+  // 60-08: people first, then (Doers only) the AI employees in their own section.
+  const aiIds = new Set(
+    candidates.filter((candidate) => candidate.kind === 'ai').map((c) => c.userId),
+  );
+  const shown = matching.filter((candidate) => candidate.kind !== 'ai');
+  const shownAi =
+    ai === 'offer'
+      ? matching.filter(
+          (candidate) =>
+            candidate.kind === 'ai' && (canAssignAi !== false || ticked.includes(candidate.userId)),
+        )
+      : [];
+  const grouped = ai !== undefined && aiIds.size > 0;
+  const peopleTicked = ticked.filter((id) => !aiIds.has(id)).length;
   const toggle = (userId: string) =>
     setTicked((now) =>
       now.includes(userId) ? now.filter((id) => id !== userId) : [...now, userId],
     );
+  // One open AI assignment per task: ticking an AI employee unticks any other one.
+  const toggleAi = (userId: string) =>
+    setTicked((now) =>
+      now.includes(userId)
+        ? now.filter((id) => id !== userId)
+        : [...now.filter((id) => !aiIds.has(id)), userId],
+    );
+  const searchLabel = !grouped
+    ? t('WorkPeople.search')
+    : ai === 'offer'
+      ? tOr('AiPickers.searchAll', 'Search people, teams or AI')
+      : tOr('AiPickers.searchPeople', 'Search people');
 
   return (
     <WorkDialogFrame labelledBy={titleId} onClose={onClose}>
-      <h2 id={titleId} className="tm-wk-dialog__title">
+      {/* 60-08 (S7 phone): `data-people-picker` lets the frame open as a bottom sheet on a phone. */}
+      <h2 id={titleId} className="tm-wk-dialog__title" data-people-picker="">
         {title}
       </h2>
       <p className="tm-wk-dialog__lede">{t('OwnerPicker.onlyProject', { project: projectName })}</p>
@@ -177,8 +220,8 @@ export function PeoplePickerDialog({
         <input
           type="search"
           value={query}
-          placeholder={t('WorkPeople.search')}
-          aria-label={t('WorkPeople.search')}
+          placeholder={searchLabel}
+          aria-label={searchLabel}
           onChange={(event) => setQuery(event.target.value)}
         />
       </label>
@@ -186,6 +229,7 @@ export function PeoplePickerDialog({
         <PickerTeams
           api={teams.api}
           organizationSlug={teams.organizationSlug}
+          {...(grouped ? { heading: tOr('AiPickers.teams', 'Teams') } : {})}
           needle={needle}
           candidateIds={new Set(candidates.map((candidate) => candidate.userId))}
           onAdd={(userIds) =>
@@ -193,7 +237,18 @@ export function PeoplePickerDialog({
           }
         />
       ) : null}
-      <ul className="tm-wk-people" aria-label={t('OwnerPicker.listLabel')} aria-busy={loading}>
+      {grouped ? (
+        <PickerGroupHeading id={`${titleId}-people`}>
+          {tOr('AiPickers.people', 'People')}
+        </PickerGroupHeading>
+      ) : null}
+      <ul
+        className="tm-wk-people"
+        {...(grouped
+          ? { 'aria-labelledby': `${titleId}-people` }
+          : { 'aria-label': t('OwnerPicker.listLabel') })}
+        aria-busy={loading}
+      >
         {shown.map((candidate) => {
           const on = ticked.includes(candidate.userId);
           return (
@@ -223,10 +278,33 @@ export function PeoplePickerDialog({
             </li>
           );
         })}
-        {!loading && shown.length === 0 ? (
+        {!loading && shown.length === 0 && shownAi.length === 0 ? (
           <li className="tm-wk-people__empty">{t('OwnerPicker.none')}</li>
         ) : null}
       </ul>
+      {shownAi.length > 0 ? (
+        <>
+          <PickerGroupHeading id={`${titleId}-ai`}>
+            {tOr('AiPickers.aiEmployees', 'AI employees')}
+          </PickerGroupHeading>
+          <ul className="tm-wk-people" aria-labelledby={`${titleId}-ai`}>
+            {shownAi.map((candidate) => (
+              <li key={candidate.userId}>
+                <AiCandidateRow
+                  candidate={candidate}
+                  ticked={ticked.includes(candidate.userId)}
+                  onToggle={toggleAi}
+                />
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {ai === 'refuse' && grouped ? (
+        <AiPeopleNote testId="ai-cant-supervise">
+          {tOr('AiPickers.cantSupervise', 'AI employees can’t supervise.')}
+        </AiPeopleNote>
+      ) : null}
       <p className="tm-wk-dialog__lede">
         {t('WorkPeople.selected', { count: ticked.length })}
         {showLeadHint ? ` · ${t('WorkPeople.leadHint')}` : ''}
@@ -241,6 +319,7 @@ export function PeoplePickerDialog({
           size="accessible"
           loading={saving}
           loadingLabel={t('WorkA6.saving')}
+          disabled={requirePerson && peopleTicked === 0}
           onClick={() => onSave(ticked)}
         >
           {t('WorkPeople.done')}

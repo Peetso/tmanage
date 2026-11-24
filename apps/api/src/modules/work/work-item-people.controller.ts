@@ -4,7 +4,11 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { MAX_PEOPLE_PER_ROLE } from './work-item-people.service.js';
-import type { WorkItemPeopleService, WorkItemPeopleView } from './work-item-people.service.js';
+import type {
+  WorkItemPeopleReadView,
+  WorkItemPeopleService,
+  WorkItemPeopleView,
+} from './work-item-people.service.js';
 
 export const WORK_ITEM_PEOPLE_SERVICE = Symbol.for('tmanage.WorkItemPeopleService');
 
@@ -23,7 +27,7 @@ export class WorkItemPeopleController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Param('workItemId') workItemId: string,
-  ): Promise<WorkItemPeopleView> {
+  ): Promise<WorkItemPeopleReadView> {
     return this.people.read(context, principal, workItemId);
   }
 

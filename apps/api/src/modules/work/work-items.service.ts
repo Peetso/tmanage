@@ -54,7 +54,13 @@ import {
   readPeople,
   SUPERVISOR_APPROVAL_REQUIRED,
 } from './work-item-people.service.js';
-import type { PeopleChange, PeopleWritePorts } from './work-item-people.service.js';
+import type {
+  PeopleChange,
+  PeopleWritePorts,
+  WorkItemPeopleView,
+} from './work-item-people.service.js';
+import { WorkAiPeopleGate } from './work-ai-people.js';
+import type { WorkAiPeoplePort } from './work-ai-people.js';
 import { WorkWatchersRepository } from './watchers.repository.js';
 import { WorkChecklistRepository } from './work-checklist.repository.js';
 import { WorkStagesRepository, type EffectiveSet } from './stages/stages.repository.js';
@@ -108,6 +114,14 @@ import {
  */
 
 /** Work area (2026-11-23): at most this many steps may be written with a new item. */
+/** 60-08: the people of an item that did not exist yet (every doer of a create is new). */
+const EMPTY_PEOPLE: WorkItemPeopleView = Object.freeze({
+  doerUserIds: [],
+  supervisorUserIds: [],
+  watcherUserIds: [],
+  viewerUserId: '',
+});
+
 export const MAX_STEPS_AT_CREATE = 50;
 
 /**
@@ -445,6 +459,8 @@ export class WorkItemsService {
     private readonly checklist: WorkChecklistRepository = new WorkChecklistRepository(),
     /** Work area D1: the stage sets — read for the stage names and the transition rule. */
     private readonly stages: WorkStagesRepository = new WorkStagesRepository(),
+    /** 60-08: the AI-employee rules on a work's people. Appended last; the app uses the gate. */
+    private readonly aiPeople: WorkAiPeoplePort = new WorkAiPeopleGate(),
   ) {}
 
   /** The people writer's ports: the same repositories and sinks this service writes with. */
@@ -452,9 +468,37 @@ export class WorkItemsService {
     return {
       assignees: this.assignees,
       watchers: this.watchers,
+      ai: this.aiPeople,
       ...(this.outbox === undefined ? {} : { outbox: this.outbox }),
       ...(this.audit === undefined ? {} : { audit: this.audit }),
     };
+  }
+
+  /**
+   * 60-08: the AI-employee rules for a write that named no people list — a create or an update
+   * that set only the owner, or a move. Nothing to check while the item has no lead and keeps its
+   * project, so the common create pays no read.
+   */
+  private async settleOwnerOnly(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    row: WorkItemRow,
+    before: WorkItemPeopleView,
+    moving: boolean,
+  ): Promise<WorkItemPeopleView> {
+    const written = await readPeople(tx, context, { assignees: this.assignees }, row);
+    if (row.ownerUserId === null && !moving) return written;
+    const supervisorUserIds = await this.aiPeople.settle(tx, context, {
+      principal,
+      row,
+      after: written,
+      baselineDoerUserIds: before.doerUserIds,
+      supervisorsNamed: false,
+      projectChanged: moving,
+      assignees: this.assignees,
+    });
+    return { ...written, supervisorUserIds };
   }
 
   /**
@@ -752,8 +796,11 @@ export class WorkItemsService {
 
       // Work area: people, client companies and the first steps, in the create's own unit of work.
       const team = hasPeopleChange(people)
-        ? await applyPeopleChange(tx, context, this.peoplePorts(), created, people)
-        : await readPeople(tx, context, { assignees: this.assignees }, created);
+        ? await applyPeopleChange(tx, context, this.peoplePorts(), created, people, {
+            principal,
+            creating: true,
+          })
+        : await this.settleOwnerOnly(tx, context, principal, created, EMPTY_PEOPLE, false);
       if (storedClients.length > 0) {
         await this.clientAudience.replace(tx, context, created.id, storedClients);
       }
@@ -889,6 +936,11 @@ export class WorkItemsService {
         const peopleBefore = hasPeopleChange(people)
           ? await readPeople(tx, context, { assignees: this.assignees }, before)
           : undefined;
+        const ownerBefore =
+          peopleBefore === undefined &&
+          ((lead !== undefined && lead !== before.ownerUserId) || moving)
+            ? await readPeople(tx, context, { assignees: this.assignees }, before)
+            : undefined;
         const updated = await this.workItems.update(
           tx,
           context,
@@ -900,7 +952,13 @@ export class WorkItemsService {
         if (peopleBefore !== undefined) {
           await applyPeopleChange(tx, context, this.peoplePorts(), updated, people, {
             before: peopleBefore,
+            principal,
+            projectChanged: moving,
           });
+        } else if (ownerBefore !== undefined) {
+          // 60-08: a new lead, or a move to another project, with no people list: the
+          // AI-employee rules still see the doers as they now are.
+          await this.settleOwnerOnly(tx, context, principal, updated, ownerBefore, moving);
         }
 
         // C26: the owner is the lead doer. The repository moved the doer rows with it (0412);

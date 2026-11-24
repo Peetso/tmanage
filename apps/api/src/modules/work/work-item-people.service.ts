@@ -13,6 +13,8 @@ import type { WorkItemsRepository } from './work-items.repository.js';
 import { WorkItemAssigneesRepository } from './work-item-assignees.repository.js';
 import type { AssigneeRole } from './work-item-assignees.repository.js';
 import { WorkWatchersRepository } from './watchers.repository.js';
+import { WorkAiPeopleGate } from './work-ai-people.js';
+import type { AiPeopleDecisions, WorkAiPeoplePort } from './work-ai-people.js';
 
 /**
  * C26 — the people on a task: doers (the owner is the lead), supervisors and watchers.
@@ -31,6 +33,9 @@ export interface WorkItemPeopleView {
   /** C27: the reader's own user id, so the screen can tell "I supervise this" apart. */
   readonly viewerUserId: string;
 }
+
+/** 60-08: the people read as the screen asks it, with the AI-employee decisions (AR-9). */
+export interface WorkItemPeopleReadView extends WorkItemPeopleView, AiPeopleDecisions {}
 
 export const MAX_PEOPLE_PER_ROLE = 50;
 
@@ -90,6 +95,8 @@ export interface PeopleWritePorts {
   readonly watchers: WorkWatchersRepository;
   readonly outbox?: OutboxEventsRepository;
   readonly audit?: Pick<AuditService, 'record'>;
+  /** 60-08: the AI-employee rules (one AI doer, a person supervises, who may assign). */
+  readonly ai: WorkAiPeoplePort;
 }
 
 /** Every person a change names, once, for one membership read. */
@@ -148,6 +155,12 @@ export async function applyPeopleChange(
      * moves the lead row first), so the audit row and the notices compare with the real before.
      */
     readonly before?: WorkItemPeopleView;
+    /** 60-08: who is asking, for the AI-employee assign decision (absent: refused). */
+    readonly principal?: Principal;
+    /** 60-08: a new item, so every doer it names is a new assignment (the lead included). */
+    readonly creating?: boolean;
+    /** 60-08: the same request moved the item to another project. */
+    readonly projectChanged?: boolean;
   } = {},
 ): Promise<WorkItemPeopleView> {
   const change = normalisePeopleChange(requested);
@@ -202,7 +215,19 @@ export async function applyPeopleChange(
     }
   }
 
-  const after = await readPeople(runner, context, ports, { ...row, ownerUserId });
+  const written = await readPeople(runner, context, ports, { ...row, ownerUserId });
+  // 60-08: the AI-employee rules see the people as written, in this transaction; a refusal rolls
+  // the whole change back, and a defaulted supervisor is audited and counted with the rest.
+  const supervisorUserIds = await ports.ai.settle(runner, context, {
+    principal: options.principal,
+    row: { ...row, ownerUserId },
+    after: written,
+    baselineDoerUserIds: options.creating === true ? [] : before.doerUserIds,
+    supervisorsNamed: change.supervisorUserIds !== undefined,
+    projectChanged: options.projectChanged ?? false,
+    assignees: ports.assignees,
+  });
+  const after: WorkItemPeopleView = { ...written, supervisorUserIds };
   for (const role of ['doer', 'supervisor'] as const) {
     const was = role === 'doer' ? before.doerUserIds : before.supervisorUserIds;
     const now = role === 'doer' ? after.doerUserIds : after.supervisorUserIds;
@@ -276,12 +301,15 @@ export class WorkItemPeopleService {
     private readonly watchers: WorkWatchersRepository = new WorkWatchersRepository(),
     /** Work area: every people change is audited (`work_item.people_changed`). */
     private readonly audit?: Pick<AuditService, 'record'>,
+    /** 60-08: the AI-employee rules; the app always uses the real gate. */
+    private readonly aiPeople: WorkAiPeoplePort = new WorkAiPeopleGate(),
   ) {}
 
   private ports(): PeopleWritePorts {
     return {
       assignees: this.assignees,
       watchers: this.watchers,
+      ai: this.aiPeople,
       ...(this.outbox === undefined ? {} : { outbox: this.outbox }),
       ...(this.audit === undefined ? {} : { audit: this.audit }),
     };
@@ -291,10 +319,14 @@ export class WorkItemPeopleService {
     context: TenantContext,
     principal: Principal,
     workItemId: string,
-  ): Promise<WorkItemPeopleView> {
+  ): Promise<WorkItemPeopleReadView> {
     return this.database.read(context, async (runner) => {
       const row = await this.parent(runner, context, principal, workItemId, 'work.read');
-      return this.viewOf(runner, context, row);
+      const people = await this.viewOf(runner, context, row);
+      return {
+        ...people,
+        ...(await this.aiPeople.decide(runner, context, principal, row, people)),
+      };
     });
   }
 
@@ -314,6 +346,7 @@ export class WorkItemPeopleService {
         this.ports(),
         row,
         role === 'doer' ? { doerUserIds: requested } : { supervisorUserIds: requested },
+        { principal },
       );
     });
   }
@@ -329,6 +362,7 @@ export class WorkItemPeopleService {
     return this.database.transaction(context, async (tx) => {
       await this.parent(tx, context, principal, workItemId, 'work.update');
       const members = await this.requireMembers(tx, context, userIds);
+      await this.aiPeople.refuseAiWatchers(tx, context, userIds);
       let added = 0;
       for (const userId of userIds) {
         const memberId = members.get(userId) as string;

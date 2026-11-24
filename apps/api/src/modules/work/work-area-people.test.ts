@@ -4,6 +4,7 @@ import { WorkItemsController } from './work-items.controller.js';
 import { WorkItemsService } from './work-items.service.js';
 import { applyPeopleChange } from './work-item-people.service.js';
 import type { PeopleWritePorts } from './work-item-people.service.js';
+import { WorkAiPeopleGate } from './work-ai-people.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import type { WorkGraphRepository } from './work-graph.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
@@ -163,6 +164,19 @@ function harness() {
     ) => void events.push(event),
   } as unknown as OutboxEventsRepository;
 
+  // 60-08: everyone here is a person, so the AI-employee rules are the real gate's no-op.
+  const peopleOnly = new WorkAiPeopleGate(
+    true,
+    {
+      kinds: async (_r: unknown, _c: unknown, ids: readonly string[]) =>
+        new Map(
+          ids
+            .filter((id) => MEMBERS.has(id))
+            .map((id) => [id, { membershipId: `m-${id}`, kind: 'human' as const }]),
+        ),
+    },
+    { read: async () => Promise.reject(new Error('no AI employee here')) },
+  );
   const service = new WorkItemsService(
     database,
     workItems,
@@ -192,6 +206,8 @@ function harness() {
     assignees,
     watchers,
     checklist,
+    undefined,
+    peopleOnly,
   );
   return {
     controller: new WorkItemsController(service),
@@ -203,7 +219,7 @@ function harness() {
     audits,
     events,
     repoUpdates,
-    ports: { assignees, watchers, audit, outbox } as PeopleWritePorts,
+    ports: { assignees, watchers, audit, outbox, ai: peopleOnly } as PeopleWritePorts,
   };
 }
 

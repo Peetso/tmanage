@@ -13,6 +13,8 @@ import { WorkCommentsRepository } from './work-comments.repository.js';
 import type { CommentAuthorRow } from './work-comments.repository.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { ReviewMentionCandidatesRepository } from '../files/review-mention-candidates.repository.js';
+import { aiEmployeesEnabled } from '../ai-employees/ai-employees.switch.js';
+import { WorkAiPeopleRepository } from './work-ai-people.repository.js';
 import type { MentionCandidateRow } from '../files/review-mention-candidates.repository.js';
 
 /**
@@ -61,6 +63,11 @@ export interface WorkMentionCandidateView {
   readonly displayName: string;
   /** The token to put in the body (`@<userId>`), the form the mention notice reads. */
   readonly mention: string;
+  /**
+   * 60-08 (S7d): a person or an AI employee; the picker lists AI employees in their section.
+   * Always sent; optional so an older answer reads as a person.
+   */
+  readonly kind?: 'human' | 'ai';
 }
 
 /** The most people one comment can notify; more ids in a body are ignored. */
@@ -79,6 +86,13 @@ export class WorkCommentsService {
       ReviewMentionCandidatesRepository,
       'search'
     > = new ReviewMentionCandidatesRepository(),
+    /** 60-08: each candidate's membership kind (person or AI employee). Stateless. */
+    private readonly memberKinds: Pick<
+      WorkAiPeopleRepository,
+      'kinds'
+    > = new WorkAiPeopleRepository(),
+    /** 60-08: the AI-employee server switch; off, no AI employee is offered (phase 1). */
+    private readonly aiEmployeesOn: boolean = aiEmployeesEnabled(process.env),
   ) {}
 
   /**
@@ -101,18 +115,29 @@ export class WorkCommentsService {
       ]);
     }
     const capped = Math.min(Math.max(1, Math.trunc(limit)), MAX_CANDIDATES);
-    const rows = await this.database.read(context, async (runner) => {
+    const { rows, kinds } = await this.database.read(context, async (runner) => {
       const parent = await this.readableParent(runner, context, principal, workItemId);
-      return this.visiblePeople(runner, context, parent, { prefix, limit: capped + 1 });
+      const found = dedupe(
+        await this.visiblePeople(runner, context, parent, { prefix, limit: capped + 1 }),
+      ).filter((row) => row.userId !== principal.userId);
+      return {
+        rows: found,
+        kinds: await this.memberKinds.kinds(
+          runner,
+          context,
+          found.map((row) => row.userId),
+        ),
+      };
     });
-    return dedupe(rows)
-      .filter((row) => row.userId !== principal.userId)
-      .slice(0, capped)
+    return rows
       .map((row) => ({
         userId: row.userId,
         displayName: row.displayName,
         mention: `@${row.userId}`,
-      }));
+        kind: kinds.get(row.userId)?.kind === 'ai' ? ('ai' as const) : ('human' as const),
+      }))
+      .filter((row) => row.kind === 'human' || this.aiEmployeesOn)
+      .slice(0, capped);
   }
 
   /** Staff who can see the item: on its project, or with organization-wide scope. */

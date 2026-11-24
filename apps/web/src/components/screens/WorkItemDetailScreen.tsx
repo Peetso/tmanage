@@ -43,6 +43,7 @@ import { CloudFoldersCard } from '../storage/CloudFoldersCard';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
 import { useMembers } from '../../lib/use-members';
+import { aiActorOf, WorkActivityWho } from '../work/detail/WorkActivityWho';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { audienceLabel, formatDay } from '../../lib/work-item-presentation';
@@ -876,14 +877,24 @@ function WorkItemBody({
               <p className="tm-wk-section__empty">{ta('WorkDetail.activityError')}</p>
             ) : null}
             <ol className="tm-wk-activity">
-              {(activity.data ?? []).map((entry) => (
-                <li key={entry.id}>
-                  <span>{entry.summary}</span>
-                  <time dateTime={entry.occurredAt}>
-                    {formatShortDay(dayOf(entry.occurredAt), locale)}
-                  </time>
-                </li>
-              ))}
+              {(activity.data ?? []).map((entry) => {
+                const aiActor = aiActorOf(entry, directory.members, comments.data ?? []);
+                return (
+                  <li key={entry.id}>
+                    <span>
+                      {aiActor !== null ? (
+                        <>
+                          <WorkActivityWho member={aiActor} />{' '}
+                        </>
+                      ) : null}
+                      {entry.summary}
+                    </span>
+                    <time dateTime={entry.occurredAt}>
+                      {formatShortDay(dayOf(entry.occurredAt), locale)}
+                    </time>
+                  </li>
+                );
+              })}
             </ol>
           </div>
         )}

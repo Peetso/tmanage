@@ -9,6 +9,7 @@ import { VoiceControl } from '../../voice/VoiceControl';
 import { useVoiceInput } from '../../voice/use-voice-language';
 import { useA6T } from '../DueDatePicker';
 import { initialsOf } from '../OwnerPickerDialog';
+import { AiAvatar, AiBadge, aiInitialsOf } from '../../ai-employees/AiBadge';
 import { StageCapsule, useStageName } from '../stages/WorkStageControl';
 import { GROUP_KEY, orderedStages, STAGE_GROUPS, stageColorVar } from '../stages/stage-model';
 import { useDismiss } from '../use-dismiss';
@@ -129,21 +130,29 @@ export function PeopleValue({
   ids,
   nameOf,
   text,
+  isAi,
 }: {
   ids: readonly string[];
   nameOf: (id: string) => string;
   text: string;
+  /** 60-08: an AI employee shows the square AI avatar, and the AI mark when he is alone. */
+  isAi?: (id: string) => boolean;
 }) {
   return (
     <span className="tm-wk-faces">
       <span className="tm-wk-faces__stack" aria-hidden="true">
-        {ids.slice(0, 3).map((id) => (
-          <span key={id} className="tm-wk-face">
-            {initialsOf(nameOf(id))}
-          </span>
-        ))}
+        {ids.slice(0, 3).map((id) =>
+          isAi?.(id) ? (
+            <AiAvatar key={id} initials={aiInitialsOf(nameOf(id))} className="tm-wk-face" />
+          ) : (
+            <span key={id} className="tm-wk-face">
+              {initialsOf(nameOf(id))}
+            </span>
+          ),
+        )}
       </span>
       <bdi>{text}</bdi>
+      {ids.length === 1 && isAi?.(ids[0] as string) ? <AiBadge /> : null}
     </span>
   );
 }

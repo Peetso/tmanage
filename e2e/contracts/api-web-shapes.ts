@@ -3035,6 +3035,10 @@ type _sessionAccount = Assert<Exact<ApiSessionAccountView, WebSessionAccount>>;
 
 /** `GET …/members` — one active-member directory row. */
 type _member = Assert<Exact<ApiMemberView, WebMemberSummary>>;
+// 60-08 (plan 60 v2 S7): the AI employee's mark on a directory row, paired on its own too.
+import type { AiMemberMark as ApiAiMemberMark } from '../../apps/api/src/modules/ai-employees/work-assign-facts.repository.js';
+import type { AiMemberMark as WebAiMemberMark } from '../../apps/web/src/lib/api/members';
+type _aiMemberMark = Assert<Exact<ApiAiMemberMark, WebAiMemberMark>>;
 
 /**
  * `GET …/people` — module 14 / audit #4 (x168). One People & capacity directory row:
@@ -4377,7 +4381,10 @@ import type {
 } from '../../apps/api/src/modules/time/timesheets.service.js';
 import type { UnfurlCard as ApiUnfurlCard } from '../../apps/api/src/modules/unfurl/unfurl-meta.js';
 import type { WorkMentionCandidateView as ApiWorkMentionCandidateView } from '../../apps/api/src/modules/work/work-comments.service.js';
-import type { WorkItemPeopleView as ApiWorkItemPeopleView } from '../../apps/api/src/modules/work/work-item-people.service.js';
+import type {
+  WorkItemPeopleView as ApiWorkItemPeopleView,
+  WorkItemPeopleReadView as ApiWorkItemPeopleReadView,
+} from '../../apps/api/src/modules/work/work-item-people.service.js';
 import type { CodeLinkView as ApiCodeLinkView } from '../../apps/api/src/modules/work/work-keys.service.js';
 import type {
   HolidayView as ApiHolidayView,
@@ -4633,6 +4640,8 @@ type _teamMemberWeek = Assert<Narrows<ApiTeamMemberWeekView, WebTeamMemberWeek>>
 type _teamWeek = Assert<Narrows<ApiTeamWeekView, WebTeamWeek>>;
 type _workMentionCandidate = Assert<Exact<ApiWorkMentionCandidateView, WebWorkMentionCandidate>>;
 type _workItemPeople = Assert<Narrows<ApiWorkItemPeopleView, WebWorkItemPeople>>;
+// 60-08: the people read with its AI-employee decisions (the web reads them as optional).
+type _workItemPeopleRead = Assert<Narrows<ApiWorkItemPeopleReadView, WebWorkItemPeople>>;
 type _codeLink = Assert<Exact<ApiCodeLinkView, WebCodeLink>>;
 type _githubRepoHook = Assert<Exact<ApiGithubHookView, WebGithubRepoHook>>;
 type _githubRepoHookSecret = Assert<Exact<ApiGithubHookSecretView, WebGithubRepoHookSecret>>;

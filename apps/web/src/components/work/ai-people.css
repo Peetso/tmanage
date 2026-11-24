@@ -1,0 +1,116 @@
+/* 60-08 (plan 60 v2 S7, Figma AI-S7a/S7b/S7b0/S7c/S7d) — AI employees in the Work people pickers,
+   the properties panel, comments and activity. Tokens only (UX-25); logical properties (RTL). */
+
+/* A picker group heading: "Teams", "People", "AI employees" (caption, muted). */
+.tm-ai-pick__heading {
+  margin: 0;
+  padding: var(--s2) var(--s3) 0;
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-ai-pick__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+/* A row that cannot be chosen now: only the avatar and the name are dimmed (Fable must-fix 19). */
+.tm-ai-pick__row[data-unavailable] {
+  cursor: default;
+}
+
+.tm-ai-pick__row[data-unavailable]:hover {
+  background: transparent;
+}
+
+.tm-ai-pick__row[data-unavailable] .tm-ai-pick__dim,
+.tm-ai-pick__row[data-unavailable] .tm-ai-badge {
+  opacity: 0.5;
+}
+
+.tm-ai-pick__dim {
+  display: inline-flex;
+}
+
+/* The reason at the end side, in the full muted colour (6.5:1). */
+.tm-ai-pick__reason {
+  flex: none;
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+/* "AI employees can't supervise." / "Mat is an AI employee, so you supervise his work." */
+.tm-ai-pick__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s1) var(--s3);
+  color: var(--ink-650);
+  font-size: var(--t-app-caption);
+  line-height: var(--t-app-caption-line);
+}
+
+.tm-ai-pick__note-mark {
+  display: inline-flex;
+  flex: none;
+  color: var(--ink-650);
+}
+
+/* The Supervisor value when a person must be chosen (S7b): the error colour, never colour alone —
+   the words say it too. */
+.tm-ai-choose {
+  color: var(--danger-600);
+}
+
+/* A face in the panel, a comment or the activity tab: the AI employee's name and mark together. */
+.tm-ai-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+/* An AI employee among the panel's faces: the outlined AI avatar, not the lime person disc. */
+.tm-wk-face.tm-ai-avatar {
+  border-color: var(--ink-950);
+  border-radius: var(--r-micro);
+  background: var(--paper-0);
+}
+
+/* The panel's supervisor note starts at the label column (S7b0), not inside the value. */
+.tm-ai-pick__note[data-flush] {
+  padding-inline: 0;
+}
+
+/* The comment face slot holds the AI avatar in place of the round initials (S7c). */
+.tm-wk-comment__face.tm-ai-avatar {
+  background: transparent;
+}
+
+/* Activity tab rows (S7c pattern): who did it, then what, then the day. */
+.tm-ai-activity__who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink-950);
+  font-weight: var(--t-app-ui-strong-weight);
+}
+
+/* Phone (S7a/S7b phone): the people pickers open as a bottom sheet, as New work's sheet does. */
+@media (max-width: 60rem) {
+  .tm-wk-dialog__scrim:has([data-people-picker]) {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  .tm-wk-dialog:has([data-people-picker]) {
+    max-block-size: 90dvh;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+}

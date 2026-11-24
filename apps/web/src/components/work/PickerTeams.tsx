@@ -16,6 +16,8 @@ export interface PickerTeamsProps {
   /** Who may be picked here (the project's people): only they are added from a team. */
   readonly candidateIds: ReadonlySet<string>;
   readonly onAdd: (userIds: readonly string[]) => void;
+  /** 60-08: a visible group heading, when the picker shows its groups (Teams, People, AI). */
+  readonly heading?: string;
 }
 
 function peopleKey(count: number): string {
@@ -37,6 +39,7 @@ export function PickerTeams({
   needle,
   candidateIds,
   onAdd,
+  heading,
 }: PickerTeamsProps) {
   const t = useA6T();
   const queries = useQueryClient();
@@ -72,6 +75,7 @@ export function PickerTeams({
 
   return (
     <>
+      {heading ? <p className="tm-ai-pick__heading">{heading}</p> : null}
       <ul className="tm-wk-people" aria-label={t('WorkPeople.teams')}>
         {rows.map((team) => (
           <li key={team.id}>

@@ -1,6 +1,7 @@
 import type { WorkStagesRepository } from './stages/stages.repository.js';
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
+import { WorkAiPeopleGate } from './work-ai-people.js';
 import { WorkItemsController } from './work-items.controller.js';
 import { WorkItemsService } from './work-items.service.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
@@ -170,6 +171,11 @@ function harness() {
       effectiveFor: async () => ({ source: 'builtin', set: null }),
       effectiveForMany: async () => new Map(),
     } as unknown as WorkStagesRepository,
+    // 60-08: everyone here is a person, so the AI-employee rules are the real gate's no-op.
+    new WorkAiPeopleGate(true, {
+      kinds: async (_r: unknown, _c: unknown, ids: readonly string[]) =>
+        new Map(ids.map((id) => [id, { membershipId: `m-${id}`, kind: 'human' as const }])),
+    }),
   );
   return {
     controller: new WorkItemsController(service),

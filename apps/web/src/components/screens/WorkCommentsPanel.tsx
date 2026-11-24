@@ -21,6 +21,8 @@ import {
   type CompactUnit,
 } from '../../lib/i18n/compact-time';
 import { initialsOf } from '../work/OwnerPickerDialog';
+import { AiAvatar, AiBadge, aiInitialsOf } from '../ai-employees/AiBadge';
+import '../work/ai-people.css';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useMembers } from '../../lib/use-members';
 import {
@@ -131,18 +133,36 @@ export function WorkCommentsPanel({
     () => new Map(directory.members.map((member) => [member.userId, member.role])),
     [directory.members],
   );
-  const mentionOptions: MentionOption[] = mention
+  // 60-08 (S7c/S7d): who is an AI employee, from the directory (listed only while AI is on).
+  const aiOf = useMemo(
+    () =>
+      new Map(
+        directory.members
+          .filter((member) => member.kind === 'ai')
+          .map((member) => [member.userId, member.ai?.jobTitle ?? '']),
+      ),
+    [directory.members],
+  );
+  const mentionRows: MentionOption[] = mention
     ? (candidates.data ?? []).slice(0, MAX_MENTION_OPTIONS).map((candidate) => {
-        const subtitle = memberRoleLabel(roleOf.get(candidate.userId), tOr);
+        const ai = candidate.kind === 'ai' || aiOf.has(candidate.userId);
+        const subtitle = ai
+          ? aiOf.get(candidate.userId) || undefined
+          : memberRoleLabel(roleOf.get(candidate.userId), tOr);
         return {
           userId: candidate.userId,
           displayName: candidate.displayName,
           mention: candidate.mention,
-          group: 'others' as const,
+          group: ai ? ('ai' as const) : ('others' as const),
           ...(subtitle ? { subtitle } : {}),
         };
       })
     : [];
+  // People first, then the AI employees: the keyboard order matches the sections on screen.
+  const mentionOptions = [
+    ...mentionRows.filter((row) => row.group !== 'ai'),
+    ...mentionRows.filter((row) => row.group === 'ai'),
+  ];
   const nameOf = useMemo(() => {
     const names = new Map<string, string>();
     for (const member of directory.members)
@@ -259,9 +279,16 @@ export function WorkCommentsPanel({
           <ul className="tm-list" aria-label={t('WorkCommentsPanel.listLabel')}>
             {items.map((comment) => (
               <li key={comment.id} className="tm-wk-comment">
-                <span className="tm-wk-face tm-wk-comment__face" aria-hidden="true">
-                  {comment.authorName ? initialsOf(comment.authorName) : '?'}
-                </span>
+                {comment.authorUserId !== null && aiOf.has(comment.authorUserId) ? (
+                  <AiAvatar
+                    initials={comment.authorName ? aiInitialsOf(comment.authorName) : '?'}
+                    className="tm-wk-comment__face"
+                  />
+                ) : (
+                  <span className="tm-wk-face tm-wk-comment__face" aria-hidden="true">
+                    {comment.authorName ? initialsOf(comment.authorName) : '?'}
+                  </span>
+                )}
                 <div className="tm-wk-comment__main">
                   {/* Figma `WV2-02`: the author's name, then how long ago; the exact time on hover. */}
                   <p className="tm-wk-comment__meta">
@@ -269,6 +296,9 @@ export function WorkCommentsPanel({
                       {comment.authorName ??
                         tOr('MembersPresentation.formerOrHidden', 'Former or hidden member')}
                     </bdi>
+                    {comment.authorUserId !== null && aiOf.has(comment.authorUserId) ? (
+                      <AiBadge />
+                    ) : null}
                     <time
                       className="tm-wk-comment__when"
                       dateTime={comment.createdAt}
@@ -346,6 +376,7 @@ export function WorkCommentsPanel({
                 'WorkCommentsPanel.mentionHeading',
                 'People who can see this task',
               )}
+              aiHeading={tOr('AiPickers.aiEmployees', 'AI employees')}
               query={mention.query}
             />
           ) : null}

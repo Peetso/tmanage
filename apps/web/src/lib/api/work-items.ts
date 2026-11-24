@@ -192,6 +192,12 @@ export interface WorkItemPeople {
   readonly watcherUserIds: readonly string[];
   /** C27: the reader's own user id ("I supervise this"). */
   readonly viewerUserId?: string;
+  /** 60-08: the AI employee doing the task, or `null` (read only; absent on a write's answer). */
+  readonly aiDoerUserId?: string | null;
+  /** 60-08: an AI employee does it and no person supervises it — the screen asks for one. */
+  readonly supervisorRequired?: boolean;
+  /** 60-08: the reader may make an AI employee the doer of this task now. */
+  readonly canAssignAi?: boolean;
 }
 
 export type WorkItemPeopleRole = 'doers' | 'supervisors';

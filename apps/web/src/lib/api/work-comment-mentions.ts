@@ -13,6 +13,8 @@ export interface WorkMentionCandidate {
   readonly userId: string;
   readonly displayName: string;
   readonly mention: string;
+  /** 60-08 (S7d): a person or an AI employee. Absent (an older answer) reads as a person. */
+  readonly kind?: 'human' | 'ai';
 }
 
 export async function searchWorkMentionCandidates(

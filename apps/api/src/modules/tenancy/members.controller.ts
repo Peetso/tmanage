@@ -1,11 +1,14 @@
 import { Controller, Get, Inject, Query } from '@nestjs/common';
-import { rosterScopeFor, seesRosterAdminFields } from '@tmanage/domain';
+import { isAiMembershipKind, rosterScopeFor, seesRosterAdminFields } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { MEMBERSHIPS_REPOSITORY, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MembershipsRepository } from './memberships.repository.js';
+import { aiEmployeesEnabled } from '../ai-employees/ai-employees.switch.js';
+import { readAiMemberMarks } from '../ai-employees/work-assign-facts.repository.js';
+import type { AiMemberMark } from '../ai-employees/work-assign-facts.repository.js';
 
 /**
  * The member directory — D16.
@@ -51,6 +54,14 @@ export interface MemberView {
   readonly displayName: string;
   readonly role: string;
   readonly status?: string;
+  /**
+   * 60-08 (plan 60 v2 S7): a person or an AI employee, so every picker, comment and activity row
+   * can show the AI mark. AI employees are listed only while the server switch is on. Always sent;
+   * optional so a reader of an older answer takes "absent" as a person.
+   */
+  readonly kind?: 'human' | 'ai';
+  /** 60-08: an AI employee's job line, state and why a picker cannot offer him now. */
+  readonly ai?: AiMemberMark;
 }
 
 const MAX_LIMIT = 200;
@@ -75,6 +86,11 @@ export class MembersController {
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Inject(MEMBERSHIPS_REPOSITORY) private readonly memberships: MembershipsRepository,
   ) {}
+
+  /** 60-08: the AI-employee server switch, read per request like the tenant guard reads it. */
+  protected aiEmployeesOn(): boolean {
+    return aiEmployeesEnabled(process.env);
+  }
 
   /**
    * The organization's active members, by name.
@@ -122,8 +138,10 @@ export class MembersController {
 
     // ADR-0014: a guest sees only the people who share a project with them.
     const scope = rosterScopeFor(principal.kind === 'internal' ? principal.role : '');
-    const rows = await this.database.read(context, async (db) =>
-      this.memberships.listWithNames(db, context, {
+    // 60-08: AI employees exist for the screens only while the server switch is on (phase 1).
+    const withAi = this.aiEmployeesOn();
+    const { rows, marks } = await this.database.read(context, async (db) => {
+      const page = await this.memberships.listWithNames(db, context, {
         ...(after ? { after } : {}),
         ...(search === '' ? {} : { q: search }),
         ...(scope === 'shared_projects'
@@ -135,9 +153,20 @@ export class MembersController {
               ),
             }
           : {}),
+        ...(withAi ? {} : { peopleOnly: true }),
         limit: effectiveLimit,
-      }),
-    );
+      });
+      const aiRows = page.filter((row) => isAiMembershipKind(row.kind));
+      return {
+        rows: page,
+        marks: await readAiMemberMarks(
+          db,
+          context,
+          aiRows.map((row) => row.membershipId),
+          new Date(),
+        ),
+      };
+    });
     const adminFields = seesRosterAdminFields(context.capabilities ?? []);
 
     // A full page means there may be another; a short one means there is not. The cursor is
@@ -146,12 +175,17 @@ export class MembersController {
     const last = rows[rows.length - 1];
 
     return {
-      members: rows.map((row) => ({
-        userId: row.userId,
-        displayName: row.displayName,
-        role: row.role,
-        ...(adminFields ? { status: row.status } : {}),
-      })),
+      members: rows.map((row) => {
+        const mark = marks.get(row.membershipId);
+        return {
+          userId: row.userId,
+          displayName: row.displayName,
+          role: row.role,
+          ...(adminFields ? { status: row.status } : {}),
+          kind: isAiMembershipKind(row.kind) ? ('ai' as const) : ('human' as const),
+          ...(mark === undefined ? {} : { ai: mark }),
+        };
+      }),
       nextAfter: full && last ? last.membershipId : null,
     };
   }

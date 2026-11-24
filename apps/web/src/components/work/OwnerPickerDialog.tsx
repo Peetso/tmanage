@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@tmanage/ui';
 import { listProjectMembers } from '../../lib/api/project-members';
+import type { AiMemberMark } from '../../lib/api/members';
 import type { ApiClient } from '../../lib/api/client';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
@@ -13,8 +14,12 @@ import { useA6T, WorkDialogFrame } from './DueDatePicker';
 export interface OwnerCandidate {
   readonly userId: string;
   readonly displayName: string;
-  /** The line under the name — the person's role on the project. */
+  /** The line under the name — the person's role on the project (an AI employee's job). */
   readonly subtitle?: string;
+  /** 60-08: a person or an AI employee (absent: a person). */
+  readonly kind?: 'human' | 'ai';
+  /** 60-08: an AI employee's state, for the picker's AI section. */
+  readonly ai?: AiMemberMark;
 }
 
 export interface OwnerPickerDialogProps {
@@ -43,6 +48,11 @@ export function useOwnerCandidates(
   api: ApiClient,
   organizationSlug: string,
   projectId: string,
+  /**
+   * 60-08: also offer the project's AI employees (the Work people pickers). Off for every other
+   * owner field (decisions, requests): an AI employee is only ever a doer, chosen in Work.
+   */
+  options: { readonly withAi?: boolean } = {},
 ): { readonly candidates: readonly OwnerCandidate[]; readonly loading: boolean } {
   const t = useA6T();
   const directory = useMembers(api, organizationSlug);
@@ -51,13 +61,31 @@ export function useOwnerCandidates(
     queryFn: () => listProjectMembers(api, organizationSlug, projectId),
     enabled: projectId !== '',
   });
-  const candidates = (members.data ?? []).map((member) => {
+  const candidates = (members.data ?? []).flatMap((member): OwnerCandidate[] => {
     const roleKey = ROLE_KEY[member.role];
-    return {
-      userId: member.userId,
-      displayName: memberDisplayName(member.userId, directory.members, directory.isPending),
-      ...(roleKey === undefined ? {} : { subtitle: t(roleKey) }),
-    };
+    const entry = directory.members.find((row) => row.userId === member.userId);
+    const displayName = memberDisplayName(member.userId, directory.members, directory.isPending);
+    if (entry?.kind === 'ai') {
+      // 60-08: an AI employee is offered with his job line and state (S7), and only where the
+      // caller asks for AI employees. Without the mark nothing is known about him: not offered.
+      if (options.withAi !== true || entry.ai === undefined) return [];
+      return [
+        {
+          userId: member.userId,
+          displayName,
+          subtitle: entry.ai.jobTitle,
+          kind: 'ai',
+          ai: entry.ai,
+        },
+      ];
+    }
+    return [
+      {
+        userId: member.userId,
+        displayName,
+        ...(roleKey === undefined ? {} : { subtitle: t(roleKey) }),
+      },
+    ];
   });
   return { candidates, loading: members.isPending || directory.isPending };
 }

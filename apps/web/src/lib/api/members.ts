@@ -16,6 +16,29 @@ export interface MemberSummary {
   readonly role: string;
   /** QA-FIX-P S2 (ADR-0014): sent only to a viewer who manages members (`org.manage`). */
   readonly status?: string;
+  /**
+   * 60-08 (plan 60 v2 S7): a person or an AI employee. Absent (an older answer) reads as a person.
+   * AI employees are listed only while the server's AI-employee switch is on.
+   */
+  readonly kind?: 'human' | 'ai';
+  /** 60-08: an AI employee's job line, state and why a picker cannot offer him now. */
+  readonly ai?: AiMemberMark;
+}
+
+/** Why an AI employee cannot be chosen in a picker now; the server decides it (AR-9). */
+export type AiAvailability = 'available' | 'paused' | 'not_connected' | 'switched_off';
+
+/** The AI part of a directory row (S7: the mark, the job line, the reason a row is dimmed). */
+export interface AiMemberMark {
+  readonly jobTitle: string;
+  readonly status: 'active' | 'paused';
+  readonly connected: boolean;
+  readonly availability: AiAvailability;
+}
+
+/** Is this directory row an AI employee? */
+export function isAiMember(member: Pick<MemberSummary, 'kind'> | undefined): boolean {
+  return member?.kind === 'ai';
 }
 
 export interface ListMembersQuery {

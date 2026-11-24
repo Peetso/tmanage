@@ -204,8 +204,8 @@ describe('GET /v1/organizations/:orgSlug/members', () => {
 
     const full = await controller.list(context, viewer('member'), undefined, '2');
     expect(full.members).toEqual([
-      { userId: 'u-1', displayName: 'Ada', role: 'member' },
-      { userId: 'u-2', displayName: 'Bo', role: 'guest' },
+      { userId: 'u-1', displayName: 'Ada', role: 'member', kind: 'human' },
+      { userId: 'u-2', displayName: 'Bo', role: 'guest', kind: 'human' },
     ]);
     // The membership id is the cursor and is not otherwise exposed.
     expect(full.nextAfter).toBe('m-2');
@@ -247,8 +247,8 @@ describe('GET /v1/organizations/:orgSlug/members', () => {
     const context = contextFor(ORG);
     const answer = await controller.list(context, viewer('member', []), undefined, undefined);
     expect(answer.members).toEqual([
-      { userId: 'u-1', displayName: 'Ada', role: 'owner' },
-      { userId: 'u-2', displayName: 'Bo', role: 'member' },
+      { userId: 'u-1', displayName: 'Ada', role: 'owner', kind: 'human' },
+      { userId: 'u-2', displayName: 'Bo', role: 'member', kind: 'human' },
     ]);
     for (const row of answer.members) expect(row).not.toHaveProperty('status');
     expect(asked[0]?.onlyUserIds).toBeUndefined();
@@ -275,6 +275,7 @@ describe('GET /v1/organizations/:orgSlug/members', () => {
       userId: 'u-1',
       displayName: 'Ada',
       role: 'owner',
+      kind: 'human',
       status: 'active',
     });
   });

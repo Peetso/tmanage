@@ -30,7 +30,10 @@ import { useMembers } from '../../../lib/use-members';
 import { WorkItemRecurrencePanel } from '../../screens/WorkItemRecurrencePanel';
 import { WorkItemReminderView } from '../../screens/WorkItemReminderView';
 import { dayOf, DueDatePicker, formatChipDay, useA6T } from '../DueDatePicker';
-import { initialsOf, useOwnerCandidates } from '../OwnerPickerDialog';
+import { firstNameOf, initialsOf, useOwnerCandidates } from '../OwnerPickerDialog';
+import { AiAvatar, AiBadge, aiInitialsOf } from '../../ai-employees/AiBadge';
+import { AiPeopleNote } from '../AiPickerRows';
+import { useTOr } from '../../../lib/i18n/use-t-or';
 import { PeoplePickerDialog, workItemPeopleKey } from '../WorkPeopleBlock';
 import { WorkStageControl } from '../stages/WorkStageControl';
 import type { WorkStages } from '../stages/use-work-stages';
@@ -99,11 +102,12 @@ export function WorkPropertiesPanel({
   statusEditor,
 }: WorkPropertiesPanelProps) {
   const t = useA6T();
+  const tOr = useTOr();
   const locale = useActiveLocale();
   const describe = useDescribeApiError();
   const queries = useQueryClient();
   const directory = useMembers(api, organizationSlug);
-  const candidates = useOwnerCandidates(api, organizationSlug, item.projectId);
+  const candidates = useOwnerCandidates(api, organizationSlug, item.projectId, { withAi: true });
   const [picking, setPicking] = useState<'doers' | 'supervisors' | 'watchers' | null>(null);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   // Phone (Figma `WV2-02` phone): four rows first, then "Show all 15" opens the rest in place.
@@ -158,6 +162,11 @@ export function WorkPropertiesPanel({
   });
 
   const nameOf = (id: string) => memberDisplayName(id, directory.members, directory.isPending);
+  // 60-08: who is an AI employee, from the directory (the server lists them while AI is on).
+  const isAi = (id: string) =>
+    directory.members.some((member) => member.userId === id && member.kind === 'ai');
+  const aiDoer = people.data?.aiDoerUserId ?? null;
+  const supervisorRequired = people.data?.supervisorRequired === true;
   const doers = people.data?.doerUserIds ?? [];
   const supervisors = people.data?.supervisorUserIds ?? [];
   const watchers = people.data?.watcherUserIds ?? [];
@@ -169,11 +178,15 @@ export function WorkPropertiesPanel({
     ) : (
       <span className="tm-wk-faces">
         <span className="tm-wk-faces__stack" aria-hidden="true">
-          {ids.slice(0, FACES).map((id) => (
-            <span key={id} className="tm-wk-face">
-              {initialsOf(nameOf(id))}
-            </span>
-          ))}
+          {ids.slice(0, FACES).map((id) =>
+            isAi(id) ? (
+              <AiAvatar key={id} initials={aiInitialsOf(nameOf(id))} className="tm-wk-face" />
+            ) : (
+              <span key={id} className="tm-wk-face">
+                {initialsOf(nameOf(id))}
+              </span>
+            ),
+          )}
         </span>
         {/* One person by full name, several by the first one's first name and "+N" (Figma); the
             full names for a screen reader once the directory has answered, its loading words
@@ -183,6 +196,7 @@ export function WorkPropertiesPanel({
             ? nameOf(ids[0] as string)
             : nameOf(ids[0] as string).split(/\s+/)[0]}
         </bdi>
+        {ids.length === 1 && isAi(ids[0] as string) ? <AiBadge /> : null}
         {ids.length > 1 ? (
           // U+200E keeps "+2" reading left to right inside Arabic text (Fable must-fix 6).
           <span className="tm-wk-faces__more" aria-hidden="true">{`‎+${ids.length - 1}`}</span>
@@ -333,14 +347,35 @@ export function WorkPropertiesPanel({
       />
       <PanelRow
         label={t('WorkPage.supervisor')}
-        value={faces(supervisors)}
-        empty={supervisors.length === 0}
-        icon={<InfoIcon />}
+        value={
+          supervisorRequired ? (
+            // 60-08 (S7b): an AI employee does this and no person supervises it.
+            <span className="tm-ai-choose" data-testid="ai-choose-person">
+              {tOr('AiPickers.choosePerson', 'Choose a person')}
+            </span>
+          ) : (
+            faces(supervisors)
+          )
+        }
+        empty={supervisors.length === 0 && !supervisorRequired}
+        icon={aiDoer !== null && !supervisorRequired ? <ChevronDownIcon /> : <InfoIcon />}
         iconLabel={t('WorkPage.pickSupervisor')}
         onAction={() => setPicking('supervisors')}
         testId="prop-supervisor"
         short
       />
+      {aiDoer !== null &&
+      !supervisorRequired &&
+      people.data?.viewerUserId !== undefined &&
+      supervisors.includes(people.data.viewerUserId) ? (
+        // 60-08 (S7b0): the person who assigned an AI employee supervises his work.
+        <AiPeopleNote testId="ai-you-supervise" flush>
+          {tOr(
+            'AiPickers.youSupervise',
+            '{name} is an AI employee, so you supervise his work.',
+          ).replace('{name}', firstNameOf(nameOf(aiDoer)))}
+        </AiPeopleNote>
+      ) : null}
       <PanelRow
         label={t('WorkPage.due')}
         value={day(item.dueAt)}
@@ -535,6 +570,16 @@ export function WorkPropertiesPanel({
           initial={picking === 'doers' ? doers : picking === 'supervisors' ? supervisors : watchers}
           showLeadHint={picking === 'doers'}
           removeHint={picking === 'watchers'}
+          {...(picking === 'doers'
+            ? {
+                ai: 'offer' as const,
+                ...(people.data?.canAssignAi === undefined
+                  ? {}
+                  : { canAssignAi: people.data.canAssignAi }),
+              }
+            : picking === 'supervisors'
+              ? { ai: 'refuse' as const, requirePerson: aiDoer !== null }
+              : {})}
           saving={savePeople.isPending || saving}
           onSave={(ids) => savePeople.mutate({ row: picking, ids })}
           onClose={() => setPicking(null)}

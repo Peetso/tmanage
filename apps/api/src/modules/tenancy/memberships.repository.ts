@@ -130,6 +130,11 @@ export interface MemberDirectoryOptions extends ListMembershipsOptions {
    * project with them, from {@link coMemberUserIds}. Absent means the whole organization.
    */
   readonly onlyUserIds?: readonly string[];
+  /**
+   * 60-08: people only — no AI employee (`memberships.kind = 'ai'`). The directory asks this
+   * while the AI-employee switch is off, so AI employees appear nowhere (plan 60 v2, phase 1).
+   */
+  readonly peopleOnly?: boolean;
 }
 
 /**
@@ -157,6 +162,8 @@ export interface MemberDirectoryEntry {
   readonly displayName: string;
   readonly role: string;
   readonly status: MembershipStatus;
+  /** 60-08: the stored `memberships.kind` (`human` / `ai`), parsed by the reader. */
+  readonly kind?: string;
 }
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -238,6 +245,7 @@ export class MembershipsRepository {
       if (options.onlyUserIds.length === 0) return [];
       predicates.push(inArray(memberships.userId, [...options.onlyUserIds]));
     }
+    if (options.peopleOnly === true) predicates.push(eq(memberships.kind, 'human'));
 
     return tenantDrizzle(runner)
       .select({
@@ -246,6 +254,7 @@ export class MembershipsRepository {
         displayName: users.displayName,
         role: memberships.role,
         status: memberships.status,
+        kind: memberships.kind,
       })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))

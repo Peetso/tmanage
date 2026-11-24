@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiClient } from '../../../lib/api/client';
 import { ApiRequestError, NetworkError } from '../../../lib/api/errors';
 import { listProjects } from '../../../lib/api/projects';
+import { readOrganizationMe } from '../../../lib/api/permission-matrix';
+import { useTOr } from '../../../lib/i18n/use-t-or';
 import { listProjectShares } from '../../../lib/api/clients';
 import { listClientOrganizationOptions } from '../../../lib/api/project-client';
 import {
@@ -74,6 +76,7 @@ export function useNewWork({
   onCreated,
 }: UseNewWorkOptions) {
   const t = useA6T();
+  const tOr = useTOr();
   const queries = useQueryClient();
 
   const projects = useQuery({
@@ -110,7 +113,42 @@ export function useNewWork({
   const [created, setCreated] = useState<NewWorkResult | null>(null);
   const another = useRef(false);
 
-  const people = useOwnerCandidates(api, organizationSlug, projectId);
+  const people = useOwnerCandidates(api, organizationSlug, projectId, { withAi: true });
+  // 60-08 (S7b0/S7b): who fills Supervisor when an AI employee is chosen, and whether he may.
+  const me = useQuery({
+    queryKey: ['organization-me', organizationSlug],
+    queryFn: () => readOrganizationMe(api, organizationSlug),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  const viewerUserId = me.data?.userId ?? null;
+  const aiIds = new Set(
+    people.candidates
+      .filter((candidate) => candidate.kind === 'ai')
+      .map((candidate) => candidate.userId),
+  );
+  const aiDoer = doers.find((id) => aiIds.has(id)) ?? null;
+  const supervisorRequired =
+    aiDoer !== null && supervisors.filter((id) => !aiIds.has(id)).length === 0;
+  const canAssignAi =
+    me.data === undefined ? undefined : me.data.capabilities.includes('ai_employee.assign');
+
+  /**
+   * Choosing an AI employee as a doer fills an empty Supervisor with the person assigning (S7b0),
+   * as the server does. When the viewer is not a person on this project there is no default and
+   * Supervisor asks for a person (S7b).
+   */
+  function chooseDoers(next: readonly string[]) {
+    setDoers(next);
+    const viewerIsPerson =
+      viewerUserId !== null &&
+      people.candidates.some(
+        (candidate) => candidate.userId === viewerUserId && candidate.kind !== 'ai',
+      );
+    if (next.some((id) => aiIds.has(id)) && supervisors.length === 0 && viewerIsPerson) {
+      setSupervisors([viewerUserId]);
+    }
+  }
   const workLabels = useQuery({
     queryKey: ['capture-labels', organizationSlug],
     queryFn: () => listWorkLabels(api, organizationSlug),
@@ -292,6 +330,15 @@ export function useNewWork({
       setFormError(t('NewWork.needProject'));
       return false;
     }
+    if (supervisorRequired) {
+      setFormError(
+        tOr(
+          'AiPickers.needPerson',
+          'An AI employee does this work. Choose a person to supervise it.',
+        ),
+      );
+      return false;
+    }
     setFormError(null);
     setCreated(null);
     another.current = andAnother;
@@ -310,7 +357,11 @@ export function useNewWork({
     description,
     setDescription,
     doers,
-    setDoers,
+    setDoers: chooseDoers,
+    aiDoer,
+    supervisorRequired,
+    viewerUserId,
+    canAssignAi,
     supervisors,
     setSupervisors,
     watchers,
