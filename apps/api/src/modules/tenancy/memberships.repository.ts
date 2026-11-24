@@ -418,15 +418,6 @@ export class MembershipsRepository {
     return this.requireById(runner, context, input.id);
   }
 
-  async invite(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    input: InviteMembershipInput,
-  ): Promise<MembershipRow> {
-    const id = uuidv7();
-
-    await tenantDrizzle(runner)
-      .insert(memberships)
   /**
    * 60-07 (S6 "Role"). The one writer of an AI member's role (kind `ai`): the AI-employee service
    * has already applied the AI ceiling and the caller's own ceiling. Like {@link changeRole} it
@@ -459,6 +450,15 @@ export class MembershipsRepository {
     return result[0].affectedRows === 1;
   }
 
+  async invite(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: InviteMembershipInput,
+  ): Promise<MembershipRow> {
+    const id = uuidv7();
+
+    await tenantDrizzle(runner)
+      .insert(memberships)
       .values({
         id,
         // From the context. Not from `input` — there is no such field.
