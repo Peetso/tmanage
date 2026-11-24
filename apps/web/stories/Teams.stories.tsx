@@ -1,23 +1,9 @@
-import type { Decorator, Meta, StoryObj } from '@storybook/react-vite';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { TeamsScreen } from '../src/components/screens/TeamsScreen';
 import { ARABIC_STORY } from './support/arabic';
+import { asOwner } from './support/as-owner';
 import { teamsClient } from './support/teams-fixtures';
 import { PHONE_VIEWPORT } from '../.storybook/vr-viewport';
-
-/**
- * The shell reads the person's role through its own browser client, which has no API in
- * Storybook; seed it as an owner (who may manage teams) so the page draws its write controls.
- */
-const asOwner: Decorator = (Story) => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(['shell', 'organizations'], [{ slug: 'northstar', role: 'owner' }]);
-  return (
-    <QueryClientProvider client={client}>
-      <Story />
-    </QueryClientProvider>
-  );
-};
 
 /**
  * **Work area v2 — Teams** (W-WEB-4; Figma `WV2-05` teams `936:98514`, AR `936:98752`, phone

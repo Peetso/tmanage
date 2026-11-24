@@ -72,14 +72,10 @@
   color: var(--ink-950);
 }
 
-.tm-wk-rail__item[aria-pressed='true'][data-kind='view'] {
+/* One chosen row, one look (Figma WV2-01 "All work"; WX3, review R8): a view, a project or a
+   team is drawn the same way, and only one of them at a time (`railSelection`). */
+.tm-wk-rail__item[aria-pressed='true'] {
   background: var(--paper-150);
-  color: var(--ink-950);
-}
-
-.tm-wk-rail__item[aria-pressed='true'][data-kind='project'] {
-  background: var(--paper-0);
-  border-color: var(--line-300);
   color: var(--ink-950);
 }
 

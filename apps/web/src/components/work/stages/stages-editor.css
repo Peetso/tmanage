@@ -290,12 +290,6 @@
   color: var(--ink-500);
 }
 
-/* Figma W7: the row's ⋯ and the set's ⋯ are 28 circles with a quiet edge, like the handle. */
-.tm-stg-more__button.tm-icon-button {
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-capsule);
-}
-
 .tm-stg-row__name {
   flex: 1;
   min-inline-size: 0;
@@ -764,4 +758,12 @@
     border-end-start-radius: 0;
     border-end-end-radius: 0;
   }
+}
+
+/* Figma W7 (WX3, review R4): the info icon beside "Stages" is the 28px round icon button with
+   the quiet ring (Header/Button Icon Small `929:910`), not the bare 24px glyph. */
+.tm-stg-info .tm-info-button {
+  inline-size: var(--app-control-sm);
+  block-size: var(--app-control-sm);
+  border: var(--b-quiet) solid var(--line-300);
 }

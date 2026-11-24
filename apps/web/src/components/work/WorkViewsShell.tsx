@@ -21,7 +21,7 @@ import { SearchIcon } from './work-icons';
 import {
   NO_FILTERS,
   RAIL_VIEWS,
-  activeRailView,
+  railSelection,
   railViewFilters,
   workListQuery,
   type RailCounts,
@@ -115,7 +115,9 @@ export function WorkViewsShell({
   const teamList = teams.data?.teams ?? [];
   const base = `/${organizationSlug}`;
   const current = filters ?? { ...NO_FILTERS, projectId };
-  const activeView = filters ? activeRailView(filters) : null;
+  const marked = filters ? railSelection(filters) : null;
+  const isMarked = (kind: 'view' | 'project' | 'team', id: string) =>
+    marked !== null && marked.kind === kind && marked.id === id;
   const count = (value: number | undefined) =>
     value === undefined ? null : (
       <span className="tm-wl-rail__count">
@@ -205,7 +207,7 @@ export function WorkViewsShell({
                 <li key={entry}>
                   {railEntry(
                     entry,
-                    activeView === entry,
+                    isMarked('view', entry),
                     railViewFilters(entry, current),
                     ta(RAIL_VIEW_KEY[entry]),
                     counts?.views[entry],
@@ -228,7 +230,7 @@ export function WorkViewsShell({
                     {onChooseFilters ? (
                       railEntry(
                         project.id,
-                        current.projectId === project.id,
+                        isMarked('project', project.id),
                         {
                           ...current,
                           projectId: current.projectId === project.id ? '' : project.id,
@@ -273,7 +275,7 @@ export function WorkViewsShell({
                   <li key={team.id}>
                     {railEntry(
                       team.id,
-                      current.teamId === team.id,
+                      isMarked('team', team.id),
                       { ...current, teamId: current.teamId === team.id ? '' : team.id },
                       <bdi>{team.name}</bdi>,
                       counts ? (counts.teams.get(team.id) ?? 0) : undefined,

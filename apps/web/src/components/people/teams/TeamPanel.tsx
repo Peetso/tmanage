@@ -123,7 +123,7 @@ export function TeamPanel({
               <IconButton
                 label={t('TeamsScreen.rename')}
                 icon={<PencilIcon />}
-                className="tm-team-round"
+                outline
                 onClick={() => setRenaming(true)}
               />
             ) : null}
@@ -223,7 +223,7 @@ export function TeamPanel({
                     <IconButton
                       label={t('TeamsScreen.remove').replace('{name}', member.displayName)}
                       icon={<CloseIcon />}
-                      className="tm-team-round"
+                      outline
                       onClick={() => void write(() => onRemove(member.membershipId))}
                     />
                   ) : null}
@@ -342,7 +342,7 @@ function TeamMenu({ onRename, onDelete }: { onRename: () => void; onDelete: () =
       <IconButton
         label={t('TeamsScreen.actions')}
         icon={<MoreIcon />}
-        className="tm-team-round"
+        outline
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}

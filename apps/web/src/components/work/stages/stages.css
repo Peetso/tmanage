@@ -52,6 +52,15 @@
   font-weight: var(--t-app-ui-strong-weight);
 }
 
+/* Phone (Figma `WV2-02` phone): the trail gives way to "Stage 4 of 6 · Design thinking" above the
+   short details card. Kept beside the trail's own rule so the order of the two stylesheets can
+   never bring the trail back (WX3, review R3). */
+@media (max-width: 60rem) {
+  .tm-wk-trail {
+    display: none;
+  }
+}
+
 /* The control: a 32 px capsule in the header, a bare capsule in the panel row. */
 .tm-wk-stagectl {
   position: relative;

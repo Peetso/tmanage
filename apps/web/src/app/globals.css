@@ -184,6 +184,26 @@ html[lang^='zh'] body {
 }
 
 /*
+ * WX3 (review R1): the overlines and mono labels still read as loose letters in Arabic after the
+ * tracking went, because their face is the mono stack. Geist Mono has no Arabic, so the letters
+ * fell to the next mono with Arabic glyphs (Cascadia Mono on Windows), which draws every letter
+ * at one width and stretches the joins apart. `packages/ui` re-states the stack under
+ * `:root:lang(ar)`, but that only reaches a page whose <html> is Arabic, not an Arabic region
+ * inside an English page (a story, a member's content); and the `:root` stack above, declared
+ * later, is what every other element inherits. Declaring it on every Arabic element makes the
+ * Arabic face the next family after Geist Mono wherever Arabic is set: Latin letters and digits
+ * stay mono, Arabic letters draw in Alexandria (Figma `App AR/` styles) or the Urdu face, joined.
+ */
+:lang(ar) {
+  --font-mono:
+    'Geist Mono', 'Alexandria', ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+:lang(ur) {
+  --font-mono: 'Geist Mono', var(--font-urdu);
+}
+
+/*
  * Links in running text, as the handoff draws them: quiet ink with a `--line-300` rule beneath
  * that turns lime on hover. `:where()` keeps the specificity at zero, so every class that styles
  * an anchor (`.tm-button`, rail items, chips) wins without having to undo this. The `:hover` sits

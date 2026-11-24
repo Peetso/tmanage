@@ -267,4 +267,17 @@ describe('Density v2 buttons (ADR-0016)', () => {
     render(<IconButton label="Remove" icon="×" />);
     expect(screen.getByRole('button', { name: 'Remove' })).toHaveClass('tm-icon-button--small');
   });
+
+  it('draws the ring of the lone icon button only when asked', () => {
+    render(
+      <>
+        <IconButton label="Rename" icon="✎" outline />
+        <IconButton label="Close" icon="×" />
+      </>,
+    );
+    expect(screen.getByRole('button', { name: 'Rename' })).toHaveClass('tm-icon-button--outline');
+    expect(screen.getByRole('button', { name: 'Close' })).not.toHaveClass(
+      'tm-icon-button--outline',
+    );
+  });
 });

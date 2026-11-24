@@ -140,6 +140,7 @@ export function StageSetEditor({
             {editable ? (
               <IconButton
                 size="small"
+                outline
                 label={t('WorkStages.editor.renameSet', { set: setName })}
                 icon={<PencilIcon />}
                 onClick={() => setRenaming(set.name)}

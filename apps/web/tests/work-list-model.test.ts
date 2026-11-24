@@ -7,6 +7,7 @@ import {
   matchesDue,
   parseWorkListParams,
   railCounts,
+  railSelection,
   railViewFilters,
   workListQuery,
 } from '../src/components/work/list/work-list-model';
@@ -113,6 +114,17 @@ describe('rail views and counts (Figma WV2-01)', () => {
     expect(activeRailView(review)).toBe('review');
     expect(activeRailView(current)).toBeNull();
     expect(activeRailView(railViewFilters('mine', NO_FILTERS))).toBe('mine');
+  });
+
+  it('marks one rail row only: the project, else the team, else the view (WX3 R8)', () => {
+    const all = railViewFilters('all', NO_FILTERS);
+    expect(railSelection(all)).toEqual({ kind: 'view', id: 'all' });
+    expect(railSelection({ ...all, projectId: 'p1', teamId: 't1' })).toEqual({
+      kind: 'project',
+      id: 'p1',
+    });
+    expect(railSelection({ ...all, teamId: 't1' })).toEqual({ kind: 'team', id: 't1' });
+    expect(railSelection({ ...NO_FILTERS, due: 'today' })).toBeNull();
   });
 
   it('counts each view, project and team from one read, archived left out', () => {

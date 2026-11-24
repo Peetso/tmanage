@@ -23,6 +23,26 @@ export function formatDuration(totalMinutes: number, locale: string): string {
 }
 
 /**
+ * WX3 (review R2) — a duration for a narrow value column (the work page's Time row, Figma
+ * `WV2-02` AR "3 س 20 د من 6 س"): Arabic writes the units as the one-letter abbreviations س and
+ * د (hour, minute) after the number; every other language keeps {@link formatDuration}, whose
+ * narrow units are already short. Callers show the long form too, as the row's accessible name
+ * and its hover text, because a one-letter unit alone is easy to misread.
+ */
+export function formatDurationCompact(totalMinutes: number, locale: string): string {
+  if (!locale.toLowerCase().startsWith('ar')) return formatDuration(totalMinutes, locale);
+  const total = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  const number = new Intl.NumberFormat(withNumerals(locale));
+  const hour = `${number.format(hours)} س`;
+  const minute = `${number.format(minutes)} د`;
+  if (hours === 0) return minute;
+  if (minutes === 0) return hour;
+  return `${hour} ${minute}`;
+}
+
+/**
  * SMALLFIX 1 — a fixed window in plain words: "24 hours", "٢٤ ساعة", "2 days", "15 minutes".
  * The largest whole unit (days from two days up, so a day-long window still reads "24 hours"),
  * spelled out (long unit names), in the reader's language and saved digits.

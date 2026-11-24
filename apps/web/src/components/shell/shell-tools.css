@@ -1,0 +1,119 @@
+/*
+ * Help and "Let AI do the job" on every screen: the "AI" and "?" orbs at the foot of the rail
+ * (Figma WV2; WX3 after the Work go-live review). WCAG 2.2 SC 3.2.6 Consistent Help (Level A):
+ * a help mechanism repeated across pages sits in the same place relative to the rest of the page,
+ * so no page header carries its own Help or AI button any more. Tokens only; logical properties
+ * (UX-14), so in Arabic the orbs follow the rail to the right.
+ */
+
+.tm-app {
+  /* The block the two orbs take at the rail's foot: 12 above, two 32px orbs 8 apart, 20 below. */
+  --tm-shell-tools-block: calc(var(--s3) + 2 * var(--orb-compact) + var(--s2) + var(--s5));
+}
+
+.tm-shell-tools {
+  position: fixed;
+  z-index: 20;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  box-sizing: border-box;
+  inline-size: var(--app-rail);
+  block-size: var(--tm-shell-tools-block);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  padding-block: var(--s3) var(--s5);
+  background: var(--paper-350);
+}
+
+.tm-shell-tools .tm-day-pulse__orb {
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+/* The menus open beside the rail, upwards from the orb, never below the window's edge. */
+.tm-shell-tools :is(.tm-support-menu, .tm-ai-popover) {
+  inset-block-start: auto;
+  inset-block-end: 0;
+  inset-inline-start: calc(100% + var(--s3));
+  inset-inline-end: auto;
+}
+
+/*
+ * Review R9: the orbs were laid over the rail's scroll area, so at 768px high the last label
+ * ("Files") sat under them and at 1006px "Insights" was cut in half. The rail now ends where
+ * the orbs begin: its scroll area stops above them, nothing scrolls under them, and a fade over
+ * the rail's last 32px (solid for its lower part) means a label at the edge fades out instead of
+ * being cut by a hard line. The rail's end padding is as tall as the fade, so at the end of the
+ * scroll the last label sits clear of it: every label stays reachable and readable.
+ */
+@media (min-width: 56.2rem) {
+  .tm-app .tm-rail {
+    block-size: calc(100vh - var(--tm-shell-tools-block));
+    padding-block-end: var(--s8);
+  }
+
+  .tm-shell-tools::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 100%;
+    block-size: var(--s8);
+    background: linear-gradient(to bottom, transparent, var(--paper-350) 60%);
+    pointer-events: none;
+  }
+}
+
+/* ── No rail (below 900px): the orbs join the top bar, before the account orb ─────────────── */
+/* (The AI launcher is not drawn below 900px, `ai-panel.css`: the phone has no room beside the
+   assistant. Help stays.) */
+
+@media (max-width: 56.19rem) {
+  .tm-shell-tools {
+    position: absolute;
+    z-index: 5;
+    inset-block-start: var(--s5);
+    inset-block-end: auto;
+    inset-inline-start: auto;
+    inset-inline-end: calc(var(--s5) + var(--orb-default) + var(--s2));
+    inline-size: auto;
+    block-size: auto;
+    flex-direction: row;
+    padding: 0;
+    background: none;
+  }
+
+  /* The menus open downwards under the top bar again. */
+  .tm-shell-tools :is(.tm-support-menu, .tm-ai-popover) {
+    inset-block-start: calc(100% + var(--s2));
+    inset-block-end: auto;
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+  }
+
+  /* The organization line of a standard header keeps clear of the orbs at its end, as the
+     compact header's line does (`.tm-compact-org`). */
+  .tm-app .tm-app__body .tm-canvas-header .tm-canvas-header__context {
+    padding-inline-end: calc(2 * var(--orb-compact) + var(--orb-default) + var(--s12));
+  }
+}
+
+@media (max-width: 47.99rem) {
+  /* The phone top bar's bell (44) and avatar (40) sit at the end; the orbs go before them. */
+  .tm-shell-tools {
+    inset-block-start: calc(var(--s5) + var(--s2));
+    inset-inline-end: calc(var(--s4) + var(--orb-comfortable) + var(--orb-default) + 2 * var(--s2));
+  }
+
+  /* One top bar on every phone screen: the organization line as tall as the bell, clear of the
+     "?", the bell and the avatar (Figma 406:6389; the compact header's `.tm-compact-org`). */
+  .tm-app .tm-app__body .tm-canvas-header[data-title-variant] .tm-canvas-header__context {
+    min-block-size: var(--orb-comfortable);
+    padding-inline-end: calc(
+      2 * var(--orb-compact) + var(--orb-comfortable) + var(--orb-default) + var(--s12)
+    );
+  }
+}

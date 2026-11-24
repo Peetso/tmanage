@@ -9,8 +9,6 @@ import { AppShell, DayPulseBar } from '../shell/AppShell';
 import type { DayPulseItem } from '../shell/AppShell';
 import { FeatureOn } from '../shell/FeatureOn';
 import { useShellCapability } from '../shell/use-shell-capability';
-import { SupportLauncher } from '../support/SupportLauncher';
-import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
 import { RunningTimerPill } from '../time/TimerControls';
 import { timerKey } from '../time/use-running-timer';
 import { HomeBriefingCard } from './HomeBriefingCard';
@@ -148,7 +146,8 @@ function usePageClock(fixed: number | undefined): number {
  * `MYDAY-V4-FABLE-REVIEW`). The old design (Figma `351:1972`, this screen before `a50ecf32`),
  * kept as it was, with its parts placed by priority (spec §3.2):
  *
- * - Top: the black day capsule with Help, AI and Search as orbs at its end; the 64px "MY DAY"
+ * - Top: the black day capsule with Search as an orb at its end (Help and AI are the rail's "AI"
+ *   and "?" orbs on every screen since WX3, WCAG 2.2 SC 3.2.6); the 64px "MY DAY"
  *   headline with New work, New project and the running-timer pill; the three numbers.
  * - Main column: "Do this next" first (nothing ever stands between the header and it), then
  *   Due & at risk, Waiting on you, Waiting on others, the business briefing, personal work by
@@ -795,12 +794,6 @@ export function MyDayScreen({
           organizationSlug={organizationSlug}
           items={pulseItems}
           nowLabel={pick ? nextTitle(pick, t) : t('MyDayScreen.nothingScheduled')}
-          orbs={
-            <>
-              <SupportLauncher organizationSlug={organizationSlug} variant="orb" />
-              <AiPanelLauncher organizationSlug={organizationSlug} variant="orb" />
-            </>
-          }
         />
       }
     >

@@ -42,6 +42,7 @@ import { KeyboardShortcutLayer } from './KeyboardShortcutLayer';
 import { NewMenu } from './NewMenu';
 import { CompactLayout, ShellStateControls } from './CompactLayout';
 import { appDateLocale } from '../../lib/i18n/app-locale';
+import './shell-tools.css';
 
 export interface AppShellProps {
   /**
@@ -92,10 +93,10 @@ export interface AppShellProps {
   topBar?: ReactNode;
   /**
    * `standard` (default) is every screen's header: the screen's actions, then the shell's own
-   * controls ("+ New", the timer pill, Getting started, Help, AI). `page` draws the screen's
-   * actions alone: My Day v4 (spec MYDAY-V4 §3.1 E6) places those controls itself — Help and AI
-   * as orbs at the end of the day bar, the timer pill after New project, Getting started and the
-   * Auto timer as rows of its side column.
+   * controls ("+ New", the timer pill, Getting started). `page` draws the screen's actions alone:
+   * My Day v4 (spec MYDAY-V4 §3.1 E6) places those controls itself — the timer pill after New
+   * project, Getting started and the Auto timer as rows of its side column. Help and AI are in no
+   * header: on every screen they are the "AI" and "?" orbs at the foot of the rail (WX3).
    */
   header?: 'standard' | 'page' | 'compact';
   /**
@@ -331,30 +332,21 @@ export function AppShell({
           </nav>
 
           <div className="tm-app__body">
-            {/* Work area v2 (Figma WV2, "AI" and "?" at the foot of the rail): in the compact
-                header Help and "Let AI do the job" leave the page header. One element holds both:
-                fixed over the rail's foot on a desktop, in the phone top bar once the rail is
-                hidden. One instance, so the launchers' state is never split. */}
-            {compact ? (
-              <div className="tm-shell-tools">
-                {queryClient ? (
-                  <>
-                    <AiPanelLauncher
-                      organizationSlug={organizationSlug}
-                      variant="orb"
-                      tipPlacement="end"
-                    />
-                    <SupportLauncher
-                      organizationSlug={organizationSlug}
-                      variant="orb"
-                      tipPlacement="end"
-                    />
-                  </>
-                ) : (
-                  <HelpContextLink />
-                )}
-              </div>
-            ) : null}
+            {/* Figma WV2 ("AI" and "?" at the foot of the rail), on every screen (WX3; WCAG 2.2
+                SC 3.2.6 Consistent Help): Help and "Let AI do the job" are never in a page
+                header. One element holds both: under the rail's scroll area on a desktop, in the
+                phone top bar once the rail is hidden. One instance, so the launchers' state is
+                never split. */}
+            <div className="tm-shell-tools">
+              {queryClient ? (
+                <>
+                  <AiPanelLauncher organizationSlug={organizationSlug} tipPlacement="end" />
+                  <SupportLauncher organizationSlug={organizationSlug} tipPlacement="end" />
+                </>
+              ) : (
+                <HelpContextLink />
+              )}
+            </div>
             {/* Phone top bar: the bell and avatar orbs at the end of the organization line. Hidden
                 above the dock breakpoint, where the rail's account orb is the one on screen. */}
             <PhoneHeaderActions
@@ -434,18 +426,6 @@ export function AppShell({
                           {/* Row 55-11: the getting-started checklist, until dismissed or done. */}
                           {queryClient ? (
                             <GettingStartedLauncher organizationSlug={organizationSlug} />
-                          ) : null}
-                          {/* Row 55-16: the Help centre article for this screen. FIX3 item 10: with a
-                            query client it is the first entry of the Help menu below, so "?" and
-                            "Help" are one button; the bare "?" stays only where that menu cannot. */}
-                          {queryClient ? null : <HelpContextLink />}
-                          {/* Row 55-17: the help menu with "Contact support" (needs the query client). */}
-                          {queryClient ? (
-                            <SupportLauncher organizationSlug={organizationSlug} />
-                          ) : null}
-                          {/* "Let AI do the job" (Figma 400:5399): needs the query client. */}
-                          {queryClient ? (
-                            <AiPanelLauncher organizationSlug={organizationSlug} />
                           ) : null}
                         </div>
                       ) : null}
@@ -529,11 +509,6 @@ export interface DayPulseBarProps {
   nowLabel?: ReactNode;
   /** Test seam: a fixed clock. */
   now?: Date;
-  /**
-   * Orbs drawn before the search orb at the end of the bar: My Day v4 puts Help and AI there
-   * (spec MYDAY-V4 §3.1 E6), one utility group in the top trailing corner with Search outermost.
-   */
-  orbs?: ReactNode;
 }
 
 function useClock(fixed: Date | undefined): Date | null {
@@ -558,7 +533,6 @@ export function DayPulseBar({
   items = [],
   nowLabel,
   now: fixed,
-  orbs,
 }: DayPulseBarProps) {
   const t = useT();
   const locale = useActiveLocale();
@@ -618,7 +592,6 @@ export function DayPulseBar({
           <span aria-hidden="true">↗</span>
         </Link>
       </div>
-      {orbs}
       <button
         type="button"
         className="tm-day-pulse__search"

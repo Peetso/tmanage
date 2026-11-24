@@ -107,7 +107,7 @@ export function PanelRow({
       <span className="tm-wk-prow__slot">
         {href !== undefined && !readOnly && icon && iconLabel ? (
           <Link
-            className="tm-icon-button tm-icon-button--small"
+            className="tm-icon-button tm-icon-button--small tm-icon-button--outline"
             href={href}
             aria-label={iconLabel}
             tabIndex={-1}
@@ -119,6 +119,7 @@ export function PanelRow({
         ) : interactive && icon && iconLabel ? (
           <IconButton
             size="small"
+            outline
             label={iconLabel}
             icon={icon}
             aria-expanded={popover ? open : undefined}

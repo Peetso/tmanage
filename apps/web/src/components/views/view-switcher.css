@@ -43,6 +43,37 @@
   box-shadow: var(--focus-ring);
 }
 
+/*
+ * The segmented look of Work area v2 (Figma `WV2-01` List · Board · Timeline · Calendar ·
+ * Workload; WX3, review R5): one box with a quiet 1px edge, the options inside it, the chosen
+ * one filled. The same control as the work page's "Comments · Activity" (`.tm-wk-segment`):
+ * 28px options, 4px inside the edge, capsule ends, the label 16px from each end (UX-26).
+ */
+.tm-view-switcher--segment {
+  gap: var(--s1);
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: transparent;
+}
+
+.tm-view-switcher--segment .tm-view-switcher__option {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--app-control-sm);
+  padding-block: 0;
+  padding-inline: var(--inset-capsule);
+  border: 0;
+  border-radius: var(--r-capsule);
+  font-size: var(--t-app-ui);
+  line-height: var(--t-app-ui-line);
+}
+
+.tm-view-switcher--segment .tm-view-switcher__option[aria-checked='true'] {
+  background: var(--paper-250);
+  font-weight: inherit;
+}
+
 /* The bar a page puts the switcher in, at the inline end of its own row. */
 .tm-view-bar {
   display: flex;

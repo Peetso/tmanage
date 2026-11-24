@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Tooltip, MOTION_DELAY_TOOLTIP_MS } from '@tmanage/ui';
+import { Tooltip, MOTION_DELAY_TOOLTIP_MS } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getConnectedApps } from '../../lib/api/connected-apps';
 import { connectorAddress, deploymentAddress } from '../../lib/ai-connector-address';
@@ -86,13 +86,10 @@ function openBeside(site: AssistantSite): void {
  */
 export function AiPanelLauncher({
   organizationSlug,
-  variant = 'button',
   tipPlacement = 'bottom',
 }: {
   readonly organizationSlug: string;
-  /** `orb`: My Day's AI orb at the end of the day bar (spec MYDAY-V4 §4.1), named in a tooltip. */
-  readonly variant?: 'button' | 'orb';
-  /** Where the orb's name shows: `end` beside the rail (Work area v2 header, Figma `WV2`). */
+  /** Where the "AI" orb's name shows: `end` beside the rail (Figma `WV2`; on every screen, WX3). */
   readonly tipPlacement?: 'bottom' | 'end';
 }) {
   const t = useAiPanelT();
@@ -262,36 +259,23 @@ export function AiPanelLauncher({
 
   return (
     <div className="tm-ai-launcher" ref={anchor}>
-      {variant === 'orb' ? (
-        <Tooltip
-          content={t('AiPanel.launch')}
-          delayMs={MOTION_DELAY_TOOLTIP_MS}
-          placement={tipPlacement}
-        >
-          <button
-            type="button"
-            className="tm-day-pulse__search tm-day-pulse__orb"
-            aria-label={t('AiPanel.launch')}
-            aria-haspopup="dialog"
-            aria-expanded={expanded}
-            aria-busy={pending || undefined}
-            onClick={press}
-          >
-            <span aria-hidden="true">AI</span>
-          </button>
-        </Tooltip>
-      ) : (
-        <Button
-          tone="outline"
-          size="default"
+      <Tooltip
+        content={t('AiPanel.launch')}
+        delayMs={MOTION_DELAY_TOOLTIP_MS}
+        placement={tipPlacement}
+      >
+        <button
+          type="button"
+          className="tm-day-pulse__search tm-day-pulse__orb"
+          aria-label={t('AiPanel.launch')}
           aria-haspopup="dialog"
           aria-expanded={expanded}
-          loading={pending}
+          aria-busy={pending || undefined}
           onClick={press}
         >
-          {t('AiPanel.launch')}
-        </Button>
-      )}
+          <span aria-hidden="true">AI</span>
+        </button>
+      </Tooltip>
 
       {popover.kind === 'chooser' && popover.from === 'button' ? chooser : null}
       {popover.kind === 'empty' ? (

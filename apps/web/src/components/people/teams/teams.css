@@ -223,12 +223,6 @@
   line-height: var(--t-app-ui-line);
 }
 
-/* The round 28 icon buttons: rename pencil, ⋯ and the remove × (review fix: one round control). */
-.tm-team-round.tm-icon-button {
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-capsule);
-}
-
 /* Rename in place */
 .tm-team-rename {
   display: flex;

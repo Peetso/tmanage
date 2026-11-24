@@ -3,8 +3,9 @@ import { DeleteStageDialog } from '../src/components/work/stages/DeleteStageDial
 import { ProjectStagesScreen } from '../src/components/work/stages/ProjectStagesScreen';
 import { StagesSettingsScreen } from '../src/components/work/stages/StagesSettingsScreen';
 import { ARABIC_STORY } from './support/arabic';
+import { asOwner } from './support/as-owner';
 import { stageSetsFixture, stagesWorld } from './support/stage-fixtures';
-import { withStillAppRouter } from './support/vr-fixtures';
+import { markVrReady, waitForElement, withStillAppRouter } from './support/vr-fixtures';
 import { PHONE_VIEWPORT } from '../.storybook/vr-viewport';
 
 /**
@@ -18,7 +19,8 @@ const meta = {
   title: 'Work/Stages',
   component: StagesSettingsScreen,
   tags: ['vr'],
-  decorators: [withStillAppRouter],
+  // An owner, as in the Figma: the Control Center menu shows Work setup › Stages, marked.
+  decorators: [withStillAppRouter, asOwner],
   args: {
     organizationSlug: 'northstar',
     organizationName: 'Northstar Studio',
@@ -38,6 +40,39 @@ export const EditorArabic: Story = { ...ARABIC_STORY };
 
 /** Phone: one set, with "‹ Stages" back to the list (W7 phone). */
 export const Phone: Story = { globals: { viewport: { value: PHONE_VIEWPORT } } };
+
+/** Rename a stage, typed or dictated: the name, then the mic and language (W7 `937:99028`). */
+export const RenameStageWithVoice: Story = {
+  tags: ['vr', 'vr-play'],
+  play: async ({ canvasElement }) => {
+    const more = await waitForElement<HTMLButtonElement>(
+      canvasElement,
+      '.tm-stg-row[data-stage-id="st-ideate"] .tm-stg-more__button',
+    );
+    more.click();
+    const rename = await waitForElement<HTMLButtonElement>(
+      canvasElement,
+      '.tm-stg-more__menu [role="menuitem"]',
+    );
+    rename.click();
+    await waitForElement(canvasElement, '.tm-stg-row[data-editing] .tm-voice');
+    markVrReady();
+  },
+};
+
+/** The info popover beside "Stages", open under its round icon button (W7 `937:99739`). */
+export const InfoPopover: Story = {
+  tags: ['vr', 'vr-play'],
+  play: async ({ canvasElement }) => {
+    const info = await waitForElement<HTMLButtonElement>(
+      canvasElement,
+      '.tm-stg-info .tm-info-button',
+    );
+    info.click();
+    await waitForElement(document, '.tm-info-popover:not([hidden])');
+    markVrReady();
+  },
+};
 
 /** A group with no stage: work skips it (W9). */
 export const EmptyGroup: Story = { args: { client: stagesWorld({ emptyReview: true }).client } };

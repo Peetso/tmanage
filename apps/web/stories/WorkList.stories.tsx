@@ -46,6 +46,9 @@ export const Loading: Story = { args: { client: workListClient('loading') } };
 /** The read failed: one calm sentence and "Try again". */
 export const Failed: Story = { args: { client: workListClient('error') } };
 
+/** TManage cannot be reached: the calm "check your connection" state (Figma W9 `938:101234`). */
+export const Offline: Story = { args: { client: workListClient('offline') } };
+
 /** The board of one project: its Design thinking stages are the columns. */
 export const ProjectBoard: Story = {
   args: { initialView: 'board', initialProjectId: 'proj-1' },

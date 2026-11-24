@@ -20,17 +20,29 @@ export interface IconButtonProps extends Omit<
   /** The glyph, hidden from assistive technology (the name comes from `label`). */
   icon: ReactNode;
   size?: IconButtonSize;
+  /**
+   * The quiet 1px ring the Figma `Icon Small` button draws when it stands alone on the page or in
+   * a row (a panel row's trailing icon, a rename pencil, a ⋯ menu): `929:910`. Off for a control
+   * inside a field or a dialog's corner, which sits on its own surface.
+   */
+  outline?: boolean;
 }
 
 export function IconButton({
   label,
   icon,
   size = 'small',
+  outline = false,
   className,
   type = 'button',
   ...rest
 }: IconButtonProps) {
-  const classes = ['tm-icon-button', `tm-icon-button--${size}`, className]
+  const classes = [
+    'tm-icon-button',
+    `tm-icon-button--${size}`,
+    outline ? 'tm-icon-button--outline' : null,
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
 

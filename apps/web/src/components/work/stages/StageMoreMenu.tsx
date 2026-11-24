@@ -46,6 +46,7 @@ export function StageMoreMenu({
       <IconButton
         className="tm-stg-more__button"
         size="small"
+        outline
         label={label}
         icon={<MoreIcon />}
         aria-haspopup="menu"

@@ -69,6 +69,9 @@ export function WorkViewSwitcher({
   );
   return (
     <ViewSwitcher
+      // Figma `WV2-01` (WX3, review R5): one bordered segmented box, the work page's
+      // "Comments · Activity" control.
+      className="tm-view-switcher--segment"
       label={tOr('ViewSwitcher.workLabel', 'Work view')}
       options={options}
       value={current}

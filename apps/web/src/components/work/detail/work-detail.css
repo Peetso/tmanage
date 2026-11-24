@@ -522,11 +522,6 @@ a.tm-wk-prow__value:focus-visible {
   color: var(--ink-650);
 }
 
-.tm-wk-prow .tm-icon-button {
-  border-color: var(--line-300);
-  border-radius: var(--r-capsule);
-}
-
 .tm-wk-popover {
   position: absolute;
   inset-block-start: calc(100% + var(--s1));
@@ -720,6 +715,15 @@ a.tm-wk-prow__value:focus-visible {
   gap: var(--s3);
 }
 
+/* Figma `WV2-02`: a comment is a plain row on the page (face, author, words), never a filled
+   card. The older work page's `.tm-wk-page .tm-list > li` fill is for its own lists (WX3,
+   review R6). */
+.tm-wk-comments .tm-list > li.tm-wk-comment {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 /* ── Files section: the older file cards drawn at the page's density (ADR-0016 insets) ── */
 
 .tm-wk-files .tm-wk-pill-button {
@@ -783,7 +787,9 @@ a.tm-wk-prow__value:focus-visible {
 /* ── Phone (Figma `WV2-02` phone): the short details card at the top ──────────
    Under the title come "Stage 4 of 6 · Design thinking" and a card of four rows (Doers,
    Supervisor, Due, Client) with "Show all 15"; the description follows. The lens moves above
-   the body and gives its card to the panel, so the stage line sits outside the card. */
+   the body and gives its card to the panel, so the stage line sits outside the card. The lens
+   is a child of the columns (standard header) or of the pane body (compact header, WX1); the
+   rule names both, so the card cannot fall back to the page's end again (WX3, review R3). */
 
 .tm-wk-stageline,
 .tm-wk-props__all {
@@ -791,7 +797,7 @@ a.tm-wk-prow__value:focus-visible {
 }
 
 @media (max-width: 60rem) {
-  .tm-app__columns > .tm-lens:has(> .tm-wk-props) {
+  :is(.tm-app__columns, .tm-app__pane-body) > .tm-lens:has(> .tm-wk-props) {
     order: -1;
     align-self: stretch;
     display: flex;
@@ -808,10 +814,6 @@ a.tm-wk-prow__value:focus-visible {
     color: var(--ink-650);
     font-size: var(--t-app-caption);
     line-height: var(--t-app-caption-line);
-  }
-
-  .tm-wk-trail {
-    display: none;
   }
 
   .tm-wk-props {

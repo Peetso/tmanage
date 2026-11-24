@@ -21,6 +21,18 @@
   justify-content: center;
 }
 
+/* Figma `Control/Voice` (WX3, review R4): at rest the mic is a round 28px button on the same
+   ground as the language chip beside it, so it reads as a control, not a bare glyph. */
+.tm-voice .tm-mic[data-state='idle'] .tm-mic__button,
+.tm-voice__mic-off {
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+}
+
+.tm-voice .tm-mic[data-state='idle'] .tm-mic__button:hover {
+  background: var(--paper-350);
+}
+
 .tm-voice .tm-mic[data-state='listening'] .tm-mic__button,
 .tm-voice .tm-mic[data-state='processing'] .tm-mic__button {
   inline-size: auto;

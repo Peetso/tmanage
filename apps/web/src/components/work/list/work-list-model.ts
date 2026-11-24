@@ -191,6 +191,25 @@ export function activeRailView(filters: WorkListFilters): RailView | null {
   return null;
 }
 
+/**
+ * The one rail row drawn as chosen (Figma `WV2-01`, `WV2-10`; WX3, review R8). A view keeps the
+ * project and the team (`railViewFilters`), so "All work" and "Website relaunch" can both hold at
+ * once; the rail still marks one row, the narrowest: the project, else the team, else the view.
+ * The filter bar's chips show every filter that is on.
+ */
+export type RailSelection =
+  | { readonly kind: 'project'; readonly id: string }
+  | { readonly kind: 'team'; readonly id: string }
+  | { readonly kind: 'view'; readonly id: RailView }
+  | null;
+
+export function railSelection(filters: WorkListFilters): RailSelection {
+  if (filters.projectId !== '') return { kind: 'project', id: filters.projectId };
+  if (filters.teamId !== '') return { kind: 'team', id: filters.teamId };
+  const view = activeRailView(filters);
+  return view === null ? null : { kind: 'view', id: view };
+}
+
 export function sameStates(
   left: readonly WorkItemState[],
   right: readonly WorkItemState[],

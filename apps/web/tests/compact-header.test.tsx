@@ -86,3 +86,35 @@ describe('AppShell header="compact"', () => {
     await expectNoAxeViolations(container);
   });
 });
+
+/**
+ * WX3 (WCAG 2.2 SC 3.2.6 Consistent Help): Help sits in one place on every screen, the shell's
+ * tools at the rail's foot, never in a page header, whichever header the screen draws.
+ */
+describe('AppShell Help in one place on every screen', () => {
+  for (const header of ['standard', 'page', 'compact'] as const) {
+    it(`keeps Help out of the "${header}" header and in the shell's tools`, () => {
+      // A screen with a Help article, so the bare shell draws its Help link.
+      window.history.replaceState(null, '', '/northstar/projects');
+      const { container } = render(
+        <AppShell
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          activeNavigationId="projects"
+          title="Projects"
+          header={header}
+          actions={<button type="button">New project</button>}
+        >
+          <p>Canvas</p>
+        </AppShell>,
+      );
+      const tools = container.querySelector('.tm-shell-tools');
+      expect(tools).not.toBeNull();
+      expect(within(tools as HTMLElement).getByRole('link', { name: /help/i })).toBeTruthy();
+      for (const pageHeader of container.querySelectorAll('header')) {
+        expect(pageHeader.contains(tools as Node)).toBe(false);
+        expect(within(pageHeader).queryByRole('link', { name: /help/i })).toBeNull();
+      }
+    });
+  }
+});

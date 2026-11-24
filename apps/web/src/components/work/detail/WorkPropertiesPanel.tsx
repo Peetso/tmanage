@@ -23,7 +23,7 @@ import {
 } from '../../../lib/api/work-labels';
 import { useActiveLocale } from '../../../lib/i18n/use-active-locale';
 import { dayToInstant } from '../../../lib/work-item-presentation';
-import { formatDuration } from '../../../lib/i18n/duration';
+import { formatDuration, formatDurationCompact } from '../../../lib/i18n/duration';
 import { memberDisplayName } from '../../../lib/members-presentation';
 import { workItemKeys } from '../../../lib/query-keys';
 import { useMembers } from '../../../lib/use-members';
@@ -226,15 +226,32 @@ export function WorkPropertiesPanel({
   const noTime =
     estimate.data === undefined ||
     (estimate.data.estimateMinutes === null && estimate.data.actualMinutes === 0);
-  const time =
+  // WX3 (review R2): the row's value column is narrow, so it draws the compact units ("3 س 20 د
+  // من 6 س"); the full words are its accessible name and hover text.
+  const timeText = (format: (minutes: number, locale: string) => string) =>
     estimate.data === undefined || noTime
-      ? add
+      ? ''
       : estimate.data.estimateMinutes === null
-        ? formatDuration(estimate.data.actualMinutes, locale)
+        ? format(estimate.data.actualMinutes, locale)
         : t('WorkPage.timeOf', {
-            spent: formatDuration(estimate.data.actualMinutes, locale),
-            estimate: formatDuration(estimate.data.estimateMinutes, locale),
+            spent: format(estimate.data.actualMinutes, locale),
+            estimate: format(estimate.data.estimateMinutes, locale),
           });
+  const timeFull = timeText(formatDuration);
+  const timeShort = timeText(formatDurationCompact);
+  const time =
+    estimate.data === undefined || noTime ? (
+      add
+    ) : timeShort === timeFull ? (
+      timeFull
+    ) : (
+      <>
+        <span aria-hidden="true" title={timeFull}>
+          {timeShort}
+        </span>
+        <span className="tm-visually-hidden">{timeFull}</span>
+      </>
+    );
   const linkCount = links.data?.length ?? 0;
 
   return (

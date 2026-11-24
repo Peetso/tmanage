@@ -370,6 +370,12 @@
   --tm-icon-button: var(--app-control-sm);
 }
 
+/* Figma `Icon Small` (`929:910`): the ring that marks a lone icon button as a control; on the
+   28px size the 14px radius makes it a circle. */
+.tm-icon-button--outline {
+  border-color: var(--line-300);
+}
+
 .tm-icon-button:hover:not(:disabled) {
   background: var(--tm-hover-surface);
   color: var(--ink-950);

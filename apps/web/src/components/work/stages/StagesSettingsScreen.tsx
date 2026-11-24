@@ -80,7 +80,11 @@ export function StagesSettingsScreen({
       phoneHeader={view === 'set' ? 'hide' : 'show'}
       title={t('WorkStages.editor.title')}
       titleMeta={
-        <InfoButton title={t('WorkStages.editor.title')} label={t('WorkStages.editor.infoLabel')}>
+        <InfoButton
+          className="tm-stg-info"
+          title={t('WorkStages.editor.title')}
+          label={t('WorkStages.editor.infoLabel')}
+        >
           {t('WorkStages.editor.info')}
         </InfoButton>
       }

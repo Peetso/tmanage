@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { Button, Tooltip, MOTION_DELAY_TOOLTIP_MS } from '@tmanage/ui';
+import { Tooltip, MOTION_DELAY_TOOLTIP_MS } from '@tmanage/ui';
 import { useHelpContextArticle } from '../help/HelpContextLink';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import './support.css';
@@ -23,14 +23,11 @@ export function getHelpHref(organizationSlug: string, from: string | null): stri
 export function SupportLauncher({
   organizationSlug,
   pathname,
-  variant = 'button',
   tipPlacement = 'bottom',
 }: {
   readonly organizationSlug: string;
   readonly pathname?: string;
-  /** `orb`: My Day's "?" orb at the end of the day bar (spec MYDAY-V4 §4.1), named in a tooltip. */
-  readonly variant?: 'button' | 'orb';
-  /** Where the orb's name shows: `end` beside the rail (Work area v2 header, Figma `WV2`). */
+  /** Where the "?" orb's name shows: `end` beside the rail (Figma `WV2`; on every screen, WX3). */
   readonly tipPlacement?: 'bottom' | 'end';
 }) {
   const tOr = useTOr();
@@ -52,37 +49,23 @@ export function SupportLauncher({
 
   return (
     <div className="tm-support-launcher">
-      {variant === 'orb' ? (
-        <Tooltip
-          content={tOr('MyDay.info.help', 'Help, shortcuts and the tour.')}
-          delayMs={MOTION_DELAY_TOOLTIP_MS}
-          placement={tipPlacement}
-        >
-          <button
-            type="button"
-            className="tm-day-pulse__search tm-day-pulse__orb tm-support-launcher__trigger"
-            aria-label={tOr('Support.menuLabel', 'Help')}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-controls={menuId}
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <span aria-hidden="true">?</span>
-          </button>
-        </Tooltip>
-      ) : (
-        <Button
-          tone="outline"
-          size="default"
-          className="tm-support-launcher__trigger"
+      <Tooltip
+        content={tOr('MyDay.info.help', 'Help, shortcuts and the tour.')}
+        delayMs={MOTION_DELAY_TOOLTIP_MS}
+        placement={tipPlacement}
+      >
+        <button
+          type="button"
+          className="tm-day-pulse__search tm-day-pulse__orb tm-support-launcher__trigger"
+          aria-label={tOr('Support.menuLabel', 'Help')}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-controls={menuId}
           onClick={() => setMenuOpen((open) => !open)}
         >
-          {tOr('Support.menuLabel', 'Help')}
-        </Button>
-      )}
+          <span aria-hidden="true">?</span>
+        </button>
+      </Tooltip>
       {menuOpen ? (
         <ul id={menuId} role="menu" className="tm-support-menu">
           {/* FIX3 item 10: the guide for this screen (the old "?" beside the title) is the menu's
