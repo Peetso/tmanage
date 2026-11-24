@@ -1,4 +1,4 @@
-import { opendir, statfs } from 'node:fs/promises';
+import { lstat, opendir } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import type { IntervalHistogram } from 'node:perf_hooks';
@@ -17,7 +17,9 @@ import type { CapacityStore } from './capacity.repository.js';
  * and keeps them in memory. Every 5 minutes it persists one `sample` row holding the window's
  * peaks. Once a day, on the first tick after 03:30 UTC, it writes a `nightly` row that also counts
  * the inodes under the app root (a streaming `opendir` walk, capped at 60 s, skipping
- * `TMANAGE_INODE_EXCLUDE`), the disk in use (`statfs` of the app root), the schema size and the
+ * `TMANAGE_INODE_EXCLUDE`), the disk in use (the bytes of the files under the app root, summed by a
+ * second capped walk — not `statfs`, which on shared hosting reports the whole server's disk, every
+ * customer's files, e.g. 5.7 TiB against a 50 GB plan), the schema size and the
  * connection count — then purges rows older than 90 days. A red gauge alerts `capacity:red:<gauge>`
  * once per UTC day.
  *
@@ -49,7 +51,7 @@ export interface InodeCount {
 export interface HostProbes {
   live(): LiveSnapshot;
   countInodes(root: string, exclude: readonly string[]): Promise<InodeCount>;
-  diskUsedMb(root: string): Promise<number | null>;
+  diskUsedMb(root: string, exclude?: readonly string[]): Promise<number | null>;
 }
 
 export interface CapacitySamplerOptions {
@@ -98,6 +100,53 @@ export async function countInodes(
   return { count, truncated: false };
 }
 
+export interface ByteSum {
+  readonly bytes: number;
+  /** True when the walk hit its time cap; the sum is then an undercount and is not stored. */
+  readonly truncated: boolean;
+}
+
+/**
+ * Sum the sizes of the files under `root` (lstat, so a symlink counts as itself and is not
+ * followed), iteratively, with a deadline. This is the account's own disk use; the plan's disk
+ * ceiling is per account, while `statfs` would read the shared server's whole volume.
+ */
+export async function sumFileBytes(
+  root: string,
+  exclude: readonly string[],
+  capMs: number = INODE_WALK_CAP_MS,
+  clock: () => number = Date.now,
+): Promise<ByteSum> {
+  const deadline = clock() + capMs;
+  const skipped = new Set(exclude.map((p) => resolve(p)));
+  const stack = [resolve(root)];
+  let bytes = 0;
+  while (stack.length > 0) {
+    const dir = stack.pop() as string;
+    if (skipped.has(dir)) continue;
+    let handle;
+    try {
+      handle = await opendir(dir);
+    } catch {
+      continue;
+    }
+    for await (const entry of handle) {
+      if (clock() > deadline) return { bytes, truncated: true };
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+      } else if (!skipped.has(full)) {
+        try {
+          bytes += (await lstat(full)).size;
+        } catch {
+          // Gone between the listing and the stat: nothing to count.
+        }
+      }
+    }
+  }
+  return { bytes, truncated: false };
+}
+
 function openSockets(): number {
   const info = (
     process as unknown as { getActiveResourcesInfo?: () => string[] }
@@ -120,10 +169,10 @@ export function nodeProbes(histogram: IntervalHistogram): HostProbes {
       };
     },
     countInodes: (root, exclude) => countInodes(root, exclude),
-    diskUsedMb: async (root) => {
+    diskUsedMb: async (root, exclude = []) => {
       try {
-        const stats = await statfs(root);
-        return Math.round(((stats.blocks - stats.bfree) * stats.bsize) / MIB);
+        const sum = await sumFileBytes(root, exclude);
+        return sum.truncated ? null : Math.round(sum.bytes / MIB);
       } catch {
         return null;
       }
@@ -263,7 +312,7 @@ export class CapacitySampler implements OnApplicationBootstrap, OnModuleDestroy 
     const base = this.baseReading('nightly', at);
     const [inodes, diskMb, figures] = await Promise.all([
       probes.countInodes(this.appRoot, this.inodeExclude).catch(() => null),
-      probes.diskUsedMb(this.appRoot).catch(() => null),
+      probes.diskUsedMb(this.appRoot, this.inodeExclude).catch(() => null),
       this.options.store.readDatabaseFigures().catch(() => ({ dbMb: null, dbConnections: null })),
     ]);
     const reading: CapacityReading = {

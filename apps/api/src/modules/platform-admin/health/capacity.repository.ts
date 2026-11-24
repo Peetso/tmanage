@@ -95,8 +95,8 @@ export class CapacityRepository implements CapacityStore {
   }
 
   /**
-   * The schema's size (data + indexes) from `information_schema.TABLES` and the server's
-   * `Threads_connected`. Identical on MySQL 8 and MariaDB. Each figure is null when unreadable.
+   * The schema's size (data + indexes) from `information_schema.TABLES` and this database user's
+   * open connections from `information_schema.PROCESSLIST`. Identical on MySQL 8 and MariaDB. Each figure is null when unreadable.
    */
   async readDatabaseFigures(): Promise<DatabaseFigures> {
     return this.database.identityRead(
@@ -113,8 +113,14 @@ export class CapacityRepository implements CapacityStore {
           dbMb = null;
         }
         try {
-          const rows = await runner.query<QueryRows>("SHOW STATUS LIKE 'Threads_connected'");
-          const value = Number(rows[0]?.['Value'] ?? rows[0]?.['value']);
+          // This database user's own connections. `Threads_connected` is the whole server's
+          // count — on shared hosting every customer's (196 against a per-user cap of 25). The
+          // per-user cap is what binds, and an unprivileged user's PROCESSLIST holds only its own
+          // threads; the USER filter keeps the figure right where the user can see more.
+          const rows = await runner.query<QueryRows>(
+            "SELECT COUNT(*) AS n FROM information_schema.PROCESSLIST WHERE USER = SUBSTRING_INDEX(CURRENT_USER(), '@', 1)",
+          );
+          const value = Number(rows[0]?.['n']);
           dbConnections = Number.isFinite(value) ? value : null;
         } catch {
           dbConnections = null;

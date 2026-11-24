@@ -18,7 +18,7 @@ import type { TestDatabase } from './support/test-database.js';
 /**
  * 56-32 against a real server — `host_capacity_readings` (0254), GLOBAL, reached through the
  * identity path. The sampler persists a `sample` row and a `nightly` row (inodes from a real walk,
- * disk from a real `statfs`, the schema size and connection count from the real server) on the
+ * disk from a real file-size walk, the schema size and connection count from the real server) on the
  * runtime credential, and purges rows older than 90 days. The admin pool clock is SYSTEM, so every
  * row is dated from a bound `Date`.
  */

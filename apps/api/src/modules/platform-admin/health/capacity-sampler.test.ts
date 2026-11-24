@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { CapacityReading } from './capacity-budget.js';
-import { CapacitySampler, countInodes, nextNightlyAt } from './capacity-sampler.js';
+import { CapacitySampler, countInodes, nextNightlyAt, sumFileBytes } from './capacity-sampler.js';
 import type { HostProbes } from './capacity-sampler.js';
 import type { CapacityStore } from './capacity.repository.js';
 
@@ -96,6 +96,23 @@ describe('CapacitySampler', () => {
       writeFileSync(join(root, 'skip', 'f2'), 'x');
       writeFileSync(join(root, 'f3'), 'x');
       expect(await countInodes(root, [join(root, 'skip')])).toEqual({ count: 4, truncated: false });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('sums the bytes of the files under the root, not the volume, skipping excluded paths', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'tm-bytes-'));
+    try {
+      mkdirSync(join(root, 'a'));
+      mkdirSync(join(root, 'skip'));
+      writeFileSync(join(root, 'a', 'f1'), 'x'.repeat(100));
+      writeFileSync(join(root, 'skip', 'f2'), 'x'.repeat(5000));
+      writeFileSync(join(root, 'f3'), 'x'.repeat(20));
+      expect(await sumFileBytes(root, [join(root, 'skip')])).toEqual({
+        bytes: 120,
+        truncated: false,
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
